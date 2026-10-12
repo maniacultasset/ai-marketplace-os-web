@@ -7,10 +7,10 @@ import { defineConfig, loadEnv } from 'vite'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  // Dev only: where `pnpm dev` forwards /api, /healthz and /readyz. Set it in .env.local.
+  // Dev only: where `pnpm dev` forwards /api and /readyz. Set it in .env.local.
   const apiTarget = env.DEV_API_PROXY_TARGET
   const proxy = apiTarget
-    ? Object.fromEntries(['/api', '/healthz', '/readyz'].map((p) => [p, { target: apiTarget, changeOrigin: true }]))
+    ? Object.fromEntries(['/api', '/readyz'].map((p) => [p, { target: apiTarget, changeOrigin: true }]))
     : undefined
   return {
     plugins: [

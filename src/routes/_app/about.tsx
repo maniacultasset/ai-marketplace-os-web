@@ -189,7 +189,6 @@ function AboutPage() {
               <CardDescription>Unprefixed probes, refreshed every 15 seconds.</CardDescription>
             </CardHeader>
             <ul aria-label="API health">
-              <HealthRow path="/healthz" />
               <HealthRow path="/readyz" />
             </ul>
           </Card>

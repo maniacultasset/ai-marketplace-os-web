@@ -90,7 +90,10 @@ export async function unwrap<T>(call: Promise<FetchResult<T>>): Promise<T> {
   return data as T
 }
 
-/** Unprefixed probes (`/healthz`, `/readyz`): plain JSON, not the error envelope. */
+/**
+ * Unprefixed probes (`/healthz`, `/readyz`): plain JSON, not the error envelope. Prefer `/readyz`:
+ * Cloud Run's front end answers `/healthz` itself on `*.run.app`.
+ */
 export async function probe(path: '/healthz' | '/readyz'): Promise<{ ok: boolean; status: number; body: unknown }> {
   try {
     const res = await fetch(`${API_ORIGIN}${path}`, { credentials: 'omit', cache: 'no-store' })
