@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
-import { AlertCircle, Info } from 'lucide-react'
+import { AlertCircle, Eye, EyeOff, Info } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -64,6 +64,7 @@ function LoginPage() {
   const target = safeRedirect(search.redirect) ?? '/'
   const [formError, setFormError] = useState<{ message: string; ref: string | null } | null>(null)
   const countdown = useCountdown()
+  const [showPassword, setShowPassword] = useState(false)
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -161,13 +162,30 @@ function LoginPage() {
               </Field>
               <Field data-invalid={!!errors.password || undefined}>
                 <FieldLabel htmlFor="password">Password</FieldLabel>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  aria-invalid={!!errors.password}
-                  {...form.register('password')}
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    className="pr-10"
+                    aria-invalid={!!errors.password}
+                    {...form.register('password')}
+                  />
+                  <button
+                    type="button"
+                    aria-pressed={showPassword}
+                    aria-controls="password"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-lg text-muted-foreground transition-colors duration-150 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/25"
+                  >
+                    {showPassword ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
+                    <span className="sr-only">{showPassword ? 'Hide password' : 'Show password'}</span>
+                  </button>
+                </div>
                 <FieldError errors={[errors.password]} />
               </Field>
               <Button type="submit" size="lg" className="mt-1 w-full" disabled={submitting || locked}>

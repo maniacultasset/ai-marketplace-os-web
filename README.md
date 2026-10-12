@@ -18,7 +18,7 @@ mock layer and no demo data in the app.
 
 ## Getting started
 
-Requires Node 24+ and pnpm (`corepack enable`).
+Requires Node 24 and pnpm (`corepack enable`).
 
 ```sh
 pnpm install

@@ -38,6 +38,20 @@ test.describe('auth', () => {
     expect(await page.evaluate(() => localStorage.getItem('mkos.rt'))).toBeNull()
   })
 
+  test('the password can be shown and hidden without losing focus or the value', async ({ page }) => {
+    await page.goto('/login')
+    const password = page.getByLabel('Password', { exact: true })
+    await password.fill('secret value')
+    await expect(password).toHaveAttribute('type', 'password')
+    const toggle = page.getByRole('button', { name: 'Show password' })
+    await toggle.click()
+    await expect(password).toHaveAttribute('type', 'text')
+    await expect(password).toHaveValue('secret value')
+    await expect(page.getByRole('button', { name: 'Hide password' })).toHaveAttribute('aria-pressed', 'true')
+    await page.getByRole('button', { name: 'Hide password' }).click()
+    await expect(password).toHaveAttribute('type', 'password')
+  })
+
   test('client validation blocks an invalid email without a request', async ({ page }) => {
     await page.goto('/login')
     let sent = false
