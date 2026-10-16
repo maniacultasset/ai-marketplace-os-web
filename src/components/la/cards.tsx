@@ -1,20 +1,21 @@
 /**
- * Cards (hi-fi Components → Card, task card, toast). White, 1px line, radius 12, shadow-sm,
- * padding 20 (16 for "dense"). Emphasis: default | attention (something needs the seller) |
- * success | dashed (not connected / not listed) | selected (1px brand border + 3px ring) |
- * tint (canvas fill, no shadow; repeater rows).
+ * Cards (hi-fi Components → Card, task card, toast). Matte surface, 1px hairline, radius 12,
+ * raised (soft dual shadow), padding 20 (16 for "dense"). Emphasis: default | attention (tinted,
+ * something needs the seller) | success (tinted) | dashed (flat: not connected / not listed) |
+ * selected (brand hairline + 3px ring, still raised) | tint (flat canvas fill; repeater rows).
  */
 import type { ComponentProps, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { IconTile, type IconSource, type TileTone } from './icons'
 
 export type CardEmphasis = 'default' | 'attention' | 'success' | 'dashed' | 'selected' | 'tint'
 
 const EMPHASIS: Record<CardEmphasis, string> = {
-  default: 'border-line bg-surface shadow-sm',
-  attention: 'border-attention-line bg-attention-tint shadow-sm',
-  success: 'border-success-line bg-success-tint shadow-sm',
+  default: 'border-line bg-surface shadow-raised-md',
+  attention: 'border-attention-line bg-attention-tint shadow-raised-md',
+  success: 'border-success-line bg-success-tint shadow-raised-md',
   dashed: 'border-dashed border-line-strong bg-transparent',
-  selected: 'border-brand bg-surface shadow-selected',
+  selected: 'border-brand bg-surface shadow-[var(--selected-ring),var(--shadow-raised-md)]',
   tint: 'border-line bg-canvas',
 }
 
@@ -34,10 +35,26 @@ export function LaCard({
 }
 
 /** Card title row: H3 title + optional muted sub + right-aligned action. */
-export function CardHead({ title, sub, action, className }: { title: ReactNode; sub?: ReactNode; action?: ReactNode; className?: string }) {
+export function CardHead({
+  title,
+  sub,
+  action,
+  icon,
+  iconTone = 'neutral',
+  className,
+}: {
+  title: ReactNode
+  sub?: ReactNode
+  action?: ReactNode
+  /** Optional leading icon tile (36px). */
+  icon?: IconSource
+  iconTone?: TileTone
+  className?: string
+}) {
   return (
     <div className={cn('flex items-start justify-between gap-3', className)}>
-      <div className="min-w-0">
+      {icon ? <IconTile icon={icon} tone={iconTone} className="-my-0.5" /> : null}
+      <div className="min-w-0 flex-1">
         <h3 className="text-h3 text-ink">{title}</h3>
         {sub ? <p className="mt-0.5 text-small text-ink-2">{sub}</p> : null}
       </div>

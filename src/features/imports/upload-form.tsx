@@ -2,9 +2,9 @@
  * /imports/new: one CSV -> POST /products/bulk (multipart part `file`, Idempotency-Key per
  * selected file).
  */
+import { Icon, IconTile } from '@/components/la/icons'
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { AlertCircle, ChevronDown, Download, FileSpreadsheet, FileUp, UploadCloud, X } from 'lucide-react'
 import { useState } from 'react'
 import { useDropzone, type FileRejection } from 'react-dropzone'
 import { api, unwrap } from '@/api/client'
@@ -153,11 +153,11 @@ export function UploadForm() {
             <div
               {...dz.getRootProps({
                 className: cn(
-                  'group relative flex min-h-60 flex-col items-center justify-center gap-4 rounded-lg border-[1.5px] border-dashed border-foreground/15 bg-muted/40 px-6 py-10 text-center outline-none',
-                  'transition-[border-color,background-color,box-shadow] duration-150',
-                  'focus-visible:border-brand focus-visible:ring-[3px] focus-visible:ring-brand/20',
-                  !file && 'cursor-pointer hover:border-foreground/30 hover:bg-muted/70',
-                  file && 'border-solid border-border bg-muted/20',
+                  'group relative flex min-h-60 flex-col items-center justify-center gap-4 rounded-lg border-[1.5px] border-dashed border-line-strong bg-sunken px-6 py-10 text-center shadow-inset-md outline-none',
+                  'tactile',
+                  'focus-visible:border-brand focus-visible:shadow-[var(--focus-ring),var(--shadow-inset-md)]',
+                  !file && 'cursor-pointer hover:border-ink-3',
+                  file && 'border-solid border-line bg-sunken',
                   dragging && 'border-brand bg-brand-soft hover:border-brand hover:bg-brand-soft',
                   problem?.kind === 'client' && !dragging && 'border-destructive/50',
                 ),
@@ -168,10 +168,8 @@ export function UploadForm() {
             >
               <input {...dz.getInputProps({ 'aria-label': 'CSV file' })} />
               {file ? (
-                <div className="flex w-full max-w-md items-center gap-3 rounded-lg bg-card px-3 py-2.5 text-left shadow-elev-1 ring-1 ring-border">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-success/10 text-success">
-                    <FileSpreadsheet className="size-4" aria-hidden />
-                  </div>
+                <div className="flex w-full max-w-md items-center gap-3 rounded-lg border border-line bg-card px-3 py-2.5 text-left shadow-raised-sm">
+                  <IconTile icon="table" tone="ok" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium" data-testid="selected-file" title={file.name}>
                       {file.name}
@@ -191,20 +189,17 @@ export function UploadForm() {
                       pick(null)
                     }}
                   >
-                    <X />
+                    <Icon name="x" size={16} />
                   </Button>
                 </div>
               ) : (
                 <>
-                  <div
-                    className={cn(
-                      'flex size-12 items-center justify-center rounded-xl bg-card text-muted-foreground shadow-elev-2 ring-1 ring-border',
-                      'transition-[color,transform,box-shadow] duration-150 group-hover:text-foreground motion-reduce:transition-none',
-                      dragging && '-translate-y-0.5 text-brand ring-brand/30 group-hover:text-brand',
-                    )}
-                  >
-                    <UploadCloud className="size-5" aria-hidden />
-                  </div>
+                  <IconTile
+                    icon="upload"
+                    tone={dragging ? 'brand' : 'neutral'}
+                    size="lg"
+                    className="tactile size-12 rounded-[14px] group-hover:text-brand"
+                  />
                   <div className="space-y-1.5">
                     <p className="text-sm font-medium">
                       {dragging ? (
@@ -233,7 +228,7 @@ export function UploadForm() {
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <p className="flex items-start gap-2 text-sm font-medium text-destructive">
-                    <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                    <Icon name="alert" size={16} className="mt-0.5 shrink-0" />
                     {problem.message}
                   </p>
                   {serverErr ? <ReferenceId id={serverErr.correlationId} /> : null}
@@ -243,13 +238,13 @@ export function UploadForm() {
             </div>
           ) : null}
 
-          <div className="flex flex-col-reverse gap-2 border-t bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-5">
+          <div className="flex flex-col-reverse gap-2 border-t border-line bg-sunken px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-5">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button type="button" variant="ghost" size="sm" className="self-start text-muted-foreground sm:-ml-2">
-                  <Download data-icon="inline-start" />
+                  <Icon name="download" size={16} data-icon="inline-start" />
                   Download template
-                  <ChevronDown data-icon="inline-end" />
+                  <Icon name="chev" size={16} data-icon="inline-end" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-64">
@@ -278,7 +273,7 @@ export function UploadForm() {
                   upload.mutate(file)
                 }}
               >
-                {upload.isPending ? <Spinner data-icon="inline-start" /> : <FileUp data-icon="inline-start" />}
+                {upload.isPending ? <Spinner data-icon="inline-start" /> : <Icon name="upload" size={16} data-icon="inline-start" />}
                 {upload.isPending ? 'Uploading…' : 'Upload and import'}
               </Button>
             </div>
@@ -331,11 +326,11 @@ export function UploadForm() {
         </section>
 
         <Collapsible className="border-t">
-          <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 px-5 py-3.5 text-left text-sm font-medium outline-none transition-colors duration-150 hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset">
+          <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 px-5 py-3.5 text-left text-sm font-medium outline-none transition-colors duration-150 hover:bg-hover focus-visible:bg-hover focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset">
             All accepted columns
-            <ChevronDown className="size-4 text-muted-foreground transition-transform duration-150 group-data-[state=open]:rotate-180 motion-reduce:transition-none" aria-hidden />
+            <Icon name="chev" size={16} className="text-muted-foreground transition-transform duration-150 group-data-[state=open]:rotate-180 motion-reduce:transition-none" />
           </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-4 border-t bg-muted/20 px-5 py-4">
+          <CollapsibleContent className="space-y-4 border-t border-line bg-sunken px-5 py-4">
             {COLUMN_GROUPS.map((g) => (
               <div key={g.label} className="space-y-1" data-testid="column-group">
                 <h3 className="text-xs font-medium text-foreground">
@@ -366,9 +361,9 @@ export function UploadForm() {
 }
 
 const GUIDE_HEADING = 'text-xs font-medium text-muted-foreground'
-const CHIP = 'inline-block rounded-md bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground ring-1 ring-border/70 ring-inset'
+const CHIP = 'inline-block rounded-md border border-line bg-subtle px-1.5 py-0.5 font-mono text-xs text-foreground'
 /** Categories are labels, not identifiers: Geist, per DESIGN.md. */
-const CATEGORY_CHIP = 'inline-block rounded-md bg-muted px-1.5 py-0.5 text-xs text-foreground ring-1 ring-border/70 ring-inset'
+const CATEGORY_CHIP = 'inline-block rounded-md border border-line bg-subtle px-1.5 py-0.5 text-xs text-foreground'
 const INLINE_CODE = 'font-mono text-xs text-foreground'
 const ROW_RULES = [
   'An existing SKU is updated; new SKUs are added as drafts.',

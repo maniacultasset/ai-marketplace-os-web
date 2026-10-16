@@ -1,4 +1,5 @@
-import { Eye, EyeOff } from 'lucide-react'
+import { EyeOff } from 'lucide-react'
+import { Icon } from '@/components/la/icons'
 import { useState, type ComponentProps } from 'react'
 import { Input } from '@/components/ui/input'
 
@@ -24,7 +25,7 @@ export function PasswordInput({ id, ...props }: ComponentProps<typeof Input> & {
         onClick={() => setShow((v) => !v)}
         className="focus-ring absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-control text-ink-3 transition-colors duration-150 hover:text-ink"
       >
-        {show ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
+        {show ? <EyeOff className="size-4" aria-hidden /> : <Icon name="eye" size={16} />}
         <span className="sr-only">{show ? 'Hide password' : 'Show password'}</span>
       </button>
     </div>

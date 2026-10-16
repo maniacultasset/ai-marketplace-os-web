@@ -7,7 +7,7 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useState, type KeyboardEvent } from 'react'
 import { Page, PageHeader } from '@/components/app/page-header'
-import { Banner, ComingSoon, FooterBar, Icon, NOT_YET, TagChip, type IconName } from '@/components/la'
+import { Banner, ComingSoon, FooterBar, IconTile, NOT_YET, TagChip, type IconName } from '@/components/la'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -38,16 +38,7 @@ const ROUTES: readonly RouteDef[] = [
 const LIVE: readonly RouteId[] = ['guided', 'bulk']
 
 function RouteCard({ def, selected, onSelect }: { def: RouteDef; selected: boolean; onSelect?: () => void }) {
-  const tile = (
-    <span
-      className={cn(
-        'inline-flex size-11 items-center justify-center rounded-[10px]',
-        selected ? 'bg-brand-bg text-brand' : def.reason ? 'bg-subtle text-ink-3' : 'bg-subtle text-ink-2',
-      )}
-    >
-      <Icon name={def.icon} size={22} />
-    </span>
-  )
+  const tile = <IconTile icon={def.icon} size="lg" tone={selected ? 'brand' : 'neutral'} flat={!!def.reason} className={def.reason ? 'bg-subtle text-ink-3' : undefined} />
   if (def.reason) {
     return (
       <Tooltip>
@@ -58,7 +49,7 @@ function RouteCard({ def, selected, onSelect }: { def: RouteDef; selected: boole
             aria-label={`${def.title}: ${def.reason}`}
             className={cn(
               'focus-ring flex cursor-not-allowed flex-col rounded-card border p-5',
-              def.later ? 'border-dashed border-line-strong bg-transparent' : 'border-line bg-surface shadow-sm',
+              def.later ? 'border-dashed border-line-strong bg-transparent' : 'border-line bg-surface/70',
             )}
           >
             {tile}
@@ -82,8 +73,10 @@ function RouteCard({ def, selected, onSelect }: { def: RouteDef; selected: boole
       onClick={onSelect}
       data-testid={`route-${def.id}`}
       className={cn(
-        'focus-ring flex cursor-pointer flex-col rounded-card border bg-surface p-5 text-left transition-[border-color,box-shadow] duration-150',
-        selected ? 'border-brand shadow-selected' : 'border-line shadow-sm hover:border-line-strong',
+        'focus-ring tactile flex cursor-pointer flex-col rounded-card border p-5 text-left',
+        selected
+          ? 'border-brand bg-brand-bg/40 shadow-[var(--selected-ring),var(--shadow-inset-sm)]'
+          : 'lift border-line bg-surface shadow-raised-md hover:border-line-strong active:shadow-pressed',
       )}
     >
       {tile}

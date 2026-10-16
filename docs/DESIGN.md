@@ -17,12 +17,16 @@ in a component. Use these Tailwind names:
 
 | Token | Tailwind | Use |
 |---|---|---|
-| canvas `#F5F7FB` | `bg-canvas` | App background, table header, tint cards |
-| surface `#FFF` | `bg-surface` | Cards, panels, inputs, sidebar, top bar |
-| subtle `#EEF1F8` | `bg-subtle` | Chips, segmented track, disabled inputs |
-| line / line-strong | `border-line` / `border-line-strong` | Card and row dividers / input and button borders |
-| ink / ink-2 / ink-3 | `text-ink` / `text-ink-2` / `text-ink-3` | Text / secondary text / hints and placeholders only (3.7:1, never essential) |
-| brand `#2D46E0`, brand-hover, brand-bg, brand-line | `bg-brand`, `hover:bg-brand-hover`, `bg-brand-bg`, `border-brand-line` | One primary action, selected state, in progress |
+| canvas `#EDF0F5` | `bg-canvas` | App background, sidebar, top bar, settings sub-nav, tint cards (matte tinted canvas) |
+| surface `#FBFCFD` | `bg-surface` | Cards, panels, popovers, raised buttons, active nav tile (matte off-white) |
+| field `#EEF1F6` | `bg-field` | Inset fields: inputs, textareas, select triggers, search, unchecked checkbox |
+| sunken `#F4F6F9` | `bg-sunken` | Table header and row hover inside a raised container |
+| subtle `#E8ECF3` | `bg-subtle` | Chips, inset tracks (segmented, progress), disabled inputs |
+| hover / pressed | `bg-hover` / `bg-pressed` | Quiet hover and pressed fills for ghost buttons, nav rows, menu items |
+| line / line-strong / edge-hover | `border-line` / `border-line-strong` / `hover:border-edge-hover` | Hairline edges (cards, rows) / field and button edges / field hover |
+| ink / ink-2 / ink-3 | `text-ink` / `text-ink-2` / `text-ink-3` | Text 13.8:1 / secondary 6.5:1 / hints and placeholders `#586280` (4.9:1 or more on canvas, subtle, field and tinted chips) |
+| brand `#2F46D6`, brand-hover, brand-bg, brand-line | `bg-brand`, `hover:bg-brand-hover`, `bg-brand-bg`, `border-brand-line` | One primary action, selected state, in progress |
+| scrim | `bg-scrim` | Dialog, sheet and alert overlays (flat, never blurred) |
 | success, attention, danger (+ `-bg`, `-line`, `-tint`, `-ink`) | `text-success`, `bg-attention-bg`, `border-danger-line`, `bg-attention-tint` … | Live and passed / needs you and blocked / error and destructive |
 
 - Type: `font-display` (Bricolage Grotesque) for page and card titles, `font-sans` (DM Sans) for everything else.
@@ -33,11 +37,113 @@ in a component. Use these Tailwind names:
   16 on mobile). Gap between cards 16. Gap between form fields 16.
 - Radius: controls 8 (`rounded-control`/`rounded-lg`), cards 12 (`rounded-card`/`rounded-xl`), banners 10, chips
   and toggles pill.
-- Elevation: `shadow-sm` on cards, `shadow-lg` (`shadow-pop`) on popovers, toasts and the bulk bar,
-  `shadow-primary` on the primary button, `shadow-selected` on a selected card.
+- Elevation: see **Matte surfaces** below. The old names still work and map onto the matte scale:
+  `shadow-sm` = `shadow-raised-sm`, `shadow-md` = `shadow-raised-md`, `shadow-lg`/`shadow-pop` =
+  `shadow-raised-lg`, `shadow-primary` = `shadow-raised-brand`, `shadow-elev-1/2/3` = raised sm/md/lg.
 - Sizes: control 40 (`h-10`), button 36/30/44, sidebar 232/72, top bar 56.
-- Focus: controls get a brand border plus `shadow-focus` (the 3px ring at 18% brand) via the `focus-ring` utility.
-  Everything else gets the global 2px brand outline. Every interactive element shows one.
+- Focus: controls get a brand border plus the ring (a 2px surface gap, then 2px of 60% brand) via the `focus-ring` utility, so it reads on raised, inset and brand-filled controls alike. The ring is
+  drawn on top of the control's resting depth, read from `--focus-rest` (inset fields and raised buttons set
+  it), so focus never flattens a control. Everything else gets the global 2px brand outline. Every interactive
+  element shows one.
+
+## Matte surfaces (soft neumorphism, accessible)
+
+A matte layer on top of the hi-fi: soft, non-glossy surfaces lit from the top left. Layout, type, copy and
+colour roles stay as in the hi-fi. Tokens live in `src/index.css`.
+
+**No** gradients, glass (`backdrop-blur`), glow halos, gloss highlights or coloured light. **Always** a hairline
+edge on every card, field and raised control (classic neumorphism's edgeless shapes fail contrast), the gap-plus-brand
+focus ring, text at 4.5:1 or more, and status chips with a glyph plus a word.
+
+| Depth | Token / utility | Use |
+|---|---|---|
+| Raised sm | `shadow-raised-sm` (or `raised` utility = surface + hairline + shadow) | Buttons (secondary, danger), brand switcher, active nav tile, icon tiles, monogram tiles, agent card, chips that are controls |
+| Raised md | `shadow-raised-md` | Cards (`LaCard`, `Card`), DataTable container, mobile row cards |
+| Raised lg | `shadow-raised-lg` | Floating things: popover, dropdown, select list, dialog, alert dialog, sheet, toast, `BulkBar`, `StickyActions` on desktop |
+| Raised up | `shadow-raised-up` | Bars pinned to the bottom edge (`FooterBar`, `StickyActions` on mobile) |
+| Raised brand / warn | `shadow-raised-brand`, `shadow-raised-warn` | Filled primary and warn buttons, logo mark, avatar, checked checkbox, current stepper dot |
+| Inset sm / md | `shadow-inset-sm`, `shadow-inset-md`; utilities `inset-field` (field fill + strong hairline + inset) and `inset-track` | Inputs, textareas, select triggers, top-bar search, segmented and progress tracks, switch track, unchecked checkbox, todo stepper dot |
+| Pressed | `shadow-pressed` (neutral), `shadow-pressed-fill` (brand/warn) | `:active` on every button and nav row, an open menu trigger (`aria-expanded`) |
+| Thumb | `shadow-thumb` | The raised thumb in an inset track (segmented, tabs default variant, switch) |
+| Flat | no shadow | Dashed cards (not connected, not listed), `tint` cards, banners (tinted), table rows, chips and badges, disabled controls |
+
+Rules:
+
+- **Raised vs inset vs flat.** Things you act on or that hold content sit raised. Things you type into or that
+  show a level sit inset. Status, information and anything unavailable stays flat. A raised element never sits
+  inside another raised element of the same size (no nested cards). Inside a raised card, use inset fields and
+  raised-sm buttons only.
+- **Canvas.** The shell (sidebar, top bar, settings sub-nav) shares the canvas tone, separated by hairlines, so
+  the active nav tile and the cards read as raised. This is the one intentional change from the hi-fi's white
+  sidebar and top bar.
+- **Motion.** `tactile` (160ms, transform, opacity, shadow and colour only) on interactive surfaces; `lift`
+  adds a 1px rise on hover to raised buttons and never applies to disabled or `aria-disabled` ones. `:active`
+  sits back down and goes inset. `prefers-reduced-motion` removes the lift and all transitions.
+- **Disabled is flat.** Disabled buttons drop their shadow (plus 45% opacity); disabled fields are flat with a
+  dashed edge on `bg-subtle`. The honest "not available yet" controls (`UnavailableButton`) keep this look.
+- **Tints.** Attention and success cards keep their tinted fill and coloured hairline and are raised like any
+  card. Banners are flat tinted strips with a tone icon tile.
+- **Never write a raw shadow value or hex in a component** (composing tokens, e.g.
+  `shadow-[var(--focus-ring),var(--shadow-inset-sm)]`, is fine). Add a token in `index.css` if one is
+  missing.
+
+## Icons
+
+One system, one weight: the hi-fi set (`Icon name="…"`, 24 grid, 1.75 stroke, round caps) first, then
+lucide-react for anything it lacks. lucide's default stroke 2 is redrawn at 1.75 globally (`index.css`), so no
+`strokeWidth` prop is needed; an explicit bolder stroke (a 2.5 check) is left alone. We kept lucide over
+Phosphor: the hi-fi icon table is lucide-shaped, and one library avoids two visual dialects.
+
+- Sizes: 14 dense cells, 16 inside controls (buttons, inputs, menu items), 18 nav rows and banners, 20 top bar.
+- `IconGlyph icon={…}` renders either a hi-fi name or a lucide component. `IconSource` is the type.
+- `IconTile icon tone size` (from `@/components/la`): a raised matte squircle with a tinted fill.
+  `size` sm 28 (icon 16), md 36 (18), lg 44 (22). `tone` neutral, brand, ok, warn, fail. Use it for nav
+  emphasis (active row), card headers (`CardHead icon=…`), empty states (`EmptyState` does it), banners
+  (`Banner` does it), metric and setup cards. `flat` drops the shadow inside small raised parents.
+- `MonogramTile` is the same tile with letters, only where the design uses a monogram (marketplaces via
+  `MarketplaceTile`, brand initial). Never emoji, and never a letter standing in for an icon elsewhere.
+- Icons are decorative (`aria-hidden`); the label next to them, or the button's `aria-label`, carries the meaning.
+
+Mapping for area agents (use the left column; replace ad-hoc lucide imports with these where they appear):
+
+| Meaning | Use | Instead of (lucide) |
+|---|---|---|
+| Home | `Icon name="home"` | `House`, `Home` |
+| Product, catalog | `Icon name="box"` | `Package`, `Box` |
+| Add | `Icon name="plus"` | `Plus` |
+| Inbox, tasks | `Icon name="inbox"` | `Inbox` |
+| Marketplace, store | `Icon name="store"` | `Store`, `ShoppingBag`, `ShoppingCart` |
+| Activity, history | `Icon name="activity"` (feed) / `Icon name="clock"` (time) | `History`, `Clock`, `Hourglass` |
+| Settings, rules | `Icon name="sliders"` | `Settings`, `SlidersHorizontal` |
+| Done, passed | `Icon name="check"` | `Check`, `CheckIcon`, `CheckCircle2`, `CircleCheck` |
+| Warning, needs you, error | `Icon name="alert"` | `AlertTriangle`, `TriangleAlert`, `AlertCircle`, `OctagonX` |
+| Info | `Icon name="info"` | `Info`, `InfoIcon` |
+| Close, remove | `Icon name="x"` | `X`, `XIcon` |
+| Expand | `Icon name="chev"` | `ChevronDown`, `ChevronsUpDown` |
+| Search | `Icon name="search"` | `Search`, `SearchIcon` |
+| Upload, import | `Icon name="upload"` | `Upload`, `UploadCloud`, `FileUp` |
+| Download, export | `Icon name="download"` | `Download` |
+| Agent, AI | `Icon name="spark"` | `Sparkles`, `Wand2` |
+| File, CSV, document | `Icon name="file"` / `Icon name="table"` (sheet) | `FileText`, `FileSpreadsheet`, `FileSearch`, `FileQuestion` |
+| Image, media | `Icon name="image"` | `Image`, `ImageIcon` |
+| Website, URL | `Icon name="globe"` | `Globe` |
+| Variants, matrix | `Icon name="grid"` | `Grid`, `LayoutGrid`, `Rows3` |
+| Compliance, trust | `Icon name="shield"` | `Shield`, `ShieldCheck`, `ShieldOff` |
+| Go, next | `Icon name="arrow"` | `ArrowRight` |
+| Filter | `Icon name="filter"` | `Filter`, `ListFilter` |
+| Preview | `Icon name="eye"` | `Eye` |
+| Retry, refresh | `Icon name="refresh"` | `RefreshCw`, `RotateCw`, `RotateCcw` |
+| Pause | `Icon name="pause"` | `Pause`, `PauseCircle` |
+| Connect, link | `Icon name="link"` | `Link`, `Link2` |
+| Notifications | `Icon name="bell"` | `Bell` |
+| Account, person | `Icon name="user"` | `User`, `UserRound` |
+| Team | `Icon name="users"` | `Users` |
+| Locked, permission | `Icon name="lock"` | `Lock` |
+| Delete | `Icon name="trash"` | `Trash2` |
+| Copy | `Icon name="copy"` | `Copy` |
+| Open outside | `Icon name="external"` | `ExternalLink`, `ArrowUpRight` |
+| More actions | `Icon name="more"` | `MoreHorizontal` |
+| Everything else (offline, unplug, flask, gauge, log out, spinner) | lucide at its default (redrawn 1.75): `WifiOff`, `Unplug`, `FlaskConical`, `Gauge`, `LogOut`, `Loader2` | — |
 
 ## Components
 
@@ -46,24 +152,24 @@ The shadcn kit in `src/components/ui` is restyled to the tokens. The Listing Age
 
 | Component | Where | Notes |
 |---|---|---|
-| `Button` | `ui/button` | `variant`: `primary` (= `default`), `secondary` (= `outline`), `ghost`, `danger` (= `destructive`), `warn` (attention fill, e.g. "Open Inbox"), `subtle`, `link`. `size`: `md` 36, `sm` 30, `lg` 44, `xs`, `icon*`. One primary button per view. |
-| `Input`, `Textarea`, `Select`, `Checkbox` | `ui/*` | 40px, line-strong border, `aria-invalid` shows the danger ring. Checkbox is 18px. |
+| `Button` | `ui/button` | `variant`: `primary` (= `default`), `secondary` (= `outline`), `ghost`, `danger` (= `destructive`), `warn` (attention fill, e.g. "Open Inbox"), `subtle`, `link`. `size`: `md` 36, `sm` 30, `lg` 44, `xs`, `icon*`. One primary button per view. Primary, secondary, danger and warn are raised with a 1px hover lift and press inset; ghost is quiet until pressed; disabled is flat. |
+| `Input`, `Textarea`, `Select`, `Checkbox` | `ui/*` | 40px, inset (`inset-field`: field fill, line-strong hairline, inset shadow), `aria-invalid` shows the danger ring over the inset. Checkbox is 18px, inset when empty, raised brand when checked. |
 | `LaField` | `la/field` | Label 13 bold, hint 12 ink-3, error replaces the hint. `source` puts a badge on the hint line. `needsInput` adds the attention border and tint. `critical` adds ★. `hintAction` is for the inline Confirm button. |
 | `StatusChip` | `la/status-chip` | `draft working ready live partly-live needs-you blocked error paused not-listed`. Each has a glyph and a word, never colour alone. Pass `iconOnly` with `label` for dense cells (24px, tooltip). `TagChip` is for "Recommended" and "Later". |
 | `listingChip(listing)` | `lib/listing-chip` | The only mapping from `ListingStatus` and `MarketplaceState` to a chip. **Live is shown only when `marketplace_state` is `live`.** |
 | `SourceBadge` | `la/source-badge` | `you`, `brand-profile`, `rule`, `agent` (always shows confidence), `confirmed`, `needed`. An agent badge on a critical fact needs a Confirm action. |
 | `Banner` | `la/banner` | `tone` info, success, attention, danger or neutral; optional `action`. Copy says what happened and the one next action. |
 | `MarketplaceTile`, `MarketplaceName`, `MarketplaceCell`, `VariantCell`, `MARKETPLACES` | `la/marketplace` | All six marketplaces from the design. Only `supported` ones (amazon, flipkart) exist in the API. The cell is an icon-only chip with the listing id in 12px ink-3 under it. The variant cell is 34px, and "not made" cells are dashed. |
-| `LaCard`, `CardHead`, `AttentionCard`, `DashedCard`, `TaskRow`, `MetricTile` | `la/cards` | `emphasis` default, attention, success, dashed, selected or tint. Never nest cards. |
+| `LaCard`, `CardHead`, `AttentionCard`, `DashedCard`, `TaskRow`, `MetricTile` | `la/cards` | `emphasis` default, attention, success, selected (raised md), dashed or tint (flat). `CardHead icon=… iconTone=…` adds a 36px icon tile. Never nest cards. |
 | `Tabs` | `ui/tabs` | `variant="line"` is the hi-fi tabs (42px, 2px brand underline). The default variant is the segmented look. |
 | `RouteTabs`, `Segmented` | `la/tabs` | Link tabs (product detail). The status filter is a radio group, and its counts come from the API and sum to the total. |
 | `Stepper`, `ProgressBar`, `ProgressRing` | `la/progress` | Use the stepper only for real sequences (setup, bulk). The ring is 56px with a 7px stroke and shows "3/4". |
-| `DataTable` | `components/data-table` | 38px canvas header, rows 48 or `density="tall"` 68, `bg-brand-bg` selection. `renderCard` turns rows into cards below 1024px (required for catalog tables). `bulkBar` renders a `BulkBar` (sticky, shadow-lg) while rows are selected. |
+| `DataTable` | `components/data-table` | Raised md container, 38px sunken header (sticky), quiet rows (hairline, `bg-sunken` hover), rows 48 or `density="tall"` 68, `bg-brand-bg` selection. `renderCard` turns rows into cards below 1024px (required for catalog tables). `bulkBar` renders a `BulkBar` (sticky, raised lg, floating) while rows are selected. |
 | `FooterBar` | `la/footer-bar` | Pinned footer for setup, guided and bulk screens: save state on the left, Back and the primary action on the right. |
-| Toast | `lib/toast` | 360px wide, radius 12, shadow-lg, auto-dismisses after 6s. |
+| Toast | `lib/toast` | 360px wide, radius 12, raised lg, auto-dismisses after 6s. |
 | `UnavailableButton`, `ComingSoon`, `UnavailableHint`, `NOT_YET` | `la/unavailable` | The honest states. They stay focusable, clicks do nothing, and the reason is the tooltip and the accessible description. Reuse the `NOT_YET` sentences. |
 | `BeingBuilt` | `la/being-built` | A placeholder for an unbuilt route. Delete it when you replace the route. |
-| `Icon`, `LogoMark`, `Wordmark` | `la/icons` | The hi-fi icon paths (24 grid, 1.75 stroke). Use lucide at `strokeWidth={1.75}` for anything else. |
+| `Icon`, `IconGlyph`, `IconTile`, `MonogramTile`, `LogoMark`, `Wordmark` | `la/icons` | See **Icons**. The hi-fi icon paths (24 grid, 1.75 stroke), any-source glyph, matte icon tiles and monogram tiles. |
 | States | `components/states` | `ErrorState` (with reference id), `EmptyState`, `Forbidden`, `NotFound`, `RequireAction`. Loading uses skeletons shaped like the content. |
 
 ## Shell and layouts
@@ -139,3 +245,6 @@ Status is never colour alone. Live means confirmed. Every important value has a 
 the live schemas or rules and are never a hard-coded list. Controls are 40px high on desktop and touch targets 52px
 on mobile. Essential text is at least 4.5:1. Every element has the visible focus ring. Copy is in sentence case: a
 button names its action, an error names the problem and the next step, and loading text ends with "…".
+
+`cn()` (`src/lib/utils.ts`) knows the custom type scale (`text-h3`, `text-small`, …) and matte shadows. Without that,
+tailwind-merge reads `text-h3 text-ink` as two colours and drops the size. Add new `--text-*` or `--shadow-*` names there.

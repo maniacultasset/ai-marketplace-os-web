@@ -4,8 +4,8 @@
  * Rows render in pages of 20 so one visit stays well inside the tenant's 120 req/min budget;
  * finished jobs and their reports are served from cache on later visits.
  */
+import { Icon, IconTile } from '@/components/la/icons'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { FileSpreadsheet, FileUp, Info } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { isApiError, isNotFound } from '@/api/errors'
 import { JobStatusBadge } from '@/components/app/job-status-badge'
@@ -37,7 +37,7 @@ export function ImportsHistory() {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <p className="flex items-center gap-1.5" data-testid="history-note">
-          <Info className="size-3.5 shrink-0" aria-hidden />
+          <Icon name="info" size={14} className="shrink-0" />
           Uploads from this browser only. Imports from other browsers are not listed.
         </p>
         {entries.length > 0 ? (
@@ -46,9 +46,9 @@ export function ImportsHistory() {
           </p>
         ) : null}
       </div>
-      <div className="overflow-hidden rounded-xl border bg-card shadow-elev-1">
+      <div className="overflow-hidden rounded-card border border-line bg-card shadow-raised-md">
         <Table aria-label="Recent imports">
-          <TableHeader className="bg-muted/50 [&_tr]:border-border">
+          <TableHeader className="bg-sunken [&_tr]:border-line">
             <TableRow className="hover:bg-transparent">
               <TableHead className={HEAD}>File</TableHead>
               <TableHead className={cn(HEAD, 'hidden w-40 sm:table-cell')}>Uploaded</TableHead>
@@ -62,7 +62,7 @@ export function ImportsHistory() {
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={5} className="p-0 whitespace-normal">
                   <EmptyState
-                    icon={FileSpreadsheet}
+                    icon="table"
                     title="No imports from this browser yet"
                     description={
                       can('product:import')
@@ -73,7 +73,7 @@ export function ImportsHistory() {
                       can('product:import') ? (
                         <Button size="sm" asChild>
                           <Link to="/imports/new">
-                            <FileUp data-icon="inline-start" />
+                            <Icon name="upload" size={16} data-icon="inline-start" />
                             Import CSV
                           </Link>
                         </Button>
@@ -129,9 +129,7 @@ function HistoryRow({ entry }: { entry: ImportHistoryEntry }) {
     <TableRow className="group/row cursor-pointer" onClick={open} data-testid="history-row" data-import-id={entry.import_id}>
       <TableCell className="max-w-72 py-3">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground ring-1 ring-border/60 ring-inset transition-colors duration-150 group-hover/row:bg-background group-hover/row:text-foreground">
-            <FileSpreadsheet className="size-4" aria-hidden />
-          </span>
+          <IconTile icon="table" size="sm" className="tactile group-hover/row:text-brand" />
           <div className="min-w-0">
             <Link
               to="/imports/$importId"

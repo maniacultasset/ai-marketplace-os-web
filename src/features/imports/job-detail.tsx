@@ -1,6 +1,6 @@
 /** /jobs/$jobId: generic job envelope + live progress + link to its result. */
+import { Icon } from '@/components/la/icons'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight } from 'lucide-react'
 import { isApiError, isNotFound } from '@/api/errors'
 import type { ReactNode } from 'react'
 import { NotFound } from '@/components/states/not-found'
@@ -41,7 +41,7 @@ export function JobDetail({ jobId }: { jobId: string }) {
               className="inline-flex items-center gap-1 rounded-sm font-medium text-brand underline-offset-4 outline-none hover:underline focus-visible:underline"
               data-testid="job-result-link"
             >
-              Open import report <ArrowRight className="size-3" aria-hidden />
+              Open import report <Icon name="arrow" size={12} />
             </Link>
           ) : job?.kind === 'bulk_import' && !job.result_url ? (
             <span>The report link appears once the worker starts.</span>

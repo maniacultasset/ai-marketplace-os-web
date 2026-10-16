@@ -7,7 +7,7 @@
 import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { PublicLayout } from '@/components/app/public-layout'
-import { Icon } from '@/components/la/icons'
+import { Icon, IconTile } from '@/components/la/icons'
 import { MarketplaceTile } from '@/components/la/marketplace'
 import { StatusChip, TagChip } from '@/components/la/status-chip'
 import { Button } from '@/components/ui/button'
@@ -112,7 +112,7 @@ export function Landing() {
       }
     >
       {/* Hero */}
-      <section aria-labelledby="hero-h" className="bg-[radial-gradient(var(--line)_1px,transparent_1px)] [background-size:22px_22px]">
+      <section aria-labelledby="hero-h" className="bg-canvas">
         <div className="mx-auto grid max-w-[1200px] grid-cols-1 items-center gap-12 px-4 py-14 md:px-8 md:py-20 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)]">
           <div>
             <h1
@@ -176,14 +176,12 @@ export function Landing() {
             <li
               key={s.title}
               className={cn(
-                'flex flex-col gap-3 rounded-card border bg-surface p-5 shadow-sm',
-                s.title === 'Approve' ? 'border-brand shadow-selected' : 'border-line',
+                'flex flex-col gap-3 rounded-card border bg-surface p-5',
+                s.title === 'Approve' ? 'border-brand shadow-[var(--selected-ring),var(--shadow-raised-md)]' : 'border-line shadow-raised-md',
               )}
             >
               <span className="flex items-center justify-between">
-                <span className="flex size-9 items-center justify-center rounded-[9px] bg-brand-bg text-brand">
-                  <Icon name={s.icon} size={18} />
-                </span>
+                <IconTile icon={s.icon} tone="brand" />
                 <span className="text-caption font-bold text-ink-2">Step {i + 1}</span>
               </span>
               <div className="flex flex-wrap items-center gap-2">
@@ -204,11 +202,9 @@ export function Landing() {
       >
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-card border border-line bg-canvas p-6">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="flex items-center gap-2 text-h3 text-ink">
-                <Icon name="spark" size={18} className="text-brand" />
-                What the agent will do
-              </h3>
+            <div className="flex flex-wrap items-center gap-3">
+              <IconTile icon="spark" tone="brand" />
+              <h3 className="text-h3 text-ink">What the agent will do</h3>
               <TagChip tone="plain" className="ml-auto">
                 In development
               </TagChip>
@@ -223,10 +219,10 @@ export function Landing() {
             </ul>
           </div>
           <div className="rounded-card border border-line bg-canvas p-6">
-            <h3 className="flex items-center gap-2 text-h3 text-ink">
-              <Icon name="shield" size={18} className="text-brand" />
-              What the agent never does
-            </h3>
+            <div className="flex items-center gap-3">
+              <IconTile icon="shield" tone="brand" />
+              <h3 className="text-h3 text-ink">What the agent never does</h3>
+            </div>
             <ul className="mt-4 flex flex-col gap-3">
               {AGENT_NEVER.map((t) => (
                 <li key={t} className="flex gap-3 text-body text-ink">
@@ -245,7 +241,7 @@ export function Landing() {
         title="A whole catalog runs the same way as one product"
         lede="Upload your catalog as a CSV. Every row is checked on its own and keeps its own error report, so a bad row never holds up the good ones and a retry never makes you rebuild context."
       >
-        <ol className="grid gap-px overflow-hidden rounded-card border border-line bg-line sm:grid-cols-2 lg:grid-cols-6">
+        <ol className="grid gap-px overflow-hidden rounded-card border border-line bg-line shadow-raised-md sm:grid-cols-2 lg:grid-cols-6">
           {BULK.map((s, i) => (
             <li key={s.title} className="flex flex-col gap-1.5 bg-surface p-5">
               <span className="font-display text-caption font-bold text-brand tabular-nums">{String(i + 1).padStart(2, '0')}</span>
@@ -275,13 +271,13 @@ export function Landing() {
                 data-testid={`market-${m.stage}`}
                 className={cn(
                   'flex flex-col gap-3 rounded-card border p-5',
-                  m.stage === 'later' ? 'border-dashed border-line-strong bg-transparent' : 'border-line bg-surface shadow-sm',
+                  m.stage === 'later' ? 'border-dashed border-line-strong bg-transparent' : 'border-line bg-surface shadow-raised-md',
                 )}
               >
                 <div className="flex items-start justify-between gap-3">
                   <span className="flex -space-x-1.5">
                     {m.ids.map((id) => (
-                      <MarketplaceTile key={id} id={id} className="ring-2 ring-surface" />
+                      <MarketplaceTile key={id} id={id} className={cn('ring-2 ring-surface', m.stage === 'later' && 'shadow-none')} />
                     ))}
                   </span>
                   <StatusChip status={chip.status}>{chip.label}</StatusChip>
@@ -297,8 +293,10 @@ export function Landing() {
       {/* Final CTA */}
       <section aria-labelledby="cta-h" className="border-t border-line">
         <div className="mx-auto max-w-[1200px] px-4 py-14 md:px-8 md:py-20">
-          <div className="flex flex-col gap-6 rounded-card border border-brand-line bg-brand-bg p-6 md:flex-row md:items-center md:justify-between md:p-10">
-            <div className="max-w-[60ch]">
+          <div className="flex flex-col gap-6 rounded-card border border-brand-line bg-brand-bg p-6 shadow-raised-md md:flex-row md:items-center md:justify-between md:p-10">
+            <div className="flex max-w-[60ch] flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+              <IconTile icon="users" tone="brand" size="lg" />
+              <div>
               <h2 id="cta-h" className="font-display text-[clamp(1.5rem,2.6vw,2rem)] leading-[1.15] font-bold tracking-[-0.015em] text-ink">
                 Access is reviewed by a person
               </h2>
@@ -306,6 +304,7 @@ export function Landing() {
                 Tell us your brand, your name and the email you will sign in with. Someone on our team reviews each request, and
                 you can check where yours stands at any time.
               </p>
+              </div>
             </div>
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg">

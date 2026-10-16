@@ -5,11 +5,11 @@
  */
 import { useQueryClient } from '@tanstack/react-query'
 import { useBlocker } from '@tanstack/react-router'
-import { AlertTriangle, Lock, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { STALE_VERSION_COPY, isStaleVersion, type Versioned } from '@/api/etag'
 import { isApiError } from '@/api/errors'
 import { StickyActions } from '@/components/app/page-header'
+import { Icon, IconTile } from '@/components/la/icons'
 import { ReferenceId } from '@/components/states/reference-id'
 import {
   AlertDialog,
@@ -191,8 +191,8 @@ export function ProfileEditor({ profile, canEdit }: { profile: Versioned<TenantO
       ) : null}
 
       {errors.profile ? (
-        <p role="alert" className="flex items-start gap-2 rounded-lg bg-destructive/5 p-3 text-sm text-destructive ring-1 ring-destructive/25">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+        <p role="alert" className="flex items-start gap-2 rounded-lg border border-danger-line bg-danger-bg p-3 text-sm text-destructive">
+          <Icon name="alert" size={16} className="mt-0.5" />
           {errors.profile}
         </p>
       ) : null}
@@ -203,7 +203,7 @@ export function ProfileEditor({ profile, canEdit }: { profile: Versioned<TenantO
             <h2 className="text-[0.9375rem] font-semibold tracking-tight">Profile</h2>
             {!canEdit ? (
               <p className="flex items-center gap-1.5 text-sm text-muted-foreground" data-testid="brand-readonly">
-                <Lock className="size-3.5" aria-hidden />
+                <Icon name="lock" size={14} />
                 Only owners and admins can change the brand profile.
               </p>
             ) : null}
@@ -212,7 +212,7 @@ export function ProfileEditor({ profile, canEdit }: { profile: Versioned<TenantO
             <div className="flex items-center gap-1.5">
               <dt className="sr-only">Slug</dt>
               <dd>
-                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground/80" data-testid="brand-slug">
+                <code className="rounded border border-line bg-field px-1.5 py-0.5 font-mono text-[11px] text-ink-2 shadow-inset-sm" data-testid="brand-slug">
                   {t.slug}
                 </code>
               </dd>
@@ -305,7 +305,7 @@ export function ProfileEditor({ profile, canEdit }: { profile: Versioned<TenantO
           {canEdit ? (
             <GlossaryEditor rows={draft.glossary} errors={errors} onChange={(glossary) => edit({ glossary })} />
           ) : Object.keys(t.glossary ?? {}).length ? (
-            <dl className="divide-y rounded-lg ring-1 ring-border">
+            <dl className="divide-y divide-line rounded-lg border border-line">
               {Object.entries(t.glossary ?? {}).map(([avoid, use]) => (
                 <div key={avoid} className="grid grid-cols-2 gap-3 px-3 py-2 text-sm">
                   <dt className="text-muted-foreground line-through decoration-muted-foreground/40">{avoid}</dt>
@@ -455,10 +455,10 @@ function StaleBanner({
       tabIndex={-1}
       role="alert"
       data-testid="stale-banner"
-      className="space-y-3 rounded-xl bg-warning/5 p-4 ring-1 ring-warning/30 outline-none dark:bg-warning/10"
+      className="space-y-3 rounded-card border border-attention-line bg-attention-tint p-4 shadow-raised-md outline-none"
     >
       <div className="flex items-start gap-3">
-        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+        <IconTile icon="alert" tone="warn" size="sm" />
         <div className="min-w-0 flex-1 space-y-1">
           <h2 className="text-sm font-semibold">{STALE_VERSION_COPY.title}</h2>
           <p className="text-sm text-muted-foreground">
@@ -472,13 +472,13 @@ function StaleBanner({
           ) : null}
         </div>
         <Button type="button" variant="ghost" size="icon-sm" aria-label="Dismiss" onClick={onDismiss}>
-          <X />
+          <Icon name="x" size={16} />
         </Button>
       </div>
       {stale.conflicts.length ? (
-        <ul className="space-y-2 pl-7">
+        <ul className="space-y-2 pl-10">
           {stale.conflicts.map((f) => (
-            <li key={f} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-card px-3 py-2 ring-1 ring-border">
+            <li key={f} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-surface px-3 py-2">
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium text-muted-foreground">{FIELD_LABEL[f]}: you both changed this. Latest saved:</p>
                 <p className="truncate text-sm" title={previewField(f, latest)}>

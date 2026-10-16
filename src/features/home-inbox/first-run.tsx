@@ -10,7 +10,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Page, PageHeader } from '@/components/app/page-header'
 import { CardHead, LaCard } from '@/components/la/cards'
-import { Icon, type IconName } from '@/components/la/icons'
+import { IconTile, type IconName } from '@/components/la/icons'
 import { ProgressRing, Stepper } from '@/components/la/progress'
 import { StatusChip, TagChip } from '@/components/la/status-chip'
 import { ComingSoon, NOT_YET } from '@/components/la/unavailable'
@@ -105,9 +105,7 @@ export function FirstRun({ brand }: { brand: string }) {
               const on = route === r.id
               const body = (
                 <>
-                  <span className="inline-flex size-10 items-center justify-center rounded-[9px] bg-brand-bg text-brand">
-                    <Icon name={r.icon} size={20} />
-                  </span>
+                  <IconTile icon={r.icon} tone={available ? 'brand' : 'neutral'} size="lg" flat={!available} className="size-10 rounded-[11px]" />
                   <h4 className="mt-3 text-[15px] leading-5 font-bold text-ink">{r.title}</h4>
                   <p className="mt-1 text-small text-ink-2">{r.sub}</p>
                   {!available ? <ComingSoon className="mt-2" /> : null}
@@ -126,7 +124,7 @@ export function FirstRun({ brand }: { brand: string }) {
                         aria-describedby={`route-${r.id}-reason`}
                         tabIndex={0}
                         data-testid={`route-${r.id}`}
-                        className="focus-ring cursor-not-allowed rounded-card border border-line bg-canvas p-4 opacity-70"
+                        className="focus-ring cursor-not-allowed rounded-card border border-dashed border-line-strong bg-canvas p-4 opacity-75"
                       >
                         {body}
                         <span id={`route-${r.id}-reason`} className="sr-only">
@@ -145,8 +143,10 @@ export function FirstRun({ brand }: { brand: string }) {
                   aria-checked={on}
                   onClick={() => setRoute(r.id)}
                   className={cn(
-                    'focus-ring rounded-card border p-4 text-left transition-[border-color,box-shadow,background-color] duration-150',
-                    on ? 'border-brand bg-brand-bg/50 shadow-selected' : 'border-line bg-canvas hover:border-line-strong',
+                    'focus-ring tactile rounded-card border p-4 text-left',
+                    on
+                      ? 'border-brand bg-brand-bg/60 shadow-[var(--selected-ring),var(--shadow-inset-sm)]'
+                      : 'lift border-line bg-surface shadow-raised-sm hover:border-line-strong active:shadow-pressed',
                   )}
                 >
                   {body}

@@ -14,7 +14,7 @@ import { BUILT } from '@/api/capabilities'
 import { isApiError, isNotFound, isRateLimited } from '@/api/errors'
 import { useIntentKey } from '@/api/idempotency'
 import { Page } from '@/components/app/page-header'
-import { Icon, LaCard, SUPPORTED_MARKETPLACES } from '@/components/la'
+import { Icon, IconTile, LaCard, SUPPORTED_MARKETPLACES } from '@/components/la'
 import { ErrorState } from '@/components/states/error-state'
 import { NotFound } from '@/components/states/not-found'
 import { Button } from '@/components/ui/button'
@@ -139,15 +139,11 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
         data-testid="live-hero"
         data-state={proof.state}
       >
-        <span
-          aria-hidden
-          className={cn(
-            'inline-flex size-11 shrink-0 items-center justify-center rounded-full border text-[15px]',
-            proof.state === 'live' ? 'border-success-line bg-success-bg text-success' : 'border-line-strong bg-subtle text-ink-2',
-          )}
-        >
-          {proof.state === 'live' ? '●' : proof.state === 'problem' ? '✕' : '◐'}
-        </span>
+        <IconTile
+          icon={proof.state === 'live' ? 'check' : proof.state === 'problem' ? 'x' : 'clock'}
+          tone={proof.state === 'live' ? 'ok' : proof.state === 'problem' ? 'fail' : 'brand'}
+          size="lg"
+        />
         <div className="min-w-0 flex-1">
           <h2 className="font-display text-h2 text-ink">{product.isPending ? <Skeleton className="h-6 w-72" /> : hero.title}</h2>
           <p className={cn('mt-0.5 text-small', proof.state === 'live' ? 'text-success-ink' : 'text-ink-2')}>

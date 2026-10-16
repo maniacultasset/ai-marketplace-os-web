@@ -1,4 +1,4 @@
-import { Lock, Users } from 'lucide-react'
+import { Icon } from '@/components/la/icons'
 import { useRef, useState, type ReactNode } from 'react'
 import { isApiError } from '@/api/errors'
 import type { Role } from '@/api/types'
@@ -68,7 +68,7 @@ function MemberCell({ member }: { member: Member }) {
   const isSelf = member.user_id === me?.user_id
   return (
     <div className="flex min-h-8 max-w-28 min-w-0 items-center gap-3 sm:max-w-none sm:min-w-56">
-      <Avatar className="hidden size-8 sm:flex">
+      <Avatar className="hidden size-8 border border-line shadow-raised-sm sm:flex">
         <AvatarFallback
           className={cn(
             'text-[11px] font-semibold transition-colors duration-150',
@@ -123,7 +123,7 @@ function RoleCell({ member }: { member: Member }) {
         <Locked reason={g.canEditRole ? null : g.roleLockedReason}>
           <Select value={member.role} onValueChange={pick} disabled={!g.canEditRole || rowPending}>
             <SelectTrigger ref={triggerRef} size="sm" className="w-[6.5rem] bg-card sm:w-36" aria-label={`Role for ${member.email}`} data-testid="role-select">
-              {g.canEditRole ? null : <Lock className="size-3 text-muted-foreground" aria-hidden />}
+              {g.canEditRole ? null : <Icon name="lock" size={12} className="text-muted-foreground" />}
               <SelectValue>{ROLE_INFO[member.role].label}</SelectValue>
             </SelectTrigger>
             <SelectContent align="start" className="w-72 p-1">
@@ -257,7 +257,7 @@ export function MembersTable() {
           </p>
         ) : null
       }
-      empty={<EmptyState icon={Users} title="No members" description="Nobody has access to this brand yet." compact />}
+      empty={<EmptyState icon="users" title="No members" description="Nobody has access to this brand yet." compact />}
     />
   )
 }

@@ -1,7 +1,7 @@
-import { Check, ChevronsUpDown, Package } from 'lucide-react'
 import { useState } from 'react'
 import { api, unwrap } from '@/api/client'
 import { describeError, isApiError } from '@/api/errors'
+import { Icon } from '@/components/la/icons'
 import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
@@ -43,7 +43,7 @@ export function ProductPicker({
           data-testid="product-picker"
         >
           <span className="flex min-w-0 items-center gap-2">
-            <Package className="size-4 shrink-0 text-muted-foreground" />
+            <Icon name="box" size={16} className="text-muted-foreground" />
             {selected ? (
               <span className="truncate">
                 <span className="font-mono text-xs">{selected.sku}</span>
@@ -53,7 +53,7 @@ export function ProductPicker({
               <span className="text-muted-foreground">Start from a product…</span>
             )}
           </span>
-          <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
+          <Icon name="chev" size={16} className="opacity-60" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[min(24rem,calc(100vw-2rem))] p-0" align="start">
@@ -97,7 +97,7 @@ export function ProductPicker({
                       }}
                       className="gap-2"
                     >
-                      <Check className={cn('size-4', selected?.id === p.id ? 'opacity-100' : 'opacity-0')} />
+                      <Icon name="check" size={16} className={cn(selected?.id === p.id ? 'opacity-100' : 'opacity-0')} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate">{p.title}</span>
                         <span className="block truncate font-mono text-[11px] text-muted-foreground">

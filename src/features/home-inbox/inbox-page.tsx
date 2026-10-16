@@ -9,6 +9,7 @@
  */
 import { Link } from '@tanstack/react-router'
 import { formatDistanceToNowStrict } from 'date-fns'
+import { IconTile } from '@/components/la/icons'
 import { Segmented } from '@/components/la/tabs'
 import { ErrorState } from '@/components/states'
 import { Button } from '@/components/ui/button'
@@ -64,7 +65,7 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
     <div className="grid min-h-[calc(100svh-var(--topbar-h))] grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)]">
       <section
         aria-label="Inbox items"
-        className={cn('flex min-w-0 flex-col gap-3 border-line bg-surface px-4 py-5 lg:border-r', search.item && 'max-lg:hidden')}
+        className={cn('flex min-w-0 flex-col gap-3 border-line bg-canvas px-4 py-5 lg:border-r', search.item && 'max-lg:hidden')}
         data-testid="inbox-list"
       >
         <div className="flex items-baseline justify-between gap-3">
@@ -93,8 +94,8 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
             </li>
           ) : pending ? (
             Array.from({ length: 4 }, (_, i) => (
-              <li key={i} className="flex gap-3 rounded-card border border-line p-4">
-                <Skeleton className="size-10 rounded-[9px]" />
+              <li key={i} className="flex gap-3 rounded-card border border-line bg-surface p-4 shadow-raised-sm">
+                <Skeleton className="size-10 rounded-[11px]" />
                 <div className="flex-1 space-y-1.5">
                   <Skeleton className="h-4 w-3/4" />
                   <Skeleton className="h-3 w-1/2" />
@@ -102,7 +103,8 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
               </li>
             ))
           ) : items.length === 0 ? (
-            <li className="rounded-card border border-dashed border-line-strong px-4 py-8 text-center" data-testid="inbox-empty">
+            <li className="flex flex-col items-center rounded-card border border-dashed border-line-strong px-4 py-8 text-center" data-testid="inbox-empty">
+              <IconTile icon={filteredStatus ? 'filter' : 'check'} tone={filteredStatus ? 'neutral' : 'ok'} size="lg" className="mb-3" />
               <p className="font-semibold text-ink">{filteredStatus ? 'Nothing here' : 'Nothing needs you'}</p>
               <p className="mt-1 text-small text-ink-2">
                 {filteredStatus
@@ -201,8 +203,10 @@ function ItemCard({
       data-testid="inbox-item"
       data-item={itemKey(item)}
       className={cn(
-        'focus-ring block rounded-card border p-4 transition-[border-color,background-color,box-shadow] duration-150',
-        selected ? 'border-brand bg-brand-bg shadow-selected' : 'border-line bg-surface hover:border-line-strong',
+        'focus-ring tactile block rounded-card border p-4',
+        selected
+          ? 'border-brand bg-brand-bg shadow-[var(--selected-ring),var(--shadow-inset-sm)]'
+          : 'lift border-line bg-surface shadow-raised-sm hover:border-line-strong active:shadow-pressed',
       )}
     >
       <div className="flex items-center gap-3">

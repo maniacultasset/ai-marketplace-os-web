@@ -36,7 +36,7 @@ export function AppSidebar({
     <nav
       aria-label="Main navigation"
       data-collapsed={collapsed || undefined}
-      className={cn('flex h-full flex-col gap-0.5 border-r border-line bg-surface px-3 py-4', className)}
+      className={cn('flex h-full flex-col gap-0.5 border-r border-line bg-canvas px-3 py-4', className)}
     >
       <Link
         to="/home"
@@ -63,12 +63,22 @@ export function AppSidebar({
                   data-nav-id={item.id}
                   aria-current={active ? 'page' : undefined}
                   className={cn(
-                    'flex h-[38px] items-center gap-2.5 rounded-control px-2.5 font-medium text-ink-2 transition-colors duration-150 hover:bg-canvas hover:text-ink',
-                    active && 'bg-brand-bg font-bold text-brand hover:bg-brand-bg hover:text-brand',
+                    'tactile flex h-[38px] items-center gap-2.5 rounded-[10px] border border-transparent px-2.5 font-medium text-ink-2 hover:bg-hover hover:text-ink active:shadow-pressed',
+                    // Active: a raised matte tile with the brand label, the icon in a brand tint.
+                    active && 'border-line bg-surface font-bold text-brand shadow-raised-sm hover:bg-surface hover:text-brand',
                     collapsed && 'justify-center px-0',
                   )}
                 >
-                  <NavIcon icon={item.icon} />
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'tactile -ml-1 inline-flex size-7 shrink-0 items-center justify-center rounded-[8px]',
+                      active && 'bg-brand-bg text-brand',
+                      collapsed && 'ml-0',
+                    )}
+                  >
+                    <NavIcon icon={item.icon} />
+                  </span>
                   <span className={cn('truncate', collapsed && 'sr-only')}>{item.label}</span>
                   {item.id === 'inbox' && !collapsed ? <InboxNavBadge /> : null}
                 </Link>
@@ -93,7 +103,7 @@ export function AppSidebar({
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           aria-expanded={!collapsed}
           className={cn(
-            'mt-2 flex h-8 items-center gap-2.5 rounded-control px-2.5 text-caption font-semibold text-ink-3 transition-colors duration-150 hover:bg-canvas hover:text-ink',
+            'tactile mt-2 flex h-8 items-center gap-2.5 rounded-[10px] px-2.5 text-caption font-semibold text-ink-3 hover:bg-hover hover:text-ink active:shadow-pressed',
             collapsed && 'justify-center px-0',
           )}
         >

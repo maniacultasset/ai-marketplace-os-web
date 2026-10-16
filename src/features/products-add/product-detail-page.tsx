@@ -514,11 +514,11 @@ function VariantsTab({ data }: { data: DetailData }) {
         </Can>
       </div>
       {data.variants.length === 0 ? (
-        <EmptyState title="No variants" description="Add sizes and colours with the variants step." compact />
+        <EmptyState icon="grid" title="No variants" description="Add sizes and colours with the variants step." compact />
       ) : (
         <table className="w-full text-small" aria-label="Variants">
           <thead>
-            <tr className="h-[38px] bg-canvas text-left text-caption font-bold text-ink-2">
+            <tr className="h-[38px] bg-sunken text-left text-caption font-bold text-ink-2">
               <th className="px-5">SKU</th>
               <th className="px-3">Size</th>
               <th className="hidden px-3 sm:table-cell">Updated</th>
@@ -553,6 +553,7 @@ function NoListings({ data }: { data: DetailData }) {
   return (
     <LaCard pad="none">
       <EmptyState
+        icon="store"
         title={data.isVariant ? 'Listed through its style' : 'No listings yet'}
         description={data.isVariant ? 'Open the style to see its listings.' : 'Start a draft with “List on …” on the Overview tab.'}
         compact

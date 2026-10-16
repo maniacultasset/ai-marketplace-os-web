@@ -104,7 +104,7 @@ function SectionMark({ state }: { state: SectionState }) {
       </span>
     )
   return (
-    <span className="inline-flex size-[22px] items-center justify-center rounded-full border border-dashed border-line-strong bg-subtle text-ink-2">
+    <span className="inline-flex size-[22px] items-center justify-center rounded-full border border-dashed border-line-strong bg-field text-ink-2 shadow-inset-sm">
       <Glyph status="not-listed" />
       <span className="sr-only">not started</span>
     </span>
@@ -393,7 +393,7 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
   return (
     <div className="flex min-h-[calc(100svh-56px)] flex-col">
       <div className="grid flex-1 grid-cols-1 content-start lg:grid-cols-[190px_minmax(0,1fr)_290px] lg:content-stretch">
-        <nav aria-label="Sections" className="border-b border-line bg-surface px-3.5 py-4 lg:border-r lg:border-b-0 lg:py-6">
+        <nav aria-label="Sections" className="border-b border-line bg-canvas px-3.5 py-4 lg:border-r lg:border-b-0 lg:py-6">
           <h2 className="mb-2 px-2.5 font-display text-[15px] font-bold text-ink">Sections</h2>
           <ul className="relative flex gap-0.5 overflow-x-auto lg:flex-col">
             {SECTIONS.map((s) => (
@@ -403,8 +403,8 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
                   onClick={() => setSection(s.id)}
                   aria-current={s.id === section ? 'step' : undefined}
                   className={cn(
-                    'focus-ring flex h-10 w-full items-center justify-between gap-3 rounded-lg px-2.5 text-left text-body text-ink',
-                    s.id === section ? 'bg-brand-bg font-bold text-brand' : 'hover:bg-subtle',
+                    'focus-ring tactile flex h-10 w-full items-center justify-between gap-3 rounded-lg border px-2.5 text-left text-body text-ink active:shadow-pressed',
+                    s.id === section ? 'border-line bg-surface font-bold text-brand shadow-raised-sm' : 'border-transparent hover:bg-hover',
                   )}
                 >
                   {s.label}

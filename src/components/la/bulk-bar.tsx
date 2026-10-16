@@ -1,6 +1,6 @@
 /**
  * Bulk action bar (hi-fi p07): appears on selection, pinned to the bottom of the viewport, white,
- * radius 12, shadow-lg. "N selected" on the left, actions on the right (one primary at most).
+ * radius 14, raised lg (floating). "N selected" on the left, actions on the right (one primary at most).
  * Actions the backend cannot do yet use UnavailableButton with a reason.
  */
 import type { ReactNode } from 'react'
@@ -14,7 +14,7 @@ export function BulkBar({ count, onClear, children, className }: { count: number
         role="region"
         aria-label="Bulk actions"
         className={cn(
-          'pointer-events-auto flex w-full max-w-[770px] flex-wrap items-center gap-2 rounded-card border border-line bg-surface px-4 py-3 shadow-lg',
+          'pointer-events-auto flex w-full max-w-[770px] flex-wrap items-center gap-2 rounded-[14px] border border-line bg-surface px-4 py-3 shadow-raised-lg',
           className,
         )}
       >

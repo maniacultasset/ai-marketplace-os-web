@@ -140,11 +140,14 @@ function MarketplaceRow({
       data-testid={`setup-mp-${info.id}`}
       data-selected={selected || undefined}
       className={cn(
-        'relative flex min-h-[68px] items-center justify-between gap-3 rounded-card border px-4 py-3',
+        'tactile relative flex min-h-[68px] items-center justify-between gap-3 rounded-card border px-4 py-3',
         !info.supported
           ? 'border-dashed border-line-strong bg-transparent'
-          : 'border-line bg-surface shadow-sm hover:border-line-strong',
-        selected && (info.supported ? 'border-brand shadow-selected hover:border-brand' : 'border-brand'),
+          : 'border-line bg-surface shadow-raised-sm hover:border-edge-hover hover:shadow-raised-md',
+        selected &&
+          (info.supported
+            ? 'border-brand shadow-[var(--selected-ring),var(--shadow-raised-md)] hover:border-brand hover:shadow-[var(--selected-ring),var(--shadow-raised-md)]'
+            : 'border-brand shadow-selected'),
       )}
     >
       {/* The whole row selects; the action on the right sits above the stretched button. */}
@@ -154,7 +157,7 @@ function MarketplaceRow({
         onClick={onSelect}
         className="focus-ring flex min-w-0 items-center gap-3 rounded-control text-left after:absolute after:inset-0 after:rounded-card"
       >
-        <MarketplaceTile id={info.id} />
+        <MarketplaceTile id={info.id} className={cn(!info.supported && 'shadow-none')} />
         <span className="min-w-0">
           <b className="block truncate text-ink">{info.name}</b>
           {!info.supported ? <span className="block text-caption text-ink-3">Not supported yet</span> : null}
@@ -209,7 +212,7 @@ function MarketplaceDetail({ info, account, loading }: { info: MarketplaceInfo; 
   const header = (action?: ReactNode, sub?: ReactNode) => (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="flex min-w-0 items-center gap-3">
-        <MarketplaceTile id={info.id} size="big" />
+        <MarketplaceTile id={info.id} size="big" className={cn(!info.supported && 'shadow-none')} />
         <div className="min-w-0">
           <h2 className="text-h2 text-ink">{info.name}</h2>
           {sub ? <p className="truncate text-small text-ink-2">{sub}</p> : null}

@@ -1,4 +1,4 @@
-import { Search, X } from 'lucide-react'
+import { Icon } from '@/components/la/icons'
 import { useEffect, useId, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -77,9 +77,10 @@ export function RulesFiltersBar({
             <label htmlFor={inputId} className="sr-only">
               Category
             </label>
-            <Search
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+            <Icon
+              name="search"
+              size={16}
+              className="pointer-events-none absolute top-1/2 left-2.5 z-10 -translate-y-1/2 text-muted-foreground"
             />
             <Input
               id={inputId}
@@ -101,7 +102,7 @@ export function RulesFiltersBar({
               <button
                 type="button"
                 aria-label="Clear category"
-                className="absolute top-1/2 right-2 flex size-5 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+                className="absolute top-1/2 right-2 flex size-5 -translate-y-1/2 items-center justify-center tactile z-10 rounded text-muted-foreground hover:bg-hover hover:text-foreground active:bg-pressed focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   setDraft('')
@@ -109,7 +110,7 @@ export function RulesFiltersBar({
                   if (value.category) onChange({ ...value, category: undefined })
                 }}
               >
-                <X className="size-3.5" />
+                <Icon name="x" size={14} />
               </button>
             ) : null}
           </div>
@@ -127,7 +128,7 @@ export function RulesFiltersBar({
               onChange({})
             }}
           >
-            <X data-icon="inline-start" />
+            <Icon name="x" size={16} data-icon="inline-start" />
             Reset filters
           </Button>
         ) : null}

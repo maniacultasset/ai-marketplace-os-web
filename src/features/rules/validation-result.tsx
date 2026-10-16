@@ -1,17 +1,9 @@
 import { Link } from '@tanstack/react-router'
 import { motion } from 'motion/react'
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ChevronRight,
-  CircleDashed,
-  CircleSlash,
-  MinusCircle,
-  Lightbulb,
-  XCircle,
-} from 'lucide-react'
+import { ChevronRight, CircleDashed, CircleSlash, Lightbulb, MinusCircle, XCircle } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import type { ErrorItem } from '@/api/types'
+import { Icon, IconTile } from '@/components/la/icons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -119,17 +111,7 @@ export function ValidationResultPanel({
     >
       <Card className="gap-0 py-0">
         <div className="flex items-start gap-3.5 p-5">
-          <span
-            aria-hidden
-            className={cn(
-              'flex size-10 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset',
-              result.passed
-                ? 'bg-success/10 text-success ring-success/20'
-                : 'bg-destructive/10 text-destructive ring-destructive/20',
-            )}
-          >
-            {result.passed ? <CheckCircle2 className="size-5" /> : <XCircle className="size-5" />}
-          </span>
+          <IconTile icon={result.passed ? 'check' : 'x'} tone={result.passed ? 'ok' : 'fail'} size="lg" />
           <div className="min-w-0 flex-1 space-y-1">
             <h2
               id="dry-run-verdict"
@@ -162,7 +144,7 @@ export function ValidationResultPanel({
             {counts.skipped ? <CountItem tone="muted" label="not run" n={counts.skipped} /> : null}
           </ul>
         ) : null}
-        <dl className="flex flex-wrap gap-x-6 gap-y-2.5 border-t bg-muted/40 px-5 py-3 text-xs">
+        <dl className="flex flex-wrap gap-x-6 gap-y-2.5 border-t border-line bg-sunken px-5 py-3 text-xs">
           <Stat label="Marketplace" value={MARKETPLACE_LABEL[result.marketplace]} />
           <Stat label="Category" value={category} title={category} />
           <Stat label="Rules version" value={result.rules_version != null ? `v${result.rules_version}` : '—'} />
@@ -171,7 +153,7 @@ export function ValidationResultPanel({
       </Card>
 
       {stale ? (
-        <p className="flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-2 text-[13px] text-foreground ring-1 ring-warning/25 ring-inset">
+        <p className="flex items-center gap-2 rounded-lg border border-attention-line bg-attention-bg px-3 py-2 text-[13px] text-ink">
           <CircleDashed className="size-3.5 shrink-0 text-warning" aria-hidden />
           The draft changed since this check. Run it again to see the current result.
         </p>
@@ -299,7 +281,7 @@ function IssueRow({ item, rule }: { item: ErrorItem; rule: Rule | undefined }) {
         ) : null}
       </div>
       {item.value_submitted != null && open ? (
-        <pre className="max-h-40 overflow-auto rounded-md bg-muted px-2.5 py-2 font-mono text-[11px] break-all whitespace-pre-wrap">
+        <pre className="max-h-40 overflow-auto rounded-md border border-line bg-field px-2.5 py-2 shadow-inset-sm font-mono text-[11px] break-all whitespace-pre-wrap">
           {item.value_submitted}
         </pre>
       ) : null}
@@ -310,10 +292,10 @@ function IssueRow({ item, rule }: { item: ErrorItem; rule: Rule | undefined }) {
 const STATUS_ICON: Record<CheckStatus, ReactNode> = {
   disabled: <CircleSlash className="size-4 shrink-0 text-muted-foreground" aria-hidden />,
   failed: <XCircle className="size-4 shrink-0 text-destructive" aria-hidden />,
-  warning: <AlertTriangle className="size-4 shrink-0 text-warning" aria-hidden />,
+  warning: <Icon name="alert" size={16} className="text-warning" />,
   'not-run': <MinusCircle className="size-4 shrink-0 text-muted-foreground" aria-hidden />,
   replaced: <MinusCircle className="size-4 shrink-0 text-muted-foreground" aria-hidden />,
-  passed: <CheckCircle2 className="size-4 shrink-0 text-success" aria-hidden />,
+  passed: <Icon name="check" size={16} className="text-success" />,
 }
 
 function RulesChecked({ checked, loading, error }: { checked: CheckedRule[]; loading: boolean; error: boolean }) {
@@ -386,7 +368,7 @@ function RulesChecked({ checked, loading, error }: { checked: CheckedRule[]; loa
           ))}
         </ul>
       )}
-      <p className="border-t bg-muted/40 px-5 py-3 text-xs leading-relaxed text-muted-foreground">
+      <p className="border-t border-line bg-sunken px-5 py-3 text-xs leading-relaxed text-muted-foreground">
         Rules that depend on images, product facts or account data do not run in a dry run. When a rule has several
         enabled versions, only the highest one runs.
       </p>

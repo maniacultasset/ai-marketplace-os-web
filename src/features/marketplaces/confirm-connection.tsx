@@ -1,7 +1,8 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { CheckCircle2, ExternalLink, Link2Off, RotateCw, ShieldOff, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { Link2Off } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { isApiError, isForbidden } from '@/api/errors'
+import { Icon, IconTile, type IconSource, type TileTone } from '@/components/la'
 import { ErrorState } from '@/components/states/error-state'
 import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
@@ -65,7 +66,7 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
   if (!allowed || isForbidden(confirm.error)) {
     return (
       <Panel
-        icon={ShieldOff}
+        icon="lock"
         title="Only owners and admins can connect marketplaces"
         description="Ask an owner or admin of this brand to connect the account."
         reference={isApiError(confirm.error) ? confirm.error.correlationId : null}
@@ -79,7 +80,7 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
     return (
       <Card className="gap-0 py-0" data-testid="connect-success">
         <StatusHead
-          tile={<IconTile icon={CheckCircle2} tone="success" />}
+          tile={<IconTile icon="check" tone="ok" size="lg" />}
           title={`${m.name} connected`}
           description={`Listings for this brand can now be published to ${m.short}.`}
         />
@@ -108,7 +109,7 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
             )}
           </Row>
         </dl>
-        <div className="mt-6 flex justify-end border-t bg-muted/40 px-6 py-3.5 sm:px-8">
+        <div className="mt-6 flex justify-end border-t border-line bg-sunken px-6 py-3.5 sm:px-8">
           <Button size="sm" className="max-sm:w-full" asChild>
             <Link to="/marketplaces">View marketplaces</Link>
           </Button>
@@ -134,7 +135,7 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
     if (isApiError(err) && err.type === 'MARKETPLACE_ACCOUNT_CONFLICT') {
       return (
         <Panel
-          icon={TriangleAlert}
+          icon="alert"
           tone="warning"
           title={err.message}
           description="Revoke the existing connection on Marketplaces (opens in a new tab), then try again here. This link stays valid for about 10 minutes."
@@ -145,11 +146,11 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
               <Button variant="outline" size="sm" asChild>
                 <a href="/marketplaces" target="_blank" rel="noopener">
                   Open Marketplaces
-                  <ExternalLink data-icon="inline-end" />
+                  <Icon name="external" size={16} data-icon="inline-end" />
                 </a>
               </Button>
               <Button size="sm" onClick={() => mutate(pending)}>
-                <RotateCw data-icon="inline-start" />
+                <Icon name="refresh" size={16} data-icon="inline-start" />
                 Try again
               </Button>
             </>
@@ -167,7 +168,7 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
     <Card className="py-0" role="status" aria-live="polite" data-testid="connect-confirming">
       <StatusHead
         tile={
-          <span className="flex size-12 items-center justify-center rounded-xl bg-subtle text-ink-2 ring-1 ring-line ring-inset">
+          <span className="flex size-11 items-center justify-center rounded-[12px] border border-[var(--tile-brand-line)] bg-[var(--tile-brand-bg)] text-[var(--tile-brand-fg)] shadow-raised-sm">
             <Spinner className="size-5" />
           </span>
         }
@@ -187,20 +188,7 @@ function BackButton() {
   )
 }
 
-const TONES = {
-  neutral: 'bg-subtle text-ink-2 ring-line',
-  success: 'bg-success-bg text-success ring-success-line',
-  danger: 'bg-danger-bg text-danger ring-danger-line',
-  warning: 'bg-attention-bg text-attention ring-attention-line',
-} as const
-
-function IconTile({ icon: Icon, tone }: { icon: LucideIcon; tone: keyof typeof TONES }) {
-  return (
-    <span className={cn('flex size-12 items-center justify-center rounded-xl ring-1 ring-inset', TONES[tone])}>
-      <Icon className="size-[1.375rem]" strokeWidth={1.75} aria-hidden />
-    </span>
-  )
-}
+const TONES = { neutral: 'neutral', success: 'ok', danger: 'fail', warning: 'warn' } as const satisfies Record<string, TileTone>
 
 /** Centered tile, page title (h1: this card is the page's subject) and one sentence. */
 function StatusHead({
@@ -243,7 +231,7 @@ function Panel({
   tone = 'neutral',
   testId,
 }: {
-  icon: LucideIcon
+  icon: IconSource
   title: string
   description: ReactNode
   actions?: ReactNode
@@ -253,7 +241,7 @@ function Panel({
 }) {
   return (
     <Card className="py-0" role={tone === 'neutral' ? undefined : 'alert'} data-testid={testId}>
-      <StatusHead tile={<IconTile icon={icon} tone={tone} />} title={title} description={description} className="pb-5" />
+      <StatusHead tile={<IconTile icon={icon} tone={TONES[tone]} size="lg" />} title={title} description={description} className="pb-5" />
       {reference || actions ? (
         <div className="flex flex-col items-center gap-4 px-6 pb-9">
           <ReferenceId id={reference} />

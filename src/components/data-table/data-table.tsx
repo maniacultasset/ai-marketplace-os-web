@@ -209,7 +209,7 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
   return (
     <div className={cn('flex flex-col gap-3', props.className)}>
       {props.toolbar}
-      <div className={cn('overflow-clip rounded-card border border-line bg-surface shadow-sm', props.renderCard && 'hidden lg:block')}>
+      <div className={cn('overflow-clip rounded-card border border-line bg-surface shadow-raised-md', props.renderCard && 'hidden lg:block')}>
         <Table
           aria-label={props.label}
           aria-busy={isLoading || isStale || undefined}
@@ -228,7 +228,7 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
                     <TableHead
                       key={header.id}
                       className={cn(
-                        'h-[38px] bg-canvas text-caption font-bold text-ink-2 shadow-[inset_0_-1px_0_var(--line)]',
+                        'h-[38px] bg-sunken text-caption font-bold text-ink-2 shadow-[inset_0_-1px_0_var(--line)]',
                         sticky && 'md:sticky md:top-0 md:z-10',
                         meta?.className,
                         meta?.headerClassName,
@@ -248,7 +248,7 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
         <div className="flex flex-col gap-3 lg:hidden" aria-label={props.label} role="list" aria-busy={isLoading || isStale || undefined}>
           {isLoading ? (
             Array.from({ length: Math.min(props.skeletonRows ?? 4, 4) }, (_, i) => (
-              <div key={i} role="listitem" className="flex flex-col gap-2 rounded-card border border-line bg-surface p-4 shadow-sm">
+              <div key={i} role="listitem" className="flex flex-col gap-2 rounded-card border border-line bg-surface p-4 shadow-raised-md">
                 <Skeleton className="h-4 w-2/3" />
                 <Skeleton className="h-3 w-1/3" />
                 <Skeleton className="h-6 w-full" />

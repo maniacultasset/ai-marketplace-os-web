@@ -3,12 +3,12 @@
  * Idempotency-Key, 202 + job polling), DELETE /brand/documents/{id} (confirm).
  */
 import { useQueryClient } from '@tanstack/react-query'
-import { AlertCircle, FileText, Trash2, UploadCloud, X } from 'lucide-react'
 import { useState, type MouseEvent } from 'react'
 import { useDropzone, type FileRejection } from 'react-dropzone'
 import { isApiError, isNotFound, type ApiError } from '@/api/errors'
 import { useIntentKey } from '@/api/idempotency'
 import { JobStatusBadge } from '@/components/app/job-status-badge'
+import { Icon, IconTile } from '@/components/la/icons'
 import { EmptyState } from '@/components/states/empty-state'
 import { ErrorState } from '@/components/states/error-state'
 import { ReferenceId } from '@/components/states/reference-id'
@@ -74,7 +74,7 @@ export function DocumentsPanel({ canManage }: { canManage: boolean }) {
         ) : !count ? (
           <EmptyState
             compact
-            icon={FileText}
+            icon="file"
             title="No documents yet"
             description={
               canManage
@@ -209,11 +209,11 @@ function UploadArea() {
       <div
         {...dz.getRootProps({
           className: cn(
-            'group flex min-h-24 flex-col items-center justify-center gap-2 rounded-lg border-[1.5px] border-dashed border-foreground/15 bg-muted/40 px-4 py-4 text-center outline-none',
-            'transition-[border-color,background-color,box-shadow] duration-150',
+            'group flex min-h-24 flex-col items-center justify-center gap-2 rounded-lg border-[1.5px] border-dashed border-line-strong bg-sunken px-4 py-4 text-center outline-none',
+            'tactile',
             'focus-visible:border-brand focus-visible:ring-[3px] focus-visible:ring-brand/20',
-            !file && 'cursor-pointer hover:border-foreground/30 hover:bg-muted/70',
-            file && 'border-solid border-border bg-muted/20',
+            !file && 'cursor-pointer hover:border-edge-hover hover:bg-hover',
+            file && 'border-solid border-line bg-sunken',
             dz.isDragActive && 'border-brand bg-brand-soft hover:border-brand hover:bg-brand-soft',
             problem && !problem.error && !dz.isDragActive && 'border-destructive/50',
           ),
@@ -223,10 +223,8 @@ function UploadArea() {
       >
         <input {...dz.getInputProps({ 'aria-label': 'Brand document file' })} />
         {file ? (
-          <div className="flex w-full items-center gap-3 rounded-lg bg-card px-3 py-2 text-left shadow-elev-1 ring-1 ring-border">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
-              <FileText className="size-4" aria-hidden />
-            </div>
+          <div className="flex w-full items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2 text-left shadow-raised-sm">
+            <IconTile icon="file" tone="brand" size="sm" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium" title={file.name} data-testid="selected-document">
                 {file.name}
@@ -244,15 +242,12 @@ function UploadArea() {
                 pick(null)
               }}
             >
-              <X />
+              <Icon name="x" size={16} />
             </Button>
           </div>
         ) : (
           <>
-            <UploadCloud
-              className={cn('size-5 text-muted-foreground transition-colors duration-150 group-hover:text-foreground', dz.isDragActive && 'text-brand')}
-              aria-hidden
-            />
+            <IconTile icon="upload" tone={dz.isDragActive ? 'brand' : 'neutral'} size="sm" />
             <p className="text-sm font-medium">
               {dz.isDragActive ? 'Drop the file to add it' : (
                 <>
@@ -297,9 +292,9 @@ function UploadArea() {
       ) : null}
 
       {problem ? (
-        <div role="alert" data-testid="document-problem" className="space-y-1.5 rounded-lg bg-destructive/5 p-3 ring-1 ring-destructive/25 dark:bg-destructive/10">
+        <div role="alert" data-testid="document-problem" className="space-y-1.5 rounded-lg border border-danger-line bg-danger-bg p-3">
           <p className="flex items-start gap-2 text-sm text-destructive">
-            <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <Icon name="alert" size={16} className="mt-0.5" />
             {problem.message}
           </p>
           {problem.error ? <ReferenceId id={problem.error.correlationId} className="pl-6" /> : null}
@@ -348,7 +343,7 @@ function LastUpload({
                 ? 'Status unavailable'
                 : 'Checking status…'
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 ring-1 ring-border" data-testid="last-upload" aria-live="polite">
+    <div className="flex items-center gap-2 rounded-lg border border-line bg-sunken px-3 py-2" data-testid="last-upload" aria-live="polite">
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-medium" title={filename}>
           {filename}
@@ -358,7 +353,7 @@ function LastUpload({
       </div>
       <JobStatusBadge status={status} />
       <Button type="button" variant="ghost" size="icon-sm" aria-label="Dismiss" onClick={onDismiss}>
-        <X />
+        <Icon name="x" size={16} />
       </Button>
     </div>
   )
@@ -369,14 +364,7 @@ function DocumentRow({ doc, canManage }: { doc: BrandDocument; canManage: boolea
   const meta = documentStatusMeta(doc)
   return (
     <li className="flex items-start gap-3 px-5 py-3" data-testid="document-row" data-status={doc.status}>
-      <div
-        className={cn(
-          'mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg',
-          doc.status === 'failed' ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground',
-        )}
-      >
-        <FileText className="size-4" aria-hidden />
-      </div>
+      <IconTile icon="file" tone={doc.status === 'failed' ? 'fail' : 'neutral'} size="sm" className="mt-0.5" />
       <div className="min-w-0 flex-1 space-y-1">
         <p className="truncate text-sm font-medium" title={doc.filename} data-testid="document-name">
           {doc.filename}
@@ -414,7 +402,7 @@ function DocumentRow({ doc, canManage }: { doc: BrandDocument; canManage: boolea
             aria-label={`Delete ${doc.filename}`}
             onClick={() => setConfirm(true)}
           >
-            <Trash2 />
+            <Icon name="trash" size={16} />
           </Button>
           <DeleteDialog doc={doc} open={confirm} onOpenChange={setConfirm} />
         </>

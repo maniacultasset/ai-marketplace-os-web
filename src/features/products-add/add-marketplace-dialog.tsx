@@ -116,7 +116,7 @@ export function AddMarketplaceDialog({
         ) : (
           <div className="flex flex-col gap-4">
             <ListOnPicker value={chosen} onChange={setChosen} connected={connected} />
-            <div className="rounded-[10px] border border-line bg-canvas px-4 py-3 text-small text-ink-2" aria-live="polite">
+            <div className="rounded-[10px] border border-line bg-sunken px-4 py-3 text-small text-ink-2 shadow-inset-sm" aria-live="polite">
               {chosen.length === 0 ? (
                 'Choose at least one marketplace.'
               ) : (

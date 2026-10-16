@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { Icon } from '@/components/la/icons'
 import { useState, type KeyboardEvent } from 'react'
 import { cn } from '@/lib/utils'
 import { charCount } from './listing-form'
@@ -61,23 +61,23 @@ export function TagInput({
     <div className="space-y-1">
       <div
         className={cn(
-          'flex min-h-9 w-full flex-wrap items-center gap-1.5 rounded-lg border border-input bg-card px-2.5 py-1.5 shadow-[inset_0_1px_1px_hsl(var(--shadow-color)/0.04)] transition-[border-color,box-shadow] duration-150 hover:border-border-strong focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/25 dark:bg-input/30',
-          invalid && 'border-destructive ring-destructive/20',
+          'flex min-h-10 w-full flex-wrap items-center gap-1.5 rounded-control border inset-field px-2.5 py-1.5 transition-[border-color,box-shadow,background-color] duration-150 hover:border-edge-hover focus-within:border-brand focus-within:shadow-[var(--focus-ring),var(--shadow-inset-sm)]',
+          invalid && 'border-danger shadow-[var(--focus-ring-danger),var(--shadow-inset-sm)]',
         )}
       >
         {value.map((t, i) => (
           <span
             key={`${t}-${i}`}
-            className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted py-0.5 pr-0.5 pl-2 text-xs"
+            className="inline-flex max-w-full items-center gap-1 rounded-md border border-line bg-surface py-0.5 pr-0.5 pl-2 text-xs shadow-raised-sm"
           >
             <span className="truncate">{t}</span>
             <button
               type="button"
               aria-label={`Remove ${t}`}
-              className="inline-flex size-4 items-center justify-center rounded-sm text-muted-foreground hover:bg-background hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+              className="inline-flex size-4 items-center justify-center rounded-sm text-muted-foreground hover:bg-hover hover:text-foreground active:bg-pressed focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
               onClick={() => onChange(value.filter((_, j) => j !== i))}
             >
-              <X className="size-3" />
+              <Icon name="x" size={12} />
             </button>
           </span>
         ))}

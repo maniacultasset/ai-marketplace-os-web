@@ -1,6 +1,6 @@
-import { Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useId, type ReactNode } from 'react'
 import { Controller, useFieldArray, useWatch, type UseFormReturn } from 'react-hook-form'
+import { Icon } from '@/components/la/icons'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -154,7 +154,7 @@ export function TargetSection({ form, categories }: { form: Form; categories: st
               title="New draft ID"
               onClick={() => setValue('product_id', crypto.randomUUID(), { shouldDirty: true, shouldValidate: true })}
             >
-              <RefreshCw />
+              <Icon name="refresh" size={16} />
             </Button>
           </div>
         </FieldBox>
@@ -225,7 +225,7 @@ export function ContentSection({ form }: { form: Form }) {
                       onClick={() => bullets.remove(i)}
                       className="text-muted-foreground"
                     >
-                      <Trash2 />
+                      <Icon name="trash" size={16} />
                     </Button>
                   </div>
                   <div className="flex justify-between gap-2 pr-10 pl-7">
@@ -255,7 +255,7 @@ export function ContentSection({ form }: { form: Form }) {
             disabled={bullets.fields.length >= LIMITS.bulletsMax}
             onClick={() => bullets.append({ value: '' }, { shouldFocus: true })}
           >
-            <Plus data-icon="inline-start" />
+            <Icon name="plus" size={16} data-icon="inline-start" />
             Add bullet
           </Button>
         </fieldset>
@@ -352,7 +352,7 @@ export function AttributesSection({ form }: { form: Form }) {
       </CardHeader>
       <CardContent className="space-y-3">
         {attrs.fields.length === 0 ? (
-          <p className="rounded-lg border border-dashed bg-muted/30 px-3 py-5 text-center text-[13px] text-muted-foreground">
+          <p className="rounded-lg border border-dashed border-line-strong px-3 py-5 text-center text-[13px] text-ink-2">
             No attributes. Required-attribute rules will report them as missing.
           </p>
         ) : (
@@ -453,7 +453,7 @@ export function AttributesSection({ form }: { form: Form }) {
                     className="row-start-2 text-muted-foreground sm:row-start-auto"
                     onClick={() => attrs.remove(i)}
                   >
-                    <Trash2 />
+                    <Icon name="trash" size={16} />
                   </Button>
                 </li>
               )
@@ -474,7 +474,7 @@ export function AttributesSection({ form }: { form: Form }) {
             onClick={() => attrs.append({ key: '', type: 'text', value: '' }, { shouldFocus: true })}
             data-testid="add-attribute"
           >
-            <Plus data-icon="inline-start" />
+            <Icon name="plus" size={16} data-icon="inline-start" />
             Add attribute
           </Button>
           <span className="text-xs text-muted-foreground tabular-nums">

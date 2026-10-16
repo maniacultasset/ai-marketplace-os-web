@@ -1,4 +1,4 @@
-import { Info } from 'lucide-react'
+import { Icon } from '@/components/la/icons'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { ROLE_INFO, ROLE_ORDER } from './roles'
@@ -25,10 +25,10 @@ export function RolesLegend({ className }: { className?: string }) {
         ))}
       </dl>
       <p
-        className="flex items-start gap-2 border-t bg-muted/40 px-5 py-3.5 text-xs leading-relaxed text-muted-foreground"
+        className="flex items-start gap-2 border-t border-line bg-sunken px-5 py-3.5 text-xs leading-relaxed text-muted-foreground"
         data-testid="approvals-note"
       >
-        <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+        <Icon name="info" size={14} className="mt-0.5" />
         Approvals need a second person: the person who generated or edited a listing cannot approve it.
       </p>
     </Card>

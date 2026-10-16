@@ -2,9 +2,9 @@
  * /imports/$importId body: job progress, live counts, error panel,
  * rows table with server status filter, "Retry failed rows".
  */
+import { Icon } from '@/components/la/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { AlertCircle, Info, RotateCcw } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { api, unwrap } from '@/api/client'
 import { isApiError, isNotFound } from '@/api/errors'
@@ -179,7 +179,7 @@ export function ImportReportView({
             }}
             data-testid="retry-failed"
           >
-            {retry.isPending ? <Spinner data-icon="inline-start" /> : <RotateCcw data-icon="inline-start" />}
+            {retry.isPending ? <Spinner data-icon="inline-start" /> : <Icon name="refresh" size={16} data-icon="inline-start" />}
             Retry failed rows
           </Button>
         </span>
@@ -195,8 +195,8 @@ export function ImportReportView({
       {headerSlot(actions)}
       <div className="space-y-6">
         {retryMsg ? (
-          <p role="status" className="flex items-center gap-2.5 rounded-lg bg-brand-soft px-3.5 py-2.5 text-sm" data-testid="retry-message">
-            <Info className="size-4 shrink-0 text-brand" aria-hidden />
+          <p role="status" className="flex items-center gap-2.5 rounded-lg border border-brand-line bg-brand-bg px-3.5 py-2.5 text-sm" data-testid="retry-message">
+            <Icon name="info" size={16} className="shrink-0 text-brand" />
             {retryMsg}
           </p>
         ) : null}
@@ -219,11 +219,11 @@ export function ImportReportView({
           />
         ) : (
           <p
-            className="flex items-start gap-2.5 rounded-lg bg-brand-soft px-3.5 py-2.5 text-sm"
+            className="flex items-start gap-2.5 rounded-lg border border-brand-line bg-brand-bg px-3.5 py-2.5 text-sm"
             data-testid="report-watch"
             data-settled={report.settled ? 'true' : 'false'}
           >
-            <Info className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />
+            <Icon name="info" size={16} className="mt-0.5 shrink-0 text-brand" />
             <span>
               Live progress isn't available here: this import was started from another browser.
               {report.settled ? ' The counts below have stopped changing.' : ' The counts below refresh every few seconds.'}
@@ -232,12 +232,12 @@ export function ImportReportView({
         )}
 
         {report.error && !data ? (
-          <div className="rounded-xl bg-card shadow-elev-1 ring-1 ring-border">
+          <div className="rounded-card border border-line bg-card shadow-raised-md">
             <ErrorState compact error={report.error} onRetry={() => void report.refetch()} title="Couldn't load the import report" />
           </div>
         ) : (
           <div
-            className="grid grid-cols-3 divide-x overflow-hidden rounded-xl bg-card shadow-elev-1 ring-1 ring-border"
+            className="grid grid-cols-3 divide-x divide-line overflow-hidden rounded-card border border-line bg-card shadow-raised-md"
             data-testid="import-counts"
           >
             <Stat label={`Processed${soFar}`} value={data?.total_rows} testId="count-total" />
@@ -247,10 +247,10 @@ export function ImportReportView({
         )}
 
         {data?.error ? (
-          <section role="alert" className="space-y-3 rounded-xl bg-destructive/5 p-4 ring-1 ring-destructive/25 dark:bg-destructive/10">
+          <section role="alert" className="space-y-3 rounded-card border border-danger-line bg-danger-bg p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="flex items-center gap-2 text-sm font-semibold text-destructive">
-                <AlertCircle className="size-4" aria-hidden />
+                <Icon name="alert" size={16} />
                 The import failed
               </h2>
               <ReferenceId id={data.error.request_id} />
@@ -274,7 +274,7 @@ export function ImportReportView({
           ) : (
             <div className="space-y-3" data-testid="rows-loading" aria-busy="true">
               <Skeleton className="h-8 w-72 max-w-full rounded-lg" />
-              <div className="overflow-hidden rounded-xl bg-card shadow-elev-1 ring-1 ring-border">
+              <div className="overflow-hidden rounded-card border border-line bg-card shadow-raised-md">
                 {Array.from({ length: 5 }, (_, i) => (
                   <div key={i} className="flex items-center gap-4 border-b px-4 py-3 last:border-b-0">
                     <Skeleton className="h-4 w-10" />

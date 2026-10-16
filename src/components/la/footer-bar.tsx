@@ -10,7 +10,7 @@ export function FooterBar({ status, children, className }: { status?: ReactNode;
   return (
     <div
       className={cn(
-        'sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-surface px-4 py-3.5 md:px-7',
+        'sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-surface px-4 py-3.5 shadow-raised-up md:px-7',
         className,
       )}
     >

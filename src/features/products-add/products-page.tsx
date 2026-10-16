@@ -6,7 +6,6 @@
  */
 import { Link } from '@tanstack/react-router'
 import type { RowSelectionState } from '@tanstack/react-table'
-import { Package, Search } from 'lucide-react'
 import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import { Page, PageHeader } from '@/components/app/page-header'
 import { columnHelper, DataTable, selectionColumn } from '@/components/data-table'
@@ -57,7 +56,7 @@ export function ProductThumb({ size = 40, className }: { size?: number; classNam
   return (
     <span
       aria-hidden
-      className={cn('inline-flex shrink-0 items-center justify-center rounded-[9px] border border-line bg-subtle text-ink-3', className)}
+      className={cn('inline-flex shrink-0 items-center justify-center rounded-[10px] border border-line bg-field text-ink-3 shadow-inset-sm', className)}
       style={{ width: size, height: size }}
     >
       <Icon name="box" size={Math.round(size * 0.45)} />
@@ -188,7 +187,7 @@ const columns = col.columns([
 
 function ProductCard({ row, selected, toggle, canSelect }: { row: CatalogRow; selected: boolean; toggle: (v: boolean) => void; canSelect: boolean }) {
   return (
-    <div className={cn('relative rounded-card border bg-surface p-4 shadow-sm', selected ? 'border-brand bg-brand-bg' : 'border-line')}>
+    <div className={cn('relative rounded-card border p-4', selected ? 'border-brand bg-brand-bg shadow-[var(--selected-ring),var(--shadow-raised-md)]' : 'border-line bg-surface shadow-raised-md')}>
       <div className="flex items-start gap-3">
         {canSelect ? (
           <Checkbox className={cn(ABOVE, 'mt-0.5')} checked={selected} onCheckedChange={(v) => toggle(!!v)} aria-label={`Select ${row.product.sku}`} />
@@ -349,7 +348,7 @@ export function ProductsPage() {
             <div className="flex flex-col gap-2">
               <div className="flex flex-wrap items-center gap-2.5">
                 <div className="relative w-full sm:w-[260px]">
-                  <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-3" aria-hidden />
+                  <Icon name="search" size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-3" />
                   <Input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
@@ -407,7 +406,7 @@ export function ProductsPage() {
         empty={
           filtered ? (
             <EmptyState
-              icon={Search}
+              icon="search"
               title="No products match"
               description="Try another name, SKU or filter."
               actions={
@@ -419,7 +418,8 @@ export function ProductsPage() {
             />
           ) : (
             <EmptyState
-              icon={Package}
+              icon="box"
+              tone="brand"
               title="No products yet"
               description="Add one with the guided form or upload a spreadsheet. Products appear here, newest first."
               actions={

@@ -18,7 +18,7 @@ import type { ReactNode } from 'react'
 import { Page } from '@/components/app/page-header'
 import { Banner } from '@/components/la/banner'
 import { CardHead, LaCard } from '@/components/la/cards'
-import { Icon } from '@/components/la/icons'
+import { Icon, IconTile } from '@/components/la/icons'
 import { StatusChip } from '@/components/la/status-chip'
 import { ErrorState, NotFound } from '@/components/states'
 import { Button } from '@/components/ui/button'
@@ -94,9 +94,7 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
       <BackLink />
       <header className="flex flex-col gap-3 pb-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-center gap-3.5">
-          <span aria-hidden className="inline-flex size-14 shrink-0 items-center justify-center rounded-card border border-line bg-subtle text-ink-2">
-            <Icon name="box" size={24} />
-          </span>
+          <IconTile icon="box" size="lg" className="size-14 rounded-card [&_svg]:size-6" />
           <div className="min-w-0">
             <h1 className="truncate font-display text-h1 text-ink" data-testid="issue-product-title">
               {product.data?.title ?? (product.isPending && l ? <Skeleton className="h-8 w-56" /> : `${marketplace} listing`)}
@@ -202,7 +200,7 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
                     to="/issues/$issueId"
                     params={{ issueId: o.id }}
                     search={{ listing: listingId }}
-                    className="focus-ring flex items-start justify-between gap-3 rounded-card border border-line bg-surface p-4 shadow-sm hover:border-line-strong"
+                    className="focus-ring tactile lift flex items-start justify-between gap-3 rounded-card border border-line bg-surface p-4 shadow-raised-sm hover:border-line-strong active:shadow-pressed"
                     data-testid="other-issue"
                   >
                     <span className="min-w-0">

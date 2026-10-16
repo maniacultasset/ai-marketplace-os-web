@@ -15,7 +15,7 @@ function FakeButton({ children, primary }: { children: string; primary?: boolean
       aria-hidden
       className={cn(
         'inline-flex h-[30px] shrink-0 items-center rounded-[7px] whitespace-nowrap border px-3 text-[13px] font-semibold',
-        primary ? 'border-brand bg-brand text-white shadow-primary' : 'border-line-strong bg-surface text-ink',
+        primary ? 'border-brand bg-brand text-white shadow-raised-brand' : 'border-line-strong bg-surface text-ink shadow-raised-sm',
       )}
     >
       {children}
@@ -29,12 +29,12 @@ export function HeroFinding() {
   const words = HERO_EXAMPLE.title.split(' ')
   return (
     <figure className="relative min-w-0" data-testid="hero-example">
-      <div className="overflow-hidden rounded-card border border-line bg-surface shadow-lg">
-        <div className="flex items-center gap-2 border-b border-line bg-canvas px-4 py-2.5">
+      <div className="overflow-hidden rounded-card border border-line bg-surface shadow-raised-lg">
+        <div className="flex items-center gap-2 border-b border-line bg-sunken px-4 py-2.5">
           <span aria-hidden className="flex gap-1.5">
-            <span className="size-2 rounded-full bg-line-strong" />
-            <span className="size-2 rounded-full bg-line-strong" />
-            <span className="size-2 rounded-full bg-line-strong" />
+            <span className="size-2 rounded-full bg-line-strong shadow-inset-sm" />
+            <span className="size-2 rounded-full bg-line-strong shadow-inset-sm" />
+            <span className="size-2 rounded-full bg-line-strong shadow-inset-sm" />
           </span>
           <span className="ml-2 truncate text-caption text-ink-2">Review · {HERO_EXAMPLE.product}</span>
           <TagChip tone="plain" className="ml-auto">
@@ -76,9 +76,9 @@ export function HeroFinding() {
           </div>
           <ul className="flex flex-col gap-2.5">
             {findings.map((f) => (
-              <li key={`${f.marketplace}:${f.code}`} className="rounded-[10px] border border-danger-line bg-surface p-3">
+              <li key={`${f.marketplace}:${f.code}`} className="rounded-[10px] border border-danger-line bg-surface p-3 shadow-raised-sm">
                 <div className="flex flex-wrap items-center gap-2">
-                  <MarketplaceTile id={f.marketplace} size="sm" className="size-6 text-[11px]" />
+                  <MarketplaceTile id={f.marketplace} size="sm" className="size-6 rounded-[7px] text-[11px] shadow-none" />
                   <code className="text-caption font-semibold text-ink">{f.field}</code>
                   <span className="text-caption font-bold text-danger">{f.code}</span>
                   <SourceBadge source={{ kind: 'rule' }} className="ml-auto" />

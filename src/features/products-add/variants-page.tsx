@@ -16,7 +16,7 @@ import { api, unwrap } from '@/api/client'
 import { describeError, isApiError } from '@/api/errors'
 import { idempotencyHeader, newIdempotencyKey, useIntentKey } from '@/api/idempotency'
 import { Page, PageHeader } from '@/components/app/page-header'
-import { Banner, CardHead, DashedCard, FooterBar, Icon, LaCard, StatusChip, VariantCell } from '@/components/la'
+import { Banner, CardHead, DashedCard, FooterBar, Icon, IconTile, LaCard, StatusChip, VariantCell } from '@/components/la'
 import { EmptyState } from '@/components/states/empty-state'
 import { ErrorState } from '@/components/states/error-state'
 import { ReferenceId } from '@/components/states/reference-id'
@@ -81,16 +81,16 @@ function TagInput({ id, label, values, onChange, placeholder, error }: { id: str
       </label>
       <div
         className={cn(
-          'flex min-h-10 flex-wrap items-center gap-1.5 rounded-control border bg-surface px-2 py-1.5 focus-within:border-brand focus-within:shadow-focus',
-          error ? 'border-danger' : 'border-line-strong',
+          'inset-field flex min-h-10 flex-wrap items-center gap-1.5 rounded-control border px-2 py-1.5 focus-within:border-brand focus-within:shadow-[var(--focus-ring),var(--shadow-inset-sm)]',
+          error ? 'border-danger' : 'border-line-strong hover:border-edge-hover',
         )}
       >
         {values.map((v) => (
-          <span key={v} className="inline-flex h-[26px] items-center gap-1 rounded-full border border-line-strong bg-surface pr-1 pl-2.5 text-caption font-semibold text-ink">
+          <span key={v} className="inline-flex h-[26px] items-center gap-1 rounded-full border border-line-strong bg-surface pr-1 pl-2.5 text-caption font-semibold text-ink shadow-raised-sm">
             {v}
             <button
               type="button"
-              className="focus-ring inline-flex size-5 items-center justify-center rounded-full text-ink-2 hover:bg-subtle"
+              className="focus-ring tactile inline-flex size-5 items-center justify-center rounded-full text-ink-2 hover:bg-hover active:shadow-pressed"
               aria-label={`Remove ${v}`}
               onClick={() => onChange(values.filter((x) => x !== v))}
             >
@@ -210,15 +210,15 @@ function ImagesCard({ productId, existing, canUpload }: { productId: string; exi
       <CardHead title="Images for this product" sub="Per-colour images are not available yet; these apply to every variant." />
       <div className="mt-4 flex flex-wrap gap-2.5">
         {stored.map((id, i) => (
-          <span key={id} className="relative flex size-[84px] items-center justify-center rounded-lg border border-line bg-subtle text-ink-3">
+          <span key={id} className="relative flex size-[84px] items-center justify-center rounded-lg border border-line bg-field text-ink-3 shadow-inset-sm">
             <Icon name="image" size={24} />
-            <span className="absolute bottom-1 left-1 rounded bg-surface px-1 text-[11px] font-semibold text-ink">Image {i + 1}</span>
+            <span className="absolute bottom-1 left-1 rounded border border-line bg-surface px-1 text-[11px] font-semibold text-ink">Image {i + 1}</span>
           </span>
         ))}
         {galleryUploads.map((u) => (
-          <span key={u.id} className="relative size-[84px] overflow-hidden rounded-lg border border-line bg-subtle">
+          <span key={u.id} className="relative size-[84px] overflow-hidden rounded-lg border border-line bg-subtle shadow-raised-sm">
             <img src={u.preview} alt="" className="size-full object-cover" />
-            <span className="absolute bottom-1 left-1 rounded bg-surface px-1 text-[11px] font-semibold text-ink">{SLOT_LABEL[u.slot]}</span>
+            <span className="absolute bottom-1 left-1 rounded border border-line bg-surface px-1 text-[11px] font-semibold text-ink">{SLOT_LABEL[u.slot]}</span>
             {u.state.kind === 'uploading' ? (
               <span className="absolute inset-0 flex items-center justify-center bg-surface/70">
                 <Spinner />
@@ -232,7 +232,7 @@ function ImagesCard({ productId, existing, canUpload }: { productId: string; exi
             <button
               type="button"
               onClick={() => input.current?.click()}
-              className="focus-ring flex size-[84px] items-center justify-center rounded-lg border-[1.5px] border-dashed border-line-strong text-ink-2 hover:border-brand hover:text-brand"
+              className="focus-ring tactile flex size-[84px] items-center justify-center rounded-lg border-[1.5px] border-dashed border-line-strong text-ink-2 hover:border-brand hover:bg-brand-bg/50 hover:text-brand active:shadow-pressed"
               aria-label="Add images"
             >
               <Icon name="plus" size={22} />
@@ -286,8 +286,8 @@ function SizeChartCard({ productId, canUpload }: { productId: string; canUpload:
   const last = uploads.at(-1)
   return (
     <DashedCard className="flex flex-col items-center justify-center text-center">
-      <Icon name="upload" size={22} className="text-ink-2" />
-      <h3 className="mt-2 font-display text-[15px] font-bold text-ink">Size chart</h3>
+      <IconTile icon="upload" size="lg" />
+      <h3 className="mt-3 font-display text-[15px] font-bold text-ink">Size chart</h3>
       <p className="mt-1 max-w-[34ch] text-small text-ink-2">Upload your brand’s chart for this style. It is checked like any other image.</p>
       {canUpload ? (
         <>
@@ -345,6 +345,8 @@ function ProductPicker({ listOn }: { listOn: Marketplace[] }) {
           <ErrorState error={all.error} compact onRetry={() => void all.refetch()} />
         ) : styles.length === 0 ? (
           <EmptyState
+            icon="box"
+            tone="brand"
             title="No products yet"
             description="Save a product with the guided form first."
             actions={
@@ -555,7 +557,7 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] text-small" aria-label="Variant prices and identifiers">
                 <thead>
-                  <tr className="h-[38px] bg-canvas text-left text-caption font-bold text-ink-2">
+                  <tr className="h-[38px] bg-sunken text-left text-caption font-bold text-ink-2">
                     <th className="px-4">Variant SKU</th>
                     <th className="w-[130px] px-2">MRP (incl. tax)</th>
                     <th className="w-[130px] px-2">Price</th>

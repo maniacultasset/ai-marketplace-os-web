@@ -47,11 +47,12 @@ export function MarketplaceTile({ id, size = 'md', className }: { id: Marketplac
   return (
     <span
       aria-hidden
+      data-slot="monogram-tile"
       className={cn(
-        'inline-flex shrink-0 items-center justify-center border border-line bg-subtle font-display font-bold text-ink',
-        size === 'sm' && 'size-7 rounded-[7px] text-[13px]',
-        size === 'md' && 'size-9 rounded-[9px] text-[15px]',
-        size === 'big' && 'size-11 rounded-[9px] text-[18px]',
+        'inline-flex shrink-0 items-center justify-center border border-line bg-surface font-display font-bold text-ink shadow-raised-sm',
+        size === 'sm' && 'size-7 rounded-[8px] text-[13px]',
+        size === 'md' && 'size-9 rounded-[10px] text-[15px]',
+        size === 'big' && 'size-11 rounded-[12px] text-[18px]',
         className,
       )}
     >

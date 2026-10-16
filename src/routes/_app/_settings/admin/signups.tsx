@@ -1,8 +1,8 @@
 import { useIsFetching, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { RotateCw } from 'lucide-react'
 import { z } from 'zod'
 import { Page, PageHeader } from '@/components/app/page-header'
+import { Icon } from '@/components/la/icons'
 import { RequireAction } from '@/components/states/require-action'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -46,7 +46,7 @@ function RefreshButton() {
   const fetching = useIsFetching({ queryKey: keys.signups.all() }) > 0
   return (
     <Button variant="outline" size="sm" onClick={() => void qc.invalidateQueries({ queryKey: keys.signups.all() })} disabled={fetching}>
-      {fetching ? <Spinner data-icon="inline-start" /> : <RotateCw data-icon="inline-start" />}
+      {fetching ? <Spinner data-icon="inline-start" /> : <Icon name="refresh" size={16} data-icon="inline-start" />}
       Refresh
     </Button>
   )

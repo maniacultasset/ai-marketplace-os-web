@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
-import { Check, Copy, FileSearch, FlaskConical, Info } from 'lucide-react'
+import { FlaskConical } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
+import { Icon } from '@/components/la/icons'
 import { EmptyState } from '@/components/states/empty-state'
 import { ErrorState } from '@/components/states/error-state'
 import { Button } from '@/components/ui/button'
@@ -71,7 +72,7 @@ export function RuleSheet({
             </SheetHeader>
             <EmptyState
               compact
-              icon={FileSearch}
+              icon="file"
               title="Rule not found"
               description="It may belong to another marketplace or category, or be on a page you have not loaded yet."
               actions={
@@ -97,7 +98,7 @@ function RuleDetail({ rule, onShowCategory }: { rule: Rule; onShowCategory: (rul
     <>
       <SheetHeader className="gap-3 border-b px-6 pt-6 pb-5">
         <div className="flex items-start gap-3 pr-8">
-          <MarketplaceTile marketplace={rule.marketplace} className="mt-0.5 size-9 rounded-lg [&_svg]:size-4.5" />
+          <MarketplaceTile marketplace={rule.marketplace} size="md" className="mt-0.5" />
           <div className="min-w-0 space-y-1">
             <SheetTitle className="text-lg leading-tight font-semibold tracking-[-0.02em]">
               {ruleTypeLabel(rule.rule_type)}
@@ -162,8 +163,8 @@ function RuleDetail({ rule, onShowCategory }: { rule: Rule; onShowCategory: (rul
               <CopyId id={rule.id} />
             </Row>
           </dl>
-          <p className="flex gap-2 rounded-lg bg-muted/60 px-3 py-2.5 text-[13px] leading-relaxed text-muted-foreground">
-            <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <p className="flex gap-2 rounded-lg border border-line bg-sunken px-3 py-2.5 text-[13px] leading-relaxed text-ink-2">
+            <Icon name="info" size={14} className="mt-0.5" />
             <span>
               The API does not expose this rule’s parameters (limits, term lists, allowed values). Run a dry run to see
               exactly what it reports.
@@ -214,7 +215,7 @@ function CopyId({ id }: { id: string }) {
       <button
         type="button"
         aria-label="Copy rule ID"
-        className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+        className="inline-flex size-7 shrink-0 items-center justify-center tactile rounded-md text-muted-foreground hover:bg-hover hover:text-foreground active:bg-pressed active:shadow-pressed focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
         onClick={() =>
           void navigator.clipboard
             ?.writeText(id)
@@ -225,7 +226,7 @@ function CopyId({ id }: { id: string }) {
             .catch(() => undefined)
         }
       >
-        {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
+        {copied ? <Icon name="check" size={14} className="text-success" /> : <Icon name="copy" size={14} />}
       </button>
     </span>
   )

@@ -10,9 +10,9 @@
 import { useNavigate } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { Banner } from '@/components/la/banner'
-import { LaCard } from '@/components/la/cards'
+import { CardHead, LaCard } from '@/components/la/cards'
 import { LaField } from '@/components/la/field'
-import { Icon } from '@/components/la/icons'
+import { Icon, IconTile } from '@/components/la/icons'
 import { UnavailableButton } from '@/components/la/unavailable'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -102,9 +102,8 @@ export function ComplianceAside() {
   return (
     <>
       <LaCard pad="sm">
-        <h3 className="text-h3 text-ink">Where this appears</h3>
-        <p className="mt-1 text-small text-ink-2">Garment listings can require these declarations to be shown to customers.</p>
-        <ul className="mt-3 flex flex-col gap-2 text-small text-ink">
+        <CardHead title="Where this appears" sub="Garment listings can require these declarations to be shown to customers." icon="eye" />
+        <ul className="mt-4 flex flex-col gap-2 text-small text-ink">
           <Declared>Manufacturer, marketer or importer</Declared>
           <Declared>Consumer care contact</Declared>
           <Declared>Country of origin</Declared>
@@ -114,8 +113,8 @@ export function ComplianceAside() {
           </Declared>
         </ul>
       </LaCard>
-      <div className="flex items-start gap-3 rounded-card border border-line bg-surface px-4 py-3">
-        <Icon name="shield" size={18} className="mt-px text-ink-2" />
+      <div className="flex items-start gap-3 rounded-card border border-line bg-canvas px-4 py-3">
+        <IconTile icon="shield" size="sm" />
         <p className="text-small text-ink">We capture this data. We do not certify legal compliance. Please confirm with your advisor.</p>
       </div>
     </>
@@ -129,7 +128,7 @@ function Declared({ children, perProduct }: { children: ReactNode; perProduct?: 
         aria-hidden
         className={cn(
           'inline-flex size-[18px] shrink-0 items-center justify-center rounded-[5px] border-[1.5px]',
-          perProduct ? 'border-line-strong bg-surface' : 'border-brand bg-brand text-white',
+          perProduct ? 'border-line-strong bg-field shadow-inset-sm' : 'border-brand bg-brand text-white shadow-raised-brand',
         )}
       >
         {perProduct ? null : <Icon name="check" size={12} strokeWidth={2.5} />}
@@ -149,7 +148,7 @@ function FakeSelect({ id, placeholder }: { id: string; placeholder: string }) {
       id={id}
       type="button"
       disabled
-      className="flex h-10 w-full cursor-not-allowed items-center justify-between rounded-control border border-line-strong bg-subtle px-3 text-left text-[14px] text-ink-3"
+      className="flex h-10 w-full cursor-not-allowed items-center justify-between rounded-control border border-dashed border-line-strong bg-subtle px-3 text-left text-[14px] text-ink-3"
     >
       <span className="truncate">{placeholder}</span>
       <Icon name="chev" size={16} />
@@ -166,9 +165,9 @@ function DisabledToggle({ label }: { label: string }) {
         aria-checked={false}
         disabled
         aria-label={label}
-        className="relative inline-flex h-[22px] w-10 shrink-0 cursor-not-allowed rounded-full border border-line-strong bg-subtle"
+        className="relative inline-flex h-[22px] w-10 shrink-0 cursor-not-allowed rounded-full border border-dashed border-line-strong bg-subtle"
       >
-        <span aria-hidden className="absolute top-[2px] left-[2px] size-4 rounded-full bg-surface shadow-sm" />
+        <span aria-hidden className="absolute top-[2px] left-[2px] size-4 rounded-full bg-surface shadow-thumb" />
       </button>
       <span className="text-small text-ink-2">{label}</span>
     </div>

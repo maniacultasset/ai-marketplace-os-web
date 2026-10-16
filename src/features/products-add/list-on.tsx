@@ -47,7 +47,7 @@ export function ListOnPicker({
           if (!m.supported) {
             return (
               <UnavailableHint key={m.id} reason={`${m.name}: ${NOT_YET.waitlist}`}>
-                <span className="flex h-11 items-center gap-2 rounded-control border border-line px-3 font-medium text-ink-3">
+                <span className="flex h-11 items-center gap-2 rounded-control border border-dashed border-line-strong px-3 font-medium text-ink-3">
                   <span className="size-[18px] rounded-[5px] border border-line-strong bg-subtle" aria-hidden />
                   {m.short}
                 </span>
@@ -61,8 +61,10 @@ export function ListOnPicker({
             <label
               key={m.id}
               className={cn(
-                'flex h-11 cursor-pointer items-center gap-2.5 rounded-control border bg-surface pr-4 pl-3 font-medium text-ink transition-[border-color,box-shadow] duration-150',
-                on ? 'border-brand bg-brand-bg shadow-selected' : 'border-line-strong hover:border-ink-3',
+                'tactile flex h-11 cursor-pointer items-center gap-2.5 rounded-control border pr-4 pl-3 font-medium text-ink',
+                on
+                  ? 'border-brand bg-brand-bg shadow-[var(--selected-ring),var(--shadow-inset-sm)]'
+                  : 'lift border-line-strong bg-surface shadow-raised-sm hover:border-ink-3',
               )}
             >
               <Checkbox

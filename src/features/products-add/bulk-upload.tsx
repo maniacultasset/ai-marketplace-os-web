@@ -20,7 +20,7 @@ import { describeError, isApiError, isNotFound } from '@/api/errors'
 import { idempotencyHeader, useIntentKey } from '@/api/idempotency'
 import type { Schema } from '@/api/types'
 import { Page, PageHeader } from '@/components/app/page-header'
-import { Banner, CardHead, FooterBar, Icon, LaCard, StatusChip, Stepper, UnavailableButton } from '@/components/la'
+import { Banner, CardHead, FooterBar, Icon, IconTile, LaCard, StatusChip, Stepper, UnavailableButton } from '@/components/la'
 import { ErrorState } from '@/components/states/error-state'
 import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
@@ -62,7 +62,7 @@ function ColumnTable({ analysis }: { analysis: HeaderAnalysis }) {
     <div className="overflow-x-auto">
       <table className="w-full text-small" aria-label="Column matching">
         <thead>
-          <tr className="h-[38px] bg-canvas text-left text-caption font-bold text-ink-2">
+          <tr className="h-[38px] bg-sunken text-left text-caption font-bold text-ink-2">
             <th className="px-4">Your column</th>
             <th className="w-5" aria-hidden />
             <th className="px-2">Our field</th>
@@ -196,8 +196,8 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
               <div
                 {...dz.getRootProps({
                   className: cn(
-                    'focus-ring flex min-h-52 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-[1.5px] border-dashed px-6 py-8 text-center',
-                    dz.isDragActive ? 'border-brand bg-brand-bg' : 'border-line-strong hover:border-ink-3',
+                    'focus-ring tactile flex min-h-52 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-[1.5px] border-dashed px-6 py-8 text-center shadow-inset-md [--focus-rest:var(--shadow-inset-md)]',
+                    dz.isDragActive ? 'border-brand bg-brand-bg' : 'border-line-strong bg-sunken hover:border-ink-3',
                     problem && 'border-danger-line',
                   ),
                   'aria-label': 'CSV file drop zone',
@@ -205,7 +205,7 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
                 data-testid="csv-dropzone"
               >
                 <input {...dz.getInputProps({ 'aria-label': 'CSV file' })} />
-                <Icon name="upload" size={22} className="text-ink-2" />
+                <IconTile icon={file ? 'table' : 'upload'} tone="brand" size="lg" className="mb-1" />
                 <p className="font-semibold text-ink">{file ? file.name : 'Drop your CSV here, or choose a file'}</p>
                 <p className="text-small text-ink-2">{file ? `${formatBytes(file.size)} · ${analysis ? rowsLabel(analysis.rows) : '…'}` : 'CSV only, up to 10 MB'}</p>
               </div>
@@ -481,7 +481,7 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
               <div className="overflow-x-auto">
                 <table className="w-full text-small" aria-label="Rows that need you">
                   <thead>
-                    <tr className="h-[38px] bg-canvas text-left text-caption font-bold text-ink-2">
+                    <tr className="h-[38px] bg-sunken text-left text-caption font-bold text-ink-2">
                       <th className="w-14 px-4">Row</th>
                       <th className="px-2">SKU</th>
                       <th className="px-4">What is wrong</th>

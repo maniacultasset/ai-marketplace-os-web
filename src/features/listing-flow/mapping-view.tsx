@@ -200,7 +200,7 @@ function MappingTable({ rows, mp, loading }: { rows: readonly MappingRow[]; mp: 
   return (
     <LaCard pad="none" className="overflow-hidden" data-testid="mapping-table">
       <div className="hidden lg:block" role="table" aria-label={`Your product mapped to ${mp}`}>
-        <div role="row" className="grid grid-cols-[1.1fr_1.2fr_120px_56px] items-center gap-3 border-b border-line bg-canvas px-4 py-2.5 text-caption font-bold text-ink-2">
+        <div role="row" className="grid grid-cols-[1.1fr_1.2fr_120px_56px] items-center gap-3 border-b border-line bg-sunken px-4 py-2.5 text-caption font-bold text-ink-2">
           <span role="columnheader">Your product</span>
           <span role="columnheader">{mp} field</span>
           <span role="columnheader">Rule</span>

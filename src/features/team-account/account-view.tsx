@@ -1,5 +1,6 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Check, Copy, LogOut, Store, Users } from 'lucide-react'
+import { LogOut } from 'lucide-react'
+import { Icon, IconTile } from '@/components/la/icons'
 import { useState, type ReactNode } from 'react'
 import { isApiError } from '@/api/errors'
 import { ErrorState } from '@/components/states/error-state'
@@ -12,7 +13,6 @@ import { Spinner } from '@/components/ui/spinner'
 import { logout, switchTenant, tenantName, useMe } from '@/lib/auth'
 import { useCan } from '@/lib/permissions'
 import { toastError } from '@/lib/toast'
-import { cn } from '@/lib/utils'
 import { initials, ROLE_INFO } from './roles'
 
 function CopyValue({ value, label }: { value: string; label: string }) {
@@ -25,7 +25,7 @@ function CopyValue({ value, label }: { value: string; label: string }) {
       <button
         type="button"
         aria-label={copied ? `Copied ${label}` : `Copy ${label}`}
-        className="inline-flex size-6 transition-colors duration-150 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+        className="inline-flex size-6 tactile shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-hover hover:text-foreground active:bg-pressed active:shadow-pressed focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
         onClick={() =>
           void navigator.clipboard
             ?.writeText(value)
@@ -36,7 +36,7 @@ function CopyValue({ value, label }: { value: string; label: string }) {
             .catch(() => undefined)
         }
       >
-        {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
+        {copied ? <Icon name="check" size={14} className="text-success" /> : <Icon name="copy" size={14} />}
       </button>
     </span>
   )
@@ -78,7 +78,7 @@ function ProfileCard() {
     <Card className="gap-0 py-0">
       <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-4">
-          <Avatar className="size-14">
+          <Avatar className="size-14 border border-[var(--tile-brand-line)] shadow-raised-sm">
             <AvatarFallback className="bg-brand-soft text-base font-semibold text-brand">
               {initials(me.display_name ?? me.email)}
             </AvatarFallback>
@@ -95,7 +95,7 @@ function ProfileCard() {
         {can('team:manage') ? (
           <Button variant="outline" size="sm" className="self-start sm:self-auto" asChild>
             <Link to="/team">
-              <Users data-icon="inline-start" />
+              <Icon name="users" size={16} data-icon="inline-start" />
               Manage team
             </Link>
           </Button>
@@ -154,15 +154,7 @@ function BrandsCard() {
               const current = m.tenant_id === me.tenant_id
               return (
                 <li key={m.tenant_id} className="flex items-center gap-3 border-t px-5 py-3" data-testid="membership-row">
-                  <span
-                    className={cn(
-                      'flex size-9 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset',
-                      current ? 'bg-brand-soft text-brand ring-brand/15' : 'bg-muted text-muted-foreground ring-border',
-                    )}
-                    aria-hidden
-                  >
-                    <Store className="size-4" />
-                  </span>
+                  <IconTile icon="store" tone={current ? 'brand' : 'neutral'} />
                   <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1">
                     <span className="truncate text-sm font-medium">{m.tenant_name}</span>
                     <Badge variant="muted">{ROLE_INFO[m.role].label}</Badge>

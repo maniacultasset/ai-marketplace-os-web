@@ -1,8 +1,8 @@
 /**
  * Rows of one import: GET /imports/{id}/rows?status=…&limit=50&cursor= (server filter, Load more).
  */
+import { Icon } from '@/components/la/icons'
 import { Link } from '@tanstack/react-router'
-import { ChevronRight, ListX, Rows3 } from 'lucide-react'
 import { api, unwrap } from '@/api/client'
 import type { Schema } from '@/api/types'
 import { DataTable, columnHelper } from '@/components/data-table'
@@ -49,7 +49,7 @@ function ProductCell({ productId }: { productId: string | null | undefined }) {
       data-testid="row-product-link"
     >
       {short}
-      <ChevronRight className="size-3" aria-hidden />
+      <Icon name="chev" size={12} className="-rotate-90" />
     </Link>
   )
 }
@@ -84,7 +84,7 @@ function IssuesCell({ row }: { row: ImportRow }) {
         <SheetTrigger asChild>
           <Button variant="ghost" size="xs" className="shrink-0" aria-label={`Show ${items.length} issues for row ${row.row_number}`}>
             {items.length} {items.length === 1 ? 'issue' : 'issues'}
-            <ChevronRight data-icon="inline-end" />
+            <Icon name="chev" size={16} className="-rotate-90" data-icon="inline-end" />
           </Button>
         </SheetTrigger>
         <SheetContent className="w-full gap-0 sm:max-w-lg">
@@ -113,11 +113,11 @@ const SEGMENTS: { value: RowsTab; label: string; count: 'total' | 'failed' | 'im
   { value: 'failed', label: 'Failed', count: 'failed' },
   { value: 'imported', label: 'Imported', count: 'imported' },
 ]
-const SEGMENTED = 'h-9 w-full rounded-lg bg-muted/70 p-1 ring-1 ring-inset ring-border/60 sm:w-fit'
+const SEGMENTED = 'inset-track h-9 w-full rounded-lg border border-line p-1 sm:w-fit'
 const SEGMENT =
-  'group/segment h-full gap-2 rounded-md px-3 text-[0.8125rem] transition-[color,background-color,box-shadow] duration-150 data-active:shadow-elev-1 dark:data-active:border-transparent dark:data-active:bg-background'
+  'group/segment h-full gap-2 rounded-md px-3 text-[0.8125rem] tactile data-active:border-line data-active:bg-surface data-active:shadow-thumb dark:data-active:border-transparent dark:data-active:bg-background'
 const SEGMENT_COUNT =
-  'rounded-full bg-foreground/[0.06] px-1.5 text-[0.6875rem] leading-[1.125rem] font-medium text-muted-foreground tabular-nums group-data-active/segment:bg-brand-soft group-data-active/segment:text-brand'
+  'rounded-full bg-ink/[0.07] px-1.5 text-[0.6875rem] leading-[1.125rem] font-medium text-muted-foreground tabular-nums group-data-active/segment:bg-brand-soft group-data-active/segment:text-brand'
 
 const col = columnHelper<ImportRow>()
 const columns = col.columns([
@@ -222,7 +222,7 @@ export function ImportRowsTable({
       empty={
         <EmptyState
           compact
-          icon={tab === 'failed' ? ListX : Rows3}
+          icon={tab === 'failed' ? 'check' : 'table'}
           title={emptyCopy.title}
           description={emptyCopy.description}
         />

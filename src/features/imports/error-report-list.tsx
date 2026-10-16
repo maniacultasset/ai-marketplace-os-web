@@ -1,4 +1,4 @@
-import { AlertCircle, TriangleAlert } from 'lucide-react'
+import { Icon } from '@/components/la/icons'
 import type { ErrorItem } from '@/api/types'
 import { cn } from '@/lib/utils'
 
@@ -22,10 +22,9 @@ export function ErrorReportList({
 }) {
   if (!items.length) return null
   return (
-    <ul className={cn('divide-y rounded-lg border bg-card', className)} data-testid="error-report-list">
+    <ul className={cn('divide-y divide-line rounded-lg border border-line bg-card', className)} data-testid="error-report-list">
       {sortErrorItems(items).map((item, i) => {
         const warn = item.severity === 'warning'
-        const Icon = warn ? TriangleAlert : AlertCircle
         return (
           <li
             key={`${item.error_code}-${item.field}-${i}`}
@@ -34,7 +33,11 @@ export function ErrorReportList({
             data-code={item.error_code}
           >
             <Icon
-              className={cn('mt-0.5 size-4 shrink-0', warn ? 'text-warning' : 'text-destructive')}
+              name="alert"
+              size={16}
+              aria-hidden={false}
+              role="img"
+              className={cn('mt-0.5 shrink-0', warn ? 'text-warning' : 'text-destructive')}
               aria-label={warn ? 'Warning' : 'Error'}
             />
             <div className="min-w-0 flex-1 space-y-1">

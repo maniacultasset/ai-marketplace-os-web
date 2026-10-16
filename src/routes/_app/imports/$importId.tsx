@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { Icon } from '@/components/la/icons'
 import { zodValidator } from '@tanstack/zod-adapter'
-import { FileUp } from 'lucide-react'
 import { z } from 'zod'
 import { Page, PageHeader } from '@/components/app/page-header'
 import { Button } from '@/components/ui/button'
@@ -52,7 +52,7 @@ function ImportReportPage() {
                 <Can action="product:import">
                   <Button variant="outline" asChild>
                     <Link to="/imports/new">
-                      <FileUp data-icon="inline-start" />
+                      <Icon name="upload" size={16} data-icon="inline-start" />
                       New import
                     </Link>
                   </Button>

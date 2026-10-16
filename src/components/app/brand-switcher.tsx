@@ -27,7 +27,7 @@ export function initialOf(text: string) {
 
 function BrandInitial({ name }: { name: string }) {
   return (
-    <span aria-hidden className="inline-flex size-6 shrink-0 items-center justify-center rounded-[7px] bg-brand text-[11px] font-bold text-white">
+    <span aria-hidden className="inline-flex size-6 shrink-0 items-center justify-center rounded-[7px] bg-brand font-display text-[11px] font-bold text-white shadow-raised-brand">
       {initialOf(name)}
     </span>
   )
@@ -38,7 +38,7 @@ export function BrandSwitcher({ collapsed }: { collapsed?: boolean }) {
   const navigate = useNavigate()
   const [pending, setPending] = useState<string | null>(null)
   const name = useBrandName(me)
-  if (!me) return <div className="mb-3.5 h-[46px] rounded-[10px] border border-line-strong" aria-hidden />
+  if (!me) return <div className="mb-3.5 h-[46px] rounded-[12px] border border-line shadow-inset-sm" aria-hidden />
 
   const body = (
     <>
@@ -54,7 +54,7 @@ export function BrandSwitcher({ collapsed }: { collapsed?: boolean }) {
     </>
   )
   const box = cn(
-    'mb-3.5 flex w-full items-center gap-2 rounded-[10px] border border-line-strong bg-surface px-2.5 py-2',
+    'mb-3.5 flex w-full items-center gap-2 rounded-[12px] border border-line bg-surface px-2.5 py-2 shadow-raised-sm [--focus-rest:var(--shadow-raised-sm)]',
     collapsed && 'justify-center px-0',
   )
 
@@ -76,7 +76,7 @@ export function BrandSwitcher({ collapsed }: { collapsed?: boolean }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button type="button" className={cn(box, 'focus-ring cursor-pointer hover:bg-canvas')} aria-label="Switch brand">
+        <button type="button" className={cn(box, 'focus-ring tactile cursor-pointer hover:bg-white active:shadow-pressed aria-expanded:shadow-pressed')} aria-label="Switch brand">
           {body}
           {pending ? <Spinner className="size-4" /> : <Icon name="chev" size={16} className={cn('text-ink-2', collapsed && 'hidden')} />}
         </button>

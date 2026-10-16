@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { MARKETPLACE_META } from '@/features/marketplaces/meta'
+import { MarketplaceTile as LaMarketplaceTile } from '@/components/la/marketplace'
 import { cn } from '@/lib/utils'
 import { MARKETPLACE_LABEL, type Marketplace, type Rule } from './labels'
 
@@ -31,18 +31,9 @@ export function EnabledDot({ enabled }: { enabled: boolean }) {
   )
 }
 
-/** Drawn marketplace icon in a tinted tile (same identity as the Marketplaces screen). */
-export function MarketplaceTile({ marketplace, className }: { marketplace: Marketplace; className?: string }) {
-  const meta = MARKETPLACE_META[marketplace]
-  const Icon = meta.icon
-  return (
-    <span
-      aria-hidden
-      className={cn('flex size-6 shrink-0 items-center justify-center rounded-md ring-1 ring-inset', meta.tileClass, className)}
-    >
-      <Icon className="size-3.5" strokeWidth={2} />
-    </span>
-  )
+/** The marketplace monogram tile (same identity as the Marketplaces screen). */
+export function MarketplaceTile({ marketplace, size = 'sm', className }: { marketplace: Marketplace; size?: 'sm' | 'md'; className?: string }) {
+  return <LaMarketplaceTile id={marketplace} size={size} className={className} />
 }
 
 export function MarketplaceMark({

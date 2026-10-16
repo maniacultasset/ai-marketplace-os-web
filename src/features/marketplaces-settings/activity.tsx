@@ -143,7 +143,7 @@ function HistoryPanel({ id, listingId }: { id: string; listingId: string }) {
   const history = useListingHistory(listingId)
   const { data: me } = useMe()
   return (
-    <div id={id} className="border-t border-line bg-canvas px-5 py-3">
+    <div id={id} className="border-t border-line bg-sunken px-5 py-3 shadow-inset-sm">
       {history.error && !history.rows.length ? (
         <ErrorState compact error={history.error} title="Couldn't load this listing's history" onRetry={() => void history.refetch()} />
       ) : history.isPending ? (

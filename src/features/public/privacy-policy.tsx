@@ -170,9 +170,9 @@ export const POLICY_SECTIONS: PolicySection[] = [
     body: (
       <>
         <p>We share data only with these service providers, and only for the purposes above:</p>
-        <div className="my-4 max-w-full min-w-0 overflow-x-auto rounded-card border border-line">
+        <div className="my-4 max-w-full min-w-0 overflow-x-auto rounded-card border border-line bg-surface shadow-raised-md">
           <table className="w-full min-w-[520px] text-left text-small">
-            <thead className="bg-canvas text-ink-2">
+            <thead className="bg-sunken text-ink-2">
               <tr>
                 <th className="px-4 py-2.5 font-semibold">Provider</th>
                 <th className="px-4 py-2.5 font-semibold">What for</th>
@@ -248,9 +248,9 @@ export const POLICY_SECTIONS: PolicySection[] = [
         <p>
           The periods below are our current proposal and are pending legal review <Ph>counsel to confirm retention periods</Ph>.
         </p>
-        <div className="my-4 max-w-full min-w-0 overflow-x-auto rounded-card border border-line">
+        <div className="my-4 max-w-full min-w-0 overflow-x-auto rounded-card border border-line bg-surface shadow-raised-md">
           <table className="w-full min-w-[520px] text-left text-small">
-            <thead className="bg-canvas text-ink-2">
+            <thead className="bg-sunken text-ink-2">
               <tr>
                 <th className="px-4 py-2.5 font-semibold">Data</th>
                 <th className="px-4 py-2.5 font-semibold">Kept for</th>
@@ -365,7 +365,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
     body: (
       <>
         <p>For questions or complaints about this policy or our handling of your data, contact our Grievance Officer:</p>
-        <dl className="my-4 grid gap-x-6 gap-y-2 rounded-card border border-line bg-surface p-5 text-body sm:grid-cols-[140px_1fr]">
+        <dl className="my-4 grid gap-x-6 gap-y-2 rounded-card border border-line bg-surface p-5 text-body shadow-raised-md sm:grid-cols-[140px_1fr]">
           <dt className="font-semibold text-ink-2">Name</dt>
           <dd>
             <Ph>grievance officer name</Ph>
@@ -415,14 +415,14 @@ export function PrivacyPolicy() {
         </header>
         <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[220px_minmax(0,1fr)]">
           <nav aria-label="On this page" className="lg:sticky lg:top-24 lg:self-start">
-            <details open className="group rounded-card border border-line bg-surface p-4 lg:border-0 lg:bg-transparent lg:p-0">
+            <details open className="group rounded-card border border-line bg-surface p-4 shadow-raised-sm lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
               <summary className="cursor-pointer text-small font-bold text-ink lg:pointer-events-none lg:list-none">On this page</summary>
               <ol className="mt-3 flex flex-col gap-1 text-small">
                 {POLICY_SECTIONS.map((s, i) => (
                   <li key={s.id}>
                     <a
                       href={`#${s.id}`}
-                      className="flex gap-2 rounded-control px-2 py-1.5 text-ink-2 hover:bg-subtle hover:text-ink"
+                      className="tactile flex gap-2 rounded-control px-2 py-1.5 text-ink-2 hover:bg-hover hover:text-ink active:bg-pressed"
                     >
                       <span className="w-5 shrink-0 text-ink-3 tabular-nums">{i + 1}.</span>
                       {s.title}

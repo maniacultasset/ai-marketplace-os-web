@@ -1,5 +1,5 @@
-import { CheckCircle2, Check, Copy } from 'lucide-react'
 import { useEffect, useId, useState, type ReactNode } from 'react'
+import { Icon, IconTile } from '@/components/la/icons'
 import { isApiError } from '@/api/errors'
 import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
@@ -127,7 +127,7 @@ function Approved({ out, trialDays, onDone }: { out: SignupRequest; trialDays: n
     <>
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
-          <CheckCircle2 className="size-5 text-success" aria-hidden />
+          <IconTile icon="check" tone="ok" size="sm" />
           Workspace created
         </DialogTitle>
         <DialogDescription>
@@ -169,13 +169,13 @@ function CopyValue({ value, testId }: { value: string; testId?: string }) {
   const [copied, setCopied] = useState(false)
   return (
     <span className="flex min-w-0 items-center gap-1">
-      <code className="truncate rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]" data-testid={testId} title={value}>
+      <code className="truncate rounded border border-line bg-field px-1.5 py-0.5 font-mono text-[11px] shadow-inset-sm" data-testid={testId} title={value}>
         {value}
       </code>
       <button
         type="button"
         aria-label="Copy"
-        className="inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+        className="inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground tactile hover:bg-hover hover:text-foreground active:bg-pressed active:shadow-pressed focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
         onClick={() => {
           void navigator.clipboard
             ?.writeText(value)
@@ -186,7 +186,7 @@ function CopyValue({ value, testId }: { value: string; testId?: string }) {
             .catch(() => undefined)
         }}
       >
-        {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
+        {copied ? <Icon name="check" size={14} /> : <Icon name="copy" size={14} />}
       </button>
     </span>
   )

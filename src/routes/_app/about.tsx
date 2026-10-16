@@ -1,11 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { format, formatDistanceToNow } from 'date-fns'
-import { RotateCw } from 'lucide-react'
 import { BUILT, type ProbeResult } from '@/api/capabilities'
 import { probe } from '@/api/client'
 import { API_BASE } from '@/api/session'
 import { Page, PageHeader } from '@/components/app/page-header'
+import { Icon } from '@/components/la/icons'
 import { Forbidden } from '@/components/states/forbidden'
 import { ErrorState } from '@/components/states/error-state'
 import { Badge } from '@/components/ui/badge'
@@ -99,7 +99,7 @@ function CapabilityProbe() {
             disabled={probeQ.isFetching}
             onClick={() => void qc.invalidateQueries({ queryKey: keys.capabilities() })}
           >
-            <RotateCw data-icon="inline-start" className={probeQ.isFetching ? 'animate-spin' : undefined} />
+            <Icon name="refresh" size={16} data-icon="inline-start" className={probeQ.isFetching ? 'motion-safe:animate-spin' : undefined} />
             Re-run
           </Button>
         </CardAction>

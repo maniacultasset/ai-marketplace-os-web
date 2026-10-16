@@ -16,49 +16,105 @@
  * text-h1, shadow-pop …). Never write a raw hex or pixel value in a component.
  */
 :root {
-  /* colour */
-  --canvas: #f5f7fb;
-  --surface: #ffffff;
-  --subtle: #eef1f8;
-  --line: #e1e6f0;
-  --line-strong: #cbd3e4;
+  /* colour: the hi-fi roles, toned to a matte finish (slightly desaturated, never a gradient). */
+  --canvas: #edf0f5;
+  --surface: #fbfcfd;
+  --subtle: #e8ecf3;
+  --field: #eef1f6;
+  --sunken: #f4f6f9;
+  --scrim: rgb(27 34 56 / 0.28);
+  --line: #dde2ec;
+  --line-strong: #c8d0e0;
   --ink: #1b2238;
   --ink-2: #4a5573;
-  --ink-3: #7c87a6;
-  --brand: #2d46e0;
-  --brand-hover: #2338b8;
-  --brand-bg: #e8ecff;
-  --brand-line: #b8c4fa;
+  --ink-3: #586280;
+  --brand: #2f46d6;
+  --brand-hover: #2639b6;
+  --brand-bg: #e7ebfb;
+  --brand-line: #b9c4f2;
   --brand-ink: #1b2a8a;
-  --success: #1c7448;
-  --success-bg: #e2f5ea;
-  --success-line: #9fd8b7;
-  --success-tint: #f3fbf6;
+  --success: #1d7449;
+  --success-bg: #e1f1e8;
+  --success-line: #a3d3b7;
+  --success-tint: #f2f8f4;
   --success-ink: #0f4a2c;
-  --attention: #9a5200;
-  --attention-bg: #fdf0da;
-  --attention-line: #f0c27a;
-  --attention-tint: #fffbf2;
+  --attention: #965200;
+  --attention-bg: #f8edda;
+  --attention-line: #e8c287;
+  --attention-tint: #fcf8ef;
   --attention-ink: #5c3200;
-  --danger: #b0281c;
-  --danger-bg: #fce7e4;
-  --danger-line: #f0b5ae;
+  --danger: #ad2a1f;
+  --danger-bg: #f8e5e2;
+  --danger-line: #eab6af;
   --danger-ink: #7a1a11;
 
   /* type */
   --font-display-family: "Bricolage Grotesque Variable", "Bricolage Grotesque", "DM Sans Variable", system-ui, sans-serif;
   --font-ui-family: "DM Sans Variable", "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
 
-  /* radius, elevation */
+  /* radius */
   --radius-control: 8px;
   --radius-card: 12px;
   --radius-pill: 999px;
-  --shadow-sm: 0 1px 2px rgba(27, 34, 56, 0.05);
-  --shadow-lg: 0 12px 32px rgba(27, 34, 56, 0.16);
-  --shadow-primary: 0 1px 2px rgba(45, 70, 224, 0.35);
-  --focus-ring: 0 0 0 3px rgba(45, 70, 224, 0.18);
-  --focus-ring-danger: 0 0 0 3px rgba(176, 40, 28, 0.12);
-  --selected-ring: 0 0 0 3px rgba(45, 70, 224, 0.14);
+
+  /*
+   * Matte elevation. Light comes from the top left: a soft highlight up-left, a soft shade
+   * down-right, never a glow, gloss or gradient. Raised = cards and primary controls; inset =
+   * fields, tracks and pressed controls. Every raised or inset surface also keeps a hairline edge.
+   */
+  --shade: 31 41 72;
+  --light: 255 255 255;
+  --shadow-raised-sm: -2px -2px 5px rgb(var(--light) / 0.9), 2px 3px 6px rgb(var(--shade) / 0.08), 0 1px 1px rgb(var(--shade) / 0.04);
+  --shadow-raised-md: -5px -5px 12px rgb(var(--light) / 0.85), 6px 8px 18px rgb(var(--shade) / 0.08), 0 1px 2px rgb(var(--shade) / 0.05);
+  --shadow-raised-lg: -8px -8px 22px rgb(var(--light) / 0.6), 14px 18px 40px rgb(var(--shade) / 0.16), 0 2px 4px rgb(var(--shade) / 0.06);
+  --shadow-inset-sm: inset 1.5px 1.5px 3px rgb(var(--shade) / 0.09), inset -1.5px -1.5px 3px rgb(var(--light) / 0.85);
+  --shadow-inset-md: inset 2px 2px 6px rgb(var(--shade) / 0.11), inset -2px -2px 6px rgb(var(--light) / 0.9);
+  --shadow-pressed: inset 2px 2px 5px rgb(var(--shade) / 0.14), inset -1px -1px 3px rgb(var(--light) / 0.6);
+  /* Filled (brand, attention) controls: tinted shade, same light direction. */
+  --shadow-raised-brand: -2px -2px 5px rgb(var(--light) / 0.85), 2px 3px 8px rgb(38 57 182 / 0.28), 0 1px 1px rgb(38 57 182 / 0.2);
+  --shadow-raised-warn: -2px -2px 5px rgb(var(--light) / 0.85), 2px 3px 8px rgb(110 60 0 / 0.26), 0 1px 1px rgb(110 60 0 / 0.18);
+  /* A bar pinned to the bottom edge (FooterBar): shade cast upward. */
+  --shadow-raised-up: 0 -6px 16px rgb(var(--shade) / 0.06), 0 -1px 2px rgb(var(--shade) / 0.04);
+  /* The raised thumb of a segmented control or switch, inside an inset track. */
+  --shadow-thumb: 1px 1px 3px rgb(var(--shade) / 0.16), -1px -1px 2px rgb(var(--light) / 0.9);
+  --shadow-pressed-fill: inset 2px 2px 5px rgb(10 16 60 / 0.35), inset -1px -1px 2px rgb(var(--light) / 0.18);
+
+  /* edges: every field and card keeps one (classic invisible-edge neumorphism is not allowed) */
+  --edge: var(--line);
+  --edge-strong: var(--line-strong);
+  --edge-hover: #b3bdd1;
+
+  /* states */
+  --hover: #e4e8f0;
+  --pressed: #dde2eb;
+  --ease-tactile: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-tactile: 160ms;
+
+  /* icon tiles (raised squircles with a tinted fill) */
+  --tile-neutral-bg: var(--surface);
+  --tile-neutral-fg: var(--ink-2);
+  --tile-neutral-line: var(--line);
+  --tile-brand-bg: var(--brand-bg);
+  --tile-brand-fg: var(--brand);
+  --tile-brand-line: #d3daf7;
+  --tile-ok-bg: var(--success-bg);
+  --tile-ok-fg: var(--success);
+  --tile-ok-line: #c6e3d2;
+  --tile-warn-bg: var(--attention-bg);
+  --tile-warn-fg: var(--attention);
+  --tile-warn-line: #f0d9b2;
+  --tile-fail-bg: var(--danger-bg);
+  --tile-fail-fg: var(--danger);
+  --tile-fail-line: #f1cfca;
+
+  /* legacy names, mapped onto the matte scale so every screen picks it up */
+  --shadow-sm: var(--shadow-raised-sm);
+  --shadow-lg: var(--shadow-raised-lg);
+  --shadow-primary: var(--shadow-raised-brand);
+  /* Ring = 2px surface gap + 2px 60% brand: reads on raised, inset and brand-filled controls alike. */
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px rgb(47 70 214 / 0.6);
+  --focus-ring-danger: 0 0 0 2px var(--surface), 0 0 0 4px rgb(173 42 31 / 0.55);
+  --selected-ring: 0 0 0 3px rgba(47, 70, 214, 0.16);
 
   /* size */
   --control-h: 40px;
@@ -83,7 +139,7 @@
   --secondary-foreground: var(--ink);
   --muted: var(--subtle);
   --muted-foreground: var(--ink-2);
-  --accent: var(--subtle);
+  --accent: var(--hover);
   --accent-foreground: var(--ink);
   --destructive: var(--danger);
   --warning: var(--attention);
@@ -106,9 +162,9 @@
   --sidebar-accent-foreground: var(--brand);
   --sidebar-border: var(--line);
   --sidebar-ring: var(--brand);
-  --elev-1: 0 1px 2px rgba(27, 34, 56, 0.05);
-  --elev-2: 0 1px 2px rgba(27, 34, 56, 0.05), 0 4px 12px -2px rgba(27, 34, 56, 0.08);
-  --elev-3: 0 12px 32px rgba(27, 34, 56, 0.16);
+  --elev-1: var(--shadow-raised-sm);
+  --elev-2: var(--shadow-raised-md);
+  --elev-3: var(--shadow-raised-lg);
   --highlight: none;
 }
 
@@ -144,6 +200,14 @@
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
   --color-subtle: var(--subtle);
+  --color-field: var(--field);
+  --color-sunken: var(--sunken);
+  --color-scrim: var(--scrim);
+  --color-hover: var(--hover);
+  --color-pressed: var(--pressed);
+  --color-edge: var(--edge);
+  --color-edge-strong: var(--edge-strong);
+  --color-edge-hover: var(--edge-hover);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
   --color-ink: var(--ink);
@@ -182,10 +246,22 @@
   --radius-pill: 999px;
   --radius-banner: 10px;
 
-  --shadow-sm: 0 1px 2px rgba(27, 34, 56, 0.05);
-  --shadow-lg: 0 12px 32px rgba(27, 34, 56, 0.16);
-  --shadow-pop: 0 12px 32px rgba(27, 34, 56, 0.16);
-  --shadow-primary: var(--shadow-primary);
+  --shadow-sm: var(--shadow-raised-sm);
+  --shadow-md: var(--shadow-raised-md);
+  --shadow-lg: var(--shadow-raised-lg);
+  --shadow-pop: var(--shadow-raised-lg);
+  --shadow-primary: var(--shadow-raised-brand);
+  --shadow-raised-sm: var(--shadow-raised-sm);
+  --shadow-raised-md: var(--shadow-raised-md);
+  --shadow-raised-lg: var(--shadow-raised-lg);
+  --shadow-raised-brand: var(--shadow-raised-brand);
+  --shadow-raised-warn: var(--shadow-raised-warn);
+  --shadow-inset-sm: var(--shadow-inset-sm);
+  --shadow-inset-md: var(--shadow-inset-md);
+  --shadow-pressed: var(--shadow-pressed);
+  --shadow-pressed-fill: var(--shadow-pressed-fill);
+  --shadow-thumb: var(--shadow-thumb);
+  --shadow-raised-up: var(--shadow-raised-up);
   --shadow-focus: var(--focus-ring);
   --shadow-focus-danger: var(--focus-ring-danger);
   --shadow-selected: var(--selected-ring);
@@ -262,7 +338,7 @@
     font-variant-numeric: tabular-nums;
   }
   ::selection {
-    background: rgba(45, 70, 224, 0.18);
+    background: rgba(47, 70, 214, 0.18);
   }
   ::placeholder {
     color: var(--ink-3);
@@ -301,16 +377,67 @@
   .focus-ring {
     outline: none;
   }
+  /* The ring is added on top of the control's resting depth (`--focus-rest`), so an inset field
+     stays inset and a raised button stays raised while focused. */
   .focus-ring:focus-visible {
     outline: none;
     border-color: var(--brand);
-    box-shadow: var(--focus-ring);
+    box-shadow: var(--focus-ring), var(--focus-rest, 0 0 #0000);
   }
   .surface {
     background: var(--surface);
     border: 1px solid var(--line);
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-raised-sm);
   }
+}
+
+/* ---- Matte layer (docs/DESIGN.md → Matte surfaces) ----
+   Declared with @utility so they sort with Tailwind's own utilities: a single-property class on
+   the same element (bg-card, shadow-none) still overrides them. */
+/* Raised: a card or control that sits on the canvas. Hairline edge kept. */
+@utility raised {
+  background-color: var(--surface);
+  border: 1px solid var(--edge);
+  box-shadow: var(--shadow-raised-sm);
+}
+/* Inset: fields and search. Pressed into the surface, hairline edge kept (set border width on
+   the element). */
+@utility inset-field {
+  background-color: var(--field);
+  border-color: var(--edge-strong);
+  box-shadow: var(--shadow-inset-sm);
+  --focus-rest: var(--shadow-inset-sm);
+}
+/* Inset track: segmented controls, progress bars. */
+@utility inset-track {
+  background-color: var(--subtle);
+  box-shadow: var(--shadow-inset-sm);
+}
+/* Tactile motion: transform, opacity, shadow and colour only, 160ms. */
+@utility tactile {
+  transition-property: transform, opacity, box-shadow, background-color, border-color, color;
+  transition-duration: var(--dur-tactile);
+  transition-timing-function: var(--ease-tactile);
+}
+/* 1px lift on hover for raised controls; never on disabled ones; pressed sits back down. */
+@utility lift {
+  &:hover:not(:disabled, [aria-disabled="true"]) {
+    transform: translateY(-1px);
+  }
+  &:active {
+    transform: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    &:hover:not(:disabled, [aria-disabled="true"]) {
+      transform: none;
+    }
+  }
+}
+
+/* One icon weight: lucide defaults (stroke 2) are drawn at the hi-fi 1.75. An explicit
+   strokeWidth other than 2 (e.g. a bold check) is left alone. */
+svg.lucide[stroke-width="2"] {
+  stroke-width: 1.75;
 }
 
 @keyframes page-in {

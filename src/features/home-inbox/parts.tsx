@@ -4,7 +4,7 @@
  */
 import { formatDistanceToNowStrict, format, isToday, isYesterday } from 'date-fns'
 import type { ReactNode } from 'react'
-import { Icon, type IconName } from '@/components/la/icons'
+import { IconTile, type IconName, type TileTone } from '@/components/la/icons'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { Issue, Task } from '@/features/inbox/model'
 import { cn } from '@/lib/utils'
@@ -14,8 +14,8 @@ const DOT: Record<TimelineEntry['tone'], string> = {
   ok: 'border-success bg-success',
   bad: 'border-danger bg-danger',
   need: 'border-attention bg-attention',
-  now: 'border-brand bg-brand shadow-[0_0_0_4px_rgba(45,70,224,.2)]',
-  neutral: 'border-ink-3 bg-surface',
+  now: 'border-brand bg-brand ring-4 ring-brand/20',
+  neutral: 'border-ink-3 bg-surface shadow-inset-sm',
 }
 
 const TONE_WORD: Record<TimelineEntry['tone'], string> = { ok: 'Done', bad: 'Failed', need: 'Needs attention', now: 'In progress', neutral: '' }
@@ -59,7 +59,7 @@ export function Timeline({ entries, className, label }: { entries: readonly Time
 
 export function CodeBlock({ children }: { children: ReactNode }) {
   return (
-    <pre className="mt-1 rounded-control border border-line-strong bg-subtle px-3 py-2.5 font-mono text-[12px] leading-[17px] break-words whitespace-pre-wrap text-ink">
+    <pre className="mt-1 rounded-control border border-line-strong bg-field shadow-inset-sm px-3 py-2.5 font-mono text-[12px] leading-[17px] break-words whitespace-pre-wrap text-ink">
       {children}
     </pre>
   )
@@ -89,20 +89,10 @@ const TASK_ICON: Record<Task['kind'], IconName> = {
   marketplace_error_review: 'store',
 }
 
-/** 40/44px leading tile: brand tint for a question, attention or danger tint for an issue. */
+/** 40/44px leading tile (matte icon tile): brand tint for a question, attention or danger tint for an issue. */
 export function ItemTile({ item, size = 40 }: { item: { kind: 'task'; task: Pick<Task, 'kind'> } | { kind: 'issue'; issue: Pick<Issue, 'severity' | 'status'> }; size?: 40 | 44 }) {
   const isTask = item.kind === 'task'
-  const tone = isTask
-    ? 'border-brand-line bg-brand-bg text-brand'
-    : item.issue.status !== 'open'
-      ? 'border-success-line bg-success-bg text-success'
-      : item.issue.severity === 'error'
-        ? 'border-danger-line bg-danger-bg text-danger'
-        : 'border-attention-line bg-attention-bg text-attention'
+  const tone: TileTone = isTask ? 'brand' : item.issue.status !== 'open' ? 'ok' : item.issue.severity === 'error' ? 'fail' : 'warn'
   const name: IconName = isTask ? TASK_ICON[item.task.kind] : item.issue.status !== 'open' ? 'check' : 'alert'
-  return (
-    <span aria-hidden className={cn('inline-flex shrink-0 items-center justify-center rounded-[9px] border', tone, size === 44 ? 'size-11' : 'size-10')}>
-      <Icon name={name} size={18} />
-    </span>
-  )
+  return <IconTile icon={name} tone={tone} size="lg" className={size === 40 ? 'size-10 rounded-[11px]' : undefined} />
 }

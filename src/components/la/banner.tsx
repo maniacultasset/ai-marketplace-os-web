@@ -5,16 +5,16 @@
  */
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
-import { Icon, type IconName } from './icons'
+import { IconTile, type IconName, type TileTone } from './icons'
 
 export type BannerTone = 'info' | 'success' | 'attention' | 'danger' | 'neutral'
 
-const TONE: Record<BannerTone, { box: string; icon: IconName }> = {
-  info: { box: 'border-brand-line bg-brand-bg text-brand-ink', icon: 'spark' },
-  success: { box: 'border-success-line bg-success-bg text-success-ink', icon: 'check' },
-  attention: { box: 'border-attention-line bg-attention-bg text-attention-ink', icon: 'alert' },
-  danger: { box: 'border-danger-line bg-danger-bg text-danger-ink', icon: 'alert' },
-  neutral: { box: 'border-line bg-surface text-ink', icon: 'spark' },
+const TONE: Record<BannerTone, { box: string; icon: IconName; tile: TileTone }> = {
+  info: { box: 'border-brand-line bg-brand-bg text-brand-ink', icon: 'spark', tile: 'brand' },
+  success: { box: 'border-success-line bg-success-bg text-success-ink', icon: 'check', tile: 'ok' },
+  attention: { box: 'border-attention-line bg-attention-bg text-attention-ink', icon: 'alert', tile: 'warn' },
+  danger: { box: 'border-danger-line bg-danger-bg text-danger-ink', icon: 'alert', tile: 'fail' },
+  neutral: { box: 'border-line bg-surface text-ink shadow-raised-sm', icon: 'spark', tile: 'neutral' },
 }
 
 export function Banner({
@@ -39,7 +39,8 @@ export function Banner({
   const glyph = icon === undefined ? t.icon : icon
   return (
     <div role={role} className={cn('flex items-start gap-3 rounded-[10px] border px-4 py-3 text-body', t.box, className)}>
-      {glyph ? <Icon name={glyph} size={18} className="mt-px" /> : null}
+      {/* Matte tile on the tinted banner: surface fill, tone glyph. */}
+      {glyph ? <IconTile icon={glyph} tone={t.tile} size="sm" className="-my-1 bg-surface" /> : null}
       <div className="min-w-0 flex-1">
         {title ? <p className="font-bold">{title}</p> : null}
         {children ? <div className={cn(title && 'mt-0.5')}>{children}</div> : null}

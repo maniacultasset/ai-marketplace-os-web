@@ -1,7 +1,9 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3, CalendarRange, Package, RotateCw } from 'lucide-react'
+import { ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3, CalendarRange } from 'lucide-react'
 import { useId, useState, type ReactNode } from 'react'
 import { Page, PageHeader } from '@/components/app/page-header'
+import { Icon } from '@/components/la/icons'
+import { MarketplaceTile } from '@/components/la/marketplace'
 import { EmptyState } from '@/components/states/empty-state'
 import { ErrorState } from '@/components/states/error-state'
 import { Button } from '@/components/ui/button'
@@ -88,7 +90,7 @@ export function Dashboard({ preset, onPreset }: { preset: RangePreset; onPreset:
               aria-label={refreshing ? 'Refreshing…' : 'Refresh metrics'}
               title="Refresh metrics"
             >
-              <RotateCw className={cn('size-4', refreshing && 'motion-safe:animate-spin')} aria-hidden />
+              <Icon name="refresh" size={16} className={cn(refreshing && 'motion-safe:animate-spin')} />
             </Button>
           </>
         }
@@ -491,7 +493,7 @@ function OutcomeRow({
         <span className="text-xs text-muted-foreground tabular-nums">{total ? `${formatCount(total)} total` : 'None yet'}</span>
       </div>
       <div
-        className="flex h-2 w-full gap-0.5 overflow-hidden rounded-full bg-muted"
+        className="flex h-2 w-full gap-0.5 overflow-hidden rounded-full bg-subtle shadow-inset-sm"
         role="img"
         aria-label={total ? `${good} ${goodLabel}, ${bad} ${badLabel}` : `No ${label.toLowerCase()} in this period`}
       >
@@ -536,7 +538,7 @@ function MarketplaceCard({ rows }: { rows: MarketplaceBreakdown[] }) {
       </CardHeader>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[40rem] text-sm">
-          <thead className="bg-muted/50 text-xs text-muted-foreground">
+          <thead className="border-b border-line bg-sunken text-xs text-muted-foreground">
             <tr>
               <th scope="col" className="h-9 pl-5 text-left font-medium">Marketplace</th>
               <th scope="col" className="h-9 px-3 text-right font-medium">Generated</th>
@@ -550,14 +552,11 @@ function MarketplaceCard({ rows }: { rows: MarketplaceBreakdown[] }) {
           <tbody className="divide-y divide-border/70">
             {rows.map((r) => {
               const meta = MARKETPLACE_META[r.marketplace]
-              const Icon = meta.icon
               return (
                 <tr key={r.marketplace} data-marketplace={r.marketplace}>
                   <td className="h-14 pl-5">
                     <span className="flex items-center gap-2.5">
-                      <span className={cn('flex size-7 items-center justify-center rounded-md ring-1 ring-inset', meta.tileClass)}>
-                        <Icon className="size-3.5" aria-hidden />
-                      </span>
+                      <MarketplaceTile id={r.marketplace} size="sm" />
                       <span className="font-medium">{meta.short}</span>
                     </span>
                   </td>
@@ -569,7 +568,7 @@ function MarketplaceCard({ rows }: { rows: MarketplaceBreakdown[] }) {
                       <td key={c.id} className="px-3 last:pr-5">
                         <div className="flex items-center gap-3">
                           <span className="w-12 shrink-0 tabular-nums">{formatRate(v)}</span>
-                          <span className="hidden h-1.5 w-24 overflow-hidden rounded-full bg-brand-soft sm:block" aria-hidden>
+                          <span className="hidden h-1.5 w-24 overflow-hidden rounded-full bg-subtle shadow-inset-sm sm:block" aria-hidden>
                             {v != null ? <span className="block h-full rounded-full bg-brand" style={{ width: `${v * 100}%` }} /> : null}
                           </span>
                           {f && f.den > 0 ? (
@@ -605,7 +604,7 @@ function EmptyDashboard({ preset, onPreset }: { preset: RangePreset; onPreset: (
           <>
             <Button asChild>
               <Link to="/products">
-                <Package data-icon="inline-start" />
+                <Icon name="box" size={16} data-icon="inline-start" />
                 Go to products
               </Link>
             </Button>

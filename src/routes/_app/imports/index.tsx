@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { FileUp } from 'lucide-react'
+import { Icon } from '@/components/la/icons'
 import { Page, PageHeader } from '@/components/app/page-header'
 import { Button } from '@/components/ui/button'
 import { ImportsHistory } from '@/features/imports/imports-history'
@@ -17,7 +17,7 @@ function ImportsPage() {
           <Can action="product:import">
             <Button asChild>
               <Link to="/imports/new">
-                <FileUp data-icon="inline-start" />
+                <Icon name="upload" size={16} data-icon="inline-start" />
                 Import CSV
               </Link>
             </Button>

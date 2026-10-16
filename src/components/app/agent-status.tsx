@@ -4,6 +4,7 @@
  */
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { api, unwrap } from '@/api/client'
+import { IconTile } from '@/components/la/icons'
 import type { Schema } from '@/api/types'
 import { listingBucket, type ListingsSnapshot } from '@/features/home-inbox/model'
 import { useKeys } from '@/lib/query-keys'
@@ -63,10 +64,17 @@ export function agentLine(w: { pending: boolean; failed: boolean; count: number;
 export function AgentStatusCard() {
   const work = useAgentWork()
   return (
-    <div className="mt-auto rounded-[10px] border border-line bg-canvas px-3 py-2.5 text-caption font-normal text-ink-2" role="status" aria-live="polite">
-      <b className="font-bold text-ink">Agent</b>
-      <br />
-      {agentLine(work)}
+    <div
+      className="mt-auto flex items-center gap-2.5 rounded-[12px] border border-line bg-surface px-3 py-2.5 text-caption font-normal text-ink-2 shadow-raised-sm"
+      role="status"
+      aria-live="polite"
+    >
+      <IconTile icon="spark" size="sm" tone={work.count > 0 && !work.pending && !work.failed ? 'brand' : 'neutral'} flat className="shadow-inset-sm" />
+      <span className="min-w-0">
+        <b className="font-bold text-ink">Agent</b>
+        <br />
+        {agentLine(work)}
+      </span>
     </div>
   )
 }

@@ -25,7 +25,7 @@ export function UserMenu() {
   const { data: me } = useMe()
   const items = useNavItems('user')
   const [signingOut, setSigningOut] = useState(false)
-  if (!me) return <span className="size-7 rounded-full bg-subtle" aria-hidden />
+  if (!me) return <span className="size-7 rounded-full bg-subtle shadow-inset-sm" aria-hidden />
   const name = me.display_name ?? me.email
 
   return (
@@ -35,7 +35,7 @@ export function UserMenu() {
           type="button"
           aria-label="Open user menu"
           data-testid="user-menu"
-          className="focus-ring inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-brand text-caption font-bold text-white"
+          className="focus-ring tactile lift inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-brand text-caption font-bold text-white shadow-raised-brand [--focus-rest:var(--shadow-raised-brand)] active:shadow-pressed-fill"
         >
           {initials(name).slice(0, 1)}
         </button>

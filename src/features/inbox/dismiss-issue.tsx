@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react'
+import { Icon } from '@/components/la/icons'
 import { useState, type MouseEvent } from 'react'
 import {
   AlertDialog,
@@ -43,7 +43,7 @@ export function DismissIssueButton({ issue }: { issue: Issue }) {
   return (
     <>
       <Button variant="secondary" onClick={() => setOpen(true)} data-testid="issue-dismiss">
-        <Check strokeWidth={1.75} data-icon="inline-start" />
+        <Icon name="check" size={16} data-icon="inline-start" />
         Dismiss warning
       </Button>
       <AlertDialog open={open} onOpenChange={(o) => !dismiss.isPending && setOpen(o)}>

@@ -47,7 +47,7 @@ const SETTINGS_ITEMS: readonly SubItem[] = [
 ]
 
 const LINK =
-  'shrink-0 rounded-control px-3 py-2 whitespace-nowrap text-ink-2 transition-colors duration-150 hover:bg-canvas hover:text-ink data-[status=active]:bg-brand-bg data-[status=active]:font-bold data-[status=active]:text-brand'
+  'tactile shrink-0 rounded-[10px] border border-transparent px-3 py-2 whitespace-nowrap text-ink-2 hover:bg-hover hover:text-ink active:shadow-pressed data-[status=active]:border-line data-[status=active]:bg-surface data-[status=active]:font-bold data-[status=active]:text-brand data-[status=active]:shadow-raised-sm'
 
 function SettingsLayout() {
   const can = useCan()
@@ -57,7 +57,7 @@ function SettingsLayout() {
       <nav
         aria-label="Settings"
         data-testid="settings-nav"
-        className="flex items-start gap-0.5 self-start overflow-x-auto border-b border-line bg-surface px-3 py-2 md:flex-col md:items-stretch md:self-stretch md:overflow-visible md:border-r md:border-b-0 md:py-6"
+        className="flex items-start gap-0.5 self-start overflow-x-auto border-b border-line bg-canvas px-3 py-2 md:flex-col md:items-stretch md:self-stretch md:overflow-visible md:border-r md:border-b-0 md:py-6"
       >
         {items.map((i) => (
           <div key={i.label} className="contents">

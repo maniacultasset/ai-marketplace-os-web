@@ -4,7 +4,7 @@
 import { Link } from '@tanstack/react-router'
 import { Banner } from '@/components/la/banner'
 import { LaCard } from '@/components/la/cards'
-import { Icon } from '@/components/la/icons'
+import { Icon, IconTile } from '@/components/la/icons'
 import { StatusChip } from '@/components/la/status-chip'
 import { UnavailableButton } from '@/components/la/unavailable'
 import { Button } from '@/components/ui/button'
@@ -97,7 +97,8 @@ function Missing({ selectedKey, hasItems }: { selectedKey: string | undefined; h
   const parsed = parseItemKey(selectedKey)
   if (!parsed)
     return (
-      <div className="py-16 text-center" data-testid="inbox-detail-empty">
+      <div className="flex flex-col items-center py-16 text-center" data-testid="inbox-detail-empty">
+        <IconTile icon={hasItems ? 'inbox' : 'check'} tone={hasItems ? 'brand' : 'ok'} size="lg" className="mb-4" />
         <p className="font-display text-h2 text-ink">{hasItems ? 'Pick an item' : 'Nothing needs you'}</p>
         <p className="mt-1 text-body text-ink-2">
           {hasItems ? 'Choose a question or an issue on the left.' : 'The agent asks here when a fact is missing, and marketplace problems land here too.'}
@@ -105,7 +106,8 @@ function Missing({ selectedKey, hasItems }: { selectedKey: string | undefined; h
       </div>
     )
   return (
-    <div className="mx-auto max-w-lg py-12 text-center" data-testid="inbox-detail-missing">
+    <div className="mx-auto flex max-w-lg flex-col items-center py-12 text-center" data-testid="inbox-detail-missing">
+      <IconTile icon="search" size="lg" className="mb-4" />
       <p className="font-display text-h2 text-ink">This item is not in the list</p>
       <p className="mt-1 text-body text-ink-2">
         It may be closed already, or further down than the loaded rows. Change the filter or load more on the left.
@@ -152,7 +154,7 @@ function TaskDetail({
           {task.reason}
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-small text-ink">
-          <span className="rounded-[6px] border border-line-strong bg-surface px-2 py-px text-caption font-semibold text-ink-2">Affects</span>
+          <span className="rounded-[6px] border border-line-strong bg-surface px-2 py-px text-caption font-semibold text-ink-2 shadow-raised-sm">Affects</span>
           <span>
             {[product ? `${product.sku} · ${product.title}` : task.product_id ? 'One product' : null, task.target_path, TASK_KIND_LABEL[task.kind]]
               .filter(Boolean)

@@ -14,12 +14,19 @@ import type { StepState } from './run-steps'
 
 /* ---------------------------------------------------------------------------------------------- */
 
-/** 56px product tile. The API has no image URL for a product, so it is the neutral box glyph. */
+/**
+ * 56px product tile. The API has no image URL for a product, so it is the neutral box glyph in a
+ * raised matte squircle (same tokens as `IconTile`, one size up).
+ */
 export function ProductTile({ size = 56, className }: { size?: number; className?: string }) {
   return (
     <span
       aria-hidden
-      className={cn('inline-flex shrink-0 items-center justify-center rounded-[10px] bg-subtle text-ink-2', className)}
+      data-slot="icon-tile"
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center rounded-[14px] border border-[var(--tile-neutral-line)] bg-[var(--tile-neutral-bg)] text-[var(--tile-neutral-fg)] shadow-raised-sm',
+        className,
+      )}
       style={{ width: size, height: size }}
     >
       <Icon name="box" size={Math.round(size * 0.46)} />
@@ -61,10 +68,10 @@ export type DotTone = 'ok' | 'now' | 'need' | 'bad' | 'todo'
 
 const DOT: Record<DotTone, string> = {
   ok: 'border-success bg-success',
-  now: 'border-brand bg-brand shadow-[0_0_0_4px_rgba(45,70,224,0.2)]',
+  now: 'border-brand bg-brand shadow-selected',
   need: 'border-attention bg-attention',
   bad: 'border-danger bg-danger',
-  todo: 'border-ink-3 bg-surface',
+  todo: 'border-ink-3 bg-field shadow-inset-sm',
 }
 
 const DOT_WORD: Record<DotTone, string> = { ok: 'Done', now: 'In progress', need: 'Needs you', bad: 'Failed', todo: 'Not started' }
@@ -203,7 +210,7 @@ export function HeadSkeleton() {
 
 export function CardSkeleton({ lines = 4, className }: { lines?: number; className?: string }) {
   return (
-    <div className={cn('rounded-card border border-line bg-surface p-5 shadow-sm', className)} aria-hidden>
+    <div className={cn('rounded-card border border-line bg-surface p-5 shadow-raised-md', className)} aria-hidden>
       <Skeleton className="h-5 w-32" />
       <div className="mt-4 flex flex-col gap-3">
         {Array.from({ length: lines }, (_, i) => (

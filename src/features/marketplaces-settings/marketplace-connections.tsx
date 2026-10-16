@@ -95,7 +95,7 @@ export function MarketplaceConnections({
               className="flex min-h-[68px] items-center justify-between gap-3 rounded-card border border-dashed border-line-strong px-4 py-3"
             >
               <span className="flex min-w-0 items-center gap-3">
-                <MarketplaceTile id={w.id} />
+                <MarketplaceTile id={w.id} className="bg-canvas text-ink-2 shadow-none" />
                 <span className="min-w-0">
                   <span className="block truncate font-bold text-ink">{marketplaceInfo(w.id).name}</span>
                   <span className="block text-caption text-ink-3">{w.note}</span>
@@ -151,8 +151,8 @@ function SupportedRow({
       data-status={account?.status ?? 'none'}
       data-selected={selected || undefined}
       className={cn(
-        'relative flex min-h-[68px] items-center justify-between gap-3 rounded-card border bg-surface px-4 py-3 transition-[border-color,box-shadow] duration-150',
-        selected ? 'border-brand shadow-selected' : 'border-line shadow-sm hover:border-line-strong',
+        'tactile relative flex min-h-[68px] items-center justify-between gap-3 rounded-card border bg-surface px-4 py-3',
+        selected ? 'border-brand shadow-[var(--selected-ring),var(--shadow-raised-sm)]' : 'border-line shadow-raised-sm hover:border-edge-hover',
       )}
     >
       {/* The whole row selects; the action button sits above this layer. */}

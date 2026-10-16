@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 
 export function PublicHeader({ links }: { links?: ReactNode }) {
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/85">
+    <header className="sticky top-0 z-30 border-b border-line bg-surface">
       <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-4 px-4 md:gap-6 md:px-8">
         <Link to="/" aria-label="Listing Agent home" className="shrink-0">
           <Wordmark size="lg" compactBelowSm />

@@ -13,7 +13,7 @@ import { Controller, useForm } from 'react-hook-form'
 import { applyFieldErrors, describeError, isApiError } from '@/api/errors'
 import { LaCard } from '@/components/la/cards'
 import { LaField } from '@/components/la/field'
-import { Icon } from '@/components/la/icons'
+import { Icon, IconTile } from '@/components/la/icons'
 import { StatusChip } from '@/components/la/status-chip'
 import { ComingSoon, NOT_YET, UnavailableButton } from '@/components/la/unavailable'
 import { Button } from '@/components/ui/button'
@@ -237,9 +237,9 @@ function DescribesYou() {
       {DESCRIBES_YOU.map((label) => (
         <label
           key={label}
-          className="flex h-11 cursor-not-allowed items-center gap-3 rounded-[10px] border border-line-strong bg-surface px-3.5 text-body text-ink-2 opacity-70"
+          className="flex h-11 cursor-not-allowed items-center gap-3 rounded-[10px] border border-dashed border-line-strong bg-subtle px-3.5 text-body text-ink-2"
         >
-          <input type="radio" name="describes" disabled className="size-[18px] accent-[var(--brand)]" />
+          <input type="radio" name="describes" disabled className="size-[18px] shrink-0 cursor-not-allowed appearance-none rounded-full border-[1.5px] border-line-strong bg-field shadow-inset-sm" />
           {label}
         </label>
       ))}
@@ -251,15 +251,18 @@ function DescribesYou() {
 function HowAccessWorks() {
   return (
     <LaCard pad="sm" className="mt-2">
-      <h2 className="font-display text-h3 font-bold text-ink">What happens next</h2>
-      <ol className="mt-3 flex flex-col gap-2.5 text-small text-ink-2">
+      <div className="flex items-center gap-3">
+        <IconTile icon="users" tone="brand" size="sm" />
+        <h2 className="font-display text-h3 font-bold text-ink">What happens next</h2>
+      </div>
+      <ol className="mt-3.5 flex flex-col gap-2.5 text-small text-ink-2">
         {[
           'We don’t send an email code. A person on our team reviews every request instead.',
           'Check where your request stands any time with the email and password you choose here.',
           'Once approved, your brand gets a trial workspace and you sign in as its owner.',
         ].map((t, i) => (
           <li key={t} className="flex gap-3">
-            <span className="flex size-[22px] shrink-0 items-center justify-center rounded-full border border-brand-line bg-brand-bg text-caption font-bold text-brand">
+            <span className="flex size-[22px] shrink-0 items-center justify-center rounded-full border border-[var(--tile-brand-line)] bg-[var(--tile-brand-bg)] text-caption font-bold text-[var(--tile-brand-fg)] shadow-raised-sm">
               {i + 1}
             </span>
             <span className="pt-0.5">{t}</span>
@@ -275,9 +278,7 @@ function SentSummary({ email, brand }: { email: string; brand: string }) {
     <div data-testid="signup-sent" className="flex flex-col gap-4">
       <div>
         <h1 className="flex items-center gap-2.5 text-h1 text-ink">
-          <span className="flex size-8 items-center justify-center rounded-full bg-success-bg text-success">
-            <Icon name="check" size={18} />
-          </span>
+          <IconTile icon="check" tone="ok" />
           Request sent
         </h1>
         <p className="mt-2 text-body text-ink-2">
@@ -285,7 +286,7 @@ function SentSummary({ email, brand }: { email: string; brand: string }) {
           any time.
         </p>
       </div>
-      <dl className="divide-y divide-line rounded-card border border-line text-body">
+      <dl className="divide-y divide-line rounded-card border border-line bg-sunken text-body">
         <div className="flex items-center justify-between gap-4 px-4 py-2.5">
           <dt className="text-ink-2">Brand</dt>
           <dd className="min-w-0 truncate font-semibold text-ink" data-testid="signup-sent-brand">
@@ -341,9 +342,12 @@ function LiveStatus({ creds }: { creds: SignupStatusBody }) {
   return (
     <LaCard pad="sm" className="mt-2" data-testid="signup-live-status">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-h3 font-bold text-ink">Your request</h2>
-          <p className="mt-0.5 text-small text-ink-2">{creds.email}</p>
+        <div className="flex min-w-0 items-start gap-3">
+          <IconTile icon="clock" tone="brand" size="sm" className="mt-0.5" />
+          <div className="min-w-0">
+            <h2 className="font-display text-h3 font-bold text-ink">Your request</h2>
+            <p className="mt-0.5 truncate text-small text-ink-2">{creds.email}</p>
+          </div>
         </div>
         {result ? (
           <StatusChip status={signupChip(result.status).status} className="mt-0.5">

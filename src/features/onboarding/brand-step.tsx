@@ -27,7 +27,8 @@ import { useSoloExit } from '@/components/app/solo-exit'
 import { Banner } from '@/components/la/banner'
 import { LaCard } from '@/components/la/cards'
 import { LaField } from '@/components/la/field'
-import { Icon } from '@/components/la/icons'
+import { CardHead } from '@/components/la/cards'
+import { Icon, IconTile } from '@/components/la/icons'
 import { ComingSoon, NOT_YET, UnavailableButton } from '@/components/la/unavailable'
 import { ReferenceId } from '@/components/states/reference-id'
 import { ErrorState } from '@/components/states/error-state'
@@ -59,7 +60,7 @@ import { SetupBody, SetupColumns, SetupFooter, SetupHeading } from './setup-fram
 type SaveSource = 'blur' | 'explicit'
 
 /** Read-only look for a value the viewer cannot change: muted fill and text, no hover cue. */
-const READ_ONLY_CONTROL = 'bg-subtle text-ink-2 border-line cursor-default'
+const READ_ONLY_CONTROL = 'bg-subtle text-ink-2 border-line shadow-none cursor-default'
 
 const OWNER_TYPES = ['Brand owner', 'Manufacturer', 'Reseller', 'Distributor', 'Trader'] as const
 
@@ -240,7 +241,7 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
 
               {/* "Read my site": designed, not in the API. */}
               <div className="flex items-start gap-3 rounded-[10px] border border-brand-line bg-brand-bg px-4 py-3 text-brand-ink">
-                <Icon name="globe" size={18} className="mt-px" />
+                <IconTile icon="globe" tone="brand" size="sm" className="-mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-2 font-bold">
                     Start from your website <ComingSoon />
@@ -321,9 +322,9 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
                       role="radio"
                       aria-checked={false}
                       aria-disabled
-                      className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-control border border-line-strong bg-subtle px-3.5 text-ink-3"
+                      className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-control border border-dashed border-line-strong bg-subtle px-3.5 text-ink-3"
                     >
-                      <span aria-hidden className="size-4 rounded-full border-[1.5px] border-line-strong bg-surface" />
+                      <span aria-hidden className="size-4 rounded-full border-[1.5px] border-line-strong bg-field shadow-inset-sm" />
                       {t}
                     </span>
                   ))}
@@ -340,8 +341,8 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
                 <div className="min-w-0">
                   <p className="mb-1.5 text-small font-bold text-ink">Logo</p>
                   <div className="flex h-10 items-center gap-3">
-                    <span aria-hidden className="inline-flex size-10 items-center justify-center rounded-control border border-line bg-subtle text-ink-3">
-                      <Icon name="image" size={20} />
+                    <span aria-hidden className="inline-flex size-10 items-center justify-center rounded-control border border-dashed border-line-strong bg-subtle text-ink-3">
+                      <Icon name="image" size={18} />
                     </span>
                     <UnavailableButton variant="secondary" size="sm" reason={NEEDS_BACKEND}>
                       Upload logo
@@ -387,19 +388,24 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
           aside={
             <>
               <LaCard pad="sm">
-                <h3 className="text-h3 text-ink">What we found on your site</h3>
-                <ComingSoon className="mt-2" />
+                <CardHead title="What we found on your site" icon="search" />
+                <ComingSoon className="mt-3" />
                 <p className="mt-2 text-small text-ink-2">
                   Once we can read your site, each value we find shows here with a Check chip until you confirm it.
                   Nothing on this page is filled in for you today.
                 </p>
               </LaCard>
               <LaCard emphasis="tint" pad="sm">
-                <h4 className="text-body font-bold text-ink">Working with an agency?</h4>
-                <p className="mt-1 text-small text-ink-2">
-                  Each brand keeps its own profile and marketplace accounts. Switch between the brands you belong to
-                  from the brand menu.
-                </p>
+                <div className="flex items-start gap-3">
+                  <IconTile icon="users" size="sm" />
+                  <div className="min-w-0">
+                    <h4 className="text-body font-bold text-ink">Working with an agency?</h4>
+                    <p className="mt-1 text-small text-ink-2">
+                      Each brand keeps its own profile and marketplace accounts. Switch between the brands you belong to
+                      from the brand menu.
+                    </p>
+                  </div>
+                </div>
               </LaCard>
             </>
           }

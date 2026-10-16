@@ -9,7 +9,7 @@ import { Link } from '@tanstack/react-router'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Page, PageHeader } from '@/components/app/page-header'
 import { LaCard, CardHead, MetricTile, TaskRow } from '@/components/la/cards'
-import { Icon } from '@/components/la/icons'
+import { Icon, IconTile } from '@/components/la/icons'
 import { MarketplaceTile, type MarketplaceId } from '@/components/la/marketplace'
 import { StatusChip } from '@/components/la/status-chip'
 import { ComingSoon, NOT_YET, UnavailableButton } from '@/components/la/unavailable'
@@ -325,7 +325,7 @@ function WaitingCard({
         ) : pending ? (
           Array.from({ length: 3 }, (_, i) => (
             <div key={i} className="flex items-center gap-3 border-b border-line py-3 last:border-b-0">
-              <Skeleton className="size-11 rounded-[9px]" />
+              <Skeleton className="size-11 rounded-[12px]" />
               <div className="flex-1 space-y-1.5">
                 <Skeleton className="h-4 w-40" />
                 <Skeleton className="h-3 w-56" />
@@ -334,9 +334,7 @@ function WaitingCard({
           ))
         ) : items.length === 0 ? (
           <div className="flex items-center gap-3 py-3 text-small text-ink-2" data-testid="waiting-empty">
-            <span className="inline-flex size-11 items-center justify-center rounded-[9px] border border-success-line bg-success-bg text-success">
-              <Icon name="check" size={18} />
-            </span>
+            <IconTile icon="check" tone="ok" size="lg" />
             Nothing needs you right now. New questions from the agent appear here.
           </div>
         ) : (

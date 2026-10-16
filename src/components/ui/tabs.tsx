@@ -27,7 +27,7 @@ function Tabs({
 const tabsListVariants = cva("group/tabs-list inline-flex items-center text-ink-2", {
   variants: {
     variant: {
-      default: "h-[34px] w-fit gap-0.5 rounded-[9px] bg-subtle p-[3px]",
+      default: "h-[34px] w-fit gap-0.5 rounded-[10px] inset-track p-[3px]",
       line: "mb-5 w-full gap-1 overflow-x-auto border-b border-line",
     },
   },
@@ -58,7 +58,7 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPr
       className={cn(
         "relative inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap transition-[color,background-color,box-shadow] duration-150 disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         /* segmented */
-        "group-data-[variant=default]/tabs-list:h-7 group-data-[variant=default]/tabs-list:rounded-[7px] group-data-[variant=default]/tabs-list:px-3 group-data-[variant=default]/tabs-list:text-[13px] group-data-[variant=default]/tabs-list:font-semibold group-data-[variant=default]/tabs-list:hover:text-ink group-data-[variant=default]/tabs-list:data-active:bg-surface group-data-[variant=default]/tabs-list:data-active:text-ink group-data-[variant=default]/tabs-list:data-active:shadow-[0_1px_2px_rgba(27,34,56,.12)]",
+        "group-data-[variant=default]/tabs-list:h-7 group-data-[variant=default]/tabs-list:rounded-[7px] group-data-[variant=default]/tabs-list:px-3 group-data-[variant=default]/tabs-list:text-[13px] group-data-[variant=default]/tabs-list:font-semibold group-data-[variant=default]/tabs-list:hover:text-ink group-data-[variant=default]/tabs-list:data-active:bg-surface group-data-[variant=default]/tabs-list:data-active:text-ink group-data-[variant=default]/tabs-list:data-active:shadow-thumb",
         /* line */
         "group-data-[variant=line]/tabs-list:-mb-px group-data-[variant=line]/tabs-list:h-[42px] group-data-[variant=line]/tabs-list:border-b-2 group-data-[variant=line]/tabs-list:border-transparent group-data-[variant=line]/tabs-list:px-3.5 group-data-[variant=line]/tabs-list:font-medium group-data-[variant=line]/tabs-list:hover:text-ink group-data-[variant=line]/tabs-list:data-active:border-brand group-data-[variant=line]/tabs-list:data-active:font-bold group-data-[variant=line]/tabs-list:data-active:text-brand",
         className

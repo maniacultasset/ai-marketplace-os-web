@@ -39,12 +39,12 @@ function writePref(v: Pref) {
 
 function TopBar({ title, onOpenMenu }: { title: string; onOpenMenu: () => void }) {
   return (
-    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3.5 border-b border-line bg-surface px-4 md:px-7">
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3.5 border-b border-line bg-canvas px-4 md:px-7">
       <button
         type="button"
         onClick={onOpenMenu}
         aria-label="Open navigation"
-        className="-ml-1 inline-flex size-9 items-center justify-center rounded-control text-ink-2 hover:bg-subtle md:hidden"
+        className="tactile -ml-1 inline-flex size-9 items-center justify-center rounded-[10px] text-ink-2 hover:bg-hover active:shadow-pressed md:hidden"
       >
         <Icon name="menu" size={20} />
       </button>
@@ -59,7 +59,7 @@ function TopBar({ title, onOpenMenu }: { title: string; onOpenMenu: () => void }
               aria-disabled
               tabIndex={0}
               aria-label="Search products, SKUs (not available yet)"
-              className="hidden h-[34px] w-60 cursor-not-allowed items-center gap-2 rounded-control border border-line-strong px-2.5 text-small text-ink-3 sm:flex"
+              className="inset-field hidden h-[34px] w-60 cursor-not-allowed items-center gap-2 rounded-[10px] border px-2.5 text-small text-ink-3 sm:flex"
             >
               <Icon name="search" size={16} />
               <span className="truncate">Search products, SKUs</span>
@@ -74,7 +74,7 @@ function TopBar({ title, onOpenMenu }: { title: string; onOpenMenu: () => void }
               aria-disabled
               aria-label="Notifications (coming soon)"
               onClick={(e) => e.preventDefault()}
-              className="inline-flex size-9 cursor-not-allowed items-center justify-center rounded-control text-ink-2"
+              className="inline-flex size-9 cursor-not-allowed items-center justify-center rounded-[10px] text-ink-2"
             >
               <Icon name="bell" size={20} />
             </button>

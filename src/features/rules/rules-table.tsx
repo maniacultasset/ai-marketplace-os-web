@@ -1,4 +1,3 @@
-import { ListChecks } from 'lucide-react'
 import { columnHelper, DataTable } from '@/components/data-table'
 import { EmptyState } from '@/components/states/empty-state'
 import { Button } from '@/components/ui/button'
@@ -93,7 +92,7 @@ export function RulesTable({
         filtered ? (
           <EmptyState
             compact
-            icon={ListChecks}
+            icon="shield"
             title="No rules match these filters"
             description={
               filters.category
@@ -109,7 +108,7 @@ export function RulesTable({
         ) : (
           <EmptyState
             compact
-            icon={ListChecks}
+            icon="shield"
             title="No rules yet"
             description="Platform and brand rules appear here once they are set up."
           />
@@ -126,7 +125,7 @@ function RuleCard({ rule, onOpen }: { rule: Rule; onOpen: () => void }) {
       type="button"
       onClick={onOpen}
       data-testid="rule-card"
-      className="focus-ring flex w-full flex-col gap-2 rounded-card border border-line bg-surface p-4 text-left shadow-sm"
+      className="focus-ring flex w-full flex-col gap-2 tactile lift rounded-card border border-line bg-surface p-4 text-left shadow-raised-md active:shadow-pressed"
     >
       <span className="flex items-center justify-between gap-2">
         <MarketplaceMark marketplace={rule.marketplace} />

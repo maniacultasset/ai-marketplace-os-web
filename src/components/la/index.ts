@@ -5,7 +5,18 @@ export { BulkBar } from './bulk-bar'
 export { AttentionCard, CardHead, DashedCard, LaCard, MetricTile, TaskRow, type CardEmphasis } from './cards'
 export { fieldHintId, LaField } from './field'
 export { FooterBar } from './footer-bar'
-export { Icon, LogoMark, Wordmark, type IconName } from './icons'
+export {
+  Icon,
+  IconGlyph,
+  IconTile,
+  LogoMark,
+  MonogramTile,
+  Wordmark,
+  type IconName,
+  type IconSource,
+  type TileSize,
+  type TileTone,
+} from './icons'
 export {
   MARKETPLACES,
   MarketplaceCell,

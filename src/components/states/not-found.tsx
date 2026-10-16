@@ -1,5 +1,4 @@
 import { Link } from '@tanstack/react-router'
-import { FileQuestion } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from './empty-state'
 
@@ -16,7 +15,7 @@ export function NotFound({
 }) {
   return (
     <EmptyState
-      icon={FileQuestion}
+      icon="file"
       title={title}
       description={description}
       actions={

@@ -1,17 +1,20 @@
-import type { LucideIcon } from 'lucide-react'
 import { Inbox } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { IconTile, type IconSource, type TileTone } from '@/components/la/icons'
 import { cn } from '@/lib/utils'
 
 export function EmptyState({
   icon: Icon = Inbox,
+  tone = 'neutral',
   title,
   description,
   actions,
   className,
   compact,
 }: {
-  icon?: LucideIcon
+  /** A hi-fi icon name or a lucide icon. */
+  icon?: IconSource
+  tone?: TileTone
   title: string
   description?: ReactNode
   actions?: ReactNode
@@ -28,14 +31,7 @@ export function EmptyState({
         className,
       )}
     >
-      <div
-        className={cn(
-          'flex items-center justify-center rounded-xl border bg-card text-muted-foreground shadow-elev-2',
-          compact ? 'size-10' : 'size-11',
-        )}
-      >
-        <Icon className={compact ? 'size-[1.125rem]' : 'size-5'} aria-hidden />
-      </div>
+      <IconTile icon={Icon} tone={tone} size={compact ? 'md' : 'lg'} />
       <div className="max-w-sm space-y-1">
         <h3 className="text-[0.9375rem] font-semibold tracking-tight text-balance">{title}</h3>
         {description ? <p className="text-sm text-pretty text-muted-foreground">{description}</p> : null}

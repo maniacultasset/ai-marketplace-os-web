@@ -4,8 +4,9 @@
  * The caller owns polling (`useJobPolling`) and passes the result in, so a page has exactly one
  * poller per job.
  */
+import { Icon } from '@/components/la/icons'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Check, CircleSlash, Clock, Hourglass, PauseCircle, X } from 'lucide-react'
+import { Check, CircleSlash, X } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { api, unwrap } from '@/api/client'
 import { isApiError, isNotFound } from '@/api/errors'
@@ -94,20 +95,20 @@ export function JobProgress({
   if (!job) {
     if (polling.error && !isNotFound(polling.error)) {
       return (
-        <section className={cn('rounded-xl bg-card shadow-elev-1 ring-1 ring-border', className)}>
+        <section className={cn('rounded-card border border-line bg-card shadow-raised-md', className)}>
           <ErrorState compact error={polling.error} onRetry={() => void polling.refetch()} title="Couldn't load the job" />
         </section>
       )
     }
     if (isNotFound(polling.error)) {
       return (
-        <section className={cn('rounded-xl bg-card px-5 py-4 text-sm text-muted-foreground shadow-elev-1 ring-1 ring-border', className)}>
+        <section className={cn('rounded-card border border-line bg-card px-5 py-4 text-sm text-muted-foreground shadow-raised-md', className)}>
           The job for this import is no longer available. The report below is still current.
         </section>
       )
     }
     return (
-      <section className={cn('space-y-6 rounded-xl bg-card p-5 shadow-elev-1 ring-1 ring-border', className)} aria-busy>
+      <section className={cn('space-y-6 rounded-card border border-line bg-card p-5 shadow-raised-md', className)} aria-busy>
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Skeleton className="h-5 w-28" />
@@ -142,7 +143,7 @@ export function JobProgress({
 
   return (
     <section
-      className={cn('overflow-hidden rounded-xl bg-card shadow-elev-1 ring-1 ring-border', className)}
+      className={cn('overflow-hidden rounded-card border border-line bg-card shadow-raised-md', className)}
       data-testid="job-progress"
       data-job-id={job.job_id}
       data-status={job.status}
@@ -176,14 +177,14 @@ export function JobProgress({
         <JobStepper job={job} pct={pct} />
 
         {isWaitingForWorker ? (
-          <p className="flex items-start gap-2 rounded-lg bg-muted/60 px-3 py-2.5 text-sm text-muted-foreground" data-testid="waiting-for-worker">
-            <Hourglass className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <p className="flex items-start gap-2 rounded-lg border border-line bg-sunken px-3 py-2.5 text-sm text-muted-foreground shadow-inset-sm" data-testid="waiting-for-worker">
+            <Icon name="clock" size={16} className="mt-0.5 shrink-0" />
             Waiting for a worker… The job stays queued until a background worker picks it up.
           </p>
         ) : null}
         {rateLimitedFor !== null ? (
           <p className="flex items-center gap-2 text-sm text-warning">
-            <PauseCircle className="size-4" aria-hidden />
+            <Icon name="pause" size={16} />
             Rate limited, resuming in {rateLimitedFor} s
           </p>
         ) : null}
@@ -199,12 +200,12 @@ export function JobProgress({
         {job.status === 'dead_letter' ? <ReferenceId id={job.request_id} /> : null}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t bg-muted/30 px-5 py-3 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-line bg-sunken px-5 py-3 text-xs text-muted-foreground">
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 tabular-nums">
           {timing ? <span>{timing}</span> : null}
           {job.attempt > 1 ? (
             <span className="inline-flex items-center gap-1 text-warning">
-              <Clock className="size-3" aria-hidden />
+              <Icon name="clock" size={12} />
               Attempt {job.attempt} of {job.max_attempts}
             </span>
           ) : null}
@@ -305,14 +306,14 @@ function JobStepper({ job, pct }: { job: JobEnvelope; pct: number }) {
 function StepDot({ state, fill, icon }: { state: StepState; fill?: string; icon?: ReactNode }) {
   if (state === 'done') {
     return (
-      <span aria-hidden className={cn('flex size-5 shrink-0 items-center justify-center rounded-full', fill ?? 'bg-brand text-brand-foreground')}>
+      <span aria-hidden className={cn('flex size-5 shrink-0 items-center justify-center rounded-full shadow-raised-sm', fill ?? 'bg-brand text-brand-foreground shadow-raised-brand')}>
         {icon ?? <Check className="size-3" strokeWidth={3} />}
       </span>
     )
   }
   if (state === 'current') {
     return (
-      <span aria-hidden className="flex size-5 shrink-0 items-center justify-center rounded-full border-2 border-brand bg-background ring-4 ring-brand/15">
+      <span aria-hidden className="flex size-5 shrink-0 items-center justify-center rounded-full border-2 border-brand bg-surface shadow-raised-sm ring-4 ring-brand/15">
         <span className="size-2 animate-pulse rounded-full bg-brand" />
       </span>
     )
@@ -321,7 +322,7 @@ function StepDot({ state, fill, icon }: { state: StepState; fill?: string; icon?
     <span
       aria-hidden
       className={cn(
-        'size-5 shrink-0 rounded-full border-2 bg-background',
+        'size-5 shrink-0 rounded-full border-2 bg-field shadow-inset-sm',
         state === 'skipped' ? 'border-dashed border-border' : 'border-border',
       )}
     />
@@ -334,7 +335,7 @@ function Leg({ value, tone, label }: { value: number; tone: keyof typeof LEG_FIL
       value={value}
       aria-label={label ? 'Job progress' : undefined}
       aria-hidden={label ? undefined : true}
-      className={cn('h-1 flex-1 bg-border/70 [&>[data-slot=progress-indicator]]:duration-500', LEG_FILL[tone])}
+      className={cn('inset-track h-1.5 flex-1 [&>[data-slot=progress-indicator]]:duration-500', LEG_FILL[tone])}
     />
   )
 }

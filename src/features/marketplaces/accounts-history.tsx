@@ -1,4 +1,4 @@
-import { History, Unplug } from 'lucide-react'
+import { Unplug } from 'lucide-react'
 import { useState } from 'react'
 import { columnHelper, DataTable } from '@/components/data-table'
 import { EmptyState } from '@/components/states/empty-state'
@@ -134,7 +134,7 @@ export function AccountsHistory({ list }: { list: CursorList<MarketplaceAccount>
       empty={
         <EmptyState
           compact
-          icon={History}
+          icon="clock"
           title="No connections yet"
           description="Every connection you make, including revoked ones, is listed here."
         />
@@ -146,7 +146,7 @@ export function AccountsHistory({ list }: { list: CursorList<MarketplaceAccount>
 /** Below 1024px each row is a card (hi-fi build notes). */
 function HistoryCard({ account }: { account: MarketplaceAccount }) {
   return (
-    <div className="flex flex-col gap-2 rounded-card border border-line bg-surface p-4 shadow-sm" data-testid="history-card">
+    <div className="flex flex-col gap-2 rounded-card border border-line bg-surface p-4 shadow-raised-md" data-testid="history-card">
       <div className="flex items-center justify-between gap-3">
         <span className="flex min-w-0 items-center gap-2.5 font-semibold">
           <MarketplaceMark marketplace={account.marketplace} size="sm" />

@@ -473,7 +473,7 @@ function ReadsAs({
       />
       <div className="mt-4 flex flex-col items-start gap-4 sm:flex-row">
         <div
-          className="flex size-[130px] shrink-0 flex-col items-center justify-center gap-1 rounded-[10px] bg-subtle text-ink-2"
+          className="flex size-[130px] shrink-0 flex-col items-center justify-center gap-1 rounded-[12px] border border-line bg-field text-ink-2 shadow-inset-md"
           role="img"
           aria-label={`${canonical.images?.length ?? 0} images attached`}
         >

@@ -1,4 +1,5 @@
-import { Check, ExternalLink, Inbox, UserCheck, X } from 'lucide-react'
+import { UserCheck } from 'lucide-react'
+import { Icon } from '@/components/la/icons'
 import { createContext, useContext, useState } from 'react'
 import { columnHelper, DataTable } from '@/components/data-table'
 import { EmptyState } from '@/components/states/empty-state'
@@ -45,7 +46,7 @@ const brandColumn = col.accessor('brand_name', {
             onClick={(e) => e.stopPropagation()}
           >
             <span className="truncate">{displayWebsite(r.website)}</span>
-            <ExternalLink className="size-3 shrink-0" aria-hidden />
+            <Icon name="external" size={12} />
           </a>
         ) : null}
       </div>
@@ -60,7 +61,7 @@ const ownerColumn = col.accessor('owner_name', {
     const r = c.row.original
     return (
       <div className="flex min-w-0 items-center gap-3">
-        <Avatar className="hidden size-8 sm:flex">
+        <Avatar className="hidden size-8 border border-[var(--tile-brand-line)] shadow-raised-sm sm:flex">
           <AvatarFallback className="bg-brand-soft text-[11px] font-semibold text-brand">{initials(r.owner_name, r.email)}</AvatarFallback>
         </Avatar>
         <div className="min-w-0">
@@ -137,11 +138,11 @@ function DecisionButtons({ row }: { row: SignupRequest }) {
   return (
     <div className="flex justify-end gap-1.5">
       <Button size="sm" variant="outline" onClick={() => decide(row, 'reject')} data-testid="signup-reject" aria-label={`Reject ${row.brand_name}`}>
-        <X data-icon="inline-start" />
+        <Icon name="x" size={16} data-icon="inline-start" />
         Reject
       </Button>
       <Button size="sm" onClick={() => decide(row, 'approve')} data-testid="signup-approve" aria-label={`Approve ${row.brand_name}`}>
-        <Check data-icon="inline-start" />
+        <Icon name="check" size={16} data-icon="inline-start" />
         Approve
       </Button>
     </div>
@@ -208,7 +209,7 @@ export function SignupQueue({ tab, onTabChange }: { tab: QueueTab; onTabChange: 
         empty={
           <EmptyState
             compact
-            icon={tab === 'pending' ? UserCheck : Inbox}
+            icon={tab === 'pending' ? UserCheck : 'inbox'}
             title={empty.title}
             description={empty.description}
             actions={

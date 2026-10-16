@@ -9,7 +9,7 @@ import { useState, type ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { applyFieldErrors, isApiError } from '@/api/errors'
 import { LaField } from '@/components/la/field'
-import { Icon } from '@/components/la/icons'
+import { Icon, IconTile, type IconSource, type TileTone } from '@/components/la/icons'
 import { StatusChip } from '@/components/la/status-chip'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -154,9 +154,12 @@ function StatusResult({
   return (
     <div className="flex flex-col gap-4" data-testid="signup-status-result">
       <div>
-        <h1 className="text-h1 text-ink" data-testid="signup-status-title">
-          {meta.title}
-        </h1>
+        <div className="flex items-center gap-3">
+          <IconTile icon={RESULT_TILE[result.status].icon} tone={RESULT_TILE[result.status].tone} />
+          <h1 className="text-h1 text-ink" data-testid="signup-status-title">
+            {meta.title}
+          </h1>
+        </div>
         <p className="mt-2 text-body text-ink-2">{meta.description}</p>
       </div>
       <div aria-live="polite" className="flex flex-col gap-4">
@@ -168,7 +171,7 @@ function StatusResult({
             </blockquote>
           </figure>
         ) : null}
-        <dl className="divide-y divide-line rounded-card border border-line bg-surface text-body shadow-sm">
+        <dl className="divide-y divide-line rounded-card border border-line bg-surface text-body shadow-raised-md">
           <Row label="Brand">
             <span className="truncate font-semibold text-ink">{result.brand_name}</span>
           </Row>
@@ -217,6 +220,13 @@ function StatusResult({
       </div>
     </div>
   )
+}
+
+/** Decorative tile beside the result title; the title and the chip carry the meaning. */
+const RESULT_TILE: Record<SignupStatusOut['status'], { icon: IconSource; tone: TileTone }> = {
+  pending: { icon: 'clock', tone: 'brand' },
+  approved: { icon: 'check', tone: 'ok' },
+  rejected: { icon: 'x', tone: 'fail' },
 }
 
 function Row({ label, children }: { label: string; children: ReactNode }) {

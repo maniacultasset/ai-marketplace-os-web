@@ -1,5 +1,5 @@
 /** Guidelines and glossary list editors (controlled; errors keyed as in profile-model.ts). */
-import { ArrowRight, Plus, X } from 'lucide-react'
+import { Icon } from '@/components/la/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -86,7 +86,7 @@ export function GuidelinesEditor({
                   aria-label={`Remove guideline ${i + 1}`}
                   onClick={() => onChange(rows.filter((x) => x.id !== r.id))}
                 >
-                  <X />
+                  <Icon name="x" size={16} />
                 </Button>
               </li>
             )
@@ -100,7 +100,7 @@ export function GuidelinesEditor({
       {errors.guidelines ? <p className="text-xs text-destructive">{errors.guidelines}</p> : null}
       <div className="flex items-center justify-between gap-2">
         <Button type="button" variant="ghost" size="sm" className="-ml-2" onClick={add} disabled={full}>
-          <Plus data-icon="inline-start" />
+          <Icon name="plus" size={16} data-icon="inline-start" />
           Add guideline
         </Button>
         <span className="text-xs text-muted-foreground tabular-nums">
@@ -160,7 +160,7 @@ export function GlossaryEditor({
                     placeholder={i === 0 ? 'kurta outfit' : undefined}
                     onChange={(e) => set(r.id, { avoid: e.target.value })}
                   />
-                  <ArrowRight aria-hidden className="hidden size-4 justify-self-center text-muted-foreground sm:block" />
+                  <Icon name="arrow" size={16} className="hidden justify-self-center text-muted-foreground sm:block" />
                   <Input
                     role="cell"
                     aria-label={`Use instead ${i + 1}`}
@@ -184,7 +184,7 @@ export function GlossaryEditor({
                     aria-label={`Remove glossary term ${i + 1}`}
                     onClick={() => onChange(rows.filter((x) => x.id !== r.id))}
                   >
-                    <X />
+                    <Icon name="x" size={16} />
                   </Button>
                 </div>
                 {avoidErr || useErr ? (
@@ -202,7 +202,7 @@ export function GlossaryEditor({
       {errors.glossary ? <p className="text-xs text-destructive">{errors.glossary}</p> : null}
       <div className="flex items-center justify-between gap-2">
         <Button type="button" variant="ghost" size="sm" className="-ml-2" onClick={add} disabled={full}>
-          <Plus data-icon="inline-start" />
+          <Icon name="plus" size={16} data-icon="inline-start" />
           Add term
         </Button>
         <span className="text-xs text-muted-foreground tabular-nums">

@@ -47,9 +47,9 @@ export function Stepper({
             <span
               className={cn(
                 'inline-flex size-6 shrink-0 items-center justify-center rounded-full border-[1.5px] text-caption',
-                state === 'done' && 'border-success bg-success text-white',
-                state === 'on' && 'border-brand bg-brand text-white',
-                state === 'todo' && 'border-current',
+                state === 'done' && 'border-success bg-success text-white shadow-raised-sm',
+                state === 'on' && 'border-brand bg-brand text-white shadow-raised-brand',
+                state === 'todo' && 'border-line-strong bg-field text-ink-2 shadow-inset-sm',
               )}
             >
               {state === 'done' ? <Icon name="check" size={14} strokeWidth={2.5} /> : i + 1}
@@ -76,7 +76,7 @@ export function ProgressBar({ value, tone = 'brand', label, className }: { value
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={pct}
-      className={cn('h-1.5 overflow-hidden rounded-full bg-subtle', className)}
+      className={cn('h-1.5 overflow-hidden rounded-full inset-track', className)}
     >
       <div className={cn('h-full rounded-full transition-[width] duration-300', tone === 'success' ? 'bg-success' : 'bg-brand')} style={{ width: `${pct}%` }} />
     </div>
@@ -93,11 +93,13 @@ export function ProgressRing({ done, total, label, size = 56, className }: { don
     <div
       role="img"
       aria-label={`${label}: ${done} of ${total}`}
-      className={cn('relative inline-flex shrink-0 items-center justify-center', className)}
+      className={cn('relative inline-flex shrink-0 items-center justify-center rounded-full bg-surface shadow-raised-sm', className)}
       style={{ width: size, height: size }}
     >
-      <svg width={size} height={size} className="-rotate-90" aria-hidden>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--subtle)" strokeWidth={stroke} />
+      {/* inset well under the track */}
+      <span aria-hidden className="absolute inset-[9px] rounded-full bg-field shadow-inset-sm" />
+      <svg width={size} height={size} className="relative -rotate-90" aria-hidden>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--line)" strokeWidth={stroke} />
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -105,6 +107,7 @@ export function ProgressRing({ done, total, label, size = 56, className }: { don
           fill="none"
           stroke="var(--brand)"
           strokeWidth={stroke}
+          strokeLinecap={frac > 0 && frac < 1 ? 'round' : 'butt'}
           strokeDasharray={c}
           strokeDashoffset={c * (1 - frac)}
         />

@@ -39,7 +39,7 @@ export function AutonomySettings() {
           aria-disabled
           aria-labelledby="autonomy-mode-approval"
           aria-describedby="autonomy-mode-approval-desc"
-          className="focus-ring flex items-start gap-3 rounded-[10px] border border-brand bg-brand-bg px-3.5 py-3 shadow-selected"
+          className="focus-ring flex items-start gap-3 rounded-[10px] border border-brand bg-brand-bg px-3.5 py-3 shadow-[var(--selected-ring),var(--shadow-raised-sm)]"
         >
           <span aria-hidden className="mt-0.5 size-[18px] shrink-0 rounded-full border-[5px] border-brand bg-surface" />
           <div>
@@ -141,10 +141,10 @@ function StaticToggle({ label, reason }: { label: string; reason: string }) {
           aria-label={label}
           aria-describedby={id}
           className={cn(
-            'focus-ring relative inline-block h-5 w-9 shrink-0 cursor-not-allowed rounded-full bg-line-strong opacity-60',
+            'focus-ring relative inline-block h-5 w-9 shrink-0 cursor-not-allowed rounded-full border border-dashed border-line-strong bg-subtle',
           )}
         >
-          <span aria-hidden className="absolute top-0.5 left-0.5 size-4 rounded-full bg-surface shadow-sm" />
+          <span aria-hidden className="absolute top-px left-px size-4 rounded-full border border-line bg-surface" />
         </span>
       </TooltipTrigger>
       <TooltipContent>{reason}</TooltipContent>

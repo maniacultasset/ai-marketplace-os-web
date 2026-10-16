@@ -123,7 +123,7 @@ export function StickyActions({ children, className }: { children: ReactNode; cl
   return (
     <div
       className={cn(
-        'sticky bottom-0 z-10 -mx-4 mt-2 flex flex-wrap items-center justify-end gap-2 border-t bg-background/90 px-4 py-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/75 sm:-mx-6 sm:px-6 lg:mx-0 lg:rounded-xl lg:border lg:shadow-elev-2 lg:px-4',
+        'sticky bottom-0 z-10 -mx-4 mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-line bg-surface px-4 py-3 shadow-raised-up sm:-mx-6 sm:px-6 lg:mx-0 lg:rounded-[14px] lg:border lg:shadow-raised-lg lg:px-4',
         className,
       )}
     >
