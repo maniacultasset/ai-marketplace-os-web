@@ -12,7 +12,7 @@ export function Forbidden({ description }: { description?: string }) {
       description={description ?? 'Your role in this brand does not allow it. Ask an owner if you need access.'}
       actions={
         <Button variant="outline" size="sm" asChild>
-          <Link to="/">Go to home</Link>
+          <Link to="/home">Go to home</Link>
         </Button>
       }
     />

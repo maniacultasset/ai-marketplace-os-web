@@ -167,7 +167,7 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
     <Card className="py-0" role="status" aria-live="polite" data-testid="connect-confirming">
       <StatusHead
         tile={
-          <span className="flex size-12 items-center justify-center rounded-xl bg-muted text-muted-foreground ring-1 ring-border ring-inset">
+          <span className="flex size-12 items-center justify-center rounded-xl bg-subtle text-ink-2 ring-1 ring-line ring-inset">
             <Spinner className="size-5" />
           </span>
         }
@@ -188,10 +188,10 @@ function BackButton() {
 }
 
 const TONES = {
-  neutral: 'bg-muted text-muted-foreground ring-border',
-  success: 'bg-success/10 text-success ring-success/20 dark:bg-success/15',
-  danger: 'bg-destructive/10 text-destructive ring-destructive/20 dark:bg-destructive/15',
-  warning: 'bg-warning/10 text-warning ring-warning/25 dark:bg-warning/15',
+  neutral: 'bg-subtle text-ink-2 ring-line',
+  success: 'bg-success-bg text-success ring-success-line',
+  danger: 'bg-danger-bg text-danger ring-danger-line',
+  warning: 'bg-attention-bg text-attention ring-attention-line',
 } as const
 
 function IconTile({ icon: Icon, tone }: { icon: LucideIcon; tone: keyof typeof TONES }) {
@@ -218,8 +218,8 @@ function StatusHead({
     <div className={cn('flex flex-col items-center gap-4 px-6 pt-10 pb-7 text-center sm:px-10', className)}>
       {tile}
       <div className="max-w-sm space-y-1.5">
-        <h1 className="text-lg leading-snug font-semibold tracking-[-0.02em] text-balance">{title}</h1>
-        <p className="text-sm text-pretty text-muted-foreground">{description}</p>
+        <h1 className="font-display text-h2 text-balance text-ink">{title}</h1>
+        <p className="text-body text-pretty text-ink-2">{description}</p>
       </div>
     </div>
   )

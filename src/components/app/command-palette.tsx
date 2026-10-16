@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { Building2, LogOut, Monitor, Moon, Sun } from 'lucide-react'
+import { Building2, LogOut } from 'lucide-react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   CommandDialog,
@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/command'
 import { logout, switchTenant, useMe } from '@/lib/auth'
 import { useNavItems } from '@/lib/nav'
-import { useTheme } from './theme'
+import { NavIcon } from './nav-icon'
 
 const Ctx = createContext<{ open: boolean; setOpen: (v: boolean) => void } | null>(null)
 
@@ -48,7 +48,6 @@ function CommandPalette({ open, setOpen }: { open: boolean; setOpen: (v: boolean
   const navigate = useNavigate()
   const items = useNavItems()
   const { data: me } = useMe()
-  const { setTheme } = useTheme()
   const run = useCallback(
     (fn: () => void) => {
       setOpen(false)
@@ -70,7 +69,7 @@ function CommandPalette({ open, setOpen }: { open: boolean; setOpen: (v: boolean
               value={`${item.label} ${item.keywords?.join(' ') ?? ''}`}
               onSelect={() => run(() => void navigate({ to: item.to }))}
             >
-              <item.icon />
+              <NavIcon icon={item.icon} size={16} />
               {item.label}
               <span className="ml-2 truncate text-xs text-muted-foreground">{item.description}</span>
             </CommandItem>
@@ -85,7 +84,7 @@ function CommandPalette({ open, setOpen }: { open: boolean; setOpen: (v: boolean
                   key={m.tenant_id}
                   value={`switch brand ${m.tenant_name}`}
                   onSelect={() =>
-                    run(() => void switchTenant(m.tenant_id).then(() => navigate({ to: '/' }), () => undefined))
+                    run(() => void switchTenant(m.tenant_id).then(() => navigate({ to: '/home' }), () => undefined))
                   }
                 >
                   <Building2 />
@@ -96,18 +95,6 @@ function CommandPalette({ open, setOpen }: { open: boolean; setOpen: (v: boolean
             </CommandGroup>
           </>
         ) : null}
-        <CommandSeparator />
-        <CommandGroup heading="Theme">
-          <CommandItem value="theme light" onSelect={() => run(() => setTheme('light'))}>
-            <Sun /> Light theme
-          </CommandItem>
-          <CommandItem value="theme dark" onSelect={() => run(() => setTheme('dark'))}>
-            <Moon /> Dark theme
-          </CommandItem>
-          <CommandItem value="theme system" onSelect={() => run(() => setTheme('system'))}>
-            <Monitor /> System theme
-          </CommandItem>
-        </CommandGroup>
         <CommandSeparator />
         <CommandGroup heading="Session">
           <CommandItem value="sign out log out" onSelect={() => run(() => void logout())}>

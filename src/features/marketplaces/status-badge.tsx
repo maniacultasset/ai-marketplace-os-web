@@ -1,27 +1,21 @@
-import { Badge } from '@/components/ui/badge'
+import { StatusChip } from '@/components/la/status-chip'
 import type { AccountStatus } from './api'
 import { STATUS_META } from './meta'
-
-function Dot() {
-  return <span aria-hidden className="size-1.5 rounded-full bg-current" />
-}
 
 export function AccountStatusBadge({ status }: { status: AccountStatus }) {
   const m = STATUS_META[status]
   return (
-    <Badge variant={m.variant} data-status={status} data-testid="account-status">
-      <Dot />
-      {m.label}
-    </Badge>
+    <span data-status={status} data-testid="account-status" className="inline-flex">
+      <StatusChip status={m.chip}>{m.label}</StatusChip>
+    </span>
   )
 }
 
-/** Same shape as the account badge, for a marketplace with no live account. */
+/** Same shape as the account chip, for a marketplace with no live account. */
 export function NotConnectedBadge() {
   return (
-    <Badge variant="muted" data-status="none" data-testid="account-status">
-      <Dot />
-      Not connected
-    </Badge>
+    <span data-status="none" data-testid="account-status" className="inline-flex">
+      <StatusChip status="not-listed">{STATUS_META.none.label}</StatusChip>
+    </span>
   )
 }

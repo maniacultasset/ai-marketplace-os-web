@@ -1,13 +1,10 @@
-import { useTheme } from "@/components/app/theme"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { resolvedTheme: theme } = useTheme()
-
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme="light"
       className="toaster group"
       icons={{
         success: (
@@ -28,15 +25,27 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       style={
         {
-          "--normal-bg": "var(--popover)",
-          "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
-          "--border-radius": "var(--radius)",
+          "--normal-bg": "var(--surface)",
+          "--normal-text": "var(--ink)",
+          "--normal-border": "var(--line)",
+          "--success-bg": "var(--surface)",
+          "--success-text": "var(--ink)",
+          "--success-border": "var(--success-line)",
+          "--error-bg": "var(--surface)",
+          "--error-text": "var(--ink)",
+          "--error-border": "var(--danger-line)",
+          "--border-radius": "12px",
+          "--width": "360px",
         } as React.CSSProperties
       }
+      duration={6000}
       toastOptions={{
         classNames: {
-          toast: "cn-toast",
+          toast: "cn-toast !shadow-lg !font-sans",
+          title: "!font-bold !text-body",
+          description: "!text-small !text-ink-2",
+          success: "[&_[data-icon]]:!text-success",
+          error: "[&_[data-icon]]:!text-danger",
         },
       }}
       {...props}

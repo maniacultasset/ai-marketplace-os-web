@@ -9,25 +9,56 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as AppSplatRouteImport } from './routes/_app/$'
+import { Route as AppSettingsRouteImport } from './routes/_app/_settings'
 import { Route as AppAboutRouteImport } from './routes/_app/about'
-import { Route as AppAccountRouteImport } from './routes/_app/account'
-import { Route as AppTeamRouteImport } from './routes/_app/team'
+import { Route as AppActivityRouteImport } from './routes/_app/activity'
+import { Route as AppAnalyticsRouteImport } from './routes/_app/analytics'
+import { Route as AppHomeRouteImport } from './routes/_app/home'
+import { Route as AppInboxRouteImport } from './routes/_app/inbox'
+import { Route as SignupIndexRouteImport } from './routes/signup/index'
+import { Route as SignupStatusRouteImport } from './routes/signup/status'
+import { Route as AppSettingsAccountRouteImport } from './routes/_app/_settings/account'
+import { Route as AppSettingsBrandRouteImport } from './routes/_app/_settings/brand'
+import { Route as AppSettingsTeamRouteImport } from './routes/_app/_settings/team'
+import { Route as AppAddIndexRouteImport } from './routes/_app/add/index'
+import { Route as AppAddBulkRouteImport } from './routes/_app/add/bulk'
+import { Route as AppAddGuidedRouteImport } from './routes/_app/add/guided'
+import { Route as AppAddVariantsRouteImport } from './routes/_app/add/variants'
 import { Route as AppImportsIndexRouteImport } from './routes/_app/imports/index'
 import { Route as AppImportsImportIdRouteImport } from './routes/_app/imports/$importId'
 import { Route as AppImportsNewRouteImport } from './routes/_app/imports/new'
+import { Route as AppIssuesIssueIdRouteImport } from './routes/_app/issues/$issueId'
 import { Route as AppJobsJobIdRouteImport } from './routes/_app/jobs/$jobId'
 import { Route as AppMarketplacesIndexRouteImport } from './routes/_app/marketplaces/index'
 import { Route as AppMarketplacesConnectedRouteImport } from './routes/_app/marketplaces/connected'
 import { Route as AppProductsIndexRouteImport } from './routes/_app/products/index'
 import { Route as AppProductsProductIdRouteImport } from './routes/_app/products/$productId'
 import { Route as AppProductsNewRouteImport } from './routes/_app/products/new'
-import { Route as AppRulesIndexRouteImport } from './routes/_app/rules/index'
-import { Route as AppRulesCheckRouteImport } from './routes/_app/rules/check'
+import { Route as AppRunsRunIdRouteImport } from './routes/_app/runs/$runId'
+import { Route as AppSetupBrandRouteImport } from './routes/_app/setup/brand'
+import { Route as AppSetupComplianceRouteImport } from './routes/_app/setup/compliance'
+import { Route as AppSetupMarketplacesRouteImport } from './routes/_app/setup/marketplaces'
+import { Route as AppSettingsAdminSignupsRouteImport } from './routes/_app/_settings/admin/signups'
+import { Route as AppSettingsRulesIndexRouteImport } from './routes/_app/_settings/rules/index'
+import { Route as AppSettingsRulesCheckRouteImport } from './routes/_app/_settings/rules/check'
+import { Route as AppSettingsSettingsIndexRouteImport } from './routes/_app/_settings/settings/index'
+import { Route as AppSettingsSettingsComplianceRouteImport } from './routes/_app/_settings/settings/compliance'
+import { Route as AppSettingsSettingsImportsRouteImport } from './routes/_app/_settings/settings/imports'
+import { Route as AppListingsListingIdLiveRouteImport } from './routes/_app/listings/$listingId/live'
+import { Route as AppListingsListingIdMappingRouteImport } from './routes/_app/listings/$listingId/mapping'
+import { Route as AppListingsListingIdReviewRouteImport } from './routes/_app/listings/$listingId/review'
 
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppRoute = AppRouteImport.update({
   id: '/_app',
   getParentRoute: () => rootRouteImport,
@@ -37,14 +68,23 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppIndexRoute = AppIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppRoute,
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AppSplatRoute = AppSplatRouteImport.update({
   id: '/$',
   path: '/$',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/_settings',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAboutRoute = AppAboutRouteImport.update({
@@ -52,14 +92,69 @@ const AppAboutRoute = AppAboutRouteImport.update({
   path: '/about',
   getParentRoute: () => AppRoute,
 } as any)
-const AppAccountRoute = AppAccountRouteImport.update({
-  id: '/account',
-  path: '/account',
+const AppActivityRoute = AppActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
   getParentRoute: () => AppRoute,
 } as any)
-const AppTeamRoute = AppTeamRouteImport.update({
+const AppAnalyticsRoute = AppAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppHomeRoute = AppHomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppInboxRoute = AppInboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => AppRoute,
+} as any)
+const SignupIndexRoute = SignupIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SignupRoute,
+} as any)
+const SignupStatusRoute = SignupStatusRouteImport.update({
+  id: '/status',
+  path: '/status',
+  getParentRoute: () => SignupRoute,
+} as any)
+const AppSettingsAccountRoute = AppSettingsAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsBrandRoute = AppSettingsBrandRouteImport.update({
+  id: '/brand',
+  path: '/brand',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsTeamRoute = AppSettingsTeamRouteImport.update({
   id: '/team',
   path: '/team',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppAddIndexRoute = AppAddIndexRouteImport.update({
+  id: '/add/',
+  path: '/add/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAddBulkRoute = AppAddBulkRouteImport.update({
+  id: '/add/bulk',
+  path: '/add/bulk',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAddGuidedRoute = AppAddGuidedRouteImport.update({
+  id: '/add/guided',
+  path: '/add/guided',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAddVariantsRoute = AppAddVariantsRouteImport.update({
+  id: '/add/variants',
+  path: '/add/variants',
   getParentRoute: () => AppRoute,
 } as any)
 const AppImportsIndexRoute = AppImportsIndexRouteImport.update({
@@ -75,6 +170,11 @@ const AppImportsImportIdRoute = AppImportsImportIdRouteImport.update({
 const AppImportsNewRoute = AppImportsNewRouteImport.update({
   id: '/imports/new',
   path: '/imports/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppIssuesIssueIdRoute = AppIssuesIssueIdRouteImport.update({
+  id: '/issues/$issueId',
+  path: '/issues/$issueId',
   getParentRoute: () => AppRoute,
 } as any)
 const AppJobsJobIdRoute = AppJobsJobIdRouteImport.update({
@@ -108,144 +208,365 @@ const AppProductsNewRoute = AppProductsNewRouteImport.update({
   path: '/products/new',
   getParentRoute: () => AppRoute,
 } as any)
-const AppRulesIndexRoute = AppRulesIndexRouteImport.update({
+const AppRunsRunIdRoute = AppRunsRunIdRouteImport.update({
+  id: '/runs/$runId',
+  path: '/runs/$runId',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSetupBrandRoute = AppSetupBrandRouteImport.update({
+  id: '/setup/brand',
+  path: '/setup/brand',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSetupComplianceRoute = AppSetupComplianceRouteImport.update({
+  id: '/setup/compliance',
+  path: '/setup/compliance',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSetupMarketplacesRoute = AppSetupMarketplacesRouteImport.update({
+  id: '/setup/marketplaces',
+  path: '/setup/marketplaces',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsAdminSignupsRoute = AppSettingsAdminSignupsRouteImport.update({
+  id: '/admin/signups',
+  path: '/admin/signups',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsRulesIndexRoute = AppSettingsRulesIndexRouteImport.update({
   id: '/rules/',
   path: '/rules/',
-  getParentRoute: () => AppRoute,
+  getParentRoute: () => AppSettingsRoute,
 } as any)
-const AppRulesCheckRoute = AppRulesCheckRouteImport.update({
+const AppSettingsRulesCheckRoute = AppSettingsRulesCheckRouteImport.update({
   id: '/rules/check',
   path: '/rules/check',
-  getParentRoute: () => AppRoute,
+  getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsSettingsIndexRoute =
+  AppSettingsSettingsIndexRouteImport.update({
+    id: '/settings/',
+    path: '/settings/',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsSettingsComplianceRoute =
+  AppSettingsSettingsComplianceRouteImport.update({
+    id: '/settings/compliance',
+    path: '/settings/compliance',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsSettingsImportsRoute =
+  AppSettingsSettingsImportsRouteImport.update({
+    id: '/settings/imports',
+    path: '/settings/imports',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppListingsListingIdLiveRoute =
+  AppListingsListingIdLiveRouteImport.update({
+    id: '/listings/$listingId/live',
+    path: '/listings/$listingId/live',
+    getParentRoute: () => AppRoute,
+  } as any)
+const AppListingsListingIdMappingRoute =
+  AppListingsListingIdMappingRouteImport.update({
+    id: '/listings/$listingId/mapping',
+    path: '/listings/$listingId/mapping',
+    getParentRoute: () => AppRoute,
+  } as any)
+const AppListingsListingIdReviewRoute =
+  AppListingsListingIdReviewRouteImport.update({
+    id: '/listings/$listingId/review',
+    path: '/listings/$listingId/review',
+    getParentRoute: () => AppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof AppIndexRoute
+  '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
+  '/signup': typeof SignupRouteWithChildren
   '/$': typeof AppSplatRoute
   '/about': typeof AppAboutRoute
-  '/account': typeof AppAccountRoute
-  '/team': typeof AppTeamRoute
+  '/activity': typeof AppActivityRoute
+  '/analytics': typeof AppAnalyticsRoute
+  '/home': typeof AppHomeRoute
+  '/inbox': typeof AppInboxRoute
+  '/signup/status': typeof SignupStatusRoute
+  '/signup/': typeof SignupIndexRoute
+  '/account': typeof AppSettingsAccountRoute
+  '/brand': typeof AppSettingsBrandRoute
+  '/team': typeof AppSettingsTeamRoute
+  '/add/bulk': typeof AppAddBulkRoute
+  '/add/guided': typeof AppAddGuidedRoute
+  '/add/variants': typeof AppAddVariantsRoute
   '/imports/$importId': typeof AppImportsImportIdRoute
   '/imports/new': typeof AppImportsNewRoute
+  '/issues/$issueId': typeof AppIssuesIssueIdRoute
   '/jobs/$jobId': typeof AppJobsJobIdRoute
   '/marketplaces/connected': typeof AppMarketplacesConnectedRoute
   '/products/$productId': typeof AppProductsProductIdRoute
   '/products/new': typeof AppProductsNewRoute
-  '/rules/check': typeof AppRulesCheckRoute
+  '/runs/$runId': typeof AppRunsRunIdRoute
+  '/setup/brand': typeof AppSetupBrandRoute
+  '/setup/compliance': typeof AppSetupComplianceRoute
+  '/setup/marketplaces': typeof AppSetupMarketplacesRoute
+  '/add/': typeof AppAddIndexRoute
   '/imports/': typeof AppImportsIndexRoute
   '/marketplaces/': typeof AppMarketplacesIndexRoute
   '/products/': typeof AppProductsIndexRoute
-  '/rules/': typeof AppRulesIndexRoute
+  '/admin/signups': typeof AppSettingsAdminSignupsRoute
+  '/rules/check': typeof AppSettingsRulesCheckRoute
+  '/settings/compliance': typeof AppSettingsSettingsComplianceRoute
+  '/settings/imports': typeof AppSettingsSettingsImportsRoute
+  '/listings/$listingId/live': typeof AppListingsListingIdLiveRoute
+  '/listings/$listingId/mapping': typeof AppListingsListingIdMappingRoute
+  '/listings/$listingId/review': typeof AppListingsListingIdReviewRoute
+  '/rules/': typeof AppSettingsRulesIndexRoute
+  '/settings/': typeof AppSettingsSettingsIndexRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
   '/$': typeof AppSplatRoute
   '/about': typeof AppAboutRoute
-  '/account': typeof AppAccountRoute
-  '/team': typeof AppTeamRoute
-  '/': typeof AppIndexRoute
+  '/activity': typeof AppActivityRoute
+  '/analytics': typeof AppAnalyticsRoute
+  '/home': typeof AppHomeRoute
+  '/inbox': typeof AppInboxRoute
+  '/signup/status': typeof SignupStatusRoute
+  '/signup': typeof SignupIndexRoute
+  '/account': typeof AppSettingsAccountRoute
+  '/brand': typeof AppSettingsBrandRoute
+  '/team': typeof AppSettingsTeamRoute
+  '/add/bulk': typeof AppAddBulkRoute
+  '/add/guided': typeof AppAddGuidedRoute
+  '/add/variants': typeof AppAddVariantsRoute
   '/imports/$importId': typeof AppImportsImportIdRoute
   '/imports/new': typeof AppImportsNewRoute
+  '/issues/$issueId': typeof AppIssuesIssueIdRoute
   '/jobs/$jobId': typeof AppJobsJobIdRoute
   '/marketplaces/connected': typeof AppMarketplacesConnectedRoute
   '/products/$productId': typeof AppProductsProductIdRoute
   '/products/new': typeof AppProductsNewRoute
-  '/rules/check': typeof AppRulesCheckRoute
+  '/runs/$runId': typeof AppRunsRunIdRoute
+  '/setup/brand': typeof AppSetupBrandRoute
+  '/setup/compliance': typeof AppSetupComplianceRoute
+  '/setup/marketplaces': typeof AppSetupMarketplacesRoute
+  '/add': typeof AppAddIndexRoute
   '/imports': typeof AppImportsIndexRoute
   '/marketplaces': typeof AppMarketplacesIndexRoute
   '/products': typeof AppProductsIndexRoute
-  '/rules': typeof AppRulesIndexRoute
+  '/admin/signups': typeof AppSettingsAdminSignupsRoute
+  '/rules/check': typeof AppSettingsRulesCheckRoute
+  '/settings/compliance': typeof AppSettingsSettingsComplianceRoute
+  '/settings/imports': typeof AppSettingsSettingsImportsRoute
+  '/listings/$listingId/live': typeof AppListingsListingIdLiveRoute
+  '/listings/$listingId/mapping': typeof AppListingsListingIdMappingRoute
+  '/listings/$listingId/review': typeof AppListingsListingIdReviewRoute
+  '/rules': typeof AppSettingsRulesIndexRoute
+  '/settings': typeof AppSettingsSettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
+  '/signup': typeof SignupRouteWithChildren
   '/_app/$': typeof AppSplatRoute
+  '/_app/_settings': typeof AppSettingsRouteWithChildren
   '/_app/about': typeof AppAboutRoute
-  '/_app/account': typeof AppAccountRoute
-  '/_app/team': typeof AppTeamRoute
-  '/_app/': typeof AppIndexRoute
+  '/_app/activity': typeof AppActivityRoute
+  '/_app/analytics': typeof AppAnalyticsRoute
+  '/_app/home': typeof AppHomeRoute
+  '/_app/inbox': typeof AppInboxRoute
+  '/signup/status': typeof SignupStatusRoute
+  '/signup/': typeof SignupIndexRoute
+  '/_app/_settings/account': typeof AppSettingsAccountRoute
+  '/_app/_settings/brand': typeof AppSettingsBrandRoute
+  '/_app/_settings/team': typeof AppSettingsTeamRoute
+  '/_app/add/bulk': typeof AppAddBulkRoute
+  '/_app/add/guided': typeof AppAddGuidedRoute
+  '/_app/add/variants': typeof AppAddVariantsRoute
   '/_app/imports/$importId': typeof AppImportsImportIdRoute
   '/_app/imports/new': typeof AppImportsNewRoute
+  '/_app/issues/$issueId': typeof AppIssuesIssueIdRoute
   '/_app/jobs/$jobId': typeof AppJobsJobIdRoute
   '/_app/marketplaces/connected': typeof AppMarketplacesConnectedRoute
   '/_app/products/$productId': typeof AppProductsProductIdRoute
   '/_app/products/new': typeof AppProductsNewRoute
-  '/_app/rules/check': typeof AppRulesCheckRoute
+  '/_app/runs/$runId': typeof AppRunsRunIdRoute
+  '/_app/setup/brand': typeof AppSetupBrandRoute
+  '/_app/setup/compliance': typeof AppSetupComplianceRoute
+  '/_app/setup/marketplaces': typeof AppSetupMarketplacesRoute
+  '/_app/add/': typeof AppAddIndexRoute
   '/_app/imports/': typeof AppImportsIndexRoute
   '/_app/marketplaces/': typeof AppMarketplacesIndexRoute
   '/_app/products/': typeof AppProductsIndexRoute
-  '/_app/rules/': typeof AppRulesIndexRoute
+  '/_app/_settings/admin/signups': typeof AppSettingsAdminSignupsRoute
+  '/_app/_settings/rules/check': typeof AppSettingsRulesCheckRoute
+  '/_app/_settings/settings/compliance': typeof AppSettingsSettingsComplianceRoute
+  '/_app/_settings/settings/imports': typeof AppSettingsSettingsImportsRoute
+  '/_app/listings/$listingId/live': typeof AppListingsListingIdLiveRoute
+  '/_app/listings/$listingId/mapping': typeof AppListingsListingIdMappingRoute
+  '/_app/listings/$listingId/review': typeof AppListingsListingIdReviewRoute
+  '/_app/_settings/rules/': typeof AppSettingsRulesIndexRoute
+  '/_app/_settings/settings/': typeof AppSettingsSettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/login'
+    | '/privacy'
+    | '/signup'
     | '/$'
     | '/about'
+    | '/activity'
+    | '/analytics'
+    | '/home'
+    | '/inbox'
+    | '/signup/status'
+    | '/signup/'
     | '/account'
+    | '/brand'
     | '/team'
+    | '/add/bulk'
+    | '/add/guided'
+    | '/add/variants'
     | '/imports/$importId'
     | '/imports/new'
+    | '/issues/$issueId'
     | '/jobs/$jobId'
     | '/marketplaces/connected'
     | '/products/$productId'
     | '/products/new'
-    | '/rules/check'
+    | '/runs/$runId'
+    | '/setup/brand'
+    | '/setup/compliance'
+    | '/setup/marketplaces'
+    | '/add/'
     | '/imports/'
     | '/marketplaces/'
     | '/products/'
+    | '/admin/signups'
+    | '/rules/check'
+    | '/settings/compliance'
+    | '/settings/imports'
+    | '/listings/$listingId/live'
+    | '/listings/$listingId/mapping'
+    | '/listings/$listingId/review'
     | '/rules/'
+    | '/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/'
     | '/login'
+    | '/privacy'
     | '/$'
     | '/about'
+    | '/activity'
+    | '/analytics'
+    | '/home'
+    | '/inbox'
+    | '/signup/status'
+    | '/signup'
     | '/account'
+    | '/brand'
     | '/team'
-    | '/'
+    | '/add/bulk'
+    | '/add/guided'
+    | '/add/variants'
     | '/imports/$importId'
     | '/imports/new'
+    | '/issues/$issueId'
     | '/jobs/$jobId'
     | '/marketplaces/connected'
     | '/products/$productId'
     | '/products/new'
-    | '/rules/check'
+    | '/runs/$runId'
+    | '/setup/brand'
+    | '/setup/compliance'
+    | '/setup/marketplaces'
+    | '/add'
     | '/imports'
     | '/marketplaces'
     | '/products'
+    | '/admin/signups'
+    | '/rules/check'
+    | '/settings/compliance'
+    | '/settings/imports'
+    | '/listings/$listingId/live'
+    | '/listings/$listingId/mapping'
+    | '/listings/$listingId/review'
     | '/rules'
+    | '/settings'
   id:
     | '__root__'
+    | '/'
     | '/_app'
     | '/login'
+    | '/privacy'
+    | '/signup'
     | '/_app/$'
+    | '/_app/_settings'
     | '/_app/about'
-    | '/_app/account'
-    | '/_app/team'
-    | '/_app/'
+    | '/_app/activity'
+    | '/_app/analytics'
+    | '/_app/home'
+    | '/_app/inbox'
+    | '/signup/status'
+    | '/signup/'
+    | '/_app/_settings/account'
+    | '/_app/_settings/brand'
+    | '/_app/_settings/team'
+    | '/_app/add/bulk'
+    | '/_app/add/guided'
+    | '/_app/add/variants'
     | '/_app/imports/$importId'
     | '/_app/imports/new'
+    | '/_app/issues/$issueId'
     | '/_app/jobs/$jobId'
     | '/_app/marketplaces/connected'
     | '/_app/products/$productId'
     | '/_app/products/new'
-    | '/_app/rules/check'
+    | '/_app/runs/$runId'
+    | '/_app/setup/brand'
+    | '/_app/setup/compliance'
+    | '/_app/setup/marketplaces'
+    | '/_app/add/'
     | '/_app/imports/'
     | '/_app/marketplaces/'
     | '/_app/products/'
-    | '/_app/rules/'
+    | '/_app/_settings/admin/signups'
+    | '/_app/_settings/rules/check'
+    | '/_app/_settings/settings/compliance'
+    | '/_app/_settings/settings/imports'
+    | '/_app/listings/$listingId/live'
+    | '/_app/listings/$listingId/mapping'
+    | '/_app/listings/$listingId/review'
+    | '/_app/_settings/rules/'
+    | '/_app/_settings/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
+  PrivacyRoute: typeof PrivacyRoute
+  SignupRoute: typeof SignupRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app': {
       id: '/_app'
       path: ''
@@ -260,18 +581,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app/': {
-      id: '/_app/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof AppIndexRouteImport
-      parentRoute: typeof AppRoute
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_app/$': {
       id: '/_app/$'
       path: '/$'
       fullPath: '/$'
       preLoaderRoute: typeof AppSplatRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/_settings': {
+      id: '/_app/_settings'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/about': {
@@ -281,18 +616,95 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAboutRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/account': {
-      id: '/_app/account'
-      path: '/account'
-      fullPath: '/account'
-      preLoaderRoute: typeof AppAccountRouteImport
+    '/_app/activity': {
+      id: '/_app/activity'
+      path: '/activity'
+      fullPath: '/activity'
+      preLoaderRoute: typeof AppActivityRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/team': {
-      id: '/_app/team'
+    '/_app/analytics': {
+      id: '/_app/analytics'
+      path: '/analytics'
+      fullPath: '/analytics'
+      preLoaderRoute: typeof AppAnalyticsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/home': {
+      id: '/_app/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof AppHomeRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/inbox': {
+      id: '/_app/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof AppInboxRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/signup/': {
+      id: '/signup/'
+      path: '/'
+      fullPath: '/signup/'
+      preLoaderRoute: typeof SignupIndexRouteImport
+      parentRoute: typeof SignupRoute
+    }
+    '/signup/status': {
+      id: '/signup/status'
+      path: '/status'
+      fullPath: '/signup/status'
+      preLoaderRoute: typeof SignupStatusRouteImport
+      parentRoute: typeof SignupRoute
+    }
+    '/_app/_settings/account': {
+      id: '/_app/_settings/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AppSettingsAccountRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/_settings/brand': {
+      id: '/_app/_settings/brand'
+      path: '/brand'
+      fullPath: '/brand'
+      preLoaderRoute: typeof AppSettingsBrandRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/_settings/team': {
+      id: '/_app/_settings/team'
       path: '/team'
       fullPath: '/team'
-      preLoaderRoute: typeof AppTeamRouteImport
+      preLoaderRoute: typeof AppSettingsTeamRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/add/': {
+      id: '/_app/add/'
+      path: '/add'
+      fullPath: '/add/'
+      preLoaderRoute: typeof AppAddIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/add/bulk': {
+      id: '/_app/add/bulk'
+      path: '/add/bulk'
+      fullPath: '/add/bulk'
+      preLoaderRoute: typeof AppAddBulkRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/add/guided': {
+      id: '/_app/add/guided'
+      path: '/add/guided'
+      fullPath: '/add/guided'
+      preLoaderRoute: typeof AppAddGuidedRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/add/variants': {
+      id: '/_app/add/variants'
+      path: '/add/variants'
+      fullPath: '/add/variants'
+      preLoaderRoute: typeof AppAddVariantsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/imports/': {
@@ -314,6 +726,13 @@ declare module '@tanstack/react-router' {
       path: '/imports/new'
       fullPath: '/imports/new'
       preLoaderRoute: typeof AppImportsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/issues/$issueId': {
+      id: '/_app/issues/$issueId'
+      path: '/issues/$issueId'
+      fullPath: '/issues/$issueId'
+      preLoaderRoute: typeof AppIssuesIssueIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/jobs/$jobId': {
@@ -358,66 +777,211 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProductsNewRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/rules/': {
-      id: '/_app/rules/'
-      path: '/rules'
-      fullPath: '/rules/'
-      preLoaderRoute: typeof AppRulesIndexRouteImport
+    '/_app/runs/$runId': {
+      id: '/_app/runs/$runId'
+      path: '/runs/$runId'
+      fullPath: '/runs/$runId'
+      preLoaderRoute: typeof AppRunsRunIdRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/rules/check': {
-      id: '/_app/rules/check'
+    '/_app/setup/brand': {
+      id: '/_app/setup/brand'
+      path: '/setup/brand'
+      fullPath: '/setup/brand'
+      preLoaderRoute: typeof AppSetupBrandRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/setup/compliance': {
+      id: '/_app/setup/compliance'
+      path: '/setup/compliance'
+      fullPath: '/setup/compliance'
+      preLoaderRoute: typeof AppSetupComplianceRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/setup/marketplaces': {
+      id: '/_app/setup/marketplaces'
+      path: '/setup/marketplaces'
+      fullPath: '/setup/marketplaces'
+      preLoaderRoute: typeof AppSetupMarketplacesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/_settings/admin/signups': {
+      id: '/_app/_settings/admin/signups'
+      path: '/admin/signups'
+      fullPath: '/admin/signups'
+      preLoaderRoute: typeof AppSettingsAdminSignupsRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/_settings/rules/': {
+      id: '/_app/_settings/rules/'
+      path: '/rules'
+      fullPath: '/rules/'
+      preLoaderRoute: typeof AppSettingsRulesIndexRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/_settings/rules/check': {
+      id: '/_app/_settings/rules/check'
       path: '/rules/check'
       fullPath: '/rules/check'
-      preLoaderRoute: typeof AppRulesCheckRouteImport
+      preLoaderRoute: typeof AppSettingsRulesCheckRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/_settings/settings/': {
+      id: '/_app/_settings/settings/'
+      path: '/settings'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AppSettingsSettingsIndexRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/_settings/settings/compliance': {
+      id: '/_app/_settings/settings/compliance'
+      path: '/settings/compliance'
+      fullPath: '/settings/compliance'
+      preLoaderRoute: typeof AppSettingsSettingsComplianceRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/_settings/settings/imports': {
+      id: '/_app/_settings/settings/imports'
+      path: '/settings/imports'
+      fullPath: '/settings/imports'
+      preLoaderRoute: typeof AppSettingsSettingsImportsRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/listings/$listingId/live': {
+      id: '/_app/listings/$listingId/live'
+      path: '/listings/$listingId/live'
+      fullPath: '/listings/$listingId/live'
+      preLoaderRoute: typeof AppListingsListingIdLiveRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/listings/$listingId/mapping': {
+      id: '/_app/listings/$listingId/mapping'
+      path: '/listings/$listingId/mapping'
+      fullPath: '/listings/$listingId/mapping'
+      preLoaderRoute: typeof AppListingsListingIdMappingRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/listings/$listingId/review': {
+      id: '/_app/listings/$listingId/review'
+      path: '/listings/$listingId/review'
+      fullPath: '/listings/$listingId/review'
+      preLoaderRoute: typeof AppListingsListingIdReviewRouteImport
       parentRoute: typeof AppRoute
     }
   }
 }
 
+interface AppSettingsRouteChildren {
+  AppSettingsAccountRoute: typeof AppSettingsAccountRoute
+  AppSettingsBrandRoute: typeof AppSettingsBrandRoute
+  AppSettingsTeamRoute: typeof AppSettingsTeamRoute
+  AppSettingsAdminSignupsRoute: typeof AppSettingsAdminSignupsRoute
+  AppSettingsRulesCheckRoute: typeof AppSettingsRulesCheckRoute
+  AppSettingsSettingsComplianceRoute: typeof AppSettingsSettingsComplianceRoute
+  AppSettingsSettingsImportsRoute: typeof AppSettingsSettingsImportsRoute
+  AppSettingsRulesIndexRoute: typeof AppSettingsRulesIndexRoute
+  AppSettingsSettingsIndexRoute: typeof AppSettingsSettingsIndexRoute
+}
+
+const AppSettingsRouteChildren: AppSettingsRouteChildren = {
+  AppSettingsAccountRoute: AppSettingsAccountRoute,
+  AppSettingsBrandRoute: AppSettingsBrandRoute,
+  AppSettingsTeamRoute: AppSettingsTeamRoute,
+  AppSettingsAdminSignupsRoute: AppSettingsAdminSignupsRoute,
+  AppSettingsRulesCheckRoute: AppSettingsRulesCheckRoute,
+  AppSettingsSettingsComplianceRoute: AppSettingsSettingsComplianceRoute,
+  AppSettingsSettingsImportsRoute: AppSettingsSettingsImportsRoute,
+  AppSettingsRulesIndexRoute: AppSettingsRulesIndexRoute,
+  AppSettingsSettingsIndexRoute: AppSettingsSettingsIndexRoute,
+}
+
+const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
+  AppSettingsRouteChildren,
+)
+
 interface AppRouteChildren {
   AppSplatRoute: typeof AppSplatRoute
+  AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppAboutRoute: typeof AppAboutRoute
-  AppAccountRoute: typeof AppAccountRoute
-  AppTeamRoute: typeof AppTeamRoute
-  AppIndexRoute: typeof AppIndexRoute
+  AppActivityRoute: typeof AppActivityRoute
+  AppAnalyticsRoute: typeof AppAnalyticsRoute
+  AppHomeRoute: typeof AppHomeRoute
+  AppInboxRoute: typeof AppInboxRoute
+  AppAddBulkRoute: typeof AppAddBulkRoute
+  AppAddGuidedRoute: typeof AppAddGuidedRoute
+  AppAddVariantsRoute: typeof AppAddVariantsRoute
   AppImportsImportIdRoute: typeof AppImportsImportIdRoute
   AppImportsNewRoute: typeof AppImportsNewRoute
+  AppIssuesIssueIdRoute: typeof AppIssuesIssueIdRoute
   AppJobsJobIdRoute: typeof AppJobsJobIdRoute
   AppMarketplacesConnectedRoute: typeof AppMarketplacesConnectedRoute
   AppProductsProductIdRoute: typeof AppProductsProductIdRoute
   AppProductsNewRoute: typeof AppProductsNewRoute
-  AppRulesCheckRoute: typeof AppRulesCheckRoute
+  AppRunsRunIdRoute: typeof AppRunsRunIdRoute
+  AppSetupBrandRoute: typeof AppSetupBrandRoute
+  AppSetupComplianceRoute: typeof AppSetupComplianceRoute
+  AppSetupMarketplacesRoute: typeof AppSetupMarketplacesRoute
+  AppAddIndexRoute: typeof AppAddIndexRoute
   AppImportsIndexRoute: typeof AppImportsIndexRoute
   AppMarketplacesIndexRoute: typeof AppMarketplacesIndexRoute
   AppProductsIndexRoute: typeof AppProductsIndexRoute
-  AppRulesIndexRoute: typeof AppRulesIndexRoute
+  AppListingsListingIdLiveRoute: typeof AppListingsListingIdLiveRoute
+  AppListingsListingIdMappingRoute: typeof AppListingsListingIdMappingRoute
+  AppListingsListingIdReviewRoute: typeof AppListingsListingIdReviewRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppSplatRoute: AppSplatRoute,
+  AppSettingsRoute: AppSettingsRouteWithChildren,
   AppAboutRoute: AppAboutRoute,
-  AppAccountRoute: AppAccountRoute,
-  AppTeamRoute: AppTeamRoute,
-  AppIndexRoute: AppIndexRoute,
+  AppActivityRoute: AppActivityRoute,
+  AppAnalyticsRoute: AppAnalyticsRoute,
+  AppHomeRoute: AppHomeRoute,
+  AppInboxRoute: AppInboxRoute,
+  AppAddBulkRoute: AppAddBulkRoute,
+  AppAddGuidedRoute: AppAddGuidedRoute,
+  AppAddVariantsRoute: AppAddVariantsRoute,
   AppImportsImportIdRoute: AppImportsImportIdRoute,
   AppImportsNewRoute: AppImportsNewRoute,
+  AppIssuesIssueIdRoute: AppIssuesIssueIdRoute,
   AppJobsJobIdRoute: AppJobsJobIdRoute,
   AppMarketplacesConnectedRoute: AppMarketplacesConnectedRoute,
   AppProductsProductIdRoute: AppProductsProductIdRoute,
   AppProductsNewRoute: AppProductsNewRoute,
-  AppRulesCheckRoute: AppRulesCheckRoute,
+  AppRunsRunIdRoute: AppRunsRunIdRoute,
+  AppSetupBrandRoute: AppSetupBrandRoute,
+  AppSetupComplianceRoute: AppSetupComplianceRoute,
+  AppSetupMarketplacesRoute: AppSetupMarketplacesRoute,
+  AppAddIndexRoute: AppAddIndexRoute,
   AppImportsIndexRoute: AppImportsIndexRoute,
   AppMarketplacesIndexRoute: AppMarketplacesIndexRoute,
   AppProductsIndexRoute: AppProductsIndexRoute,
-  AppRulesIndexRoute: AppRulesIndexRoute,
+  AppListingsListingIdLiveRoute: AppListingsListingIdLiveRoute,
+  AppListingsListingIdMappingRoute: AppListingsListingIdMappingRoute,
+  AppListingsListingIdReviewRoute: AppListingsListingIdReviewRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
+interface SignupRouteChildren {
+  SignupStatusRoute: typeof SignupStatusRoute
+  SignupIndexRoute: typeof SignupIndexRoute
+}
+
+const SignupRouteChildren: SignupRouteChildren = {
+  SignupStatusRoute: SignupStatusRoute,
+  SignupIndexRoute: SignupIndexRoute,
+}
+
+const SignupRouteWithChildren =
+  SignupRoute._addFileChildren(SignupRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
+  PrivacyRoute: PrivacyRoute,
+  SignupRoute: SignupRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

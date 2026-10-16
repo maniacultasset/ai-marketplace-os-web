@@ -77,7 +77,10 @@ test.describe('journey', () => {
     const sku = `JRNY-${RUN}-1`
     await nav(page, 'Products').click()
     await expect(page.getByRole('table', { name: 'Products' })).toBeVisible()
+    // "Add products" opens the chooser (/add); the single-product form is /products/new.
     await page.getByTestId('new-product').click()
+    await expect(page).toHaveURL(/\/add$/)
+    await page.goto('/products/new')
     await fillStable(page, 'SKU', sku)
     await fillStable(page, 'Title', 'Journey cotton kurta')
     await fillStable(page, 'Category', 'kurtas')
@@ -150,12 +153,12 @@ test.describe('journey', () => {
     await expect(page.getByTestId('user-menu')).toBeVisible()
     await nav(page, 'Marketplaces').click()
     const card = page.getByTestId('marketplace-card-amazon')
-    await expect(card.getByTestId('account-status')).toHaveText('Not connected')
+    await expect(card).toHaveAttribute('data-status', 'none')
     await card.getByRole('button', { name: 'Connect Amazon' }).click()
     const success = page.getByTestId('connect-success')
     await expect(success).toBeVisible({ timeout: 25_000 })
     await expect(success.getByTestId('seller-id')).toHaveText(SELLER)
-    await expect(success.getByTestId('account-status')).toHaveText('Active')
+    await expect(success.getByTestId('account-status')).toHaveText('Connected')
     await page.getByRole('link', { name: 'View marketplaces' }).click()
     await expect(card).toHaveAttribute('data-status', 'active')
 

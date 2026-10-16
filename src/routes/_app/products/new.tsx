@@ -4,6 +4,7 @@ import { RequireAction } from '@/components/states/require-action'
 import { ProductForm } from '@/features/products/product-form'
 
 export const Route = createFileRoute('/_app/products/new')({
+  staticData: { title: 'Add products' },
   component: NewProductPage,
 })
 

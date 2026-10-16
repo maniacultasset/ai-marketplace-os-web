@@ -3,47 +3,62 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 import { Slot } from "radix-ui"
 
+/**
+ * Button (hi-fi Components → Button).
+ * Variant: primary (alias default), secondary (alias outline), ghost, danger (alias destructive),
+ * warn (attention fill, e.g. "Open Inbox"), subtle (grey fill), link.
+ * Size: md 36 (alias default), sm 30, lg 44, xs 24, icon 36 / icon-sm 30 / icon-xs 24 / icon-lg 40.
+ * Radius 8, label 14 semibold, focus = brand border + 3px 18% brand ring. One primary per view.
+ */
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] duration-150 outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button focus-ring inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-control border font-sans font-semibold whitespace-nowrap transition-[color,background-color,border-color,box-shadow] duration-150 select-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-45 aria-disabled:cursor-not-allowed aria-disabled:opacity-45 aria-invalid:border-danger [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow-[var(--elev-1),var(--highlight)] hover:bg-[color-mix(in_oklch,var(--primary),black_8%)] dark:hover:bg-[color-mix(in_oklch,var(--primary),white_10%)]",
-        outline:
-          "border-border bg-card shadow-elev-1 hover:border-border-strong hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+        primary:
+          "border-brand bg-brand text-white shadow-primary hover:border-brand-hover hover:bg-brand-hover",
+        default:
+          "border-brand bg-brand text-white shadow-primary hover:border-brand-hover hover:bg-brand-hover",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+          "border-line-strong bg-surface text-ink hover:bg-subtle aria-expanded:bg-subtle",
+        outline:
+          "border-line-strong bg-surface text-ink hover:bg-subtle aria-expanded:bg-subtle",
         ghost:
-          "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
+          "border-transparent bg-transparent text-ink-2 hover:bg-subtle hover:text-ink aria-expanded:bg-subtle aria-expanded:text-ink",
+        subtle: "border-transparent bg-subtle text-ink hover:bg-line",
+        danger:
+          "border-danger-line bg-surface text-danger hover:bg-danger-bg focus-visible:border-danger focus-visible:shadow-focus-danger",
         destructive:
-          "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
-        link: "text-primary underline-offset-4 hover:underline",
+          "border-danger-line bg-surface text-danger hover:bg-danger-bg focus-visible:border-danger focus-visible:shadow-focus-danger",
+        warn: "border-attention bg-attention text-white hover:bg-attention-ink hover:border-attention-ink",
+        link: "h-auto border-transparent px-0 text-brand underline-offset-4 hover:underline",
       },
       size: {
-        default:
-          "h-9 gap-1.5 px-3 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5",
-        xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
-        lg: "h-10 gap-2 px-4 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
+        md: "h-9 px-4 text-[14px] leading-5",
+        default: "h-9 px-4 text-[14px] leading-5",
+        sm: "h-[30px] gap-1.5 rounded-[7px] px-3 text-[13px] [&_svg:not([class*='size-'])]:size-3.5",
+        lg: "h-11 px-[22px] text-[15px]",
+        xs: "h-6 gap-1 rounded-[6px] px-2 text-[12px] [&_svg:not([class*='size-'])]:size-3",
         icon: "size-9",
-        "icon-xs":
-          "size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm":
-          "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg",
-        "icon-lg": "size-9",
+        "icon-sm": "size-[30px] rounded-[7px]",
+        "icon-xs": "size-6 rounded-[6px] [&_svg:not([class*='size-'])]:size-3",
+        "icon-lg": "size-10",
       },
+      full: { true: "w-full" },
     },
+    compoundVariants: [{ variant: "link", class: "h-auto px-0" }],
     defaultVariants: {
-      variant: "default",
-      size: "default",
+      variant: "primary",
+      size: "md",
     },
   }
 )
 
 function Button({
   className,
-  variant = "default",
-  size = "default",
+  variant = "primary",
+  size = "md",
+  full,
   asChild = false,
   ...props
 }: React.ComponentProps<"button"> &
@@ -57,7 +72,7 @@ function Button({
       data-slot="button"
       data-variant={variant}
       data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={cn(buttonVariants({ variant, size, full, className }))}
       {...props}
     />
   )

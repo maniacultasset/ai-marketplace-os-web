@@ -27,7 +27,7 @@ const columns = col.columns([
   }),
   col.accessor('seller_id', {
     header: 'Seller',
-    cell: (c) => <code className="font-mono text-[0.8125rem]">{c.getValue()}</code>,
+    cell: (c) => <span className="font-semibold text-ink">{c.getValue()}</span>,
     meta: { className: 'max-w-48 truncate' },
   }),
   col.accessor('status', {
@@ -48,7 +48,7 @@ const columns = col.columns([
     header: 'Token expires',
     cell: (c) =>
       c.row.original.status === 'revoked' ? (
-        <span className="text-muted-foreground">—</span>
+        <span className="text-ink-3">—</span>
       ) : (
         <TokenExpiry account={c.row.original} />
       ),
@@ -63,7 +63,7 @@ const columns = col.columns([
   }),
   col.accessor('region', {
     header: 'Region',
-    cell: (c) => c.getValue() ?? <span className="text-muted-foreground">—</span>,
+    cell: (c) => c.getValue() ?? <span className="text-ink-3">—</span>,
   }),
   col.display({
     id: 'actions',
@@ -77,7 +77,7 @@ const columns = col.columns([
 function ReconnectSince({ iso }: { iso: string }) {
   const now = useNow()
   return (
-    <span className="text-xs text-muted-foreground" title={formatDateTime(iso)} data-testid="reconnect-since">
+    <span className="text-xs text-ink-3" title={formatDateTime(iso)} data-testid="reconnect-since">
       since {formatRelative(iso, now)}
     </span>
   )
@@ -89,7 +89,7 @@ function TokenExpiry({ account }: { account: MarketplaceAccount }) {
   const expired = account.status === 'active' && isPast(account.expires_at, now)
   return (
     <span
-      className={expired ? 'whitespace-nowrap text-warning' : 'whitespace-nowrap'}
+      className={expired ? 'whitespace-nowrap text-attention' : 'whitespace-nowrap'}
       title={expired ? `Expired ${formatRelative(account.expires_at, now)}` : undefined}
       data-testid="token-expiry"
       data-expired={expired || undefined}
@@ -129,6 +129,8 @@ export function AccountsHistory({ list }: { list: CursorList<MarketplaceAccount>
       columns={columns}
       getRowId={(a) => a.id}
       skeletonRows={3}
+      stickyHeader={false}
+      renderCard={(a) => <HistoryCard account={a} />}
       empty={
         <EmptyState
           compact
@@ -138,5 +140,37 @@ export function AccountsHistory({ list }: { list: CursorList<MarketplaceAccount>
         />
       }
     />
+  )
+}
+
+/** Below 1024px each row is a card (hi-fi build notes). */
+function HistoryCard({ account }: { account: MarketplaceAccount }) {
+  return (
+    <div className="flex flex-col gap-2 rounded-card border border-line bg-surface p-4 shadow-sm" data-testid="history-card">
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-2.5 font-semibold">
+          <MarketplaceMark marketplace={account.marketplace} size="sm" />
+          <span className="truncate">{MARKETPLACE_META[account.marketplace].name}</span>
+        </span>
+        <AccountStatusBadge status={account.status} />
+      </div>
+      <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-1 text-small">
+        <dt className="text-ink-3">Seller</dt>
+        <dd className="truncate">{account.seller_id}</dd>
+        <dt className="text-ink-3">Connected</dt>
+        <dd>{formatDateTime(account.created_at)}</dd>
+        {account.status !== 'revoked' ? (
+          <>
+            <dt className="text-ink-3">Token expires</dt>
+            <dd>
+              <TokenExpiry account={account} />
+            </dd>
+          </>
+        ) : null}
+      </dl>
+      <div className="flex justify-end empty:hidden">
+        <RowActions account={account} />
+      </div>
+    </div>
   )
 }

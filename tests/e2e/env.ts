@@ -19,6 +19,14 @@ export const PASSWORD = process.env.E2E_PASSWORD ?? 'devpassword123'
 export const FAKE_MARKETPLACE_URL = process.env.E2E_FAKE_MARKETPLACE_URL?.replace(/\/+$/, '') ?? ''
 /** Optional local backend checkout: enables the rate-limit reset and the token-refresh test. */
 export const BACKEND_DIR = process.env.E2E_BACKEND_DIR ? path.resolve(process.env.E2E_BACKEND_DIR) : ''
+/**
+ * A platform admin's login (users.is_platform_admin). The demo seed creates none: a staff member
+ * runs `python -m app.cli user make-admin --email <e> --staff-email <f>` on an existing user (e.g.
+ * owner@acme.test). Specs that need it skip when it is unset. Password: E2E_PLATFORM_ADMIN_PASSWORD
+ * or E2E_PASSWORD.
+ */
+export const PLATFORM_ADMIN_EMAIL = process.env.E2E_PLATFORM_ADMIN_EMAIL ?? ''
+export const PLATFORM_ADMIN_PASSWORD = process.env.E2E_PLATFORM_ADMIN_PASSWORD ?? PASSWORD
 export const ARTIFACTS = path.resolve(import.meta.dirname, '../../test-results/artifacts')
 
 /** Empty the backend's local rate limiter. Returns false when no backend checkout is configured. */

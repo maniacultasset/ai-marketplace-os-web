@@ -3,11 +3,15 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+function Table({
+  className,
+  containerClassName,
+  ...props
+}: React.ComponentProps<"table"> & { containerClassName?: string }) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className={cn("relative w-full overflow-x-auto", containerClassName)}
     >
       <table
         data-slot="table"
@@ -56,7 +60,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "border-b border-border/70 transition-colors duration-150 hover:bg-accent/50 has-aria-expanded:bg-accent/60 data-[state=selected]:bg-brand-soft/70",
+        "border-b border-line transition-colors duration-150 hover:bg-canvas has-aria-expanded:bg-canvas data-[state=selected]:bg-brand-bg data-[state=selected]:hover:bg-brand-bg",
         className
       )}
       {...props}
@@ -69,7 +73,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "h-10 px-3 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
+        "h-10 px-4 text-left align-middle font-bold whitespace-nowrap text-ink-2 [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}
@@ -82,7 +86,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
     <td
       data-slot="table-cell"
       className={cn(
-        "px-3 py-2.5 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "px-4 py-3 align-middle whitespace-nowrap text-body text-ink [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}

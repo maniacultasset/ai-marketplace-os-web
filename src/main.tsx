@@ -4,7 +4,6 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { onSessionEnd } from '@/api/session'
 import { Page } from '@/components/app/page-header'
-import { ThemeProvider } from '@/components/app/theme'
 import { ErrorState } from '@/components/states/error-state'
 import { NotFound } from '@/components/states/not-found'
 import { queryClient } from '@/lib/query-client'
@@ -49,10 +48,8 @@ onSessionEnd((reason) => {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
   </StrictMode>,
 )

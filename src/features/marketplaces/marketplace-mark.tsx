@@ -1,30 +1,15 @@
-import { cn } from '@/lib/utils'
+import { MarketplaceTile } from '@/components/la/marketplace'
 import type { Marketplace } from './api'
-import { MARKETPLACE_META } from './meta'
 
-const SIZES = {
-  sm: 'size-6 rounded-md [&>svg]:size-3.5',
-  md: 'size-10 rounded-xl [&>svg]:size-5',
-} as const
-
-/** Drawn icon in the marketplace's tinted tile (no letters, no third-party logos). */
+/** The hi-fi marketplace tile (initial in a 28/36/44 tile). */
 export function MarketplaceMark({
   marketplace,
   size = 'md',
   className,
 }: {
   marketplace: Marketplace
-  size?: keyof typeof SIZES
+  size?: 'sm' | 'md' | 'big'
   className?: string
 }) {
-  const m = MARKETPLACE_META[marketplace]
-  const Icon = m.icon
-  return (
-    <span
-      aria-hidden
-      className={cn('inline-flex shrink-0 items-center justify-center ring-1 ring-inset select-none', SIZES[size], m.tileClass, className)}
-    >
-      <Icon strokeWidth={1.75} />
-    </span>
-  )
+  return <MarketplaceTile id={marketplace} size={size} className={className} />
 }

@@ -7,6 +7,8 @@ import { networkError } from '@/api/errors'
 import { getSession, restoreSession, retryRestore } from '@/api/session'
 import { meQueryOptions } from '@/lib/auth'
 import { ImportJobsWatcher } from '@/features/imports/import-jobs-watcher'
+import { SoloShell } from '@/components/app/solo-shell'
+import { useRouteMeta } from '@/lib/route-meta'
 
 class SessionUnreachable extends Error {}
 
@@ -27,31 +29,38 @@ export const Route = createFileRoute('/_app')({
 })
 
 function AppLayout() {
+  const meta = useRouteMeta()
   return (
     <>
       {/* Polls import jobs this browser started so every screen refreshes when they end. */}
       <ImportJobsWatcher />
-      <AppShell />
+      {meta.solo ? <SoloShell title={meta.title} /> : <AppShell />}
     </>
   )
 }
 
 function ShellPending() {
   return (
-    <div className="flex min-h-svh" aria-busy="true" aria-label="Loading">
-      <div className="hidden w-64 shrink-0 flex-col gap-3 border-r bg-sidebar p-3 md:flex">
-        <div className="flex items-center gap-2.5 pb-3">
+    <div className="grid min-h-svh grid-cols-1 bg-canvas md:grid-cols-[232px_minmax(0,1fr)]" aria-busy="true" aria-label="Loading">
+      <div className="hidden flex-col gap-2 border-r border-line bg-surface px-3 py-4 md:flex">
+        <div className="mb-3.5 flex items-center gap-2.5 px-1.5">
           <BrandMark />
           <Skeleton className="h-4 w-28" />
         </div>
-        {Array.from({ length: 5 }, (_, i) => (
-          <Skeleton key={i} className="h-7 w-full" />
+        <Skeleton className="mb-3.5 h-[46px] w-full rounded-[10px]" />
+        {Array.from({ length: 7 }, (_, i) => (
+          <Skeleton key={i} className="h-[38px] w-full" />
         ))}
       </div>
-      <div className="flex-1">
-        <div className="flex h-14 items-center gap-3 border-b px-4">
-          <Skeleton className="h-5 w-40" />
-          <Skeleton className="ml-auto size-7 rounded-full" />
+      <div>
+        <div className="flex h-14 items-center gap-3 border-b border-line bg-surface px-4 md:px-7">
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="ml-auto hidden h-[34px] w-60 sm:block" />
+          <Skeleton className="size-7 rounded-full" />
+        </div>
+        <div className="p-4 md:p-7">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="mt-2 h-4 w-72" />
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
-# AI Marketplace OS — web
+# Listing Agent — web
 
-The dashboard for AI Marketplace OS. A brand's team manages its product catalog, bulk CSV imports,
-Amazon and Flipkart seller connections, marketplace listing rules, and team access.
+The dashboard for Listing Agent. A brand's team adds products, the agent prepares Amazon and Flipkart
+listings, the rules engine checks them, and a person approves them before anything is published.
 
 Every screen reads from and writes to the backend API
 ([maniacultasset/ai-marketplace-os](https://github.com/maniacultasset/ai-marketplace-os)). There is no
@@ -13,7 +13,7 @@ mock layer and no demo data in the app.
 - TanStack Router (file routes), TanStack Query, TanStack Table
 - `openapi-fetch` with types generated from the backend's OpenAPI document
 - react-hook-form and zod (limits mirror the backend; 422 details map onto fields)
-- shadcn/ui on Radix, Tailwind CSS v4, Geist (bundled), light and dark themes
+- shadcn/ui on Radix, Tailwind CSS v4, Bricolage Grotesque + DM Sans (self-hosted), one light theme (docs/DESIGN.md)
 - Vitest (unit) and Playwright (end to end, against a real backend)
 
 ## Getting started
@@ -68,28 +68,47 @@ the API shares the app's origin.
 
 ## Features
 
-The screens cover the endpoints in the committed API contract (`src/api/openapi.json`). Areas
-without a screen stay out of the nav; their flags live in `src/api/capabilities.ts`.
+Every working control calls the real API (contract v1.1.0, `src/api/schema.d.ts`). No sample
+records, no hardcoded counts: numbers on Home, Inbox and Products are counted from API pages. The
+design source is `docs/design-reference/listing-agent-hifi-handoff.html` (18 screens + Autonomy).
 
-| Area | Status |
-|---|---|
-| Sign in, session, brand switch | Live |
-| Products: list, create, detail | Live |
-| CSV import: upload, job progress, row report, retry failed rows | Live |
-| Marketplace connections: Amazon and Flipkart OAuth, history, revoke | Live |
-| Rules: list, filters, dry-run check of a draft | Live |
-| Team: roles and active status; account | Live |
-| Brand profile and documents | No screen yet |
-| Images | No screen yet |
-| Listing generation, review and approval, publishing | No screen yet |
-| Analytics | No screen yet |
+| Area | Screens | Backed by |
+|---|---|---|
+| Public | Landing, sign in, request access, request status, privacy policy | `/auth/login`, `/signup`, `/signup/status` |
+| Setup (02-04) | Brand and business, compliance defaults, connect marketplaces | `PATCH /tenants/me` (If-Match), `/marketplaces/*` |
+| Home and Inbox (05, 06, 11, 16) | Home (first run + working), Inbox, issue detail | `/listings`, `/tasks`, `/issues`, `/issues/{id}/dismiss`, submissions |
+| Products and add (07-10, 17) | Products table/cards, product detail tabs, add chooser, guided form, bulk upload, variants and media | `/products`, `/products/bulk`, `/imports/*`, `/jobs/{id}`, `/images/*`, `POST /listings/generate` |
+| Listing flow (12-15) | Agent run, review and approve, field mapping, live confirmation | `/jobs/{id}`, `/listings/{id}` (+ `/content`, `/regenerate`, `/preview`, `/history`, `/submissions`, `/status`, `/refresh-status`, `/publish/retry-fields`), `/listings/approve`, `/listings/validate`, `/listings/publish`, `/rules` |
+| Marketplaces and settings (18, Autonomy) | Marketplaces, autonomy, brand profile, compliance, team, rules, imports, account, activity, sign-up requests (platform admins) | `/marketplaces/*`, `/tenants/me`, `/brand/documents`, `/members`, `/rules*`, `/admin/signup-requests*` |
+| Extras | Listing reports, diagnostics | `/analytics*`, `/readyz` |
 
-To add one once its endpoints are live on the backend:
+Approval is always on (maker-checker): nothing is sent to a marketplace until a person approves it.
 
-1. Run `OPENAPI_URL=<backend>/openapi.json pnpm gen:api`. `pnpm typecheck` then flags every call
-   site whose shape changed.
-2. Build the screens under `src/routes/_app/` and `src/features/<name>/`.
-3. Flip the capability in `src/api/capabilities.ts` and add its nav entry in `src/lib/nav.ts`.
+### Routes
+
+Public: `/`, `/login`, `/signup`, `/signup/status`, `/privacy`.
+Setup frame: `/setup/brand`, `/setup/compliance`, `/setup/marketplaces`.
+App: `/home`, `/inbox`, `/issues/$issueId`, `/products`, `/products/$productId`, `/products/new`,
+`/add`, `/add/guided`, `/add/bulk`, `/add/variants`, `/runs/$runId`, `/listings/$listingId/review`,
+`/listings/$listingId/mapping`, `/listings/$listingId/live`, `/marketplaces`, `/marketplaces/connected`,
+`/activity`, `/analytics`, `/about`, `/imports`, `/imports/new`, `/imports/$importId`, `/jobs/$jobId`.
+Settings: `/settings`, `/settings/compliance`, `/settings/imports`, `/brand`, `/team`, `/rules`,
+`/rules/check`, `/account`, `/admin/signups`.
+
+### Shown but not in the API yet (honest disabled)
+
+These appear where the design puts them, as a disabled control with a reason tooltip
+(`UnavailableButton`, reasons in `NOT_YET` in `src/components/la/unavailable.tsx`), a "Coming soon"
+tag, or a "Join waitlist" button that does nothing:
+
+- Google sign-in; email verification codes; "What best describes you?" on sign-up
+- "Read my site" (website prefill); legal name, business type, logo, description; compliance defaults (can't be saved yet)
+- Myntra, AJIO, Meesho, Nykaa Fashion (Join waitlist); pickup locations, default shipping; brand authorisation upload; category/brand approvals
+- Add from photos, product page URL, catalog export; PIM/ERP (Later); agent category classification
+- Answering, skipping or assigning Inbox questions; "Choose category" and "Ask support" on issues
+- Pause, archive, whole-product resubmit, product edit, catalog export
+- Autonomous submit and every auto-fix toggle, retry limit, notification channels (Autonomy shows approval mode only)
+- Brand-wide activity feed and audit log; notifications bell; top-bar product search
 
 ## End-to-end tests
 

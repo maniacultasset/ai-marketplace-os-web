@@ -24,16 +24,21 @@ export function EmptyState({
       data-slot="empty-state"
       className={cn(
         'flex flex-col items-center justify-center text-center',
-        compact ? 'gap-2 px-4 py-10' : 'gap-3 px-6 py-16',
+        compact ? 'gap-2 px-4 py-8' : 'gap-3 px-6 py-12',
         className,
       )}
     >
-      <div className="flex size-11 items-center justify-center rounded-xl border bg-card text-muted-foreground shadow-elev-2">
-        <Icon className="size-5" aria-hidden />
+      <div
+        className={cn(
+          'flex items-center justify-center rounded-xl border bg-card text-muted-foreground shadow-elev-2',
+          compact ? 'size-10' : 'size-11',
+        )}
+      >
+        <Icon className={compact ? 'size-[1.125rem]' : 'size-5'} aria-hidden />
       </div>
       <div className="max-w-sm space-y-1">
-        <h3 className="text-[0.9375rem] font-semibold tracking-tight">{title}</h3>
-        {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+        <h3 className="text-[0.9375rem] font-semibold tracking-tight text-balance">{title}</h3>
+        {description ? <p className="text-sm text-pretty text-muted-foreground">{description}</p> : null}
       </div>
       {actions ? <div className="mt-1 flex flex-wrap items-center justify-center gap-2">{actions}</div> : null}
     </div>

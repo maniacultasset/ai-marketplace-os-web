@@ -1,11 +1,21 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ProductDetail } from '@/features/products/product-detail'
+import { zodValidator } from '@tanstack/zod-adapter'
+import { z } from 'zod'
+import { DETAIL_TABS } from '@/features/products-add/detail-tabs'
+import { ProductDetailPage } from '@/features/products-add/product-detail-page'
 
-export const Route = createFileRoute('/_app/products/$productId')({
-  component: ProductDetailPage,
+const searchSchema = z.object({
+  tab: z.enum(DETAIL_TABS).optional().catch(undefined),
 })
 
-function ProductDetailPage() {
+export const Route = createFileRoute('/_app/products/$productId')({
+  staticData: { title: 'Products' },
+  validateSearch: zodValidator(searchSchema),
+  component: ProductDetailRoute,
+})
+
+function ProductDetailRoute() {
   const { productId } = Route.useParams()
-  return <ProductDetail key={productId} productId={productId} />
+  const { tab } = Route.useSearch()
+  return <ProductDetailPage key={productId} productId={productId} tab={tab ?? 'overview'} />
 }

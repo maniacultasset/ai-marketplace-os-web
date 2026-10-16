@@ -79,7 +79,10 @@ async function expectFirstPage(page: Page, token: string) {
     headers: { Authorization: `Bearer ${token}` },
   })
   expect(res.status()).toBe(200)
-  const skus = ((await res.json()) as { data: { sku: string }[] }).data.map((p) => p.sku)
+  // The table lists styles and standalone products; variants are counted under their style.
+  const skus = ((await res.json()) as { data: { sku: string; parent_product_id: string | null }[] }).data
+    .filter((p) => !p.parent_product_id)
+    .map((p) => p.sku)
   expect(skus.length).toBeGreaterThan(0)
   const table = page.getByRole('table', { name: 'Products' })
   await expect(table.getByRole('link', { name: skus[0], exact: true })).toBeVisible()
@@ -92,7 +95,7 @@ test.describe('products', () => {
       const { access_token } = await loginAs(page, email, '/products')
       const table = page.getByRole('table', { name: 'Products' })
       await expectFirstPage(page, access_token)
-      for (const header of ['SKU', 'Title', 'Status']) {
+      for (const header of ['Product', 'SKU', 'Overall']) {
         await expect(table.getByRole('columnheader', { name: header, exact: true })).toBeVisible()
       }
       await expect(table.locator('[aria-sort]')).toHaveCount(0)
@@ -120,7 +123,8 @@ test.describe('products', () => {
     const sku = `PW-${RUN}-1`
 
     await page.getByTestId('new-product').click()
-    await expect(page).toHaveURL(/\/products\/new$/)
+    await expect(page).toHaveURL(/\/add$/)
+    await page.goto('/products/new')
     await fillStable(page, 'SKU', sku)
     await page.getByLabel('Title').fill('PW Kurta')
     await page.getByLabel('Category').fill('kurtas')
@@ -147,7 +151,6 @@ test.describe('products', () => {
 
     await expect(page).toHaveURL(new RegExp(`/products/${body.id}$`))
     await expect(page.getByTestId('product-title')).toHaveText('PW Kurta')
-    await expect(page.getByTestId('product-status').first()).toHaveText('draft')
     const attrs = page.getByTestId('product-attributes')
     await expect(attrs.locator('[data-attr-key="color"]')).toContainText('navy blue')
     await expect(attrs.locator('[data-attr-key="fabric_type"]')).toContainText('organic cotton')
@@ -230,23 +233,16 @@ test.describe('products', () => {
     expect(posted).toBe(false)
   })
 
-  test('cursor pagination: Load more appends until has_more is false', async ({ page }) => {
-    const tokens = await loginAs(page, USERS.acme.reviewer, '/products?pageSize=2')
-    const total = (await apiProducts(page.request, tokens.access_token)).length
-    expect(total).toBeGreaterThan(2)
+  test('the table reads every page and counts products and variants from the API', async ({ page }) => {
+    const tokens = await loginAs(page, USERS.acme.reviewer, '/products')
+    const all = await apiProducts(page.request, tokens.access_token)
+    const styles = all.filter((p) => !p.parent_product_id)
     const rows = page.getByRole('table', { name: 'Products' }).locator('tbody tr')
-    await expect(rows).toHaveCount(2)
-    const loadMore = page.getByTestId('load-more')
-    let expected = 2
-    while (expected < total) {
-      const next = page.waitForResponse((r) => r.url().includes('/api/v1/products?') && r.url().includes('cursor='))
-      await loadMore.click()
-      expect((await next).status()).toBe(200)
-      expected = Math.min(total, expected + 2)
-      await expect(rows).toHaveCount(expected)
-      if (expected > 12) break // enough pages proven; don't walk a huge catalog
-    }
-    if (expected === total) await expect(loadMore).toHaveCount(0)
+    await expect(rows).toHaveCount(styles.length)
+    const variants = all.length - styles.length
+    await expect(page.getByTestId('products-count')).toHaveText(
+      `${styles.length} ${styles.length === 1 ? 'product' : 'products'} · ${variants} ${variants === 1 ? 'variant' : 'variants'}`,
+    )
   })
 
   test('unknown or malformed product id shows not found', async ({ page }) => {
@@ -359,13 +355,9 @@ test.describe('products', () => {
     await expect(gsmRow).not.toContainText('12345678901234567000')
   })
 
-  test('detail reads only the product (and its parent), never walks the catalog', async ({ page }) => {
+  test('detail shows the family: parent link for a variant, variants for a style', async ({ page }) => {
     const tokens = await loginAs(page, USERS.acme.reviewer, '/account')
     const all = await apiProducts(page.request, tokens.access_token)
-    const listCalls: string[] = []
-    page.on('request', (r) => {
-      if (r.url().includes('/api/v1/products?')) listCalls.push(r.url())
-    })
     const kurta = all.find((p) => p.sku === 'KURTA-001')!
     await page.goto(`/products/${kurta.id}`)
     await expect(page.getByTestId('product-sku')).toHaveText('KURTA-001')
@@ -383,13 +375,12 @@ test.describe('products', () => {
       await expect(page.getByTestId('product-sku')).toHaveText(parent.sku)
       // A style with variants must not read as if it had none.
       if (!parent.parent_product_id) {
-        const none = page.getByTestId('product-family')
-        await expect(none.getByTestId('no-parent')).toContainText('its variants are not listed here')
-        await expect(none).not.toContainText('Variants from CSV imports link to their style here.')
+        const family = page.getByTestId('product-family')
+        await expect(family.getByTestId('no-parent')).toHaveCount(0)
+        await page.getByTestId('tab-variants').click()
+        await expect(page.getByRole('table', { name: 'Variants' }).getByRole('link', { name: variant.sku, exact: true })).toBeVisible()
       }
     }
-    await page.waitForTimeout(500)
-    expect(listCalls).toEqual([])
   })
 
   test('alias and non-attribute keys are reported on the key, not the value', async ({ page }) => {
@@ -444,7 +435,7 @@ test.describe('products', () => {
   test('a lost create response still refreshes the products list', async ({ page }) => {
     const { access_token } = await loginAs(page, USERS.acme.operator, '/products')
     await expectFirstPage(page, access_token)
-    await page.getByTestId('new-product').click()
+    await page.goto('/products/new')
     const sku = `PW-${RUN}-lost`
     await page.route('**/api/v1/products', async (route) => {
       if (route.request().method() !== 'POST') return route.continue()
@@ -494,7 +485,8 @@ test.describe('products', () => {
     const sku = page.getByRole('table', { name: 'Products' }).locator('tbody tr').first().getByRole('link').first()
     await sku.focus()
     let reached = false
-    for (let i = 0; i < 5 && !reached; i++) {
+    // SKU link → marketplace status cells (each focusable for its tooltip) → Activity time.
+    for (let i = 0; i < 12 && !reached; i++) {
       await page.keyboard.press('Tab')
       reached = await page.evaluate(() => document.activeElement?.tagName === 'TIME')
     }

@@ -6,7 +6,7 @@ import { EmptyState } from './empty-state'
 export function NotFound({
   title = 'Page not found',
   description = 'The page or item you are looking for does not exist in this brand.',
-  backTo = '/',
+  backTo = '/home',
   backLabel = 'Go to home',
 }: {
   title?: string

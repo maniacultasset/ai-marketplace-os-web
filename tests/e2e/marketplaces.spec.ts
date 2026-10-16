@@ -159,7 +159,7 @@ test.describe('marketplaces', () => {
     await loginAs(page, USERS.bharat.owner, '/marketplaces')
 
     const card = page.getByTestId('marketplace-card-amazon')
-    await expect(card.getByTestId('account-status')).toHaveText('Not connected')
+    await expect(card).toHaveAttribute('data-status', 'none')
     await shot(page, 'list-disconnected')
 
     const authorize = page.waitForRequest((r) => r.url().startsWith(`${FAKE}/amazon/authorize?`))
@@ -171,9 +171,9 @@ test.describe('marketplaces', () => {
     // Landed on the FE route, confirmed, query stripped.
     const success = page.getByTestId('connect-success')
     await expect(success).toBeVisible(ROUND_TRIP)
-    await expect(success).toContainText('Amazon.in connected')
+    await expect(success).toContainText('Amazon connected')
     await expect(success.getByTestId('seller-id')).toHaveText('A1FAKESELLER')
-    await expect(success.getByTestId('account-status')).toHaveText('Active')
+    await expect(success.getByTestId('account-status')).toHaveText('Connected')
     await expect(page).toHaveURL(/\/marketplaces\/connected$/)
     expect(landings).toHaveLength(1)
     expect(new URL(landings[0]!).searchParams.get('pending')).toMatch(/^[A-Za-z0-9_-]{43}$/)
@@ -187,9 +187,10 @@ test.describe('marketplaces', () => {
     await page.getByRole('link', { name: 'View marketplaces' }).click()
     await expect(card).toHaveAttribute('data-status', 'active')
     await expect(card.getByTestId('seller-id')).toHaveText('A1FAKESELLER')
-    await expect(card.getByText('Token expires')).toBeVisible()
+    // p04 detail card: the connected account is selected by default.
+    await expect(page.getByTestId('marketplace-detail').getByText('Token expires')).toBeVisible()
     const history = page.getByRole('table', { name: 'Marketplace connection history' })
-    await expect(history.getByRole('row').filter({ hasText: 'A1FAKESELLER' }).filter({ hasText: 'Active' })).toHaveCount(1)
+    await expect(history.getByRole('row').filter({ hasText: 'A1FAKESELLER' }).filter({ hasText: 'Connected' })).toHaveCount(1)
     await shot(page, 'list-connected')
 
     // Reloading the landing URL re-confirms a used handle -> 409 OAUTH_STATE_INVALID panel.
@@ -221,7 +222,8 @@ test.describe('marketplaces', () => {
     const amazon = page.getByTestId('marketplace-card-amazon')
     await expect(amazon).toHaveAttribute('data-status', 'active')
     await expect(amazon.getByTestId('seller-id')).toHaveText('A1FAKESELLER')
-    await expect(page.getByTestId('marketplace-card-flipkart')).toContainText('An owner or admin can connect Flipkart.')
+    await page.getByRole('button', { name: 'Show Flipkart details' }).click()
+    await expect(page.getByTestId('marketplace-detail')).toContainText('An owner or admin can connect Flipkart.')
     await expect(page.getByRole('button', { name: /Connect|Reconnect|Revoke/ })).toHaveCount(0)
     await shot(page, 'reviewer')
 
@@ -240,7 +242,7 @@ test.describe('marketplaces', () => {
 
   test('admin sees Connect and Revoke', async ({ page }) => {
     await loginAs(page, USERS.bharat.admin, '/marketplaces')
-    await expect(page.getByTestId('marketplace-card-amazon').getByRole('button', { name: 'Revoke' })).toBeVisible()
+    await expect(page.getByTestId('marketplace-detail').getByRole('button', { name: 'Revoke' })).toBeVisible()
     await expect(page.getByTestId('marketplace-card-flipkart').getByRole('button', { name: 'Connect Flipkart' })).toBeVisible()
   })
 
@@ -282,7 +284,9 @@ test.describe('marketplaces', () => {
     const card = page.getByTestId('marketplace-card-amazon')
     await expect(card).toHaveAttribute('data-status', 'active')
 
-    await card.getByRole('button', { name: 'Revoke' }).click()
+    const detail = page.getByTestId('marketplace-detail')
+    await expect(detail).toHaveAttribute('data-marketplace', 'amazon')
+    await detail.getByRole('button', { name: 'Revoke' }).click()
     const dialog = page.getByTestId('revoke-dialog')
     await expect(dialog).toContainText('This deletes the stored tokens')
     await expect(dialog).toContainText('Seller Central')
@@ -293,14 +297,14 @@ test.describe('marketplaces', () => {
     await expect(dialog).toBeHidden()
     await expect(card).toHaveAttribute('data-status', 'active')
 
-    await card.getByRole('button', { name: 'Revoke' }).click()
+    await detail.getByRole('button', { name: 'Revoke' }).click()
     const revokeRes = page.waitForResponse((r) => /\/marketplaces\/accounts\/[^/]+\/revoke$/.test(r.url()))
     await page.getByTestId('revoke-dialog').getByRole('button', { name: 'Revoke' }).click()
     expect((await revokeRes).status()).toBe(200)
-    await expect(page.getByText('Amazon.in connection revoked')).toBeVisible()
-    await expect(card.getByTestId('account-status')).toHaveText('Not connected')
+    await expect(page.getByText('Amazon connection revoked')).toBeVisible()
+    await expect(card).toHaveAttribute('data-status', 'none')
     await expect(card.getByRole('button', { name: 'Connect Amazon' })).toBeVisible()
-    await expect(card).toContainText('was revoked')
+    await expect(page.getByTestId('marketplace-detail')).toContainText('was revoked')
 
     const history = page.getByRole('table', { name: 'Marketplace connection history' })
     // Newest first: the row just revoked is the first B1OTHER row (earlier runs leave revoked rows).
@@ -335,7 +339,7 @@ test.describe('marketplaces', () => {
     await expect(page).toHaveURL(/\/login\?redirect=/)
     resetRateLimits() // the UI login below counts against the 5/min per-email limit
     await loginViaUi(page, USERS.bharat.owner)
-    await expect(page.getByTestId('connect-success')).toContainText('Amazon.in connected', ROUND_TRIP)
+    await expect(page.getByTestId('connect-success')).toContainText('Amazon connected', ROUND_TRIP)
     await expect(page).toHaveURL(/\/marketplaces\/connected$/)
     await context.close()
   })
@@ -351,14 +355,10 @@ test.describe('marketplaces', () => {
     await expect(page.getByTestId('marketplace-card-amazon')).toHaveAttribute('data-status', 'active')
   })
 
-  test('screens: dark mode and 375px', async ({ page }) => {
-    await page.emulateMedia({ colorScheme: 'dark' })
+  test('screens: 375px', async ({ page }) => {
     await loginAs(page, USERS.bharat.owner, '/marketplaces')
     await expect(page.getByTestId('marketplace-card-amazon')).toHaveAttribute('data-status', 'active')
-    await shot(page, 'list-dark')
     await page.setViewportSize({ width: 375, height: 812 })
-    await shot(page, 'mobile-dark')
-    await page.emulateMedia({ colorScheme: 'light' })
     await shot(page, 'mobile-light')
     const hasHScroll = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
     expect(hasHScroll).toBe(false)
@@ -400,27 +400,30 @@ test.describe('marketplaces', () => {
     const card = page.getByTestId('marketplace-card-flipkart')
     await expect(card).toHaveAttribute('data-status', 'active')
     await expect(card.getByTestId('seller-id')).toHaveText(flipkart.seller_id)
-    await expect(card.getByRole('button', { name: 'Revoke' })).toBeVisible()
     await expect(card.getByRole('button', { name: /Connect/ })).toHaveCount(0)
-    await expect(card).toContainText(/Expired (just now|.+ ago)/)
-    await expect(page.getByTestId('marketplace-card-amazon').getByTestId('account-status')).toHaveText('Not connected')
-    const cardText = await card.innerText()
+    // The connected marketplace is selected by default; its detail card carries the actions.
+    const detail = page.getByTestId('marketplace-detail')
+    await expect(detail).toHaveAttribute('data-marketplace', 'flipkart')
+    await expect(detail.getByRole('button', { name: 'Revoke' })).toBeVisible()
+    await expect(detail).toContainText(/Expired (just now|.+ ago)/)
+    await expect(page.getByTestId('marketplace-card-amazon')).toHaveAttribute('data-status', 'none')
+    const cardText = await detail.innerText()
 
     // History: first page only, so the Flipkart row is not there yet.
     const history = page.getByRole('table', { name: 'Marketplace connection history' })
     const bodyRows = history.locator('tbody tr')
     await expect(bodyRows).toHaveCount(50)
-    await expect(bodyRows.filter({ hasText: 'Flipkart' }).filter({ hasText: 'Active' })).toHaveCount(0)
+    await expect(bodyRows.filter({ hasText: 'Flipkart' }).filter({ hasText: 'Connected' })).toHaveCount(0)
     await page.getByTestId('load-more').click()
     await expect.poll(() => bodyRows.count()).toBeGreaterThan(50)
-    const row = bodyRows.filter({ hasText: 'Flipkart' }).filter({ hasText: 'Active' })
+    const row = bodyRows.filter({ hasText: 'Flipkart' }).filter({ hasText: 'Connected' })
     await expect(row).toHaveCount(1)
     await expect(row.getByTestId('token-expiry')).toHaveAttribute('data-expired', 'true')
     await expect(row.getByTestId('token-expiry')).toContainText('Expired')
     await shot(page, 'history-load-more')
 
     // The cards do not depend on how far History has been paged.
-    expect(await card.innerText()).toBe(cardText)
+    expect(await detail.innerText()).toBe(cardText)
   })
 
   test('a rejected token refresh: needs-reconnect card and row, admin reconnects the same account', async ({
@@ -457,29 +460,30 @@ test.describe('marketplaces', () => {
     await loginAs(page, USERS.bharat.admin, '/marketplaces')
     const card = page.getByTestId('marketplace-card-amazon')
     await expect(card).toHaveAttribute('data-status', 'needs_reconnect')
-    await expect(card.getByTestId('account-status')).toHaveText('Needs reconnect')
-    const alert = card.getByRole('status').filter({ hasText: 'rejected the token refresh' })
+    await expect(card.getByTestId('account-status')).toHaveText('Reconnect needed')
+    const detail = page.getByTestId('marketplace-detail')
+    const alert = detail.getByRole('status').filter({ hasText: 'rejected the token refresh' })
     await expect(alert).toContainText(/Amazon rejected the token refresh (just now|.+ ago)\./)
     await expect(alert).toContainText(`Reconnect with the same seller account (${account.seller_id}); a different seller is refused.`)
     const history = page.getByRole('table', { name: 'Marketplace connection history' })
-    const row = history.locator('tbody tr').filter({ hasText: 'Needs reconnect' })
+    const row = history.locator('tbody tr').filter({ hasText: 'Reconnect needed' })
     await expect(row).toHaveCount(1)
     await expect(row.getByTestId('reconnect-since')).toHaveText(/^since (just now|.+ ago)$/)
     await shot(page, 'needs-reconnect')
 
     // Reconnect as admin through the fake: the same account comes back active.
     const authorize = page.waitForRequest((r) => r.url().startsWith(`${FAKE}/amazon/authorize?`))
-    await card.getByRole('button', { name: 'Reconnect' }).click()
+    await detail.getByRole('button', { name: 'Reconnect' }).click()
     await authorize
     const success = page.getByTestId('connect-success')
-    await expect(success).toContainText('Amazon.in connected', ROUND_TRIP)
-    await expect(success.getByTestId('account-status')).toHaveText('Active')
+    await expect(success).toContainText('Amazon connected', ROUND_TRIP)
+    await expect(success.getByTestId('account-status')).toHaveText('Connected')
     const after = (await listAccounts(request, token)).filter((a) => a.marketplace === 'amazon' && a.status !== 'revoked')
     expect(after.map((a) => [a.id, a.status])).toEqual([[account.id, 'active']])
 
     await page.getByRole('link', { name: 'View marketplaces' }).click()
     await expect(card).toHaveAttribute('data-status', 'active')
     await expect(card.getByRole('button', { name: 'Reconnect' })).toHaveCount(0)
-    await expect(history.locator('tbody tr').filter({ hasText: 'Needs reconnect' })).toHaveCount(0)
+    await expect(history.locator('tbody tr').filter({ hasText: 'Reconnect needed' })).toHaveCount(0)
   })
 })

@@ -87,6 +87,7 @@ export function RulesTable({
       columns={columns}
       getRowId={(r) => r.id}
       onRowClick={onOpenRule}
+      renderCard={(r) => <RuleCard rule={r} onOpen={() => onOpenRule(r)} />}
       toolbar={<RulesFiltersBar value={filters} onChange={onFiltersChange} meta={meta} />}
       empty={
         filtered ? (
@@ -115,5 +116,32 @@ export function RulesTable({
         )
       }
     />
+  )
+}
+
+/** Below 1024px the table becomes cards (hi-fi build notes). The whole card opens the rule sheet. */
+function RuleCard({ rule, onOpen }: { rule: Rule; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      data-testid="rule-card"
+      className="focus-ring flex w-full flex-col gap-2 rounded-card border border-line bg-surface p-4 text-left shadow-sm"
+    >
+      <span className="flex items-center justify-between gap-2">
+        <MarketplaceMark marketplace={rule.marketplace} />
+        <SeverityBadge severity={rule.severity} />
+      </span>
+      <span className="font-semibold text-ink">{ruleTypeLabel(rule.rule_type)}</span>
+      <code className="font-mono text-[12.5px] break-all text-ink-2" title={fieldLabel(rule.field)}>
+        {rule.field}
+      </code>
+      <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-ink-2">
+        <CategoryText category={rule.category} />
+        <span className="tabular-nums">v{rule.version}</span>
+        <EnabledDot enabled={rule.enabled} />
+        <ScopeBadge scope={rule.scope} />
+      </span>
+    </button>
   )
 }

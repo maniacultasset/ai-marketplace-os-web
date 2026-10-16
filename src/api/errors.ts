@@ -137,6 +137,8 @@ export function describeError(e: unknown): string {
     case 404:
       return 'This item was not found. It may have been removed.'
     case 409:
+      if (err.type === 'STALE_VERSION') return 'Someone saved a newer version. Review the latest and try again.'
+      if (err.type === 'IDEMPOTENCY_KEY_REUSED') return 'This request was already sent with different details. Try again.'
       return 'This conflicts with the current state. Refresh and try again.'
     case 413:
       return 'File or draft too large.'

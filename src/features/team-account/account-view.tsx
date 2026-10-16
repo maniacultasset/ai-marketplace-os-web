@@ -180,7 +180,7 @@ function BrandsCard() {
                       onClick={() => {
                         setSwitching(m.tenant_id)
                         switchTenant(m.tenant_id)
-                          .then(() => navigate({ to: '/' }))
+                          .then(() => navigate({ to: '/home' }))
                           .catch((e: unknown) => {
                             // switchTenant already toasts 404; 401 goes through session handling.
                             if (isApiError(e) && (e.status === 404 || e.status === 401)) return

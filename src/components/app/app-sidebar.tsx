@@ -1,113 +1,106 @@
-import { useQuery } from '@tanstack/react-query'
+/**
+ * Sidebar (hi-fi app shell): 232px white column (72px icon rail when collapsed), Listing Agent
+ * mark, brand switcher, nav (38px rows, active = brand tint), Platform section for platform
+ * admins, Agent status card at the bottom, collapse control.
+ */
 import { Link, useRouterState } from '@tanstack/react-router'
-import { probe } from '@/api/client'
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarRail,
-  useSidebar,
-} from '@/components/ui/sidebar'
-import { Kbd } from '@/components/ui/kbd'
-import { NAV_SECTIONS, useNavItems } from '@/lib/nav'
+import { Icon, LogoMark } from '@/components/la/icons'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { InboxNavBadge } from '@/features/inbox/inbox-nav-badge'
+import { activeNavId, NAV_SECTIONS, useNavItems } from '@/lib/nav'
 import { cn } from '@/lib/utils'
-import { BrandMark } from './brand-mark'
+import { AgentStatusCard } from './agent-status'
+import { BrandSwitcher } from './brand-switcher'
+import { NavIcon } from './nav-icon'
 
-/** Live API readiness from GET /readyz, re-checked every minute. */
-function ApiStatus() {
-  const ready = useQuery({
-    queryKey: ['system', 'readyz'],
-    queryFn: () => probe('/readyz'),
-    refetchInterval: 60_000,
-    staleTime: 30_000,
-  })
-  const state = ready.isPending ? 'checking' : ready.data?.ok ? 'ok' : 'down'
-  const label = { checking: 'Checking API…', ok: 'API connected', down: 'API not ready' }[state]
-  return (
-    <div className="flex items-center gap-2 text-xs text-muted-foreground" role="status" aria-live="polite">
-      <span className="relative flex size-2" aria-hidden>
-        {state === 'ok' ? (
-          <span className="absolute inset-0 animate-ping rounded-full bg-success/50 [animation-duration:2.4s] [animation-iteration-count:3]" />
-        ) : null}
-        <span
-          className={cn(
-            'relative size-2 rounded-full',
-            state === 'ok' && 'bg-success',
-            state === 'down' && 'bg-destructive',
-            state === 'checking' && 'bg-muted-foreground/40',
-          )}
-        />
-      </span>
-      {label}
-    </div>
-  )
-}
-
-export function AppSidebar() {
+export function AppSidebar({
+  collapsed,
+  onToggleCollapsed,
+  onNavigate,
+  className,
+}: {
+  collapsed: boolean
+  /** Omit to hide the collapse control (mobile drawer). */
+  onToggleCollapsed?: () => void
+  onNavigate?: () => void
+  className?: string
+}) {
   const items = useNavItems('main')
   const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const { setOpenMobile } = useSidebar()
-
-  const sections = NAV_SECTIONS.map((section) => ({
-    section,
-    items: items.filter((i) => (i.section ?? 'Catalog') === section),
-  })).filter((s) => s.items.length > 0)
+  const activeId = activeNavId(items, pathname)
+  const sections = NAV_SECTIONS.map((section) => ({ section, items: items.filter((i) => (i.section ?? 'Main') === section) })).filter(
+    (s) => s.items.length > 0,
+  )
 
   return (
-    <Sidebar collapsible="icon" variant="inset" aria-label="Main navigation">
-      <SidebarHeader className="h-14 justify-center px-3 group-data-[collapsible=icon]:px-2">
-        <Link
-          to="/"
-          className="flex min-w-0 items-center gap-2.5 rounded-lg px-1 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-        >
-          <BrandMark />
-          <span className="truncate text-[0.9375rem] font-semibold tracking-tight text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden">
-            Marketplace OS
-          </span>
-        </Link>
-      </SidebarHeader>
-      <SidebarContent className="gap-0 pt-1" data-testid="main-nav">
+    <nav
+      aria-label="Main navigation"
+      data-collapsed={collapsed || undefined}
+      className={cn('flex h-full flex-col gap-0.5 border-r border-line bg-surface px-3 py-4', className)}
+    >
+      <Link
+        to="/home"
+        onClick={onNavigate}
+        className={cn('mb-3.5 flex items-center gap-2.5 rounded-control px-1.5 font-display text-[15px] font-bold text-ink', collapsed && 'justify-center px-0')}
+        aria-label="Listing Agent home"
+      >
+        <LogoMark />
+        <span className={cn(collapsed && 'sr-only')}>Listing Agent</span>
+      </Link>
+      <BrandSwitcher collapsed={collapsed} />
+      <div data-testid="main-nav" className="flex flex-col gap-0.5">
         {sections.map(({ section, items: sectionItems }) => (
-          <SidebarGroup key={section} className="py-1.5">
-            <SidebarGroupLabel className="h-7 text-[0.6875rem] font-medium tracking-wide text-muted-foreground/80 uppercase">
-              {section}
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu className="gap-0.5">
-                {sectionItems.map((item) => {
-                  const active = pathname === item.to || pathname.startsWith(`${item.to}/`)
-                  return (
-                    <SidebarMenuItem key={item.id}>
-                      <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
-                        <Link to={item.to} onClick={() => setOpenMobile(false)} data-nav-id={item.id}>
-                          <item.icon />
-                          <span>{item.label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  )
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          <div key={section} className="flex flex-col gap-0.5" role="group" aria-label={section === 'Main' ? undefined : section}>
+            {section !== 'Main' ? (
+              <p className={cn('mt-4 mb-1 px-2.5 text-caption text-ink-3', collapsed && 'sr-only')}>{section}</p>
+            ) : null}
+            {sectionItems.map((item) => {
+              const active = item.id === activeId
+              const link = (
+                <Link
+                  to={item.to}
+                  onClick={onNavigate}
+                  data-nav-id={item.id}
+                  aria-current={active ? 'page' : undefined}
+                  className={cn(
+                    'flex h-[38px] items-center gap-2.5 rounded-control px-2.5 font-medium text-ink-2 transition-colors duration-150 hover:bg-canvas hover:text-ink',
+                    active && 'bg-brand-bg font-bold text-brand hover:bg-brand-bg hover:text-brand',
+                    collapsed && 'justify-center px-0',
+                  )}
+                >
+                  <NavIcon icon={item.icon} />
+                  <span className={cn('truncate', collapsed && 'sr-only')}>{item.label}</span>
+                  {item.id === 'inbox' && !collapsed ? <InboxNavBadge /> : null}
+                </Link>
+              )
+              return collapsed ? (
+                <Tooltip key={item.id}>
+                  <TooltipTrigger asChild>{link}</TooltipTrigger>
+                  <TooltipContent side="right">{item.label}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <div key={item.id}>{link}</div>
+              )
+            })}
+          </div>
         ))}
-      </SidebarContent>
-      <SidebarFooter className="gap-3 px-4 pb-4 group-data-[collapsible=icon]:hidden">
-        <ApiStatus />
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Kbd>⌘</Kbd>
-          <Kbd>K</Kbd>
-          <span>to jump anywhere</span>
-        </p>
-      </SidebarFooter>
-      <SidebarRail />
-    </Sidebar>
+      </div>
+      {collapsed ? <div className="mt-auto" /> : <AgentStatusCard />}
+      {onToggleCollapsed ? (
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!collapsed}
+          className={cn(
+            'mt-2 flex h-8 items-center gap-2.5 rounded-control px-2.5 text-caption font-semibold text-ink-3 transition-colors duration-150 hover:bg-canvas hover:text-ink',
+            collapsed && 'justify-center px-0',
+          )}
+        >
+          <Icon name="panel" size={16} />
+          <span className={cn(collapsed && 'sr-only')}>{collapsed ? 'Expand' : 'Collapse'}</span>
+        </button>
+      ) : null}
+    </nav>
   )
 }

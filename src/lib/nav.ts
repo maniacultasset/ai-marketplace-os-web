@@ -3,29 +3,22 @@
  * not shipped yet). An item appears when (1) its route exists in the generated route tree,
  * (2) the current role holds `action`, and (3) its optional `capability` is BUILT and probed live.
  */
-import {
-  FileUp,
-  Gauge,
-  ListChecks,
-  Package,
-  Store,
-  UserRound,
-  Users,
-  type LucideIcon,
-} from 'lucide-react'
+import { Gauge, UserCheck, UserRound, type LucideIcon } from 'lucide-react'
 import { useRouter } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { BUILT, type Capability } from '@/api/capabilities'
+import type { IconName } from '@/components/la/icons'
 import { useCapabilityProbe } from '@/hooks/use-capabilities'
-import { useCan, type Action } from '@/lib/permissions'
+import { useCan, type Policy } from '@/lib/permissions'
 
 export interface NavItem {
   id: string
   label: string
   to: string
-  icon: LucideIcon
-  /** RBAC action required to see the item (src/lib/permissions.ts). */
-  action: Action
+  /** Sidebar items use the hi-fi icon set; user-menu items a lucide icon. */
+  icon: IconName | LucideIcon
+  /** RBAC action (or 'platform:admin') required to see the item (src/lib/permissions.ts). */
+  action: Policy
   /** 'main' = sidebar; 'user' = user menu. Both appear in the command palette. */
   placement: 'main' | 'user'
   /** Pending backend capability; hidden until BUILT and live. */
@@ -35,68 +28,113 @@ export interface NavItem {
   /** Extra words for the command palette. */
   keywords?: string[]
   description: string
-  /** Sidebar section heading. */
+  /** Sidebar section. 'main' items render without a heading (hi-fi p06). */
   section?: NavSection
+  /** Paths (besides `to`) that keep this item highlighted. */
+  activeFor?: readonly string[]
 }
 
-export type NavSection = 'Catalog' | 'Channels' | 'Compliance' | 'Organization'
-export const NAV_SECTIONS: readonly NavSection[] = ['Catalog', 'Channels', 'Compliance', 'Organization']
+export type NavSection = 'Main' | 'Platform'
+export const NAV_SECTIONS: readonly NavSection[] = ['Main', 'Platform']
 
+/**
+ * Sidebar order = hi-fi order: Home, Products, Add products, Inbox, Marketplaces, Activity,
+ * Settings; then Platform (platform admins only).
+ */
 export const NAV_ITEMS: readonly NavItem[] = [
   {
-    id: 'products',
-    section: 'Catalog',
-    label: 'Products',
-    to: '/products',
-    icon: Package,
+    id: 'home',
+    section: 'Main',
+    label: 'Home',
+    to: '/home',
+    icon: 'home',
     action: 'tenant:read',
     placement: 'main',
-    keywords: ['catalog', 'sku'],
-    description: 'Product catalog',
+    keywords: ['dashboard', 'overview', 'start'],
+    description: 'What is live, in progress and waiting for you',
+    activeFor: ['/analytics'],
   },
   {
-    id: 'imports',
-    section: 'Catalog',
-    label: 'Imports',
-    to: '/imports',
-    icon: FileUp,
+    id: 'products',
+    section: 'Main',
+    label: 'Products',
+    to: '/products',
+    icon: 'box',
     action: 'tenant:read',
     placement: 'main',
-    keywords: ['csv', 'upload', 'bulk'],
-    description: 'CSV imports and reports',
+    keywords: ['catalog', 'sku', 'listings'],
+    description: 'Every product and its marketplace status',
+    activeFor: ['/listings', '/runs', '/imports', '/jobs', '/issues'],
+  },
+  {
+    id: 'add',
+    section: 'Main',
+    label: 'Add products',
+    to: '/add',
+    icon: 'plus',
+    action: 'product:import',
+    placement: 'main',
+    keywords: ['new', 'create', 'upload', 'csv', 'bulk', 'import'],
+    description: 'Guided form or bulk spreadsheet',
+    activeFor: ['/products/new', '/imports/new'],
+  },
+  {
+    id: 'inbox',
+    section: 'Main',
+    label: 'Inbox',
+    to: '/inbox',
+    icon: 'inbox',
+    action: 'tenant:read',
+    capability: 'inbox',
+    placement: 'main',
+    keywords: ['issues', 'tasks', 'questions', 'todo'],
+    description: 'Questions and issues that need you',
   },
   {
     id: 'marketplaces',
-    section: 'Channels',
+    section: 'Main',
     label: 'Marketplaces',
     to: '/marketplaces',
-    icon: Store,
+    icon: 'store',
     action: 'tenant:read',
     placement: 'main',
     keywords: ['amazon', 'flipkart', 'connect'],
-    description: 'Marketplace seller accounts',
+    description: 'Connected seller accounts',
   },
   {
-    id: 'rules',
-    section: 'Compliance',
-    label: 'Rules',
-    to: '/rules',
-    icon: ListChecks,
+    id: 'activity',
+    section: 'Main',
+    label: 'Activity',
+    to: '/activity',
+    icon: 'activity',
     action: 'tenant:read',
     placement: 'main',
-    keywords: ['validation', 'dry run'],
-    description: 'Marketplace listing rules',
+    keywords: ['history', 'log', 'agent'],
+    description: 'What the agent and your team did',
   },
   {
-    id: 'team',
-    section: 'Organization',
-    label: 'Team',
-    to: '/team',
-    icon: Users,
-    action: 'team:manage',
+    id: 'settings',
+    section: 'Main',
+    label: 'Settings',
+    to: '/settings',
+    icon: 'sliders',
+    action: 'tenant:read',
     placement: 'main',
-    keywords: ['members', 'roles'],
-    description: 'Members and roles',
+    keywords: ['brand', 'team', 'rules', 'autonomy', 'compliance'],
+    description: 'Brand profile, team, rules and approval',
+    activeFor: ['/brand', '/team', '/rules', '/setup', '/account'],
+  },
+  {
+    id: 'signups',
+    section: 'Platform',
+    label: 'Sign-up requests',
+    to: '/admin/signups',
+    icon: UserCheck,
+    action: 'platform:admin',
+    capability: 'signups',
+    placement: 'main',
+    keywords: ['admin', 'approve', 'reject', 'onboarding', 'trial'],
+    description: 'Approve or reject brand sign-ups',
   },
   {
     id: 'account',
@@ -120,6 +158,34 @@ export const NAV_ITEMS: readonly NavItem[] = [
     description: 'API health and capability probe',
   },
 ]
+
+/** Length of the longest of `item`'s paths that `pathname` falls under, or -1. */
+function matchLength(item: Pick<NavItem, 'to' | 'activeFor'>, pathname: string) {
+  let best = -1
+  for (const p of [item.to, ...(item.activeFor ?? [])]) {
+    if ((pathname === p || pathname.startsWith(`${p}/`)) && p.length > best) best = p.length
+  }
+  return best
+}
+
+/** Whether `pathname` belongs to `item` (its own path or one of `activeFor`). */
+export function isNavActive(item: Pick<NavItem, 'to' | 'activeFor'>, pathname: string) {
+  return matchLength(item, pathname) >= 0
+}
+
+/** The one item to highlight: the most specific match (/products/new → Add products). */
+export function activeNavId(items: readonly Pick<NavItem, 'id' | 'to' | 'activeFor'>[], pathname: string): string | null {
+  let id: string | null = null
+  let best = -1
+  for (const i of items) {
+    const n = matchLength(i, pathname)
+    if (n > best) {
+      best = n
+      id = i.id
+    }
+  }
+  return id
+}
 
 /** Whether a route file exists for `path` in the generated route tree. */
 export function useRouteExists() {

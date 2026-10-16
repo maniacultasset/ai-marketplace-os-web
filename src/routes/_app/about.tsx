@@ -19,6 +19,7 @@ import { useKeys } from '@/lib/query-keys'
 import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_app/about')({
+  staticData: { title: 'Diagnostics' },
   component: AboutPage,
 })
 

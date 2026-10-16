@@ -3,8 +3,11 @@ import { asApiError, networkError, toApiError } from './errors'
 import { API_BASE, API_ORIGIN, clearSession, getAccessToken, getSession, refreshOnce } from './session'
 import type { V1Paths } from './types'
 
-/** Ops that never carry a bearer token and whose 401 never triggers a refresh. */
-const PUBLIC_PATHS = ['/auth/login', '/auth/refresh', '/auth/logout']
+/**
+ * Ops that never carry a bearer token and whose 401 never triggers a refresh. `/signup/status`
+ * answers 401 for a wrong email/password, which must not end (or refresh) a session.
+ */
+const PUBLIC_PATHS = ['/auth/login', '/auth/refresh', '/auth/logout', '/api/v1/signup', '/signup/status']
 
 function isPublic(url: string) {
   const path = new URL(url, window.location.origin).pathname
