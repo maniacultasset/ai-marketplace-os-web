@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { activeNavId, NAV_ITEMS } from '@/lib/nav'
 import { useRouteMeta } from '@/lib/route-meta'
+import { useScrolled } from '@/lib/use-scrolled'
 import { cn } from '@/lib/utils'
 import { AppSidebar } from './app-sidebar'
 import { CommandPaletteProvider } from './command-palette'
@@ -38,13 +39,17 @@ function writePref(v: Pref) {
 }
 
 function TopBar({ title, onOpenMenu }: { title: string; onOpenMenu: () => void }) {
+  const scrolled = useScrolled()
   return (
-    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3.5 border-b border-line bg-canvas px-4 md:px-7">
+    <header
+      data-scrolled={scrolled || undefined}
+      className="material-bar sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3.5 px-4 md:px-7"
+    >
       <button
         type="button"
         onClick={onOpenMenu}
         aria-label="Open navigation"
-        className="tactile -ml-1 inline-flex size-9 items-center justify-center rounded-[10px] text-ink-2 hover:bg-hover active:shadow-pressed md:hidden"
+        className="tactile press -ml-1 inline-flex size-9 items-center justify-center rounded-[10px] text-ink-2 hover:bg-hover active:shadow-pressed md:hidden"
       >
         <Icon name="menu" size={20} />
       </button>

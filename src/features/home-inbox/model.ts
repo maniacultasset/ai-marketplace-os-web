@@ -533,3 +533,11 @@ export function retriesStopped(
   if (!err.retryable) return { reason: 'not_retryable', attempts, max: err.max_attempts }
   return null
 }
+
+/** "Good morning, Priya": the first word of the display name, by the viewer's local hour. */
+export function greeting(name: string | null, hour = new Date().getHours()) {
+  const first = name?.trim().split(/\s+/)[0]
+  if (!first) return 'Home'
+  const part = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
+  return `Good ${part}, ${first}`
+}

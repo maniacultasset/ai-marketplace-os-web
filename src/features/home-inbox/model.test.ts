@@ -3,6 +3,7 @@ import type { Schema } from '@/api/types'
 import type { Issue, Task } from '@/features/inbox/model'
 import { walkListings } from './api'
 import {
+  greeting,
   attemptsTimeline,
   brandProfileDone,
   currentAccount,
@@ -388,4 +389,16 @@ describe('walkListings', () => {
 it('fmtCount uses Indian grouping and "+" for lower bounds', () => {
   expect(fmtCount({ n: 1200, more: true })).toBe('1,200+')
   expect(fmtCount({ n: 4, more: false })).toBe('4')
+})
+
+describe('greeting', () => {
+  it('greets by first name and the local hour', () => {
+    expect(greeting('Priya Raman', 9)).toBe('Good morning, Priya')
+    expect(greeting('Priya', 13)).toBe('Good afternoon, Priya')
+    expect(greeting('  Priya  Raman ', 20)).toBe('Good evening, Priya')
+  })
+  it('falls back to Home without a name', () => {
+    expect(greeting(null, 9)).toBe('Home')
+    expect(greeting('   ', 9)).toBe('Home')
+  })
 })

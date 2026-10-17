@@ -3,8 +3,10 @@
 @source "../index.html";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/dm-sans";
-@import "@fontsource-variable/bricolage-grotesque";
+/* opsz builds: both faces carry an optical-size axis, so large type is drawn tighter and small
+   type opens up (font-optical-sizing: auto, below). */
+@import "@fontsource-variable/dm-sans/opsz.css";
+@import "@fontsource-variable/bricolage-grotesque/opsz.css";
 
 /* The product UI is a fixed light theme (hi-fi "product UI kit"). `dark:` classes never apply. */
 @custom-variant dark (&:is(.dark *));
@@ -89,6 +91,15 @@
   --pressed: #dde2eb;
   --ease-tactile: cubic-bezier(0.2, 0.8, 0.2, 1);
   --dur-tactile: 160ms;
+  /* Critically damped spring (damping 1.0), sampled into linear(): no overshoot, settles softly.
+     Used with --dur-spring (response ~0.35s). Browsers without linear() fall back to ease-out. */
+  --ease-spring: linear(0, 0.047 4%, 0.152 8%, 0.277 12%, 0.401 16%, 0.514 20%, 0.634 25%, 0.730 30%, 0.816 36%, 0.876 42%, 0.929 50%, 0.965 60%, 0.985 72%, 0.995 86%, 1);
+  --dur-spring: 480ms;
+  /* Press feedback lands on pointer-down, fast. */
+  --dur-press: 90ms;
+  /* Translucent chrome (sticky bars): canvas or surface at 78% with blur, content scrolls under. */
+  --material-canvas: rgb(237 240 245 / 0.78);
+  --material-surface: rgb(251 252 253 / 0.8);
 
   /* icon tiles (raised squircles with a tinted fill) */
   --tile-neutral-bg: var(--surface);
@@ -177,25 +188,28 @@
   /* Type scale: text-display / text-h1 / text-h2 / text-h3 / text-body / text-small / text-caption. */
   --text-display: 34px;
   --text-display--line-height: 38px;
-  --text-display--letter-spacing: -0.02em;
+  --text-display--letter-spacing: -0.025em;
   --text-display--font-weight: 700;
   --text-h1: 26px;
   --text-h1--line-height: 32px;
-  --text-h1--letter-spacing: -0.015em;
+  --text-h1--letter-spacing: -0.02em;
   --text-h1--font-weight: 700;
   --text-h2: 20px;
   --text-h2--line-height: 26px;
-  --text-h2--letter-spacing: -0.01em;
+  --text-h2--letter-spacing: -0.015em;
   --text-h2--font-weight: 700;
   --text-h3: 16px;
   --text-h3--line-height: 22px;
   --text-h3--font-weight: 700;
+  --text-h3--letter-spacing: -0.008em;
   --text-body: 14px;
   --text-body--line-height: 20px;
   --text-small: 13px;
   --text-small--line-height: 18px;
+  --text-small--letter-spacing: 0.003em;
   --text-caption: 12px;
   --text-caption--line-height: 16px;
+  --text-caption--letter-spacing: 0.01em;
 
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
@@ -315,6 +329,8 @@
     @apply font-sans;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-optical-sizing: auto;
+    text-rendering: optimizeLegibility;
     color-scheme: light;
     -webkit-tap-highlight-color: transparent;
   }
@@ -371,7 +387,7 @@
 @layer utilities {
   /* Page content arrives with a short rise; transform + opacity only. */
   .animate-page-in {
-    animation: page-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation: page-in var(--dur-spring) var(--ease-spring) both;
   }
   /* Controls draw their own ring instead of the global outline. */
   .focus-ring {
@@ -424,8 +440,10 @@
   &:hover:not(:disabled, [aria-disabled="true"]) {
     transform: translateY(-1px);
   }
-  &:active {
-    transform: none;
+  /* Pressed: settles back and gives a touch under the finger, at once (pointer-down). */
+  &:active:not(:disabled, [aria-disabled="true"]) {
+    transform: scale(0.98);
+    transition-duration: var(--dur-press);
   }
   @media (prefers-reduced-motion: reduce) {
     &:hover:not(:disabled, [aria-disabled="true"]) {
@@ -434,16 +452,105 @@
   }
 }
 
+/* Press: any tactile control (nav rows, list rows, ghost buttons) dips slightly on pointer-down. */
+@utility press {
+  &:active:not(:disabled, [aria-disabled="true"]) {
+    transform: scale(0.98);
+    transition-duration: var(--dur-press);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    &:active:not(:disabled, [aria-disabled="true"]) {
+      transform: none;
+    }
+  }
+}
+/* Material: a translucent sticky bar. Content scrolls under it; the hairline below only appears
+   once something is underneath ([data-scrolled]), so at rest the bar is part of the page. */
+@utility material-bar {
+  background-color: var(--material-canvas);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  backdrop-filter: blur(18px) saturate(170%);
+  border-bottom: 1px solid transparent;
+  transition: border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
+  &[data-scrolled] {
+    border-bottom-color: var(--line);
+    box-shadow: 0 6px 16px -10px rgb(var(--shade) / 0.18);
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    background-color: var(--canvas);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  @media (prefers-contrast: more) {
+    background-color: var(--canvas);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-bottom-color: var(--line-strong);
+  }
+}
+/* Reveal: a section rises into place as it scrolls into view. CSS scroll-driven animation, so no
+   script and nothing hidden where the browser lacks it (it simply shows). Off for reduced motion. */
+@utility reveal {
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      animation: reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+  }
+}
+/* Staggered arrival for a row of tiles: each child rises 50ms after the one before it. */
+@utility stagger-children {
+  & > * {
+    animation: page-in var(--dur-spring) var(--ease-spring) both;
+  }
+  & > :nth-child(2) {
+    animation-delay: 50ms;
+  }
+  & > :nth-child(3) {
+    animation-delay: 100ms;
+  }
+  & > :nth-child(4) {
+    animation-delay: 150ms;
+  }
+}
+/* Materialize: a hero surface arrives with scale + opacity together, once. */
+@utility materialize {
+  animation: materialize 700ms var(--ease-spring) 120ms both;
+}
+
 /* One icon weight: lucide defaults (stroke 2) are drawn at the hi-fi 1.75. An explicit
    strokeWidth other than 2 (e.g. a bold check) is left alone. */
 svg.lucide[stroke-width="2"] {
   stroke-width: 1.75;
 }
 
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes materialize {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @keyframes page-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;

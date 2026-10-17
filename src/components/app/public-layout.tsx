@@ -1,5 +1,5 @@
 /**
- * Public frame for the landing page, legal pages and auth pages: white header (mark, links,
+ * Public frame for the landing page, legal pages and auth pages: translucent sticky header (mark, links,
  * "Sign in", one primary "Request access"), canvas body, plain footer. Sign-up is a request a
  * person reviews (ADR-0019), so the primary call to action is "Request access", never "Sign up".
  */
@@ -7,11 +7,13 @@ import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { Wordmark } from '@/components/la/icons'
 import { Button } from '@/components/ui/button'
+import { useScrolled } from '@/lib/use-scrolled'
 import { cn } from '@/lib/utils'
 
 export function PublicHeader({ links }: { links?: ReactNode }) {
+  const scrolled = useScrolled()
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-surface">
+    <header data-scrolled={scrolled || undefined} className="material-bar sticky top-0 z-30">
       <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-4 px-4 md:gap-6 md:px-8">
         <Link to="/" aria-label="Listing Agent home" className="shrink-0">
           <Wordmark size="lg" compactBelowSm />

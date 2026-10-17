@@ -63,7 +63,7 @@ export function AppSidebar({
                   data-nav-id={item.id}
                   aria-current={active ? 'page' : undefined}
                   className={cn(
-                    'tactile flex h-[38px] items-center gap-2.5 rounded-[10px] border border-transparent px-2.5 font-medium text-ink-2 hover:bg-hover hover:text-ink active:shadow-pressed',
+                    'tactile press flex h-[38px] items-center gap-2.5 rounded-[10px] border border-transparent px-2.5 font-medium text-ink-2 hover:bg-hover hover:text-ink active:shadow-pressed',
                     // Active: a raised matte tile with the brand label, the icon in a brand tint.
                     active && 'border-line bg-surface font-bold text-brand shadow-raised-sm hover:bg-surface hover:text-brand',
                     collapsed && 'justify-center px-0',
@@ -103,7 +103,7 @@ export function AppSidebar({
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           aria-expanded={!collapsed}
           className={cn(
-            'tactile mt-2 flex h-8 items-center gap-2.5 rounded-[10px] px-2.5 text-caption font-semibold text-ink-3 hover:bg-hover hover:text-ink active:shadow-pressed',
+            'tactile press mt-2 flex h-8 items-center gap-2.5 rounded-[10px] px-2.5 text-caption font-semibold text-ink-3 hover:bg-hover hover:text-ink active:shadow-pressed',
             collapsed && 'justify-center px-0',
           )}
         >

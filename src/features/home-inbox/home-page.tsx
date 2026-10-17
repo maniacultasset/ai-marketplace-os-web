@@ -28,6 +28,7 @@ import { FirstRun } from './first-run'
 import {
   API_MARKETPLACES,
   fmtCount,
+  greeting,
   inProgressTile,
   issueTitle,
   itemKey,
@@ -57,10 +58,20 @@ export function HomePage() {
     )
   // p05 "Checklist and routes are shown until the first listing exists" (no listings at all).
   if (snapshot.data.total === 0) return <FirstRun brand={brand} />
-  return <Dashboard brand={brand} snapshot={snapshot.data} updatedAt={snapshot.dataUpdatedAt} />
+  return <Dashboard brand={brand} name={me?.display_name ?? null} snapshot={snapshot.data} updatedAt={snapshot.dataUpdatedAt} />
 }
 
-function Dashboard({ brand, snapshot, updatedAt }: { brand: string; snapshot: ListingsSnapshot; updatedAt: number }) {
+function Dashboard({
+  brand,
+  name,
+  snapshot,
+  updatedAt,
+}: {
+  brand: string
+  name: string | null
+  snapshot: ListingsSnapshot
+  updatedAt: number
+}) {
   const can = useCan()
   const tasks = useTasksList('open')
   const issues = useIssuesList({})
@@ -79,7 +90,7 @@ function Dashboard({ brand, snapshot, updatedAt }: { brand: string; snapshot: Li
   return (
     <Page>
       <PageHeader
-        title="Home"
+        title={greeting(name)}
         description={
           <>
             {brand ? `${brand} · ` : null}
@@ -105,7 +116,7 @@ function Dashboard({ brand, snapshot, updatedAt }: { brand: string; snapshot: Li
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3" data-testid="home-tiles">
+      <div className="stagger-children grid grid-cols-1 gap-4 md:grid-cols-3" data-testid="home-tiles">
         <Tile testId="tile-live" chip={<StatusChip status="live" />} view={live} />
         <Tile testId="tile-working" chip={<StatusChip status="working">In progress</StatusChip>} view={working} />
         {inboxError ? (
@@ -228,7 +239,7 @@ const MARKETPLACE_CARDS: readonly MarketplaceId[] = ['amazon', 'flipkart', 'mynt
 function MarketplaceRow({ snapshot }: { snapshot: ListingsSnapshot }) {
   const accounts = useCurrentMarketplaceAccounts()
   return (
-    <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="home-marketplaces">
+    <div className="stagger-children mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="home-marketplaces">
       {MARKETPLACE_CARDS.map((id) => {
         const name = id === 'ajio' ? 'AJIO' : id.charAt(0).toUpperCase() + id.slice(1)
         const supported = (API_MARKETPLACES as readonly string[]).includes(id)

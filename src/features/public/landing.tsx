@@ -80,18 +80,21 @@ const BULK = [
 function Section({ id, title, lede, children, className }: { id?: string; title: ReactNode; lede?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <section id={id} aria-labelledby={id ? `${id}-h` : undefined} className={cn('scroll-mt-20 border-t border-line', className)}>
-      <div className="mx-auto max-w-[1200px] px-4 py-14 md:px-8 md:py-20">
-        <h2 id={id ? `${id}-h` : undefined} className="max-w-[28ch] font-display text-[clamp(1.6rem,3vw,2.2rem)] leading-[1.15] font-bold tracking-[-0.015em] text-ink">
+      <div className="reveal mx-auto max-w-[1200px] px-4 py-16 md:px-8 md:py-24">
+        <h2
+          id={id ? `${id}-h` : undefined}
+          className="max-w-[26ch] font-display text-[clamp(1.75rem,3.2vw,2.5rem)] leading-[1.08] font-bold tracking-[-0.022em] text-ink"
+        >
           {title}
         </h2>
-        {lede ? <p className="mt-3 max-w-[62ch] text-[16px] leading-[1.6] text-ink-2">{lede}</p> : null}
-        <div className="mt-10">{children}</div>
+        {lede ? <p className="mt-4 max-w-[60ch] text-[17px] leading-[1.6] text-ink-2">{lede}</p> : null}
+        <div className="mt-10 md:mt-12">{children}</div>
       </div>
     </section>
   )
 }
 
-const navLink = 'rounded-control px-1 hover:text-ink'
+const navLink = 'tactile rounded-control px-2 py-2 hover:bg-hover hover:text-ink'
 
 export function Landing() {
   useDocumentTitle(null)
@@ -113,19 +116,19 @@ export function Landing() {
     >
       {/* Hero */}
       <section aria-labelledby="hero-h" className="bg-canvas">
-        <div className="mx-auto grid max-w-[1200px] grid-cols-1 items-center gap-12 px-4 py-14 md:px-8 md:py-20 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)]">
-          <div>
+        <div className="mx-auto grid max-w-[1200px] grid-cols-1 items-center gap-12 px-4 pt-14 pb-16 md:px-8 md:pt-20 md:pb-24 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)] lg:gap-16">
+          <div className="animate-page-in">
             <h1
               id="hero-h"
-              className="max-w-[17ch] font-display text-[clamp(2.25rem,4.6vw,3.4rem)] leading-[1.05] font-bold tracking-[-0.02em] text-ink"
+              className="max-w-[16ch] font-display text-[clamp(2.4rem,5vw,3.75rem)] leading-[1.02] font-bold tracking-[-0.028em] text-ink"
             >
               Two marketplaces. Two rulebooks. One catalog.
             </h1>
-            <p className="mt-5 max-w-[46ch] text-[17px] leading-[1.6] text-ink-2">
+            <p className="mt-6 max-w-[46ch] text-[18px] leading-[1.55] text-ink-2">
               Listing Agent checks every field of your Amazon and Flipkart listings against each marketplace’s rules and waits
               for someone on your team to approve before anything is sent. Drafting in your brand’s voice is in development.
             </p>
-            <div className="mt-7 flex flex-wrap gap-3">
+            <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild size="lg">
                 <Link to="/signup" data-testid="landing-cta">
                   Request access
@@ -135,7 +138,7 @@ export function Landing() {
                 <a href="#how">See how it works</a>
               </Button>
             </div>
-            <ul className="mt-7 flex flex-wrap gap-2" aria-label="At a glance">
+            <ul className="mt-8 flex flex-wrap gap-2" aria-label="At a glance">
               {['Every request reviewed by a person', 'Amazon and Flipkart', 'Nothing is sent without approval'].map((t) => (
                 <li key={t}>
                   <TagChip>{t}</TagChip>
@@ -143,7 +146,9 @@ export function Landing() {
               ))}
             </ul>
           </div>
-          <HeroFinding />
+          <div className="materialize min-w-0">
+            <HeroFinding />
+          </div>
         </div>
       </section>
 
@@ -155,15 +160,15 @@ export function Landing() {
       >
         <ol className="divide-y divide-line border-y border-line">
           {PROBLEMS.map((p, i) => (
-            <li key={p.title} className="grid gap-3 py-6 md:grid-cols-[56px_minmax(0,1.3fr)_minmax(0,1fr)] md:gap-8">
-              <span className="font-display text-h2 font-bold text-ink-3 tabular-nums" aria-hidden>
+            <li key={p.title} className="grid gap-3 py-7 md:grid-cols-[56px_minmax(0,1.3fr)_minmax(0,1fr)] md:gap-8">
+              <span className="font-display text-h2 font-semibold text-ink-3 tabular-nums" aria-hidden>
                 {String(i + 1).padStart(2, '0')}
               </span>
               <div>
                 <h3 className="text-h3 text-ink">{p.title}</h3>
-                <p className="mt-1.5 text-body text-ink-2">{p.body}</p>
+                <p className="mt-2 text-[15px] leading-[1.55] text-ink-2">{p.body}</p>
               </div>
-              <p className="border-l-2 border-attention-line pl-4 text-body font-medium text-ink">{p.cost}</p>
+              <p className="border-l-2 border-attention-line pl-4 text-[15px] leading-[1.55] font-medium text-ink">{p.cost}</p>
             </li>
           ))}
         </ol>
@@ -176,7 +181,7 @@ export function Landing() {
             <li
               key={s.title}
               className={cn(
-                'flex flex-col gap-3 rounded-card border bg-surface p-5',
+                'flex flex-col gap-3 rounded-card border bg-surface p-5 md:p-6',
                 s.title === 'Approve' ? 'border-brand shadow-[var(--selected-ring),var(--shadow-raised-md)]' : 'border-line shadow-raised-md',
               )}
             >
@@ -188,7 +193,7 @@ export function Landing() {
                 <h3 className="text-h3 text-ink">{s.title}</h3>
                 {'inDevelopment' in s ? <TagChip tone="plain">In development</TagChip> : null}
               </div>
-              <p className="text-small text-ink-2">{s.body}</p>
+              <p className="text-body text-ink-2">{s.body}</p>
             </li>
           ))}
         </ol>
@@ -201,7 +206,7 @@ export function Landing() {
         className="bg-surface"
       >
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-card border border-line bg-canvas p-6">
+          <div className="rounded-card border border-line bg-canvas p-6 shadow-inset-sm md:p-7">
             <div className="flex flex-wrap items-center gap-3">
               <IconTile icon="spark" tone="brand" />
               <h3 className="text-h3 text-ink">What the agent will do</h3>
@@ -211,22 +216,22 @@ export function Landing() {
             </div>
             <ul className="mt-4 flex flex-col gap-3">
               {AGENT_DOES.map((t) => (
-                <li key={t} className="flex gap-3 text-body text-ink">
-                  <Icon name="check" size={16} className="mt-0.5 text-success" />
+                <li key={t} className="flex gap-3 text-[15px] leading-[1.5] text-ink">
+                  <Icon name="check" size={16} className="mt-[3px] shrink-0 text-success" />
                   {t}
                 </li>
               ))}
             </ul>
           </div>
-          <div className="rounded-card border border-line bg-canvas p-6">
+          <div className="rounded-card border border-line bg-canvas p-6 shadow-inset-sm md:p-7">
             <div className="flex items-center gap-3">
               <IconTile icon="shield" tone="brand" />
               <h3 className="text-h3 text-ink">What the agent never does</h3>
             </div>
             <ul className="mt-4 flex flex-col gap-3">
               {AGENT_NEVER.map((t) => (
-                <li key={t} className="flex gap-3 text-body text-ink">
-                  <Icon name="x" size={16} className="mt-0.5 text-danger" />
+                <li key={t} className="flex gap-3 text-[15px] leading-[1.5] text-ink">
+                  <Icon name="x" size={16} className="mt-[3px] shrink-0 text-danger" />
                   {t}
                 </li>
               ))}
@@ -292,18 +297,18 @@ export function Landing() {
 
       {/* Final CTA */}
       <section aria-labelledby="cta-h" className="border-t border-line">
-        <div className="mx-auto max-w-[1200px] px-4 py-14 md:px-8 md:py-20">
+        <div className="reveal mx-auto max-w-[1200px] px-4 py-16 md:px-8 md:py-24">
           <div className="flex flex-col gap-6 rounded-card border border-brand-line bg-brand-bg p-6 shadow-raised-md md:flex-row md:items-center md:justify-between md:p-10">
             <div className="flex max-w-[60ch] flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
               <IconTile icon="users" tone="brand" size="lg" />
               <div>
-              <h2 id="cta-h" className="font-display text-[clamp(1.5rem,2.6vw,2rem)] leading-[1.15] font-bold tracking-[-0.015em] text-ink">
-                Access is reviewed by a person
-              </h2>
-              <p className="mt-3 text-body text-ink-2">
-                Tell us your brand, your name and the email you will sign in with. Someone on our team reviews each request, and
-                you can check where yours stands at any time.
-              </p>
+                <h2 id="cta-h" className="font-display text-[clamp(1.6rem,2.8vw,2.2rem)] leading-[1.1] font-bold tracking-[-0.02em] text-ink">
+                  Access is reviewed by a person
+                </h2>
+                <p className="mt-3 text-[15px] leading-[1.55] text-ink-2">
+                  Tell us your brand, your name and the email you will sign in with. Someone on our team reviews each request,
+                  and you can check where yours stands at any time.
+                </p>
               </div>
             </div>
             <div className="flex flex-wrap gap-3">

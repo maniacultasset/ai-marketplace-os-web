@@ -42,7 +42,7 @@ test.describe('home', () => {
       return
     }
     const live = rows.filter((l) => l.marketplace_state === 'live').length
-    await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: /^(Good (morning|afternoon|evening), |Home$)/ })).toBeVisible()
     await expect(page.getByTestId('tile-live-value')).toHaveText(complete ? String(live) : new RegExp(`^${live}\\+$`))
   })
 

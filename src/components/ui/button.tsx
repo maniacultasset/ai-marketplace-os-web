@@ -32,8 +32,8 @@ const buttonVariants = cva(
         secondary: RAISED_NEUTRAL,
         outline: RAISED_NEUTRAL,
         ghost:
-          "border-transparent bg-transparent text-ink-2 hover:bg-hover hover:text-ink active:bg-pressed active:shadow-pressed aria-expanded:bg-hover aria-expanded:text-ink",
-        subtle: "border-line bg-subtle text-ink hover:bg-hover active:bg-pressed active:shadow-pressed",
+          "press border-transparent bg-transparent text-ink-2 hover:bg-hover hover:text-ink active:bg-pressed active:shadow-pressed aria-expanded:bg-hover aria-expanded:text-ink",
+        subtle: "press border-line bg-subtle text-ink hover:bg-hover active:bg-pressed active:shadow-pressed",
         danger: RAISED_DANGER,
         destructive: RAISED_DANGER,
         warn: "lift border-attention bg-attention text-white shadow-raised-warn [--focus-rest:var(--shadow-raised-warn)] hover:border-attention-ink hover:bg-attention-ink active:shadow-pressed-fill",
