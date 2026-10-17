@@ -1,9 +1,11 @@
 /**
  * Sidebar (hi-fi app shell): 232px white column (72px icon rail when collapsed), Listing Agent
- * mark, brand switcher, nav (38px rows, active = brand tint), Platform section for platform
- * admins, Agent status card at the bottom, collapse control.
+ * mark, brand switcher, nav (38px rows, 40px on touch; active = brand label on one raised tile
+ * that slides between rows), Platform section for platform admins, Agent status card at the
+ * bottom, collapse control.
  */
 import { Link, useRouterState } from '@tanstack/react-router'
+import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { Icon, LogoMark } from '@/components/la/icons'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { InboxNavBadge } from '@/features/inbox/inbox-nav-badge'
@@ -31,6 +33,8 @@ export function AppSidebar({
   const sections = NAV_SECTIONS.map((section) => ({ section, items: items.filter((i) => (i.section ?? 'Main') === section) })).filter(
     (s) => s.items.length > 0,
   )
+  const navRef = useRef<HTMLDivElement>(null)
+  const indicatorY = useActiveRowOffset(navRef, activeId, collapsed)
 
   return (
     <nav
@@ -48,7 +52,15 @@ export function AppSidebar({
         <span className={cn(collapsed && 'sr-only')}>Listing Agent</span>
       </Link>
       <BrandSwitcher collapsed={collapsed} />
-      <div data-testid="main-nav" className="flex flex-col gap-0.5">
+      <div ref={navRef} data-testid="main-nav" className="relative flex flex-col gap-0.5">
+        {/* One raised tile under the active row; it slides to the new row on navigation. */}
+        {indicatorY === null ? null : (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-10 rounded-[10px] border border-line bg-surface shadow-raised-sm transition-transform duration-[var(--dur-spring)] ease-[var(--ease-spring)] motion-reduce:transition-none md:h-[38px]"
+            style={{ transform: `translateY(${indicatorY}px)` }}
+          />
+        )}
         {sections.map(({ section, items: sectionItems }) => (
           <div key={section} className="flex flex-col gap-0.5" role="group" aria-label={section === 'Main' ? undefined : section}>
             {section !== 'Main' ? (
@@ -63,9 +75,10 @@ export function AppSidebar({
                   data-nav-id={item.id}
                   aria-current={active ? 'page' : undefined}
                   className={cn(
-                    'tactile press flex h-[38px] items-center gap-2.5 rounded-[10px] border border-transparent px-2.5 font-medium text-ink-2 hover:bg-hover hover:text-ink active:shadow-pressed',
-                    // Active: a raised matte tile with the brand label, the icon in a brand tint.
-                    active && 'border-line bg-surface font-bold text-brand shadow-raised-sm hover:bg-surface hover:text-brand',
+                    'tactile press relative z-10 flex h-10 items-center gap-2.5 rounded-[10px] border border-transparent px-2.5 font-semibold text-ink-2 hover:bg-hover hover:text-ink active:shadow-pressed md:h-[38px]',
+                    // Active: the brand label over the sliding tile, the icon in a brand tint. Only the
+                    // colour changes, so the label never reflows.
+                    active && 'text-brand hover:bg-transparent hover:text-brand',
                     collapsed && 'justify-center px-0',
                   )}
                 >
@@ -103,7 +116,8 @@ export function AppSidebar({
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           aria-expanded={!collapsed}
           className={cn(
-            'tactile press mt-2 flex h-8 items-center gap-2.5 rounded-[10px] px-2.5 text-caption font-semibold text-ink-3 hover:bg-hover hover:text-ink active:shadow-pressed',
+            'tactile press mt-2 flex h-10 items-center gap-2.5 rounded-[10px] px-2.5 text-caption font-semibold text-ink-3 hover:bg-hover hover:text-ink active:shadow-pressed',
+            'md:h-8',
             collapsed && 'justify-center px-0',
           )}
         >
@@ -113,4 +127,40 @@ export function AppSidebar({
       ) : null}
     </nav>
   )
+}
+
+/**
+ * offsetTop of the active row inside the nav list (null when no row is active). Re-read after
+ * route changes, collapse and resize (row heights change at md, sections can wrap).
+ */
+function useActiveRowOffset(listRef: RefObject<HTMLDivElement | null>, activeId: string | null, collapsed: boolean) {
+  const [y, setY] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const list = listRef.current
+    if (!list) return
+    const measure = () => {
+      const row = activeId ? list.querySelector<HTMLElement>(`[data-nav-id="${CSS.escape(activeId)}"]`) : null
+      setY(row ? offsetWithin(row, list) : null)
+    }
+    measure()
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    ro?.observe(list)
+    window.addEventListener('resize', measure)
+    return () => {
+      ro?.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [listRef, activeId, collapsed])
+  return y
+}
+
+/** offsetTop summed up to `ancestor` (rows sit inside section groups and tooltip wrappers). */
+function offsetWithin(el: HTMLElement, ancestor: HTMLElement) {
+  let top = 0
+  let node: HTMLElement | null = el
+  while (node && node !== ancestor) {
+    top += node.offsetTop
+    node = node.offsetParent as HTMLElement | null
+  }
+  return top
 }

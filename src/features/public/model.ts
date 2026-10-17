@@ -52,7 +52,7 @@ export function heroFindings(): HeroFinding[] {
         marketplace,
         field: 'content.title',
         code: 'BANNED_TERM',
-        message: `Title contains the banned term "${HERO_EXAMPLE.bannedTerm}".`,
+        message: `Title contains the banned term “${HERO_EXAMPLE.bannedTerm}”.`,
         fix: 'Remove it and describe a fact about the product instead.',
       })
     }

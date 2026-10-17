@@ -49,26 +49,27 @@ function TopBar({ title, onOpenMenu }: { title: string; onOpenMenu: () => void }
         type="button"
         onClick={onOpenMenu}
         aria-label="Open navigation"
-        className="tactile press -ml-1 inline-flex size-9 items-center justify-center rounded-[10px] text-ink-2 hover:bg-hover active:shadow-pressed md:hidden"
+        className="tactile press -ml-1 inline-flex size-10 items-center justify-center rounded-[10px] text-ink-2 hover:bg-hover active:shadow-pressed md:hidden md:size-9"
       >
         <Icon name="menu" size={20} />
       </button>
-      <h2 className="min-w-0 truncate font-sans text-[15px] font-bold text-ink" data-testid="page-title">
+      {/* Not a heading: each page's outline starts at its own h1. */}
+      <p className="min-w-0 truncate font-sans text-[15px] font-bold text-ink" data-testid="page-title">
         {title}
-      </h2>
+      </p>
       <div className="ml-auto flex items-center gap-2 md:gap-3.5">
         <Tooltip>
           <TooltipTrigger asChild>
-            <div
-              role="search"
-              aria-disabled
-              tabIndex={0}
-              aria-label="Search products, SKUs (not available yet)"
-              className="inset-field hidden h-[34px] w-60 cursor-not-allowed items-center gap-2 rounded-[10px] border px-2.5 text-small text-ink-3 sm:flex"
+            <button
+              type="button"
+              aria-disabled="true"
+              aria-label="Search products and SKUs (not available yet)"
+              onClick={(e) => e.preventDefault()}
+              className="focus-ring inset-field hidden h-[34px] w-60 cursor-not-allowed items-center gap-2 rounded-[10px] border px-2.5 text-left text-small text-ink-3 sm:flex"
             >
               <Icon name="search" size={16} />
               <span className="truncate">Search products, SKUs</span>
-            </div>
+            </button>
           </TooltipTrigger>
           <TooltipContent>{NOT_YET.productSearch}</TooltipContent>
         </Tooltip>
@@ -79,7 +80,7 @@ function TopBar({ title, onOpenMenu }: { title: string; onOpenMenu: () => void }
               aria-disabled
               aria-label="Notifications (coming soon)"
               onClick={(e) => e.preventDefault()}
-              className="inline-flex size-9 cursor-not-allowed items-center justify-center rounded-[10px] text-ink-2"
+              className="focus-ring inline-flex size-10 cursor-not-allowed items-center justify-center rounded-[10px] text-ink-2 md:size-9"
             >
               <Icon name="bell" size={20} />
             </button>

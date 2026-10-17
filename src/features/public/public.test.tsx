@@ -1,11 +1,25 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import { MARKETPLACES } from '@/components/la/marketplace'
 import { HeroFinding } from './hero-finding'
 import { DESCRIBES_YOU, HERO_EXAMPLE, heroFindings, heroTitleLength, MARKET_STATUS, signupChip, STAGE_CHIP } from './model'
 import { Ph, POLICY_SECTIONS } from './privacy-policy'
 
 describe('hero example (seeded kurta-set rules)', () => {
+  // jsdom has no matchMedia; the length count-up asks for it. Report reduced motion so the real
+  // value renders at once.
+  beforeAll(() => {
+    window.matchMedia ??= ((query: string) => ({
+      matches: query.includes('reduce'),
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia
+  })
   it('has a title that passes Amazon’s 200 limit but breaks Flipkart’s 150', () => {
     const len = heroTitleLength()
     expect(len).toBeGreaterThan(HERO_EXAMPLE.limits.flipkart)
@@ -22,6 +36,7 @@ describe('hero example (seeded kurta-set rules)', () => {
     expect(screen.getByText(/illustrative example/i)).toBeTruthy()
     expect(screen.queryAllByRole('button')).toHaveLength(0)
     expect(screen.queryAllByRole('link')).toHaveLength(0)
+    expect(screen.getByText(`${heroTitleLength()} / ${HERO_EXAMPLE.limits.flipkart} characters`)).toBeTruthy()
   })
 })
 

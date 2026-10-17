@@ -54,10 +54,10 @@ export function PageHeader({
       ) : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0">
-          <h1 className="truncate font-display text-h1 text-ink">{title}</h1>
+          <h1 className="line-clamp-2 font-display text-h1 break-words text-balance text-ink">{title}</h1>
           {description ? <p className="mt-1 max-w-[70ch] text-body text-ink-2">{description}</p> : null}
         </div>
-        {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+        {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2 max-sm:w-full">{actions}</div> : null}
       </div>
     </header>
   )

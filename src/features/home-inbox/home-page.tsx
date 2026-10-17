@@ -24,6 +24,7 @@ import { MARKETPLACE_LABEL, TASK_KIND_LABEL } from '@/features/inbox/model'
 import { useCurrentMarketplaceAccounts } from '@/features/marketplaces/api'
 import { useMe } from '@/lib/auth'
 import { useCan } from '@/lib/permissions'
+import { cn } from '@/lib/utils'
 import { LISTINGS_CAP, useListingsSnapshot, useProductsById } from './api'
 import { FirstRun } from './first-run'
 import {
@@ -47,22 +48,29 @@ export function HomePage() {
   const brand = useBrandName(me)
   const snapshot = useListingsSnapshot()
 
-  if (snapshot.isPending) return <HomeSkeleton />
-  if (snapshot.isError)
-    return (
-      <Page>
-        <PageHeader title="Home" />
-        <LaCard>
-          <ErrorState error={snapshot.error} title="Couldn't load your listings" onRetry={() => void snapshot.refetch()} />
-        </LaCard>
-      </Page>
-    )
   // p05 "Checklist and routes are shown until the first listing exists" (no listings at all).
-  if (snapshot.data.total === 0) return <FirstRun brand={brand} />
-  return <Dashboard brand={brand} name={me?.display_name ?? null} snapshot={snapshot.data} updatedAt={snapshot.dataUpdatedAt} />
+  // FirstRun mounts its own Page; every other state swaps inside one shared Page so the page-in
+  // rise plays once (skeleton → dashboard does not rise twice).
+  if (snapshot.isSuccess && snapshot.data.total === 0) return <FirstRun brand={brand} />
+  return (
+    <Page>
+      {snapshot.isPending ? (
+        <HomeSkeletonBody />
+      ) : snapshot.isError ? (
+        <>
+          <PageHeader title={greeting(me?.display_name ?? null)} description={brand || undefined} />
+          <LaCard className="mx-auto w-full max-w-xl py-10">
+            <ErrorState error={snapshot.error} title="Couldn't load your listings" onRetry={() => void snapshot.refetch()} />
+          </LaCard>
+        </>
+      ) : (
+        <DashboardBody brand={brand} name={me?.display_name ?? null} snapshot={snapshot.data} updatedAt={snapshot.dataUpdatedAt} />
+      )}
+    </Page>
+  )
 }
 
-function Dashboard({
+function DashboardBody({
   brand,
   name,
   snapshot,
@@ -89,7 +97,7 @@ function Dashboard({
   const inboxError = tasks.error ?? issues.error
 
   return (
-    <Page>
+    <>
       <PageHeader
         title={greeting(name)}
         description={
@@ -101,12 +109,12 @@ function Dashboard({
         actions={
           <>
             {can('analytics:read') ? (
-              <Button asChild variant="ghost" data-testid="home-reports">
+              <Button asChild variant="ghost" className="max-sm:flex-1" data-testid="home-reports">
                 <Link to="/analytics">Listing reports</Link>
               </Button>
             ) : null}
             {can('product:import') ? (
-              <Button asChild data-testid="home-add-products">
+              <Button asChild className="max-sm:flex-1" data-testid="home-add-products">
                 <Link to="/add">
                   <Icon name="plus" size={16} />
                   Add products
@@ -117,12 +125,13 @@ function Dashboard({
         }
       />
 
-      <div className="stagger-children grid grid-cols-1 gap-4 md:grid-cols-3" data-testid="home-tiles">
+      <div className="stagger-children grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4" data-testid="home-tiles">
         <Tile testId="tile-live" chip={<StatusChip status="live" />} view={live} />
         <Tile testId="tile-working" chip={<StatusChip status="working">In progress</StatusChip>} view={working} />
         {inboxError ? (
           <MetricTile
             emphasis="attention"
+            className="col-span-2 md:col-span-1"
             chip={<StatusChip status="needs-you" />}
             value={<Unknown reason="Open questions and issues could not be loaded, so this number is unknown." />}
             caption="Couldn't load your Inbox."
@@ -133,11 +142,11 @@ function Dashboard({
             }
           />
         ) : !inboxReady ? (
-          <TileSkeleton attention />
+          <TileSkeleton attention className="col-span-2 md:col-span-1" />
         ) : (
           <MetricTile
             emphasis="attention"
-            className="h-full"
+            className="col-span-2 md:col-span-1"
             chip={<StatusChip status="needs-you" />}
             value={<span data-testid="tile-needs-value"><Value view={needs} /></span>}
             caption={<span data-testid="tile-needs-caption">{needs.caption}</span>}
@@ -165,18 +174,18 @@ function Dashboard({
 
       <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <WaitingCard tasks={tasks} issues={issues} total={fmtCount({ n: tasksCount.n + issuesCount.n, more: tasksCount.more || issuesCount.more })} />
-        <LaCard data-testid="agent-feed">
+        {/* Not built yet: a flat tint card so it recedes behind the live cards. */}
+        <LaCard emphasis="tint" data-testid="agent-feed">
           <CardHead title="What the agent did" action={<ComingSoon />} />
-          <p className="mt-3 text-small text-ink-2">{NOT_YET.activityFeed}</p>
-          <p className="mt-2 text-small text-ink-2">
-            Open a product to see what happened to each of its listings, step by step.
+          <p className="mt-3 max-w-[52ch] text-small text-ink-2">
+            {NOT_YET.activityFeed} Open a product to see what happened to each of its listings, step by step.
           </p>
           <Button asChild variant="secondary" size="sm" className="mt-4">
             <Link to="/products">Open Products</Link>
           </Button>
         </LaCard>
       </div>
-    </Page>
+    </>
   )
 }
 
@@ -227,7 +236,6 @@ function Unknown({ reason }: { reason: string }) {
 function Tile({ chip, view, testId }: { chip: ReactNode; view: TileView; testId: string }) {
   return (
     <MetricTile
-      className="h-full"
       chip={chip}
       value={<span data-testid={`${testId}-value`}><Value view={view} /></span>}
       caption={<span data-testid={`${testId}-caption`}>{view.caption}</span>}
@@ -240,7 +248,7 @@ const MARKETPLACE_CARDS: readonly MarketplaceId[] = ['amazon', 'flipkart', 'mynt
 function MarketplaceRow({ snapshot }: { snapshot: ListingsSnapshot }) {
   const accounts = useCurrentMarketplaceAccounts()
   return (
-    <div className="stagger-children mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="home-marketplaces">
+    <div className="stagger-children mt-4 grid grid-cols-2 gap-3 [--stagger-base:200ms] lg:grid-cols-4" data-testid="home-marketplaces">
       {MARKETPLACE_CARDS.map((id) => {
         const name = id === 'ajio' ? 'AJIO' : id.charAt(0).toUpperCase() + id.slice(1)
         const supported = (API_MARKETPLACES as readonly string[]).includes(id)
@@ -248,13 +256,18 @@ function MarketplaceRow({ snapshot }: { snapshot: ListingsSnapshot }) {
           return (
             <LaCard key={id} emphasis="dashed" pad="sm" data-testid={`home-mp-${id}`}>
               <div className="flex items-center gap-3 font-semibold text-ink">
-                <MarketplaceTile id={id} />
+                <MarketplaceTile id={id} className="shadow-none" />
                 {name}
               </div>
               <div className="mt-3">
                 <StatusChip status="not-listed">Not available</StatusChip>
               </div>
-              <UnavailableButton reason={NOT_YET.waitlist} variant="link" size="xs" className="mt-2 h-auto text-caption">
+              <UnavailableButton
+                reason={NOT_YET.waitlist}
+                variant="link"
+                size="xs"
+                className="mt-2 h-auto px-0 text-caption font-medium text-ink-3 no-underline aria-disabled:opacity-100"
+              >
                 Join waitlist
               </UnavailableButton>
             </LaCard>
@@ -272,7 +285,13 @@ function MarketplaceRow({ snapshot }: { snapshot: ListingsSnapshot }) {
         const account = accounts.data?.live[m] ?? null
         const view = accounts.isError ? null : marketplaceCard(account, snapshot.byMarketplace[m], snapshot.complete)
         return (
-          <LaCard key={id} pad="sm" emphasis={view && !view.action ? 'default' : 'dashed'} data-testid={`home-mp-${id}`}>
+          // Solid once anything is live on it; dashed only while nothing is listed and nothing to fix.
+          <LaCard
+            key={id}
+            pad="sm"
+            emphasis={view && view.chip.status === 'not-listed' && !view.action ? 'dashed' : 'default'}
+            data-testid={`home-mp-${id}`}
+          >
             <div className="flex items-center gap-3 font-semibold text-ink">
               <MarketplaceTile id={id} />
               {MARKETPLACE_LABEL[m]}
@@ -290,7 +309,11 @@ function MarketplaceRow({ snapshot }: { snapshot: ListingsSnapshot }) {
               {!view ? (
                 "Couldn't load the account."
               ) : view.action ? (
-                <Link to="/marketplaces" className="font-semibold text-brand underline-offset-4 hover:underline">
+                <Link
+                  to="/marketplaces"
+                  className="inline-flex min-h-10 items-center gap-1 font-semibold text-attention-ink underline decoration-attention-line underline-offset-4 hover:decoration-attention pointer-fine:min-h-0"
+                >
+                  <Icon name="link" size={14} aria-hidden />
                   {view.sub}
                 </Link>
               ) : (
@@ -325,8 +348,19 @@ function WaitingCard({
         title="Waiting for you"
         action={
           items.length ? (
-            <Link to="/inbox" className="rounded-sm text-small font-bold text-brand underline-offset-4 hover:underline" data-testid="waiting-view-all">
+            <Link
+              to="/inbox"
+              className="group -mx-1 -my-2 inline-flex min-h-10 items-center gap-1 rounded-sm px-1 text-small font-bold text-brand underline-offset-4 hover:underline"
+              data-testid="waiting-view-all"
+            >
               View all {total}
+              {/* chev points down in the set: turned to point right; the nudge animates `translate`. */}
+              <Icon
+                name="chev"
+                size={14}
+                aria-hidden
+                className="-rotate-90 transition-[translate] duration-[var(--dur-tactile)] ease-[var(--ease-tactile)] group-hover:translate-x-0.5"
+              />
             </Link>
           ) : null
         }
@@ -361,12 +395,19 @@ function WaitingCard({
               <TaskRow
                 key={itemKey(it)}
                 className="py-3.5"
+                interactive
                 leading={<ItemTile item={it} size={44} />}
                 title={<span data-testid="waiting-title">{title}</span>}
                 meta={meta}
                 action={
-                  <Button asChild size="sm" variant={it.kind === 'task' ? 'primary' : 'secondary'}>
-                    <Link to="/inbox" search={{ item: itemKey(it) }} aria-label={`Open ${title}`}>
+                  <Button asChild size="sm" variant="secondary">
+                    {/* The ::after stretches the link over the whole row, so a press anywhere opens it. */}
+                    <Link
+                      to="/inbox"
+                      search={{ item: itemKey(it) }}
+                      aria-label={`Open ${title}`}
+                      className="after:absolute after:inset-0 after:content-['']"
+                    >
                       Open
                     </Link>
                   </Button>
@@ -380,27 +421,31 @@ function WaitingCard({
   )
 }
 
-function TileSkeleton({ attention }: { attention?: boolean }) {
+function TileSkeleton({ attention, className }: { attention?: boolean; className?: string }) {
   return (
-    <LaCard emphasis={attention ? 'attention' : 'default'} className="flex flex-col gap-2">
+    <LaCard emphasis={attention ? 'attention' : 'default'} className={cn('flex min-h-[168px] flex-col', className)}>
       <Skeleton className="h-[22px] w-20 rounded-full" />
-      <Skeleton className="h-[38px] w-16" />
-      <Skeleton className="h-4 w-44" />
+      <Skeleton className="mt-3 h-12 w-16" />
+      <Skeleton className="mt-1.5 h-4 w-44 max-w-full" />
     </LaCard>
   )
 }
 
-export function HomeSkeleton() {
+/** Loading body: mirrors the dashboard's header and grids so nothing jumps when data lands. */
+function HomeSkeletonBody() {
   return (
-    <Page>
-      <div className="pb-5">
-        <Skeleton className="h-8 w-28" />
-        <Skeleton className="mt-2 h-4 w-56" />
+    <>
+      <div className="flex justify-between gap-4 pb-5">
+        <div>
+          <Skeleton className="h-8 w-28" />
+          <Skeleton className="mt-2 h-4 w-56" />
+        </div>
+        <Skeleton className="h-9 w-36 rounded-control" />
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
         <TileSkeleton />
         <TileSkeleton />
-        <TileSkeleton attention />
+        <TileSkeleton attention className="col-span-2 md:col-span-1" />
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (
@@ -415,6 +460,6 @@ export function HomeSkeleton() {
         <LaCard className="h-56" />
       </div>
       <span className="sr-only">Loading Home…</span>
-    </Page>
+    </>
   )
 }

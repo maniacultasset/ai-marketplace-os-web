@@ -5,7 +5,7 @@
  * numbers; marketplace status is the honest one from the handover.
  */
 import { Link } from '@tanstack/react-router'
-import { useRef, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
 import { PublicLayout } from '@/components/app/public-layout'
 import { Icon, IconTile } from '@/components/la/icons'
 import { MarketplaceTile } from '@/components/la/marketplace'
@@ -80,17 +80,17 @@ const BULK = [
 
 function Section({ id, title, lede, children, className }: { id?: string; title: ReactNode; lede?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section id={id} aria-labelledby={id ? `${id}-h` : undefined} className={cn('scroll-mt-20 border-t border-line', className)}>
-      <div className="mx-auto max-w-[1200px] px-4 py-16 md:px-8 md:py-24">
+    <section id={id} aria-labelledby={id ? `${id}-h` : undefined} className={cn('max-md:scroll-mt-12', className)}>
+      <div className="mx-auto max-w-[1200px] px-4 py-20 md:px-8 md:py-28">
         <h2
           data-reveal
           id={id ? `${id}-h` : undefined}
-          className="max-w-[26ch] font-display text-[clamp(1.75rem,3.2vw,2.5rem)] leading-[1.08] font-bold tracking-[-0.022em] text-ink"
+          className="max-w-[26ch] font-display text-[clamp(1.875rem,3.4vw,2.75rem)] leading-[1.05] font-bold tracking-[-0.03em] text-ink"
         >
           {title}
         </h2>
-        {lede ? <p data-reveal style={d(1)} className="mt-4 max-w-[60ch] text-[17px] leading-[1.6] text-ink-2">{lede}</p> : null}
-        <div className="mt-10 md:mt-12">{children}</div>
+        {lede ? <p data-reveal style={d(1)} className="mt-4 max-w-[60ch] text-[18px] leading-[1.6] text-ink-2">{lede}</p> : null}
+        <div className="mt-10 md:mt-14">{children}</div>
       </div>
     </section>
   )
@@ -99,27 +99,60 @@ function Section({ id, title, lede, children, className }: { id?: string; title:
 /** Stagger delay for the n-th sibling inside a reveal. */
 const d = (n: number, step = 70): CSSProperties => ({ '--d': `${n * step}ms` }) as CSSProperties
 
-const navLink = 'tactile rounded-control px-2 py-2 hover:bg-hover hover:text-ink'
+const navLink = 'tactile press rounded-control px-2 py-2 hover:bg-hover hover:text-ink aria-[current=true]:bg-hover aria-[current=true]:text-ink'
+const navLinkCompact = cn(navLink, 'inline-flex h-10 shrink-0 items-center px-3')
+
+const SECTIONS = [
+  { id: 'how', label: 'How it works' },
+  { id: 'bulk', label: 'Bulk' },
+  { id: 'marketplaces', label: 'Marketplaces' },
+] as const
+
+/** Marks the in-page link for the section in the middle band of the viewport as current. */
+function useSectionSpy() {
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return
+    const sections = SECTIONS.map((s) => document.getElementById(s.id)).filter((el): el is HTMLElement => el !== null)
+    const mark = (id: string | null) => {
+      for (const a of document.querySelectorAll<HTMLAnchorElement>('a[data-section-link]')) {
+        if (a.dataset.sectionLink === id) a.setAttribute('aria-current', 'true')
+        else a.removeAttribute('aria-current')
+      }
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) mark(e.target.id)
+          else if (document.querySelector(`a[data-section-link="${e.target.id}"][aria-current]`)) mark(null)
+        }
+      },
+      { rootMargin: '-40% 0px -55% 0px' },
+    )
+    for (const el of sections) io.observe(el)
+    return () => {
+      io.disconnect()
+      mark(null)
+    }
+  }, [])
+}
 
 export function Landing() {
   useDocumentTitle(null)
   const scope = useRef<HTMLDivElement>(null)
   useReveal(scope)
+  useSectionSpy()
   return (
     <PublicLayout
-      links={
-        <>
-          <a href="#how" className={navLink}>
-            How it works
-          </a>
-          <a href="#bulk" className={navLink}>
-            Bulk
-          </a>
-          <a href="#marketplaces" className={navLink}>
-            Marketplaces
-          </a>
-        </>
-      }
+      links={SECTIONS.map((s) => (
+        <a key={s.id} href={`#${s.id}`} data-section-link={s.id} className={navLink}>
+          {s.label}
+        </a>
+      ))}
+      compactLinks={SECTIONS.map((s) => (
+        <a key={s.id} href={`#${s.id}`} data-section-link={s.id} className={navLinkCompact}>
+          {s.label}
+        </a>
+      ))}
     >
       <div ref={scope}>
         {/* Hero */}
@@ -127,7 +160,6 @@ export function Landing() {
           <div className="mx-auto grid max-w-[1200px] grid-cols-1 items-center gap-12 px-4 pt-14 pb-16 md:px-8 md:pt-20 md:pb-24 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)] lg:gap-16">
             <div>
               <h1
-                data-reveal
                 id="hero-h"
                 className="max-w-[16ch] font-display text-[clamp(2.4rem,5vw,3.75rem)] leading-[1.02] font-bold tracking-[-0.028em] text-ink"
               >
@@ -137,7 +169,7 @@ export function Landing() {
                 Listing Agent checks every field of your Amazon and Flipkart listings against each marketplace’s rules and waits
                 for someone on your team to approve before anything is sent. Drafting in your brand’s voice is in development.
               </p>
-              <div data-reveal style={d(2, 90)} className="mt-8 flex flex-wrap gap-3">
+              <div data-reveal style={d(2, 90)} className="mt-8 flex flex-wrap items-center gap-3 sm:gap-4">
                 <Button asChild size="lg">
                   <Link to="/signup" data-testid="landing-cta">
                     Request access
@@ -147,10 +179,16 @@ export function Landing() {
                   <a href="#how">See how it works</a>
                 </Button>
               </div>
-              <ul data-reveal style={d(3, 90)} className="mt-8 flex flex-wrap gap-2" aria-label="At a glance">
+              <ul
+                data-reveal
+                style={d(3, 90)}
+                className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-small font-medium text-ink-2"
+                aria-label="At a glance"
+              >
                 {['Every request reviewed by a person', 'Amazon and Flipkart', 'Nothing is sent without approval'].map((t) => (
-                  <li key={t}>
-                    <TagChip>{t}</TagChip>
+                  <li key={t} className="flex items-center gap-1.5">
+                    <Icon name="check" size={14} className="text-success" aria-hidden />
+                    {t}
                   </li>
                 ))}
               </ul>
@@ -169,7 +207,7 @@ export function Landing() {
         >
           <ol className="divide-y divide-line border-y border-line">
             {PROBLEMS.map((p, i) => (
-              <li key={p.title} data-reveal style={d(i)} className="grid gap-3 py-7 md:grid-cols-[56px_minmax(0,1.3fr)_minmax(0,1fr)] md:gap-8">
+              <li key={p.title} data-reveal style={d(i)} className="grid gap-3 py-8 md:grid-cols-[56px_minmax(0,1.3fr)_minmax(0,1fr)] md:gap-8">
                 <span className="font-display text-h2 font-semibold text-ink-3 tabular-nums" aria-hidden>
                   {String(i + 1).padStart(2, '0')}
                 </span>
@@ -177,7 +215,7 @@ export function Landing() {
                   <h3 className="text-h3 text-ink">{p.title}</h3>
                   <p className="mt-2 text-[15px] leading-[1.55] text-ink-2">{p.body}</p>
                 </div>
-                <p className="border-l-2 border-attention-line pl-4 text-[15px] leading-[1.55] font-medium text-ink">{p.cost}</p>
+                <p className="border-l border-line pl-5 text-[15px] leading-[1.55] font-medium text-ink">{p.cost}</p>
               </li>
             ))}
           </ol>
@@ -212,18 +250,20 @@ export function Landing() {
 
         {/* AI proposes, rules decide */}
         <Section
-          title="AI proposes. The rules engine decides."
+          title={<>AI proposes.<br /> The rules engine decides.</>}
           lede="Writing is a job for a model. Checking is not. Your seller account depends on keeping those two jobs apart, so they are never done by the same thing. The drafting agent is still in development; the rules and the approval step it will answer to come first."
           className="bg-surface"
         >
           <div className="grid gap-4 md:grid-cols-2">
             <div data-reveal className="rounded-card border border-line bg-canvas p-6 shadow-inset-sm md:p-7">
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-3">
                 <IconTile icon="spark" tone="brand" />
-                <h3 className="text-h3 text-ink">What the agent will do</h3>
-                <TagChip tone="plain" className="ml-auto">
-                  In development
-                </TagChip>
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+                  <h3 className="text-h3 text-ink">What the agent will do</h3>
+                  <TagChip tone="plain" className="sm:ml-auto">
+                    In development
+                  </TagChip>
+                </div>
               </div>
               <ul className="mt-4 flex flex-col gap-3">
                 {AGENT_DOES.map((t) => (
@@ -257,9 +297,9 @@ export function Landing() {
           title="A whole catalog runs the same way as one product"
           lede="Upload your catalog as a CSV. Every row is checked on its own and keeps its own error report, so a bad row never holds up the good ones and a retry never makes you rebuild context."
         >
-          <ol data-reveal className="grid gap-px overflow-hidden rounded-card border border-line bg-line shadow-raised-md sm:grid-cols-2 lg:grid-cols-6">
+          <ol className="grid gap-px overflow-hidden rounded-card border border-line bg-line shadow-raised-md sm:grid-cols-2 lg:grid-cols-6">
             {BULK.map((s, i) => (
-              <li key={s.title} className="flex flex-col gap-1.5 bg-surface p-5">
+              <li key={s.title} data-reveal style={d(i, 90)} className="flex flex-col gap-1.5 bg-surface p-5">
                 <span className="font-display text-caption font-bold text-brand tabular-nums">{String(i + 1).padStart(2, '0')}</span>
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-h3 text-ink">{s.title}</h3>
@@ -309,13 +349,13 @@ export function Landing() {
         </Section>
 
         {/* Final CTA */}
-        <section aria-labelledby="cta-h" className="border-t border-line">
-          <div className="mx-auto max-w-[1200px] px-4 py-16 md:px-8 md:py-24">
-            <div data-reveal="pop" className="flex flex-col gap-6 rounded-card border border-brand-line bg-brand-bg p-6 shadow-raised-md md:flex-row md:items-center md:justify-between md:p-10">
+        <section aria-labelledby="cta-h">
+          <div className="mx-auto max-w-[1200px] px-4 py-20 md:px-8 md:py-28">
+            <div data-reveal="pop" className="flex flex-col gap-6 rounded-card border border-brand-line bg-brand-bg p-6 shadow-raised-md md:flex-row md:items-center md:justify-between md:p-12">
               <div className="flex max-w-[60ch] flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
                 <IconTile icon="users" tone="brand" size="lg" />
                 <div>
-                  <h2 id="cta-h" className="font-display text-[clamp(1.6rem,2.8vw,2.2rem)] leading-[1.1] font-bold tracking-[-0.02em] text-ink">
+                  <h2 id="cta-h" className="font-display text-[clamp(1.875rem,3.4vw,2.75rem)] leading-[1.05] font-bold tracking-[-0.03em] text-ink">
                     Access is reviewed by a person
                   </h2>
                   <p className="mt-3 text-[15px] leading-[1.55] text-ink-2">
@@ -324,7 +364,7 @@ export function Landing() {
                   </p>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap md:shrink-0">
                 <Button asChild size="lg">
                   <Link to="/signup">Request access</Link>
                 </Button>

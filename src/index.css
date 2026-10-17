@@ -68,6 +68,9 @@
   --light: 255 255 255;
   --shadow-raised-sm: -2px -2px 5px rgb(var(--light) / 0.9), 2px 3px 6px rgb(var(--shade) / 0.08), 0 1px 1px rgb(var(--shade) / 0.04);
   --shadow-raised-md: -5px -5px 12px rgb(var(--light) / 0.85), 6px 8px 18px rgb(var(--shade) / 0.08), 0 1px 2px rgb(var(--shade) / 0.05);
+  /* Content cards: a quieter raised-md (tighter highlight, shade pulled in) so a page of cards
+     reads calm rather than embossed. */
+  --shadow-card: -2px -2px 6px rgb(var(--light) / 0.7), 0 1px 2px rgb(var(--shade) / 0.05), 2px 6px 14px -4px rgb(var(--shade) / 0.09);
   --shadow-raised-lg: -8px -8px 22px rgb(var(--light) / 0.6), 14px 18px 40px rgb(var(--shade) / 0.16), 0 2px 4px rgb(var(--shade) / 0.06);
   --shadow-inset-sm: inset 1.5px 1.5px 3px rgb(var(--shade) / 0.09), inset -1.5px -1.5px 3px rgb(var(--light) / 0.85);
   --shadow-inset-md: inset 2px 2px 6px rgb(var(--shade) / 0.11), inset -2px -2px 6px rgb(var(--light) / 0.9);
@@ -92,7 +95,9 @@
   --ease-tactile: cubic-bezier(0.2, 0.8, 0.2, 1);
   --dur-tactile: 160ms;
   /* Critically damped spring (damping 1.0), sampled into linear(): no overshoot, settles softly.
-     Used with --dur-spring (response ~0.35s). Browsers without linear() fall back to ease-out. */
+     Used with --dur-spring (response ~0.35s). Browsers without linear() get the cubic-bezier
+     approximation in the @supports block below (an invalid linear() would otherwise void every
+     transition that reads this token). */
   --ease-spring: linear(0, 0.047 4%, 0.152 8%, 0.277 12%, 0.401 16%, 0.514 20%, 0.634 25%, 0.730 30%, 0.816 36%, 0.876 42%, 0.929 50%, 0.965 60%, 0.985 72%, 0.995 86%, 1);
   --dur-spring: 480ms;
   /* Press feedback lands on pointer-down, fast. */
@@ -177,6 +182,12 @@
   --elev-2: var(--shadow-raised-md);
   --elev-3: var(--shadow-raised-lg);
   --highlight: none;
+}
+
+@supports not (transition-timing-function: linear(0, 1)) {
+  :root {
+    --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  }
 }
 
 @theme inline {
@@ -268,6 +279,7 @@
   --shadow-raised-sm: var(--shadow-raised-sm);
   --shadow-raised-md: var(--shadow-raised-md);
   --shadow-raised-lg: var(--shadow-raised-lg);
+  --shadow-card: var(--shadow-card);
   --shadow-raised-brand: var(--shadow-raised-brand);
   --shadow-raised-warn: var(--shadow-raised-warn);
   --shadow-inset-sm: var(--shadow-inset-sm);
@@ -333,6 +345,13 @@
     text-rendering: optimizeLegibility;
     color-scheme: light;
     -webkit-tap-highlight-color: transparent;
+    /* In-page anchors land below the sticky 4rem header, not under it. */
+    scroll-padding-top: calc(4rem + 16px);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
   }
   body {
     @apply bg-canvas text-body text-ink;
@@ -379,7 +398,20 @@
     *::before,
     *::after {
       animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      animation-delay: 0s !important;
       transition-duration: 0.01ms !important;
+      transition-delay: 0s !important;
+      scroll-behavior: auto !important;
+    }
+    /* Arrivals are skipped outright; a skeleton holds still at a calm tone instead of pulsing. */
+    .stagger-children > *,
+    .animate-page-in {
+      animation: none !important;
+    }
+    [data-slot="skeleton"] {
+      animation: none !important;
+      opacity: 0.7;
     }
   }
 }
@@ -435,20 +467,18 @@
   transition-duration: var(--dur-tactile);
   transition-timing-function: var(--ease-tactile);
 }
-/* 1px lift on hover for raised controls; never on disabled ones; pressed sits back down. */
+/* 1px lift on hover for raised controls; never on disabled ones; pressed sits back down. The
+   lift is for a real hover (mouse, trackpad) only, so a tap never leaves a control stuck raised. */
 @utility lift {
-  &:hover:not(:disabled, [aria-disabled="true"]) {
-    transform: translateY(-1px);
+  @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    &:hover:not(:disabled, [aria-disabled="true"]) {
+      transform: translateY(-1px);
+    }
   }
   /* Pressed: settles back and gives a touch under the finger, at once (pointer-down). */
   &:active:not(:disabled, [aria-disabled="true"]) {
     transform: scale(0.98);
     transition-duration: var(--dur-press);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    &:hover:not(:disabled, [aria-disabled="true"]) {
-      transform: none;
-    }
   }
 }
 
@@ -488,37 +518,65 @@
     border-bottom-color: var(--line-strong);
   }
 }
-/* Staggered arrival for a row of tiles: each child rises 80ms after the one before it. */
+/* Staggered arrival for a row of tiles: each child rises 80ms after the one before it. Set
+   --stagger-base on the row to start the whole sequence later (e.g. after the content above). */
 @utility stagger-children {
   & > * {
     animation: rise 640ms var(--ease-spring) both;
+    animation-delay: var(--stagger-base, 0ms);
   }
   & > :nth-child(2) {
-    animation-delay: 80ms;
+    animation-delay: calc(var(--stagger-base, 0ms) + 80ms);
   }
   & > :nth-child(3) {
-    animation-delay: 160ms;
+    animation-delay: calc(var(--stagger-base, 0ms) + 160ms);
   }
   & > :nth-child(4) {
-    animation-delay: 240ms;
+    animation-delay: calc(var(--stagger-base, 0ms) + 240ms);
+  }
+}
+
+/* Touch: every button reaches a 40px target on a coarse pointer. Desktop density is unchanged. */
+@media (pointer: coarse) {
+  [data-slot="button"]:not([data-variant="link"]) {
+    min-height: 40px;
+  }
+  [data-slot="button"][data-size^="icon"] {
+    min-width: 40px;
   }
 }
 /* Reveal on scroll (src/lib/use-reveal.ts): only once the hook has marked the scope, an element
    waits below and transparent (no transition, so it never animates out), then springs up when
    it enters view. --d staggers siblings;
-   data-reveal="pop" also scales up from 96% (hero surfaces). */
+   data-reveal="pop" also scales up from 98% (hero surfaces). */
 [data-reveal-scope] [data-reveal][data-shown] {
   transition:
-    opacity 560ms ease-out,
-    transform 900ms var(--ease-spring);
+    opacity 420ms ease-out,
+    transform 640ms var(--ease-spring);
   transition-delay: var(--d, 0ms);
 }
 [data-reveal-scope] [data-reveal]:not([data-shown]) {
   opacity: 0;
-  transform: translateY(28px);
+  transform: translateY(16px);
 }
 [data-reveal-scope] [data-reveal="pop"]:not([data-shown]) {
-  transform: translateY(36px) scale(0.96);
+  transform: translateY(20px) scale(0.98);
+}
+/* A highlight drawn across a word (one flat fill growing left to right, never a gloss) once its
+   reveal has played. */
+[data-reveal-scope] [data-shown] mark[data-sweep],
+[data-reveal-scope] [data-shown][data-sweep] {
+  background-size: 100% 100%;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Fade only: nothing travels. The highlight is simply there. */
+  [data-reveal-scope] [data-reveal]:not([data-shown]) {
+    transform: none;
+  }
+  mark[data-sweep] {
+    background-size: 100% 100% !important;
+    transition: none;
+  }
 }
 
 /* One icon weight: lucide defaults (stroke 2) are drawn at the hi-fi 1.75. An explicit
