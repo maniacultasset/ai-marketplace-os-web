@@ -3,6 +3,7 @@
  * would raise, drawn with the real kit (StatusChip, SourceBadge, MarketplaceTile). It is clearly
  * labelled as an example and is never app data. Buttons inside are drawings, not controls.
  */
+import type { CSSProperties } from 'react'
 import { MarketplaceTile } from '@/components/la/marketplace'
 import { SourceBadge } from '@/components/la/source-badge'
 import { StatusChip, TagChip } from '@/components/la/status-chip'
@@ -75,8 +76,13 @@ export function HeroFinding() {
             </div>
           </div>
           <ul className="flex flex-col gap-2.5">
-            {findings.map((f) => (
-              <li key={`${f.marketplace}:${f.code}`} className="rounded-[10px] border border-danger-line bg-surface p-3 shadow-raised-sm">
+            {findings.map((f, i) => (
+              <li
+                key={`${f.marketplace}:${f.code}`}
+                data-reveal
+                style={{ '--d': `${520 + i * 140}ms` } as CSSProperties}
+                className="rounded-[10px] border border-danger-line bg-surface p-3 shadow-raised-sm"
+              >
                 <div className="flex flex-wrap items-center gap-2">
                   <MarketplaceTile id={f.marketplace} size="sm" className="size-6 rounded-[7px] text-[11px] shadow-none" />
                   <code className="text-caption font-semibold text-ink">{f.field}</code>

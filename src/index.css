@@ -488,35 +488,37 @@
     border-bottom-color: var(--line-strong);
   }
 }
-/* Reveal: a section rises into place as it scrolls into view. CSS scroll-driven animation, so no
-   script and nothing hidden where the browser lacks it (it simply shows). Off for reduced motion. */
-@utility reveal {
-  @supports (animation-timeline: view()) {
-    @media (prefers-reduced-motion: no-preference) {
-      animation: reveal linear both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 55%;
-    }
-  }
-}
-/* Staggered arrival for a row of tiles: each child rises 50ms after the one before it. */
+/* Staggered arrival for a row of tiles: each child rises 80ms after the one before it. */
 @utility stagger-children {
   & > * {
-    animation: page-in var(--dur-spring) var(--ease-spring) both;
+    animation: rise 640ms var(--ease-spring) both;
   }
   & > :nth-child(2) {
-    animation-delay: 50ms;
+    animation-delay: 80ms;
   }
   & > :nth-child(3) {
-    animation-delay: 100ms;
+    animation-delay: 160ms;
   }
   & > :nth-child(4) {
-    animation-delay: 150ms;
+    animation-delay: 240ms;
   }
 }
-/* Materialize: a hero surface arrives with scale + opacity together, once. */
-@utility materialize {
-  animation: materialize 700ms var(--ease-spring) 120ms both;
+/* Reveal on scroll (src/lib/use-reveal.ts): only once the hook has marked the scope, an element
+   waits below and transparent (no transition, so it never animates out), then springs up when
+   it enters view. --d staggers siblings;
+   data-reveal="pop" also scales up from 96% (hero surfaces). */
+[data-reveal-scope] [data-reveal][data-shown] {
+  transition:
+    opacity 560ms ease-out,
+    transform 900ms var(--ease-spring);
+  transition-delay: var(--d, 0ms);
+}
+[data-reveal-scope] [data-reveal]:not([data-shown]) {
+  opacity: 0;
+  transform: translateY(28px);
+}
+[data-reveal-scope] [data-reveal="pop"]:not([data-shown]) {
+  transform: translateY(36px) scale(0.96);
 }
 
 /* One icon weight: lucide defaults (stroke 2) are drawn at the hi-fi 1.75. An explicit
@@ -525,21 +527,10 @@ svg.lucide[stroke-width="2"] {
   stroke-width: 1.75;
 }
 
-@keyframes reveal {
+@keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(16px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes materialize {
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(0.98);
+    transform: translateY(18px) scale(0.985);
   }
   to {
     opacity: 1;

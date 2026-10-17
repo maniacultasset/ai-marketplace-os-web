@@ -5,12 +5,13 @@
  * numbers; marketplace status is the honest one from the handover.
  */
 import { Link } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import { useRef, type CSSProperties, type ReactNode } from 'react'
 import { PublicLayout } from '@/components/app/public-layout'
 import { Icon, IconTile } from '@/components/la/icons'
 import { MarketplaceTile } from '@/components/la/marketplace'
 import { StatusChip, TagChip } from '@/components/la/status-chip'
 import { Button } from '@/components/ui/button'
+import { useReveal } from '@/lib/use-reveal'
 import { cn } from '@/lib/utils'
 import { HeroFinding } from './hero-finding'
 import { MARKET_STATUS, STAGE_CHIP } from './model'
@@ -80,24 +81,30 @@ const BULK = [
 function Section({ id, title, lede, children, className }: { id?: string; title: ReactNode; lede?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <section id={id} aria-labelledby={id ? `${id}-h` : undefined} className={cn('scroll-mt-20 border-t border-line', className)}>
-      <div className="reveal mx-auto max-w-[1200px] px-4 py-16 md:px-8 md:py-24">
+      <div className="mx-auto max-w-[1200px] px-4 py-16 md:px-8 md:py-24">
         <h2
+          data-reveal
           id={id ? `${id}-h` : undefined}
           className="max-w-[26ch] font-display text-[clamp(1.75rem,3.2vw,2.5rem)] leading-[1.08] font-bold tracking-[-0.022em] text-ink"
         >
           {title}
         </h2>
-        {lede ? <p className="mt-4 max-w-[60ch] text-[17px] leading-[1.6] text-ink-2">{lede}</p> : null}
+        {lede ? <p data-reveal style={d(1)} className="mt-4 max-w-[60ch] text-[17px] leading-[1.6] text-ink-2">{lede}</p> : null}
         <div className="mt-10 md:mt-12">{children}</div>
       </div>
     </section>
   )
 }
 
+/** Stagger delay for the n-th sibling inside a reveal. */
+const d = (n: number, step = 70): CSSProperties => ({ '--d': `${n * step}ms` }) as CSSProperties
+
 const navLink = 'tactile rounded-control px-2 py-2 hover:bg-hover hover:text-ink'
 
 export function Landing() {
   useDocumentTitle(null)
+  const scope = useRef<HTMLDivElement>(null)
+  useReveal(scope)
   return (
     <PublicLayout
       links={
@@ -114,214 +121,221 @@ export function Landing() {
         </>
       }
     >
-      {/* Hero */}
-      <section aria-labelledby="hero-h" className="bg-canvas">
-        <div className="mx-auto grid max-w-[1200px] grid-cols-1 items-center gap-12 px-4 pt-14 pb-16 md:px-8 md:pt-20 md:pb-24 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)] lg:gap-16">
-          <div className="animate-page-in">
-            <h1
-              id="hero-h"
-              className="max-w-[16ch] font-display text-[clamp(2.4rem,5vw,3.75rem)] leading-[1.02] font-bold tracking-[-0.028em] text-ink"
-            >
-              Two marketplaces. Two rulebooks. One catalog.
-            </h1>
-            <p className="mt-6 max-w-[46ch] text-[18px] leading-[1.55] text-ink-2">
-              Listing Agent checks every field of your Amazon and Flipkart listings against each marketplace’s rules and waits
-              for someone on your team to approve before anything is sent. Drafting in your brand’s voice is in development.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Button asChild size="lg">
-                <Link to="/signup" data-testid="landing-cta">
-                  Request access
-                </Link>
-              </Button>
-              <Button asChild size="lg" variant="secondary">
-                <a href="#how">See how it works</a>
-              </Button>
-            </div>
-            <ul className="mt-8 flex flex-wrap gap-2" aria-label="At a glance">
-              {['Every request reviewed by a person', 'Amazon and Flipkart', 'Nothing is sent without approval'].map((t) => (
-                <li key={t}>
-                  <TagChip>{t}</TagChip>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="materialize min-w-0">
-            <HeroFinding />
-          </div>
-        </div>
-      </section>
-
-      {/* Four problems */}
-      <Section
-        title="Listing a catalog by hand costs more than anyone measures"
-        lede="Four things that eat operator time on every SKU."
-        className="bg-surface"
-      >
-        <ol className="divide-y divide-line border-y border-line">
-          {PROBLEMS.map((p, i) => (
-            <li key={p.title} className="grid gap-3 py-7 md:grid-cols-[56px_minmax(0,1.3fr)_minmax(0,1fr)] md:gap-8">
-              <span className="font-display text-h2 font-semibold text-ink-3 tabular-nums" aria-hidden>
-                {String(i + 1).padStart(2, '0')}
-              </span>
-              <div>
-                <h3 className="text-h3 text-ink">{p.title}</h3>
-                <p className="mt-2 text-[15px] leading-[1.55] text-ink-2">{p.body}</p>
+      <div ref={scope}>
+        {/* Hero */}
+        <section aria-labelledby="hero-h" className="bg-canvas">
+          <div className="mx-auto grid max-w-[1200px] grid-cols-1 items-center gap-12 px-4 pt-14 pb-16 md:px-8 md:pt-20 md:pb-24 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)] lg:gap-16">
+            <div>
+              <h1
+                data-reveal
+                id="hero-h"
+                className="max-w-[16ch] font-display text-[clamp(2.4rem,5vw,3.75rem)] leading-[1.02] font-bold tracking-[-0.028em] text-ink"
+              >
+                Two marketplaces. Two rulebooks. One catalog.
+              </h1>
+              <p data-reveal style={d(1, 90)} className="mt-6 max-w-[46ch] text-[18px] leading-[1.55] text-ink-2">
+                Listing Agent checks every field of your Amazon and Flipkart listings against each marketplace’s rules and waits
+                for someone on your team to approve before anything is sent. Drafting in your brand’s voice is in development.
+              </p>
+              <div data-reveal style={d(2, 90)} className="mt-8 flex flex-wrap gap-3">
+                <Button asChild size="lg">
+                  <Link to="/signup" data-testid="landing-cta">
+                    Request access
+                  </Link>
+                </Button>
+                <Button asChild size="lg" variant="secondary">
+                  <a href="#how">See how it works</a>
+                </Button>
               </div>
-              <p className="border-l-2 border-attention-line pl-4 text-[15px] leading-[1.55] font-medium text-ink">{p.cost}</p>
-            </li>
-          ))}
-        </ol>
-      </Section>
-
-      {/* Workflow */}
-      <Section id="how" title="One workflow, from spreadsheet to listing" lede="The same five steps run for one product or a whole catalog.">
-        <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          {FLOW.map((s, i) => (
-            <li
-              key={s.title}
-              className={cn(
-                'flex flex-col gap-3 rounded-card border bg-surface p-5 md:p-6',
-                s.title === 'Approve' ? 'border-brand shadow-[var(--selected-ring),var(--shadow-raised-md)]' : 'border-line shadow-raised-md',
-              )}
-            >
-              <span className="flex items-center justify-between">
-                <IconTile icon={s.icon} tone="brand" />
-                <span className="text-caption font-bold text-ink-2">Step {i + 1}</span>
-              </span>
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-h3 text-ink">{s.title}</h3>
-                {'inDevelopment' in s ? <TagChip tone="plain">In development</TagChip> : null}
-              </div>
-              <p className="text-body text-ink-2">{s.body}</p>
-            </li>
-          ))}
-        </ol>
-      </Section>
-
-      {/* AI proposes, rules decide */}
-      <Section
-        title="AI proposes. The rules engine decides."
-        lede="Writing is a job for a model. Checking is not. Your seller account depends on keeping those two jobs apart, so they are never done by the same thing. The drafting agent is still in development; the rules and the approval step it will answer to come first."
-        className="bg-surface"
-      >
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-card border border-line bg-canvas p-6 shadow-inset-sm md:p-7">
-            <div className="flex flex-wrap items-center gap-3">
-              <IconTile icon="spark" tone="brand" />
-              <h3 className="text-h3 text-ink">What the agent will do</h3>
-              <TagChip tone="plain" className="ml-auto">
-                In development
-              </TagChip>
+              <ul data-reveal style={d(3, 90)} className="mt-8 flex flex-wrap gap-2" aria-label="At a glance">
+                {['Every request reviewed by a person', 'Amazon and Flipkart', 'Nothing is sent without approval'].map((t) => (
+                  <li key={t}>
+                    <TagChip>{t}</TagChip>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <ul className="mt-4 flex flex-col gap-3">
-              {AGENT_DOES.map((t) => (
-                <li key={t} className="flex gap-3 text-[15px] leading-[1.5] text-ink">
-                  <Icon name="check" size={16} className="mt-[3px] shrink-0 text-success" />
-                  {t}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="rounded-card border border-line bg-canvas p-6 shadow-inset-sm md:p-7">
-            <div className="flex items-center gap-3">
-              <IconTile icon="shield" tone="brand" />
-              <h3 className="text-h3 text-ink">What the agent never does</h3>
+            <div data-reveal="pop" style={d(2, 90)} className="min-w-0">
+              <HeroFinding />
             </div>
-            <ul className="mt-4 flex flex-col gap-3">
-              {AGENT_NEVER.map((t) => (
-                <li key={t} className="flex gap-3 text-[15px] leading-[1.5] text-ink">
-                  <Icon name="x" size={16} className="mt-[3px] shrink-0 text-danger" />
-                  {t}
-                </li>
-              ))}
-            </ul>
           </div>
-        </div>
-      </Section>
+        </section>
 
-      {/* Bulk */}
-      <Section
-        id="bulk"
-        title="A whole catalog runs the same way as one product"
-        lede="Upload your catalog as a CSV. Every row is checked on its own and keeps its own error report, so a bad row never holds up the good ones and a retry never makes you rebuild context."
-      >
-        <ol className="grid gap-px overflow-hidden rounded-card border border-line bg-line shadow-raised-md sm:grid-cols-2 lg:grid-cols-6">
-          {BULK.map((s, i) => (
-            <li key={s.title} className="flex flex-col gap-1.5 bg-surface p-5">
-              <span className="font-display text-caption font-bold text-brand tabular-nums">{String(i + 1).padStart(2, '0')}</span>
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-h3 text-ink">{s.title}</h3>
-                {'inDevelopment' in s ? <TagChip tone="plain">In development</TagChip> : null}
-              </div>
-              <p className="text-small text-ink-2">{s.body}</p>
-            </li>
-          ))}
-        </ol>
-      </Section>
+        {/* Four problems */}
+        <Section
+          title="Listing a catalog by hand costs more than anyone measures"
+          lede="Four things that eat operator time on every SKU."
+          className="bg-surface"
+        >
+          <ol className="divide-y divide-line border-y border-line">
+            {PROBLEMS.map((p, i) => (
+              <li key={p.title} data-reveal style={d(i)} className="grid gap-3 py-7 md:grid-cols-[56px_minmax(0,1.3fr)_minmax(0,1fr)] md:gap-8">
+                <span className="font-display text-h2 font-semibold text-ink-3 tabular-nums" aria-hidden>
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <div>
+                  <h3 className="text-h3 text-ink">{p.title}</h3>
+                  <p className="mt-2 text-[15px] leading-[1.55] text-ink-2">{p.body}</p>
+                </div>
+                <p className="border-l-2 border-attention-line pl-4 text-[15px] leading-[1.55] font-medium text-ink">{p.cost}</p>
+              </li>
+            ))}
+          </ol>
+        </Section>
 
-      {/* Marketplaces */}
-      <Section
-        id="marketplaces"
-        title="Supported marketplaces"
-        lede="Two marketplaces built properly behind one set of rules and one approval step. Here is where each one stands today."
-        className="bg-surface"
-      >
-        <ul className="grid gap-4 md:grid-cols-3">
-          {MARKET_STATUS.map((m) => {
-            const chip = STAGE_CHIP[m.stage]
-            return (
+        {/* Workflow */}
+        <Section id="how" title="One workflow, from spreadsheet to listing" lede="The same five steps run for one product or a whole catalog.">
+          <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {FLOW.map((s, i) => (
               <li
-                key={m.name}
-                data-testid={`market-${m.stage}`}
+                key={s.title}
+                data-reveal
+                style={d(i)}
                 className={cn(
-                  'flex flex-col gap-3 rounded-card border p-5',
-                  m.stage === 'later' ? 'border-dashed border-line-strong bg-transparent' : 'border-line bg-surface shadow-raised-md',
+                  'flex flex-col gap-3 rounded-card border bg-surface p-5 md:p-6',
+                  s.title === 'Approve' ? 'border-brand shadow-[var(--selected-ring),var(--shadow-raised-md)]' : 'border-line shadow-raised-md',
                 )}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <span className="flex -space-x-1.5">
-                    {m.ids.map((id) => (
-                      <MarketplaceTile key={id} id={id} className={cn('ring-2 ring-surface', m.stage === 'later' && 'shadow-none')} />
-                    ))}
-                  </span>
-                  <StatusChip status={chip.status}>{chip.label}</StatusChip>
+                <span className="flex items-center justify-between">
+                  <IconTile icon={s.icon} tone="brand" />
+                  <span className="text-caption font-bold text-ink-2">Step {i + 1}</span>
+                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-h3 text-ink">{s.title}</h3>
+                  {'inDevelopment' in s ? <TagChip tone="plain">In development</TagChip> : null}
                 </div>
-                <h3 className="text-h3 text-ink">{m.name}</h3>
-                <p className="text-small text-ink-2">{m.body}</p>
+                <p className="text-body text-ink-2">{s.body}</p>
               </li>
-            )
-          })}
-        </ul>
-      </Section>
+            ))}
+          </ol>
+        </Section>
 
-      {/* Final CTA */}
-      <section aria-labelledby="cta-h" className="border-t border-line">
-        <div className="reveal mx-auto max-w-[1200px] px-4 py-16 md:px-8 md:py-24">
-          <div className="flex flex-col gap-6 rounded-card border border-brand-line bg-brand-bg p-6 shadow-raised-md md:flex-row md:items-center md:justify-between md:p-10">
-            <div className="flex max-w-[60ch] flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
-              <IconTile icon="users" tone="brand" size="lg" />
-              <div>
-                <h2 id="cta-h" className="font-display text-[clamp(1.6rem,2.8vw,2.2rem)] leading-[1.1] font-bold tracking-[-0.02em] text-ink">
-                  Access is reviewed by a person
-                </h2>
-                <p className="mt-3 text-[15px] leading-[1.55] text-ink-2">
-                  Tell us your brand, your name and the email you will sign in with. Someone on our team reviews each request,
-                  and you can check where yours stands at any time.
-                </p>
+        {/* AI proposes, rules decide */}
+        <Section
+          title="AI proposes. The rules engine decides."
+          lede="Writing is a job for a model. Checking is not. Your seller account depends on keeping those two jobs apart, so they are never done by the same thing. The drafting agent is still in development; the rules and the approval step it will answer to come first."
+          className="bg-surface"
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <div data-reveal className="rounded-card border border-line bg-canvas p-6 shadow-inset-sm md:p-7">
+              <div className="flex flex-wrap items-center gap-3">
+                <IconTile icon="spark" tone="brand" />
+                <h3 className="text-h3 text-ink">What the agent will do</h3>
+                <TagChip tone="plain" className="ml-auto">
+                  In development
+                </TagChip>
               </div>
+              <ul className="mt-4 flex flex-col gap-3">
+                {AGENT_DOES.map((t) => (
+                  <li key={t} className="flex gap-3 text-[15px] leading-[1.5] text-ink">
+                    <Icon name="check" size={16} className="mt-[3px] shrink-0 text-success" />
+                    {t}
+                  </li>
+                ))}
+              </ul>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Button asChild size="lg">
-                <Link to="/signup">Request access</Link>
-              </Button>
-              <Button asChild size="lg" variant="secondary">
-                <Link to="/signup/status">Check a request</Link>
-              </Button>
+            <div data-reveal style={d(1, 110)} className="rounded-card border border-line bg-canvas p-6 shadow-inset-sm md:p-7">
+              <div className="flex items-center gap-3">
+                <IconTile icon="shield" tone="brand" />
+                <h3 className="text-h3 text-ink">What the agent never does</h3>
+              </div>
+              <ul className="mt-4 flex flex-col gap-3">
+                {AGENT_NEVER.map((t) => (
+                  <li key={t} className="flex gap-3 text-[15px] leading-[1.5] text-ink">
+                    <Icon name="x" size={16} className="mt-[3px] shrink-0 text-danger" />
+                    {t}
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
-        </div>
-      </section>
+        </Section>
+
+        {/* Bulk */}
+        <Section
+          id="bulk"
+          title="A whole catalog runs the same way as one product"
+          lede="Upload your catalog as a CSV. Every row is checked on its own and keeps its own error report, so a bad row never holds up the good ones and a retry never makes you rebuild context."
+        >
+          <ol data-reveal className="grid gap-px overflow-hidden rounded-card border border-line bg-line shadow-raised-md sm:grid-cols-2 lg:grid-cols-6">
+            {BULK.map((s, i) => (
+              <li key={s.title} className="flex flex-col gap-1.5 bg-surface p-5">
+                <span className="font-display text-caption font-bold text-brand tabular-nums">{String(i + 1).padStart(2, '0')}</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-h3 text-ink">{s.title}</h3>
+                  {'inDevelopment' in s ? <TagChip tone="plain">In development</TagChip> : null}
+                </div>
+                <p className="text-small text-ink-2">{s.body}</p>
+              </li>
+            ))}
+          </ol>
+        </Section>
+
+        {/* Marketplaces */}
+        <Section
+          id="marketplaces"
+          title="Supported marketplaces"
+          lede="Two marketplaces built properly behind one set of rules and one approval step. Here is where each one stands today."
+          className="bg-surface"
+        >
+          <ul className="grid gap-4 md:grid-cols-3">
+            {MARKET_STATUS.map((m, i) => {
+              const chip = STAGE_CHIP[m.stage]
+              return (
+                <li
+                  key={m.name}
+                  data-testid={`market-${m.stage}`}
+                  data-reveal
+                  style={d(i, 90)}
+                  className={cn(
+                    'flex flex-col gap-3 rounded-card border p-5',
+                    m.stage === 'later' ? 'border-dashed border-line-strong bg-transparent' : 'border-line bg-surface shadow-raised-md',
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="flex -space-x-1.5">
+                      {m.ids.map((id) => (
+                        <MarketplaceTile key={id} id={id} className={cn('ring-2 ring-surface', m.stage === 'later' && 'shadow-none')} />
+                      ))}
+                    </span>
+                    <StatusChip status={chip.status}>{chip.label}</StatusChip>
+                  </div>
+                  <h3 className="text-h3 text-ink">{m.name}</h3>
+                  <p className="text-small text-ink-2">{m.body}</p>
+                </li>
+              )
+            })}
+          </ul>
+        </Section>
+
+        {/* Final CTA */}
+        <section aria-labelledby="cta-h" className="border-t border-line">
+          <div className="mx-auto max-w-[1200px] px-4 py-16 md:px-8 md:py-24">
+            <div data-reveal="pop" className="flex flex-col gap-6 rounded-card border border-brand-line bg-brand-bg p-6 shadow-raised-md md:flex-row md:items-center md:justify-between md:p-10">
+              <div className="flex max-w-[60ch] flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+                <IconTile icon="users" tone="brand" size="lg" />
+                <div>
+                  <h2 id="cta-h" className="font-display text-[clamp(1.6rem,2.8vw,2.2rem)] leading-[1.1] font-bold tracking-[-0.02em] text-ink">
+                    Access is reviewed by a person
+                  </h2>
+                  <p className="mt-3 text-[15px] leading-[1.55] text-ink-2">
+                    Tell us your brand, your name and the email you will sign in with. Someone on our team reviews each request,
+                    and you can check where yours stands at any time.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button asChild size="lg">
+                  <Link to="/signup">Request access</Link>
+                </Button>
+                <Button asChild size="lg" variant="secondary">
+                  <Link to="/signup/status">Check a request</Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
     </PublicLayout>
   )
 }

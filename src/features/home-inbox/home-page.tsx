@@ -9,6 +9,7 @@ import { Link } from '@tanstack/react-router'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Page, PageHeader } from '@/components/app/page-header'
 import { LaCard, CardHead, MetricTile, TaskRow } from '@/components/la/cards'
+import { CountUp } from '@/components/la/count-up'
 import { Icon, IconTile } from '@/components/la/icons'
 import { MarketplaceTile, type MarketplaceId } from '@/components/la/marketplace'
 import { StatusChip } from '@/components/la/status-chip'
@@ -196,12 +197,12 @@ function useNow(everyMs: number) {
 }
 
 function Value({ view }: { view: TileView }) {
-  if (!view.note) return <>{view.value}</>
+  if (!view.note) return <CountUp value={view.value} />
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span tabIndex={0} className="cursor-help rounded-sm underline decoration-line-strong decoration-dotted underline-offset-[6px]">
-          {view.value}
+          <CountUp value={view.value} />
         </span>
       </TooltipTrigger>
       <TooltipContent className="max-w-72">{view.note}</TooltipContent>
