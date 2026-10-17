@@ -28,13 +28,16 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { useKeys } from '@/lib/query-keys'
+import { focusFirstInvalid } from '@/lib/validation'
 import { toast, toastError } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { fetchProfile, useSaveProfile } from './api'
+import { FieldError } from './field-error'
 import {
   buildPatch,
   changedFields,
   FIELD_LABEL,
+  fieldLength,
   mapServerErrors,
   NAME_MAX,
   normalize,
@@ -66,6 +69,9 @@ export function ProfileEditor({ profile, canEdit }: { profile: Versioned<TenantO
   const [baseline, setBaseline] = useState(profile)
   const [draft, setDraft] = useState<ProfileDraft>(() => toDraft(profile.data))
   const [submitted, setSubmitted] = useState(false)
+  // Error keys (as in ProfileErrors) of controls the person has left: their errors show from then on.
+  const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set())
+  const touch = useCallback((key: string) => setTouched((t) => (t.has(key) ? t : new Set(t).add(key))), [])
   const [serverErrors, setServerErrors] = useState<ProfileErrors>({})
   const [stale, setStale] = useState<StaleState | null>(null)
 
@@ -82,8 +88,12 @@ export function ProfileEditor({ profile, canEdit }: { profile: Versioned<TenantO
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to a new server profile
   }, [profile])
 
-  const clientErrors = useMemo(() => validateDraft(draft), [draft])
-  const errors: ProfileErrors = submitted ? { ...serverErrors, ...clientErrors } : serverErrors
+  // Errors show after the field is left or on save, then re-check on every change.
+  const clientErrors = useMemo(() => validateDraft(draft, baseline.data), [draft, baseline])
+  const visibleClient = submitted
+    ? clientErrors
+    : Object.fromEntries(Object.entries(clientErrors).filter(([k]) => touched.has(k)))
+  const errors: ProfileErrors = { ...serverErrors, ...visibleClient }
   const errorCount = Object.keys(errors).length
 
   const edit = (next: Partial<ProfileDraft>) => {
@@ -94,6 +104,7 @@ export function ProfileEditor({ profile, canEdit }: { profile: Versioned<TenantO
   const discard = useCallback(() => {
     setDraft(toDraft(baseline.data))
     setSubmitted(false)
+    setTouched(new Set())
     setServerErrors({})
     setStale(null)
   }, [baseline])
@@ -101,8 +112,8 @@ export function ProfileEditor({ profile, canEdit }: { profile: Versioned<TenantO
   const onSave = useCallback(() => {
     if (!canEdit || save.isPending) return
     setSubmitted(true)
-    if (Object.keys(validateDraft(draft)).length) {
-      requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-brand-form] [aria-invalid="true"]')?.focus())
+    if (Object.keys(validateDraft(draft, baseline.data)).length) {
+      requestAnimationFrame(() => focusFirstInvalid(document.querySelector('[data-brand-form]')))
       return
     }
     const body = buildPatch(baseline.data, draft)
@@ -115,6 +126,7 @@ export function ProfileEditor({ profile, canEdit }: { profile: Versioned<TenantO
           setBaseline(next)
           setDraft(toDraft(next.data))
           setSubmitted(false)
+          setTouched(new Set())
           setServerErrors({})
           setStale(null)
           toast.success('Brand profile saved', {
@@ -231,17 +243,20 @@ export function ProfileEditor({ profile, canEdit }: { profile: Versioned<TenantO
             label={FIELD_LABEL.name}
             error={errors.name}
             changedByOthers={changedByOthers('name')}
-            counter={canEdit ? { value: draft.name.trim().length, max: NAME_MAX } : undefined}
+            counter={canEdit ? { value: fieldLength(draft.name), max: NAME_MAX } : undefined}
           >
             {canEdit ? (
               <Input
                 id="brand-name"
+                name="name"
                 value={draft.name}
                 maxLength={NAME_MAX * 2}
                 autoComplete="organization"
+                autoCapitalize="words"
                 aria-invalid={!!errors.name || undefined}
                 aria-describedby={errors.name ? 'brand-name-err' : undefined}
                 onChange={(e) => edit({ name: e.target.value })}
+                onBlur={() => touch('name')}
               />
             ) : (
               <p className="text-sm font-medium" id="brand-name">
@@ -265,12 +280,14 @@ export function ProfileEditor({ profile, canEdit }: { profile: Versioned<TenantO
             hint="How the brand sounds, in a few sentences."
             error={errors.tone}
             changedByOthers={changedByOthers('tone')}
-            counter={canEdit ? { value: draft.tone.trim().length, max: TONE_MAX } : undefined}
+            counter={canEdit ? { value: fieldLength(draft.tone), max: TONE_MAX } : undefined}
           >
             {canEdit ? (
               <Textarea
                 id="brand-tone"
+                name="tone"
                 value={draft.tone}
+                autoComplete="off"
                 rows={3}
                 maxLength={TONE_MAX * 2}
                 placeholder="e.g. Warm, plain and factual. Short sentences, no hype."
@@ -278,6 +295,7 @@ export function ProfileEditor({ profile, canEdit }: { profile: Versioned<TenantO
                 aria-invalid={!!errors.tone || undefined}
                 aria-describedby={errors.tone ? 'brand-tone-err' : 'brand-tone-hint'}
                 onChange={(e) => edit({ tone: e.target.value })}
+                onBlur={() => touch('tone')}
               />
             ) : (
               <ReadText value={t.tone} empty="No tone set." />
@@ -288,7 +306,7 @@ export function ProfileEditor({ profile, canEdit }: { profile: Versioned<TenantO
         <section className="border-t px-5 py-5" aria-labelledby="brand-guidelines">
           <SectionHead id="brand-guidelines" label={FIELD_LABEL.guidelines} hint="Rules every listing must follow." changedByOthers={changedByOthers('guidelines')} />
           {canEdit ? (
-            <GuidelinesEditor rows={draft.guidelines} errors={errors} onChange={(guidelines) => edit({ guidelines })} />
+            <GuidelinesEditor rows={draft.guidelines} errors={errors} onChange={(guidelines) => edit({ guidelines })} onTouch={touch} />
           ) : t.guidelines?.length ? (
             <ol className="list-decimal space-y-1.5 pl-5 text-sm marker:text-muted-foreground">
               {t.guidelines.map((g, i) => (
@@ -303,7 +321,7 @@ export function ProfileEditor({ profile, canEdit }: { profile: Versioned<TenantO
         <section className="border-t px-5 py-5" aria-labelledby="brand-glossary">
           <SectionHead id="brand-glossary" label={FIELD_LABEL.glossary} hint="Words to avoid, and what to say instead." changedByOthers={changedByOthers('glossary')} />
           {canEdit ? (
-            <GlossaryEditor rows={draft.glossary} errors={errors} onChange={(glossary) => edit({ glossary })} />
+            <GlossaryEditor rows={draft.glossary} errors={errors} onChange={(glossary) => edit({ glossary })} onTouch={touch} />
           ) : Object.keys(t.glossary ?? {}).length ? (
             <dl className="divide-y divide-line rounded-lg border border-line">
               {Object.entries(t.glossary ?? {}).map(([avoid, use]) => (
@@ -396,11 +414,7 @@ function FieldBlock({
         </p>
       ) : null}
       {children}
-      {error ? (
-        <p id={`${id}-err`} className="text-xs text-destructive">
-          {error}
-        </p>
-      ) : null}
+      <FieldError id={`${id}-err`} message={error} confirmFix />
     </div>
   )
 }

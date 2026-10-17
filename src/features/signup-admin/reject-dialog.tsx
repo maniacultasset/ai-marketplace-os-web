@@ -10,6 +10,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
+import { FORM_VALIDATION_MODE } from '@/lib/validation'
 import { useRejectSignup } from './api'
 import { decisionError, type SignupRequest } from './format'
 import { codePoints, REASON_MAX, rejectFormSchema, toRejectBody, type RejectFormValues } from './schema'
@@ -26,7 +27,11 @@ export function RejectDialog({
   onClose: () => void
 }) {
   const reject = useRejectSignup()
-  const form = useForm<RejectFormValues>({ resolver: zodResolver(rejectFormSchema), defaultValues: { reason: '' } })
+  const form = useForm<RejectFormValues>({
+    resolver: zodResolver(rejectFormSchema),
+    defaultValues: { reason: '' },
+    ...FORM_VALIDATION_MODE,
+  })
   const { errors } = form.formState
 
   const requestId = request?.id
@@ -76,12 +81,14 @@ export function RejectDialog({
                 autoFocus
                 className="max-h-60 min-h-24"
                 placeholder="For example: we could not verify the brand. Add your website and apply again."
+                autoComplete="off"
                 aria-invalid={!!errors.reason}
+                aria-describedby="reject-reason-hint"
                 disabled={busy}
                 data-testid="reject-reason"
                 {...form.register('reason')}
               />
-              <div className="flex items-start justify-between gap-3">
+              <div id="reject-reason-hint" className="flex items-start justify-between gap-3">
                 {errors.reason ? (
                   <FieldError errors={[errors.reason]} />
                 ) : (

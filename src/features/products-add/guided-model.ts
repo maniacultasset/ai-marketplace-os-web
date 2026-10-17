@@ -8,7 +8,18 @@
  * not accept, so they are set per variant on the next step (spreadsheet import). Images can only be
  * uploaded once the product exists (create with `images` is 404 `images[0]`).
  */
-import { CATEGORY_PATTERN, codePoints, SKU_PATTERN, TITLE_MAX, ATTRIBUTE_TEXT_MAX, ATTRIBUTE_KEY_PATTERN } from '@/features/products/schema'
+import {
+  ATTRIBUTE_KEY_MSG,
+  ATTRIBUTE_KEY_PATTERN,
+  ATTRIBUTE_TEXT_MAX,
+  categoryProblem,
+  codePoints,
+  productTitleProblem,
+  skuProblem,
+} from '@/features/products/schema'
+import { CONTROL_MSG, hasStrayControlChars } from '@/lib/validation'
+
+export { skuProblem }
 
 export type SectionId = 'identity' | 'category' | 'attributes' | 'variants' | 'media' | 'care' | 'price'
 
@@ -59,35 +70,54 @@ export const emptyGuided = (): GuidedValues => ({ sku: '', title: '', category: 
 
 export type GuidedErrors = Partial<Record<string, string>>
 
+/** A free-text value (title, attribute): trimmed, at most `max` code points, no control characters. */
+function textProblem(raw: string, label: string, max: number): string | null {
+  const v = raw.trim()
+  if (hasStrayControlChars(v)) return CONTROL_MSG
+  if (codePoints(v) > max) return `Shorten ${label} to ${max.toLocaleString('en-IN')} characters or fewer.`
+  return null
+}
+
 /** Client checks mirroring ProductCreate. Keys: sku, title, category, attr.<key>, extra.<i>.key|value. */
 export function validateGuided(v: GuidedValues): GuidedErrors {
   const e: GuidedErrors = {}
-  const sku = v.sku.trim()
-  if (!sku) e.sku = 'Enter a SKU.'
-  else if (!SKU_PATTERN.test(sku) || sku.includes('﻿')) e.sku = 'No spaces or "]" allowed, at most 64 characters.'
-  const title = v.title.trim()
-  if (!title) e.title = 'Enter a product name.'
-  else if (codePoints(title) > TITLE_MAX) e.title = `At most ${TITLE_MAX} characters.`
-  const category = v.category.trim()
-  if (!category) e.category = 'Enter a category.'
-  else if (!CATEGORY_PATTERN.test(category)) e.category = '2-64 lowercase letters, digits or _ (for example ethnic_wear_kurta_sets).'
+  const sku = skuProblem(v.sku)
+  if (sku) e.sku = sku
+  const title = productTitleProblem(v.title, 'the product name')
+  if (title) e.title = title
+  const category = categoryProblem(v.category)
+  if (category) e.category = category
   for (const f of ATTR_FIELDS) {
-    const val = (v.attrs[f.key] ?? '').trim()
-    if (codePoints(val) > ATTRIBUTE_TEXT_MAX) e[`attr.${f.key}`] = `At most ${ATTRIBUTE_TEXT_MAX} characters.`
+    const p = textProblem(v.attrs[f.key] ?? '', f.label.toLowerCase(), ATTRIBUTE_TEXT_MAX)
+    if (p) e[`attr.${f.key}`] = p
   }
   const seen = new Set(ATTR_FIELDS.map((f) => f.key))
   v.extra.forEach((x, i) => {
     const key = x.key.trim()
     const val = x.value.trim()
     if (!key && !val) return
-    if (!key) e[`extra.${i}.key`] = 'Choose an attribute.'
-    else if (!ATTRIBUTE_KEY_PATTERN.test(key)) e[`extra.${i}.key`] = 'Lowercase letters, digits and _; start with a letter.'
-    else if (seen.has(key)) e[`extra.${i}.key`] = 'This attribute is already on the form.'
+    if (!key) e[`extra.${i}.key`] = 'Choose an attribute, or clear the value.'
+    else if (!ATTRIBUTE_KEY_PATTERN.test(key))
+      e[`extra.${i}.key`] = ATTRIBUTE_KEY_MSG
+    else if (seen.has(key)) e[`extra.${i}.key`] = 'This attribute is already on the form. Fill it there instead.'
     else seen.add(key)
     if (key && !val) e[`extra.${i}.value`] = 'Enter a value or remove the row.'
-    else if (codePoints(val) > ATTRIBUTE_TEXT_MAX) e[`extra.${i}.value`] = `At most ${ATTRIBUTE_TEXT_MAX} characters.`
+    else {
+      const p = textProblem(val, 'the value', ATTRIBUTE_TEXT_MAX)
+      if (p) e[`extra.${i}.value`] = p
+    }
   })
   return e
+}
+
+/** Error keys in the order the form shows them (the first one is focused on save). */
+export function errorOrder(keys: readonly string[]): string[] {
+  const rank = (k: string) => {
+    const s = SECTIONS.findIndex((x) => x.id === sectionOfError(k))
+    const within = k === 'sku' ? 0 : k === 'title' ? 1 : k.startsWith('attr.') ? 2 + ATTR_FIELDS.findIndex((f) => `attr.${f.key}` === k) : 100
+    return s * 1000 + within
+  }
+  return [...keys].sort((a, b) => rank(a) - rank(b))
 }
 
 /** The section an error key belongs to (to open it when a save fails). */

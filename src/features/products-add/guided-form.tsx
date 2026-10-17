@@ -12,7 +12,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { format } from 'date-fns'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, unwrap } from '@/api/client'
 import { isApiError } from '@/api/errors'
 import {
@@ -33,12 +33,13 @@ import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
-import { ATTRIBUTE_KEY_SUGGESTIONS, KNOWN_CATEGORIES } from '@/features/products/schema'
+import { ATTRIBUTE_KEY_SUGGESTIONS, ATTRIBUTE_TEXT_MAX, KNOWN_CATEGORIES, SKU_MAX, TITLE_MAX } from '@/features/products/schema'
 import { invalidateListingWork } from '@/features/listings/api'
 import { useSession } from '@/lib/auth'
 import { useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
 import { toast } from '@/lib/toast'
+import { focusFirstInvalid } from '@/lib/validation'
 import { cn } from '@/lib/utils'
 import { useAllProducts } from './catalog'
 import { humanizeSlug, type Marketplace, type Product } from './catalog-model'
@@ -46,6 +47,7 @@ import { generateMany, planGenerate } from './generate'
 import {
   ATTR_FIELDS,
   emptyGuided,
+  errorOrder,
   mapCreateErrors,
   missingCritical,
   SECTIONS,
@@ -122,6 +124,10 @@ function TextField({
   placeholder,
   list,
   autoFocus,
+  onBlur,
+  submitCount,
+  maxLength,
+  code,
 }: {
   id: string
   label: string
@@ -133,6 +139,12 @@ function TextField({
   placeholder?: string
   list?: string
   autoFocus?: boolean
+  onBlur?: () => void
+  submitCount?: number
+  /** Generous on purpose: the error explains the limit instead of silently cutting the paste. */
+  maxLength?: number
+  /** A code (SKU, category slug): no spell check or auto-capitalisation. */
+  code?: boolean
 }) {
   const filled = value.trim() !== ''
   return (
@@ -144,11 +156,18 @@ function TextField({
       critical={critical}
       needsInput={critical && !filled && !error}
       source={filled ? { kind: 'you' } : undefined}
+      submitCount={submitCount}
+      confirmFix
     >
       <Input
         id={id}
+        name={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        maxLength={maxLength}
+        spellCheck={code ? false : undefined}
+        autoCapitalize={code ? 'none' : undefined}
         aria-invalid={error ? true : undefined}
         aria-describedby={fieldHintId(id)}
         placeholder={placeholder}
@@ -171,7 +190,15 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
   const [values, setValues] = useState<GuidedValues>(() => initial?.values ?? emptyGuided())
   const [savedAt, setSavedAt] = useState<string | null>(initial?.savedAt ?? null)
   const [section, setSection] = useState<SectionId>('identity')
-  const [errors, setErrors] = useState<GuidedErrors>({})
+  /** Errors from the last save attempt's API response, cleared per field as it is edited. */
+  const [serverErrors, setServerErrors] = useState<GuidedErrors>({})
+  /** Fields the person has left (blurred): their client errors show from then on. */
+  const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set())
+  /** Save attempts: after the first, every client error shows and re-checks on each change. */
+  const [submitCount, setSubmitCount] = useState(0)
+  /** Bumped to move focus to the first invalid field once its section has rendered. */
+  const [focusTick, setFocusTick] = useState(0)
+  const bodyRef = useRef<HTMLElement>(null)
   const [formError, setFormError] = useState<unknown>(null)
   const [created, setCreated] = useState<Product | null>(null)
   const [busy, setBusy] = useState<'next' | 'send' | null>(null)
@@ -198,13 +225,26 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
     return () => clearTimeout(t)
   }, [values, draftKey, created])
 
+  // Client errors are re-checked on every change; one shows once its field was left or a save was
+  // tried (react-hook-form's onTouched + reValidateMode onChange). Server errors win until edited.
+  const clientErrors = useMemo(() => validateGuided(values), [values])
+  const errors = useMemo<GuidedErrors>(() => {
+    const out: GuidedErrors = {}
+    for (const [k, msg] of Object.entries(clientErrors)) if (submitCount > 0 || touched.has(k)) out[k] = msg
+    return { ...out, ...serverErrors }
+  }, [clientErrors, serverErrors, touched, submitCount])
+  const touch = (key: string) => setTouched((t) => (t.has(key) ? t : new Set(t).add(key)))
+  useEffect(() => {
+    if (focusTick) focusFirstInvalid(bodyRef.current)
+  }, [focusTick])
+
   const states = useMemo(() => sectionStates(values), [values])
   const missing = useMemo(() => missingCritical(values), [values])
 
   const set = (patch: Partial<GuidedValues>) => {
     if ('sku' in patch) setConflict(null)
     setValues((v) => ({ ...v, ...patch }))
-    setErrors((e) => {
+    setServerErrors((e) => {
       const next = { ...e }
       for (const k of Object.keys(patch)) delete next[k]
       return next
@@ -212,7 +252,7 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
   }
   const setAttr = (key: string, val: string) => {
     setValues((v) => ({ ...v, attrs: { ...v.attrs, [key]: val } }))
-    setErrors((e) => {
+    setServerErrors((e) => {
       const next = { ...e }
       delete next[`attr.${key}`]
       return next
@@ -232,10 +272,11 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
   const ensureCreated = async (): Promise<Product | null> => {
     if (created) return created
     setFormError(null)
-    const errs = validateGuided(values)
-    if (Object.keys(errs).length) {
-      setErrors(errs)
-      setSection(sectionOfError(Object.keys(errs)[0]!))
+    setSubmitCount((n) => n + 1)
+    const first = errorOrder(Object.keys(validateGuided(values)))[0]
+    if (first) {
+      setSection(sectionOfError(first))
+      setFocusTick((n) => n + 1)
       return null
     }
     try {
@@ -252,9 +293,12 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
           setConflict(fresh.data?.rows.find((p) => p.sku === sku) ?? null)
         }
         const { fields, unmapped } = mapCreateErrors(err, values)
-        setErrors(fields)
-        const first = Object.keys(fields)[0]
-        if (first) setSection(sectionOfError(first))
+        setServerErrors(fields)
+        const first = errorOrder(Object.keys(fields))[0]
+        if (first) {
+          setSection(sectionOfError(first))
+          setFocusTick((n) => n + 1)
+        }
         if (unmapped || !first) setFormError(err)
       } else setFormError(err)
       return null
@@ -309,8 +353,30 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
       case 'identity':
         return (
           <div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
-            <TextField id="g-sku" label="SKU" value={values.sku} onChange={(sku) => set({ sku })} error={errors.sku} hint="Your seller SKU. Unique in this brand, no spaces." autoFocus />
-            <TextField id="g-title" label="Product name" value={values.title} onChange={(title) => set({ title })} error={errors.title} hint="What you call it. The agent writes marketplace titles." />
+            <TextField
+              id="g-sku"
+              label="SKU"
+              value={values.sku}
+              onChange={(sku) => set({ sku })}
+              onBlur={() => touch('sku')}
+              error={errors.sku}
+              hint="Your seller SKU. Unique in this brand, no spaces."
+              submitCount={submitCount}
+              maxLength={SKU_MAX + 8}
+              code
+              autoFocus
+            />
+            <TextField
+              id="g-title"
+              label="Product name"
+              value={values.title}
+              onChange={(title) => set({ title })}
+              onBlur={() => touch('title')}
+              error={errors.title}
+              hint="What you call it. The agent writes marketplace titles."
+              submitCount={submitCount}
+              maxLength={TITLE_MAX * 2}
+            />
           </div>
         )
       case 'category':
@@ -322,7 +388,11 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
                 label="Category"
                 value={values.category}
                 onChange={(category) => set({ category })}
+                onBlur={() => touch('category')}
                 error={errors.category}
+                submitCount={submitCount}
+                maxLength={64 + 8}
+                code
                 hint="The catalog category, for example ethnic_wear_kurta_sets."
                 list="g-category-list"
               />
@@ -355,12 +425,15 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
                   critical={f.critical}
                   value={values.attrs[f.key] ?? ''}
                   onChange={(v) => setAttr(f.key, v)}
+                  onBlur={() => touch(`attr.${f.key}`)}
                   error={errors[`attr.${f.key}`]}
+                  submitCount={submitCount}
+                  maxLength={ATTRIBUTE_TEXT_MAX * 2}
                   hint={f.hint}
                 />
               ))}
             </div>
-            {section === 'attributes' ? <ExtraAttributes values={values} setValues={setValues} errors={errors} /> : null}
+            {section === 'attributes' ? <ExtraAttributes values={values} setValues={setValues} errors={errors} touch={touch} submitCount={submitCount} /> : null}
             <p className="text-caption text-ink-3">★ Critical facts can block a listing. The agent never fills them.</p>
           </div>
         )
@@ -415,7 +488,7 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
           </ul>
         </nav>
 
-        <section aria-labelledby="g-heading" className="flex min-w-0 flex-col gap-5 px-4 py-6 md:px-7">
+        <section ref={bodyRef} aria-labelledby="g-heading" className="flex min-w-0 flex-col gap-5 px-4 py-6 md:px-7">
           <div>
             <h1 id="g-heading" className="truncate font-display text-h1 text-ink">
               {values.title.trim() || 'New product'}
@@ -450,7 +523,7 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
                     onClick={() => {
                       setCreated(conflict)
                       setConflict(null)
-                      setErrors({})
+                      setServerErrors({})
                       writeDraft(draftKey, null)
                       setSavedAt(null)
                     }}
@@ -551,10 +624,14 @@ function ExtraAttributes({
   values,
   setValues,
   errors,
+  touch,
+  submitCount,
 }: {
   values: GuidedValues
   setValues: (fn: (v: GuidedValues) => GuidedValues) => void
   errors: GuidedErrors
+  touch: (key: string) => void
+  submitCount: number
 }) {
   const update = (i: number, patch: Partial<{ key: string; value: string }>) =>
     setValues((v) => ({ ...v, extra: v.extra.map((x, j) => (j === i ? { ...x, ...patch } : x)) }))
@@ -564,11 +641,35 @@ function ExtraAttributes({
     <div className="flex flex-col gap-3">
       {values.extra.map((x, i) => (
         <div key={i} className="grid items-start gap-x-5 gap-y-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-          <LaField label={`Attribute ${i + 1}`} htmlFor={`g-extra-${i}-key`} error={errors[`extra.${i}.key`]}>
-            <Input id={`g-extra-${i}-key`} value={x.key} list="g-extra-keys" placeholder="for example occasion" onChange={(e) => update(i, { key: e.target.value })} aria-invalid={errors[`extra.${i}.key`] ? true : undefined} />
+          <LaField label={`Attribute ${i + 1}`} htmlFor={`g-extra-${i}-key`} error={errors[`extra.${i}.key`]} submitCount={submitCount} confirmFix>
+            <Input
+              id={`g-extra-${i}-key`}
+              name={`g-extra-${i}-key`}
+              value={x.key}
+              list="g-extra-keys"
+              placeholder="for example occasion"
+              autoComplete="off"
+              spellCheck={false}
+              autoCapitalize="none"
+              maxLength={64 + 8}
+              onChange={(e) => update(i, { key: e.target.value })}
+              onBlur={() => touch(`extra.${i}.key`)}
+              aria-invalid={errors[`extra.${i}.key`] ? true : undefined}
+              aria-describedby={fieldHintId(`g-extra-${i}-key`)}
+            />
           </LaField>
-          <LaField label="Value" htmlFor={`g-extra-${i}-value`} error={errors[`extra.${i}.value`]} source={x.value.trim() ? { kind: 'you' } : undefined}>
-            <Input id={`g-extra-${i}-value`} value={x.value} onChange={(e) => update(i, { value: e.target.value })} aria-invalid={errors[`extra.${i}.value`] ? true : undefined} />
+          <LaField label="Value" htmlFor={`g-extra-${i}-value`} error={errors[`extra.${i}.value`]} source={x.value.trim() ? { kind: 'you' } : undefined} submitCount={submitCount} confirmFix>
+            <Input
+              id={`g-extra-${i}-value`}
+              name={`g-extra-${i}-value`}
+              value={x.value}
+              autoComplete="off"
+              maxLength={ATTRIBUTE_TEXT_MAX * 2}
+              onChange={(e) => update(i, { value: e.target.value })}
+              onBlur={() => touch(`extra.${i}.value`)}
+              aria-invalid={errors[`extra.${i}.value`] ? true : undefined}
+              aria-describedby={fieldHintId(`g-extra-${i}-value`)}
+            />
           </LaField>
           <Button
             variant="ghost"

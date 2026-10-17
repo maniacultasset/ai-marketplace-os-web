@@ -11,12 +11,13 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
+import { CircleAlert } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { api, unwrap } from '@/api/client'
 import { describeError, isApiError } from '@/api/errors'
 import { idempotencyHeader, newIdempotencyKey, useIntentKey } from '@/api/idempotency'
 import { Page, PageHeader } from '@/components/app/page-header'
-import { Banner, CardHead, DashedCard, FooterBar, Icon, IconTile, LaCard, StatusChip, VariantCell } from '@/components/la'
+import { Banner, CardHead, DashedCard, fieldHintId, FooterBar, Icon, IconTile, LaCard, LaField, StatusChip, VariantCell } from '@/components/la'
 import { EmptyState } from '@/components/states/empty-state'
 import { ErrorState } from '@/components/states/error-state'
 import { ReferenceId } from '@/components/states/reference-id'
@@ -30,9 +31,11 @@ import { uploadImage } from '@/features/analytics-images/images/upload'
 import { useImportHistory } from '@/features/imports/history'
 import { markJobLive } from '@/features/imports/use-import-job'
 import { useProduct } from '@/features/products/api'
+import { SKU_MAX } from '@/features/products/schema'
 import { useCapability } from '@/hooks/use-capabilities'
 import { useKeys } from '@/lib/query-keys'
 import { cn } from '@/lib/utils'
+import { decimal, digitsOnly, filterInput, focusFirstInvalid } from '@/lib/validation'
 import { useAllProducts } from './catalog'
 import type { Marketplace } from './catalog-model'
 import { serializeListOn } from './list-on'
@@ -41,8 +44,13 @@ import {
   buildFamilyCsv,
   buildVariants,
   cellKey,
+  colourProblem,
   emptyVariants,
+  GTIN_MAX,
+  MAX_COLOUR,
+  MAX_SIZE,
   SIZE_SYSTEMS,
+  sizeProblem,
   validateVariants,
   type Commercial,
   type VariantErrors,
@@ -61,10 +69,35 @@ function download(name: string, text: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-function TagInput({ id, label, values, onChange, placeholder, error }: { id: string; label: string; values: string[]; onChange: (v: string[]) => void; placeholder: string; error?: string }) {
+function TagInput({
+  id,
+  label,
+  values,
+  onChange,
+  placeholder,
+  error,
+  check,
+  maxLength,
+  submitCount,
+}: {
+  id: string
+  label: string
+  values: string[]
+  onChange: (v: string[]) => void
+  placeholder: string
+  error?: string
+  /** One tag's problem, or null: a bad tag stays in the box with its error instead of being added. */
+  check: (tag: string) => string | null
+  maxLength: number
+  submitCount: number
+}) {
   const [draft, setDraft] = useState('')
+  const [draftError, setDraftError] = useState<string | null>(null)
   const commit = () => {
-    if (!draft.trim()) return
+    if (!draft.trim()) return setDraftError(null)
+    const problem = check(draft)
+    setDraftError(problem)
+    if (problem) return
     onChange(addTag(values, draft))
     setDraft('')
   }
@@ -74,15 +107,13 @@ function TagInput({ id, label, values, onChange, placeholder, error }: { id: str
       commit()
     } else if (e.key === 'Backspace' && !draft && values.length) onChange(values.slice(0, -1))
   }
+  const shown = draftError ?? error
   return (
-    <div className="min-w-0">
-      <label htmlFor={id} className="mb-1.5 block text-small font-bold text-ink">
-        {label}
-      </label>
+    <LaField label={label} htmlFor={id} hint="Press Enter after each one." error={shown} submitCount={submitCount} confirmFix>
       <div
         className={cn(
-          'inset-field flex min-h-10 flex-wrap items-center gap-1.5 rounded-control border px-2 py-1.5 focus-within:border-brand focus-within:shadow-[var(--focus-ring),var(--shadow-inset-sm)]',
-          error ? 'border-danger' : 'border-line-strong hover:border-edge-hover',
+          'inset-field flex min-h-10 flex-wrap items-center gap-1.5 rounded-control border px-2 py-1.5 transition-[border-color,box-shadow,background-color] duration-200 focus-within:shadow-[var(--focus-ring),var(--shadow-inset-sm)] motion-reduce:transition-none',
+          shown ? 'border-danger bg-field-invalid' : 'border-line-strong hover:border-edge-hover focus-within:border-brand',
         )}
       >
         {values.map((v) => (
@@ -100,33 +131,87 @@ function TagInput({ id, label, values, onChange, placeholder, error }: { id: str
         ))}
         <input
           id={id}
+          name={id}
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            setDraft(e.target.value)
+            // Once an error shows, re-check on every change so it clears the moment the tag is fixed.
+            if (draftError) setDraftError(e.target.value.trim() ? check(e.target.value) : null)
+          }}
           onKeyDown={onKey}
           onBlur={commit}
           placeholder={values.length ? '+ add' : placeholder}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={`${id}-hint`}
+          autoComplete="off"
+          maxLength={maxLength}
+          enterKeyHint="enter"
+          aria-invalid={shown ? true : undefined}
+          aria-describedby={fieldHintId(id)}
           className="h-[26px] min-w-20 flex-1 bg-transparent text-body text-ink outline-none placeholder:text-ink-3"
         />
       </div>
-      <p id={`${id}-hint`} className={cn('mt-1.5 text-caption', error ? 'font-semibold text-danger' : 'text-ink-3')}>
-        {error ?? 'Press Enter after each one.'}
-      </p>
+    </LaField>
+  )
+}
+
+/** An error under a table cell: opens and folds like LaField's error line (off under reduced motion). */
+function CellError({ id, error }: { id: string; error?: string }) {
+  const [last, setLast] = useState(error)
+  if (error && error !== last) setLast(error)
+  return (
+    <div className="field-reveal" data-open={error ? true : undefined}>
+      <div className="min-h-0">
+        <p
+          id={id}
+          role={error ? 'alert' : undefined}
+          aria-hidden={!error || undefined}
+          className="flex items-start gap-1 pt-1 text-caption font-semibold text-danger"
+        >
+          {last ? <CircleAlert aria-hidden className="mt-px size-3.5 shrink-0" /> : null}
+          <span className="min-w-0">{error ?? last}</span>
+        </p>
+      </div>
     </div>
   )
 }
 
-function MoneyInput({ id, label, value, onChange, error }: { id: string; label: string; value: string; onChange: (v: string) => void; error?: string }) {
+function MoneyInput({
+  id,
+  label,
+  value,
+  onChange,
+  onBlur,
+  error,
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (v: string) => void
+  onBlur: () => void
+  error?: string
+}) {
   return (
     <div className="min-w-0">
       <div className="relative">
         <span aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-small text-ink-2">
           ₹
         </span>
-        <Input id={id} aria-label={label} inputMode="decimal" value={value} onChange={(e) => onChange(e.target.value)} aria-invalid={error ? true : undefined} className="h-8 pl-6 text-small" />
+        <Input
+          id={id}
+          name={id}
+          aria-label={label}
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
+          maxLength={24}
+          value={value}
+          {...filterInput({ onChange: (e) => onChange(e.target.value) }, decimal)}
+          onBlur={onBlur}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={`${id}-error`}
+          className="h-8 pl-6 text-small tabular-nums"
+        />
       </div>
-      {error ? <p className="mt-1 text-caption font-semibold text-danger">{error}</p> : null}
+      <CellError id={`${id}-error`} error={error} />
     </div>
   )
 }
@@ -397,12 +482,28 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
   const history = useImportHistory()
   const intent = useIntentKey()
   const [s, setS] = useState<VariantsState>(() => ({ ...emptyVariants(), sizes: [...SIZE_SYSTEMS[0]!.sizes] }))
-  const [errors, setErrors] = useState<VariantErrors>({})
   const [showAll, setShowAll] = useState(false)
+  /** Fields the person has left: their errors show from then on, re-checked on every change. */
+  const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set())
+  /** Save or download attempts: after the first, every error shows. */
+  const [submitCount, setSubmitCount] = useState(0)
+  const [focusTick, setFocusTick] = useState(0)
+  const editorRef = useRef<HTMLDivElement>(null)
 
   const p = q.data
   const existingVariants = useMemo(() => (all.data?.rows ?? []).filter((x) => x.parent_product_id === productId), [all.data, productId])
   const rows = useMemo(() => (p ? buildVariants(p.sku, s) : []), [p, s])
+  const allErrors = useMemo(() => (p ? validateVariants(p.sku, s) : {}), [p, s])
+  const errors = useMemo<VariantErrors>(() => {
+    if (submitCount > 0) return allErrors
+    const out: VariantErrors = {}
+    for (const [k, msg] of Object.entries(allErrors)) if (touched.has(k)) out[k] = msg
+    return out
+  }, [allErrors, touched, submitCount])
+  const touch = (key: string) => setTouched((t) => (t.has(key) ? t : new Set(t).add(key)))
+  useEffect(() => {
+    if (focusTick) focusFirstInvalid(editorRef.current)
+  }, [focusTick])
 
   const upload = useMutation({
     meta: { toast: false },
@@ -425,7 +526,6 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
   const change = (next: Partial<VariantsState>) => {
     intent.reset()
     setS((x) => ({ ...x, ...next }))
-    setErrors({})
   }
   const setCommercial = (key: string, patch: Partial<Commercial>) =>
     change({ commercial: { ...s.commercial, [key]: { mrp: '', price: '', identifier: '', ...s.commercial[key], ...patch } } })
@@ -456,9 +556,14 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
     )
 
   const validate = () => {
-    const e = validateVariants(p.sku, s)
-    setErrors(e)
-    return Object.keys(e).length === 0
+    setSubmitCount((n) => n + 1)
+    const keys = Object.keys(allErrors)
+    if (keys.length === 0) return true
+    // Errors in rows past the preview would be invisible: open the full list first.
+    const hidden = new Set(rows.slice(PREVIEW_ROWS).map((r) => r.key))
+    if (keys.some((k) => hidden.has(k.slice(0, k.lastIndexOf('.'))))) setShowAll(true)
+    setFocusTick((n) => n + 1)
+    return false
   }
   const csv = () => buildFamilyCsv({ sku: p.sku, title: p.title, category: p.category }, s)
   const visible = showAll ? rows : rows.slice(0, PREVIEW_ROWS)
@@ -467,6 +572,7 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
   return (
     <div className="flex min-h-[calc(100svh-56px)] flex-col">
       <Page className="flex-1">
+        <div ref={editorRef} className="contents">
         <PageHeader
           title="Variants and media"
           description={
@@ -486,8 +592,28 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
         ) : null}
 
         <div className="grid gap-4 md:grid-cols-3">
-          <TagInput id="v-colours" label="Colours" values={s.colours} onChange={(colours) => change({ colours })} placeholder="Black, Off white…" error={errors.colours} />
-          <TagInput id="v-sizes" label="Sizes" values={s.sizes} onChange={(sizes) => change({ sizes })} placeholder="S, M, L…" error={errors.sizes} />
+          <TagInput
+            id="v-colours"
+            label="Colours"
+            values={s.colours}
+            onChange={(colours) => change({ colours })}
+            placeholder="Black, Off white…"
+            error={errors.colours}
+            check={colourProblem}
+            maxLength={MAX_COLOUR + 8}
+            submitCount={submitCount}
+          />
+          <TagInput
+            id="v-sizes"
+            label="Sizes"
+            values={s.sizes}
+            onChange={(sizes) => change({ sizes })}
+            placeholder="S, M, L…"
+            error={errors.sizes}
+            check={sizeProblem}
+            maxLength={MAX_SIZE + 8}
+            submitCount={submitCount}
+          />
           <div className="min-w-0">
             <label htmlFor="v-system" className="mb-1.5 block text-small font-bold text-ink">
               Size system
@@ -549,7 +675,7 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
           <p className="mt-3 text-small text-ink-3">
             {rows.length} {rows.length === 1 ? 'variant' : 'variants'} will be created. We never add one you did not list.
           </p>
-          {errors.form ? <p className="mt-1 text-small font-semibold text-danger">{errors.form}</p> : null}
+          <CellError id="v-matrix-error" error={errors.form} />
         </LaCard>
 
         {rows.length ? (
@@ -571,31 +697,46 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
                       <tr key={r.key} className="border-t border-line align-top">
                         <td className="px-4 py-2">
                           <Input
+                            id={`sku-${r.sku}`}
+                            name={`sku-${r.sku}`}
                             aria-label={`SKU for ${[r.colour, r.size].filter(Boolean).join(' ')}`}
                             value={s.skus[r.key] ?? r.sku}
                             onChange={(e) => change({ skus: { ...s.skus, [r.key]: e.target.value } })}
+                            onBlur={() => touch(`${r.key}.sku`)}
+                            autoComplete="off"
+                            spellCheck={false}
+                            autoCapitalize="characters"
+                            maxLength={SKU_MAX + 8}
                             aria-invalid={errors[`${r.key}.sku`] ? true : undefined}
+                            aria-describedby={`sku-${r.sku}-error`}
                             className="h-8 text-small"
                           />
-                          {errors[`${r.key}.sku`] ? <p className="mt-1 text-caption font-semibold text-danger">{errors[`${r.key}.sku`]}</p> : null}
+                          <CellError id={`sku-${r.sku}-error`} error={errors[`${r.key}.sku`]} />
                         </td>
                         <td className="px-2 py-2">
-                          <MoneyInput id={`mrp-${r.sku}`} label={`MRP for ${r.sku}`} value={c.mrp} onChange={(v) => setCommercial(r.key, { mrp: v })} error={errors[`${r.key}.mrp`]} />
+                          <MoneyInput id={`mrp-${r.sku}`} label={`MRP for ${r.sku}`} value={c.mrp} onChange={(v) => setCommercial(r.key, { mrp: v })} onBlur={() => touch(`${r.key}.mrp`)} error={errors[`${r.key}.mrp`]} />
                         </td>
                         <td className="px-2 py-2">
-                          <MoneyInput id={`price-${r.sku}`} label={`Price for ${r.sku}`} value={c.price} onChange={(v) => setCommercial(r.key, { price: v })} error={errors[`${r.key}.price`]} />
+                          <MoneyInput id={`price-${r.sku}`} label={`Price for ${r.sku}`} value={c.price} onChange={(v) => setCommercial(r.key, { price: v })} onBlur={() => touch(`${r.key}.price`)} error={errors[`${r.key}.price`]} />
                         </td>
                         <td className="px-2 py-2">
                           <Input
+                            id={`gtin-${r.sku}`}
+                            name={`gtin-${r.sku}`}
                             aria-label={`GTIN for ${r.sku}`}
                             placeholder="GTIN, or blank if exempt"
+                            type="text"
                             inputMode="numeric"
+                            autoComplete="off"
+                            maxLength={GTIN_MAX + 10}
                             value={c.identifier}
-                            onChange={(e) => setCommercial(r.key, { identifier: e.target.value })}
+                            {...filterInput({ onChange: (e) => setCommercial(r.key, { identifier: e.target.value }) }, digitsOnly)}
+                            onBlur={() => touch(`${r.key}.identifier`)}
                             aria-invalid={errors[`${r.key}.identifier`] ? true : undefined}
-                            className="h-8 text-small"
+                            aria-describedby={`gtin-${r.sku}-error`}
+                            className="h-8 text-small tabular-nums"
                           />
-                          {errors[`${r.key}.identifier`] ? <p className="mt-1 text-caption font-semibold text-danger">{errors[`${r.key}.identifier`]}</p> : null}
+                          <CellError id={`gtin-${r.sku}-error`} error={errors[`${r.key}.identifier`]} />
                         </td>
                       </tr>
                     )
@@ -652,6 +793,7 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
             {isApiError(upload.error) ? <ReferenceId id={upload.error.correlationId} className="mt-1" /> : null}
           </Banner>
         ) : null}
+        </div>
       </Page>
       <FooterBar status="Saved as a spreadsheet upload you check first.">
         <Button variant="ghost" asChild>

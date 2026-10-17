@@ -7,33 +7,27 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Link, useRouter } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { z } from 'zod'
 import { applyFieldErrors, describeError, isApiError } from '@/api/errors'
 import { Banner } from '@/components/la/banner'
-import { LaField } from '@/components/la/field'
+import { fieldHintId, LaField } from '@/components/la/field'
 import { ComingSoon, NOT_YET, UnavailableButton } from '@/components/la/unavailable'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { PasswordInput } from '@/features/signup-admin/password-input'
+import { LOGIN_EMAIL_MAX, statusFormSchema, type StatusFormValues } from '@/features/signup-admin/schema'
 import { useCountdown } from '@/features/signup-admin/use-countdown'
 import { login, useSession } from '@/lib/auth'
+import { FORM_VALIDATION_MODE } from '@/lib/validation'
 import { AsideLink, AuthFootnote, AuthFrame, FormAlert, GoogleGlyph, OrDivider } from './auth-frame'
 import { useDocumentTitle } from './use-document-title'
 
-/** LoginRequest limits: email 3..320, `^[^@\s]+@[^@\s]+$`, visible ASCII; password 1..1024. */
-export const loginSchema = z.object({
-  email: z
-    .string()
-    .trim()
-    .min(1, 'Enter your email.')
-    .min(3, 'Email is too short.')
-    .max(320, 'Email is too long.')
-    .regex(/^[\x21-\x7E]+$/, 'Email must be plain ASCII.')
-    .regex(/^[^@\s]+@[^@\s]+$/, 'Enter a valid email address.'),
-  password: z.string().min(1, 'Enter your password.').max(1024, 'Password is too long.'),
-})
-type LoginValues = z.infer<typeof loginSchema>
+/**
+ * LoginRequest has the same shape and limits as SignupStatusRequest: email 3..320,
+ * `^[^@\s]+@[^@\s]+$`, visible ASCII; password 1..1024.
+ */
+const loginSchema = statusFormSchema
+type LoginValues = StatusFormValues
 
 export function LoginPage({ target }: { target: string }) {
   useDocumentTitle('Sign in')
@@ -45,6 +39,7 @@ export function LoginPage({ target }: { target: string }) {
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '' },
+    ...FORM_VALIDATION_MODE,
   })
 
   // Another tab signed in: follow it.
@@ -114,15 +109,19 @@ export function LoginPage({ target }: { target: string }) {
           />
         ) : null}
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
-          <LaField label="Email" htmlFor="email" error={errors.email?.message}>
+          <LaField label="Email" htmlFor="email" error={errors.email?.message} submitCount={form.formState.submitCount}>
             <Input
               id="email"
               type="email"
+              inputMode="email"
               autoComplete="username"
+              autoCapitalize="none"
               autoFocus
               spellCheck={false}
+              maxLength={LOGIN_EMAIL_MAX}
               placeholder="you@yourbrand.com"
               aria-invalid={!!errors.email}
+              aria-describedby={fieldHintId('email')}
               {...form.register('email')}
             />
           </LaField>
@@ -130,9 +129,16 @@ export function LoginPage({ target }: { target: string }) {
             label="Password"
             htmlFor="password"
             error={errors.password?.message}
+            submitCount={form.formState.submitCount}
             hint="There is no password reset yet. Your brand owner manages access."
           >
-            <PasswordInput id="password" autoComplete="current-password" aria-invalid={!!errors.password} {...form.register('password')} />
+            <PasswordInput
+              id="password"
+              autoComplete="current-password"
+              aria-invalid={!!errors.password}
+              aria-describedby={fieldHintId('password')}
+              {...form.register('password')}
+            />
           </LaField>
           <Button type="submit" size="lg" className="w-full" disabled={submitting || locked}>
             {submitting ? <Spinner data-icon="inline-start" /> : null}

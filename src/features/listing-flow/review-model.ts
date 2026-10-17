@@ -9,12 +9,14 @@
  *   - Approve all: the product's other listings that a multi-item approve accepts (`validated`).
  */
 import { approveEligibility, type ApproveItem, type Listing, type RejectReason } from '@/features/listings/model'
+import { codePoints, CONTROL_MSG, hasStrayControlChars } from '@/lib/validation'
 
 export const FEEDBACK_MAX = 2000
 export const TITLE_MAX = 500
 export const BULLET_MAX = 1000
 export const BULLETS_MAX = 10
 export const DESCRIPTION_MAX = 5000
+
 
 export interface SendBackInput {
   reason: RejectReason | ''
@@ -25,8 +27,10 @@ export interface SendBackInput {
 export function validateSendBack(v: SendBackInput): { reason?: string; note?: string } {
   const e: { reason?: string; note?: string } = {}
   if (!v.reason) e.reason = 'Choose a reason.'
-  if (!v.note.trim()) e.note = 'Write what should change.'
-  else if (v.note.length > FEEDBACK_MAX) e.note = `At most ${FEEDBACK_MAX.toLocaleString()} characters.`
+  const note = v.note.trim()
+  if (!note) e.note = 'Write what should change.'
+  else if (hasStrayControlChars(note)) e.note = CONTROL_MSG
+  else if (codePoints(note) > FEEDBACK_MAX) e.note = `Shorten the note to ${FEEDBACK_MAX.toLocaleString()} characters or fewer.`
   return e
 }
 
@@ -55,14 +59,23 @@ export const splitBullets = (text: string) =>
 
 export function validateEdit(d: EditDraft): Partial<Record<keyof EditDraft, string>> {
   const e: Partial<Record<keyof EditDraft, string>> = {}
-  if (!d.title.trim()) e.title = 'Write a title.'
-  else if (d.title.length > TITLE_MAX) e.title = `At most ${TITLE_MAX} characters.`
+  const title = d.title.trim()
+  if (!title) e.title = 'Write a title.'
+  else if (hasStrayControlChars(title)) e.title = CONTROL_MSG
+  else if (codePoints(title) > TITLE_MAX) e.title = `Shorten the title to ${TITLE_MAX} characters or fewer.`
   const bullets = splitBullets(d.bullets)
   if (!bullets.length) e.bullets = 'Write at least one bullet, one per line.'
-  else if (bullets.length > BULLETS_MAX) e.bullets = `At most ${BULLETS_MAX} bullets.`
-  else if (bullets.some((b) => b.length > BULLET_MAX)) e.bullets = `Each bullet can have at most ${BULLET_MAX} characters.`
-  if (!d.description.trim()) e.description = 'Write a description.'
-  else if (d.description.length > DESCRIPTION_MAX) e.description = `At most ${DESCRIPTION_MAX.toLocaleString()} characters.`
+  else if (bullets.length > BULLETS_MAX) e.bullets = `Use ${BULLETS_MAX} bullets or fewer.`
+  else if (bullets.some((b) => hasStrayControlChars(b))) e.bullets = CONTROL_MSG
+  else {
+    const long = bullets.findIndex((b) => codePoints(b) > BULLET_MAX)
+    if (long >= 0) e.bullets = `Shorten bullet ${long + 1} to ${BULLET_MAX.toLocaleString()} characters or fewer.`
+  }
+  const description = d.description.trim()
+  if (!description) e.description = 'Write a description.'
+  else if (hasStrayControlChars(description)) e.description = CONTROL_MSG
+  else if (codePoints(description) > DESCRIPTION_MAX)
+    e.description = `Shorten the description to ${DESCRIPTION_MAX.toLocaleString()} characters or fewer.`
   return e
 }
 

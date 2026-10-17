@@ -7,9 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { filterInput } from '@/lib/validation'
 import { cn } from '@/lib/utils'
+import { ErrorLine } from './error-line'
 import { CATEGORY_HINT, MARKETPLACE_LABEL, MARKETPLACES } from './labels'
-import { charCount, LIMITS, type AttrType, type DraftValues } from './listing-form'
+import { charCount, LIMITS, signedDecimal, type AttrType, type DraftValues } from './listing-form'
 import { TagInput } from './tag-input'
 
 type Form = UseFormReturn<DraftValues>
@@ -40,26 +42,22 @@ function FieldBox({
   className?: string
 }) {
   return (
-    <div className={cn('space-y-1.5', className)}>
-      <div className="flex items-baseline justify-between gap-2">
+    <div className={cn('min-w-0', className)} data-invalid={error ? true : undefined}>
+      <div className="mb-1.5 flex items-baseline justify-between gap-2">
         <Label htmlFor={htmlFor}>{label}</Label>
         {counter}
       </div>
       {children}
-      {error ? (
-        <p
-          role="alert"
-          id={htmlFor ? errorId(htmlFor) : undefined}
-          className="text-xs text-destructive"
-          data-testid={htmlFor ? `error-${htmlFor}` : undefined}
-        >
-          {error}
-        </p>
-      ) : hint ? (
-        <p id={htmlFor ? hintId(htmlFor) : undefined} className="text-xs text-muted-foreground">
+      {hint && !error ? (
+        <p id={htmlFor ? hintId(htmlFor) : undefined} className="pt-1.5 text-xs text-muted-foreground">
           {hint}
         </p>
       ) : null}
+      <ErrorLine
+        message={error}
+        id={htmlFor ? errorId(htmlFor) : undefined}
+        testId={htmlFor ? `error-${htmlFor}` : undefined}
+      />
     </div>
   )
 }
@@ -115,6 +113,7 @@ export function TargetSection({ form, categories }: { form: Form; categories: st
           <Input
             id="category"
             list={listId}
+            maxLength={64}
             autoComplete="off"
             spellCheck={false}
             autoCapitalize="off"
@@ -140,6 +139,9 @@ export function TargetSection({ form, categories }: { form: Form; categories: st
           <div className="flex gap-2">
             <Input
               id="product_id"
+              maxLength={36}
+              autoComplete="off"
+              autoCapitalize="off"
               spellCheck={false}
               className="font-mono text-xs"
               aria-invalid={!!e.product_id}
@@ -187,6 +189,7 @@ export function ContentSection({ form }: { form: Form }) {
         >
           <Input
             id="title"
+            autoComplete="off"
             aria-invalid={!!e.title}
             aria-describedby={describedBy('title', e.title)}
             {...register('title')} data-testid="draft-title" />
@@ -209,6 +212,7 @@ export function ContentSection({ form }: { form: Form }) {
                     <span className="mt-2 w-5 shrink-0 text-right text-xs text-muted-foreground tabular-nums">{i + 1}</span>
                     <Textarea
                       rows={1}
+                      autoComplete="off"
                       aria-label={`Bullet ${i + 1}`}
                       aria-invalid={!!err}
                       aria-describedby={describedBy(`bullet-${i}`, err)}
@@ -228,25 +232,15 @@ export function ContentSection({ form }: { form: Form }) {
                       <Icon name="trash" size={16} />
                     </Button>
                   </div>
-                  <div className="flex justify-between gap-2 pr-10 pl-7">
-                    {err ? (
-                      <p role="alert" id={errorId(`bullet-${i}`)} className="text-xs text-destructive">
-                        {err}
-                      </p>
-                    ) : (
-                      <span />
-                    )}
+                  <div className="flex items-start justify-between gap-2 pr-10 pl-7">
+                    <ErrorLine message={err} id={errorId(`bullet-${i}`)} className="min-w-0 flex-1" />
                     {len > LIMITS.bullet * 0.8 ? <Counter value={len} max={LIMITS.bullet} /> : null}
                   </div>
                 </li>
               )
             })}
           </ol>
-          {bulletsRootError ? (
-            <p role="alert" className="text-xs text-destructive">
-              {bulletsRootError}
-            </p>
-          ) : null}
+          <ErrorLine message={bulletsRootError} />
           <Button
             type="button"
             variant="outline"
@@ -269,6 +263,7 @@ export function ContentSection({ form }: { form: Form }) {
           <Textarea
             id="description"
             rows={5}
+            autoComplete="off"
             aria-invalid={!!e.description}
             aria-describedby={describedBy('description', e.description)}
             {...register('description')}
@@ -311,8 +306,11 @@ export function KeywordsSection({ form }: { form: Form }) {
               render={({ field }) => (
                 <TagInput
                   id={name}
+                  name={name}
+                  ref={field.ref}
                   value={field.value}
                   onChange={field.onChange}
+                  onBlur={field.onBlur}
                   max={LIMITS.terms}
                   maxLength={LIMITS.term}
                   invalid={!!e[name]}
@@ -363,10 +361,12 @@ export function AttributesSection({ form }: { form: Form }) {
               const ve = e.attributes?.[i]?.value?.message
               return (
                 <li key={f.id} className="grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[minmax(0,10rem)_7.5rem_minmax(0,1fr)_auto]">
-                  <div className="col-span-2 space-y-1 sm:col-span-1">
+                  <div className="col-span-2 min-w-0 sm:col-span-1">
                     <Input
                       aria-label={`Attribute ${i + 1} key`}
                       placeholder="key"
+                      maxLength={64}
+                      autoComplete="off"
                       spellCheck={false}
                       autoCapitalize="off"
                       className="font-mono text-[13px]"
@@ -375,11 +375,7 @@ export function AttributesSection({ form }: { form: Form }) {
                       {...register(`attributes.${i}.key`)}
                       data-testid={`attr-key-${i}`}
                     />
-                    {ke ? (
-                      <p role="alert" id={errorId(`attr-${i}-key`)} className="text-xs text-destructive">
-                        {ke}
-                      </p>
-                    ) : null}
+                    <ErrorLine message={ke} id={errorId(`attr-${i}-key`)} />
                   </div>
                   <Controller
                     control={control}
@@ -392,7 +388,7 @@ export function AttributesSection({ form }: { form: Form }) {
                           if (v === 'boolean') setValue(`attributes.${i}.value`, 'true', { shouldValidate: true })
                         }}
                       >
-                        <SelectTrigger aria-label={`Attribute ${i + 1} type`} className="w-full">
+                        <SelectTrigger aria-label={`Attribute ${i + 1} type`} className="w-full" ref={field.ref}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -405,7 +401,7 @@ export function AttributesSection({ form }: { form: Form }) {
                       </Select>
                     )}
                   />
-                  <div className="col-span-2 row-start-3 space-y-1 sm:col-span-1 sm:row-start-auto">
+                  <div className="col-span-2 row-start-3 min-w-0 sm:col-span-1 sm:row-start-auto">
                     {type === 'boolean' ? (
                       <Controller
                         control={control}
@@ -428,22 +424,33 @@ export function AttributesSection({ form }: { form: Form }) {
                           </Select>
                         )}
                       />
+                    ) : type === 'number' ? (
+                      // Keyed by type: the keystroke filter stays with its element, so a row switched
+                      // back to text gets a fresh, unfiltered input.
+                      <Input
+                        key="number"
+                        aria-label={`Attribute ${i + 1} value`}
+                        inputMode="decimal"
+                        autoComplete="off"
+                        placeholder="0"
+                        aria-invalid={!!ve}
+                        aria-describedby={describedBy(`attr-${i}-value`, ve)}
+                        {...filterInput(register(`attributes.${i}.value`), signedDecimal)}
+                        data-testid={`attr-value-${i}`}
+                      />
                     ) : (
                       <Input
+                        key="text"
                         aria-label={`Attribute ${i + 1} value`}
-                        inputMode={type === 'number' ? 'decimal' : undefined}
-                        placeholder={type === 'list' ? 'comma, separated, values' : type === 'number' ? '0' : 'value'}
+                        autoComplete="off"
+                        placeholder={type === 'list' ? 'comma, separated, values' : 'value'}
                         aria-invalid={!!ve}
                         aria-describedby={describedBy(`attr-${i}-value`, ve)}
                         {...register(`attributes.${i}.value`)}
                         data-testid={`attr-value-${i}`}
                       />
                     )}
-                    {ve ? (
-                      <p role="alert" id={errorId(`attr-${i}-value`)} className="text-xs text-destructive">
-                        {ve}
-                      </p>
-                    ) : null}
+                    <ErrorLine message={ve} id={errorId(`attr-${i}-value`)} />
                   </div>
                   <Button
                     type="button"
@@ -460,11 +467,7 @@ export function AttributesSection({ form }: { form: Form }) {
             })}
           </ul>
         )}
-        {e.attributes?.message || e.attributes?.root?.message ? (
-          <p role="alert" className="text-xs text-destructive">
-            {e.attributes?.message ?? e.attributes?.root?.message}
-          </p>
-        ) : null}
+        <ErrorLine message={e.attributes?.message ?? e.attributes?.root?.message} />
         <div className="flex items-center justify-between gap-2">
           <Button
             type="button"

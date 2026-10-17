@@ -12,7 +12,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { applyFieldErrors, describeError, isApiError } from '@/api/errors'
 import { LaCard } from '@/components/la/cards'
-import { LaField } from '@/components/la/field'
+import { fieldHintId, LaField } from '@/components/la/field'
 import { Icon, IconTile } from '@/components/la/icons'
 import { StatusChip } from '@/components/la/status-chip'
 import { ComingSoon, NOT_YET, UnavailableButton } from '@/components/la/unavailable'
@@ -24,15 +24,20 @@ import { useCheckSignupStatus, useCreateSignup } from '@/features/signup-admin/a
 import { retryAfterSeconds, signupSubmitError, statusCheckError, type SignupStatusOut } from '@/features/signup-admin/format'
 import { PasswordInput } from '@/features/signup-admin/password-input'
 import {
+  LOGIN_EMAIL_MAX,
+  NAME_MAX,
   PASSWORD_MIN,
+  PHONE_MAX,
   SIGNUP_FORM_DEFAULTS,
   signupFormSchema,
   toSignupBody,
   type SignupFormValues,
   type SignupStatusBody,
+  WEBSITE_MAX,
 } from '@/features/signup-admin/schema'
 import { TimeAgo } from '@/features/signup-admin/time'
 import { useCountdown } from '@/features/signup-admin/use-countdown'
+import { filterInput, FORM_VALIDATION_MODE, phoneChars } from '@/lib/validation'
 import { AsideLink, AuthColumn, AuthFrame, FormAlert, GoogleGlyph, OrDivider, StepTag } from './auth-frame'
 import { DESCRIBES_YOU, signupChip } from './model'
 import { useDocumentTitle } from './use-document-title'
@@ -50,8 +55,9 @@ export function SignupPage({ initialEmail }: { initialEmail?: string }) {
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupFormSchema),
     defaultValues: { ...SIGNUP_FORM_DEFAULTS, email: initialEmail ?? '' },
+    ...FORM_VALIDATION_MODE,
   })
-  const { errors } = form.formState
+  const { errors, submitCount } = form.formState
 
   const onSubmit = form.handleSubmit(async (values) => {
     setFormError(null)
@@ -108,21 +114,41 @@ export function SignupPage({ initialEmail }: { initialEmail?: string }) {
               ) : null}
               <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4" data-testid="signup-card">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <LaField label="Brand name" htmlFor="brand_name" error={errors.brand_name?.message}>
-                    <Input id="brand_name" autoComplete="organization" autoFocus aria-invalid={!!errors.brand_name} {...form.register('brand_name')} />
+                  <LaField label="Brand name" htmlFor="brand_name" error={errors.brand_name?.message} submitCount={submitCount} confirmFix>
+                    <Input
+                      id="brand_name"
+                      autoComplete="organization"
+                      autoFocus
+                      maxLength={NAME_MAX}
+                      aria-invalid={!!errors.brand_name}
+                      aria-describedby={fieldHintId('brand_name')}
+                      {...form.register('brand_name')}
+                    />
                   </LaField>
-                  <LaField label="Your name" htmlFor="owner_name" error={errors.owner_name?.message}>
-                    <Input id="owner_name" autoComplete="name" aria-invalid={!!errors.owner_name} {...form.register('owner_name')} />
+                  <LaField label="Your name" htmlFor="owner_name" error={errors.owner_name?.message} submitCount={submitCount} confirmFix>
+                    <Input
+                      id="owner_name"
+                      autoComplete="name"
+                      autoCapitalize="words"
+                      maxLength={NAME_MAX}
+                      aria-invalid={!!errors.owner_name}
+                      aria-describedby={fieldHintId('owner_name')}
+                      {...form.register('owner_name')}
+                    />
                   </LaField>
                 </div>
-                <LaField label="Work email" htmlFor="email" error={errors.email?.message}>
+                <LaField label="Work email" htmlFor="email" error={errors.email?.message} submitCount={submitCount} confirmFix>
                   <Input
                     id="email"
                     type="email"
+                    inputMode="email"
                     autoComplete="username"
+                    autoCapitalize="none"
                     spellCheck={false}
+                    maxLength={LOGIN_EMAIL_MAX}
                     placeholder="you@yourbrand.com"
                     aria-invalid={!!errors.email}
+                    aria-describedby={fieldHintId('email')}
                     {...form.register('email')}
                   />
                 </LaField>
@@ -130,6 +156,8 @@ export function SignupPage({ initialEmail }: { initialEmail?: string }) {
                   label="Password"
                   htmlFor="password"
                   error={errors.password?.message}
+                  submitCount={submitCount}
+                  confirmFix
                   hint="There is no password reset yet. Use the eye to check what you typed."
                 >
                   <PasswordInput
@@ -137,22 +165,36 @@ export function SignupPage({ initialEmail }: { initialEmail?: string }) {
                     autoComplete="new-password"
                     placeholder={`At least ${PASSWORD_MIN} characters`}
                     aria-invalid={!!errors.password}
+                    aria-describedby={fieldHintId('password')}
                     {...form.register('password')}
                   />
                 </LaField>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <LaField label={<Optional>Phone</Optional>} htmlFor="phone" error={errors.phone?.message}>
-                    <Input id="phone" type="tel" autoComplete="tel" inputMode="tel" placeholder="+91 98765 43210" aria-invalid={!!errors.phone} {...form.register('phone')} />
+                  <LaField label={<Optional>Phone</Optional>} htmlFor="phone" error={errors.phone?.message} submitCount={submitCount} confirmFix>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      maxLength={PHONE_MAX}
+                      placeholder="+91 98765 43210"
+                      aria-invalid={!!errors.phone}
+                      aria-describedby={fieldHintId('phone')}
+                      {...filterInput(form.register('phone'), phoneChars)}
+                    />
                   </LaField>
-                  <LaField label={<Optional>Website</Optional>} htmlFor="website" error={errors.website?.message}>
+                  <LaField label={<Optional>Website</Optional>} htmlFor="website" error={errors.website?.message} submitCount={submitCount} confirmFix>
                     <Input
                       id="website"
                       type="url"
                       inputMode="url"
                       autoComplete="url"
+                      autoCapitalize="none"
                       spellCheck={false}
+                      maxLength={WEBSITE_MAX}
                       placeholder="yourbrand.com"
                       aria-invalid={!!errors.website}
+                      aria-describedby={fieldHintId('website')}
                       {...form.register('website')}
                     />
                   </LaField>
@@ -183,7 +225,7 @@ export function SignupPage({ initialEmail }: { initialEmail?: string }) {
                     </label>
                   </div>
                   {errors.agree ? (
-                    <p id="agree-error" className="mt-1.5 text-caption text-danger">
+                    <p id="agree-error" role="alert" className="mt-1.5 text-caption font-semibold text-danger">
                       {errors.agree.message}
                     </p>
                   ) : null}

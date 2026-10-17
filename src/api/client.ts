@@ -101,7 +101,8 @@ export async function probe(path: '/healthz' | '/readyz'): Promise<{ ok: boolean
   try {
     const res = await fetch(`${API_ORIGIN}${path}`, { credentials: 'omit', cache: 'no-store' })
     const body = await res.json().catch(() => null)
-    return { ok: res.ok, status: res.status, body }
+    // A proxy or SPA fallback can answer 200 with HTML; only the API's JSON counts as healthy.
+    return { ok: res.ok && body !== null, status: res.status, body }
   } catch {
     return { ok: false, status: 0, body: null }
   }

@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { useReveal } from '@/lib/use-reveal'
 import { cn } from '@/lib/utils'
 import { HeroFinding } from './hero-finding'
+import { HowItWorksDemo } from './how-it-works-demo'
 import { MARKET_STATUS, STAGE_CHIP } from './model'
 import { useDocumentTitle } from './use-document-title'
 
@@ -38,19 +39,6 @@ const PROBLEMS = [
     body: 'The marketplace error names a field, not the fix. You change one value, resubmit and wait again.',
     cost: 'One listing, several round trips, and the hours vanish between them.',
   },
-] as const
-
-const FLOW = [
-  { icon: 'upload', title: 'Import', body: 'Upload a CSV or add one product at a time. Each row becomes one clean product with its variants.' },
-  {
-    icon: 'spark',
-    title: 'Generate',
-    body: 'The agent will draft the title, bullets, description and attributes in your brand’s voice.',
-    inDevelopment: true,
-  },
-  { icon: 'shield', title: 'Validate', body: 'A rules engine written as code checks every field against each marketplace’s limits. No model decides pass or fail.' },
-  { icon: 'check', title: 'Approve', body: 'A person reviews the draft beside its field-level results. Whoever edited a listing cannot approve it.' },
-  { icon: 'store', title: 'Publish', body: 'Approved listings go to the marketplace. A listing shows as Live only after the marketplace confirms it.' },
 ] as const
 
 /** The drafting agent is not built yet (analysis §gaps 1: only a deterministic stub), so this is its brief. */
@@ -222,30 +210,10 @@ export function Landing() {
         </Section>
 
         {/* Workflow */}
-        <Section id="how" title="One workflow, from spreadsheet to listing" lede="The same five steps run for one product or a whole catalog.">
-          <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {FLOW.map((s, i) => (
-              <li
-                key={s.title}
-                data-reveal
-                style={d(i)}
-                className={cn(
-                  'flex flex-col gap-3 rounded-card border bg-surface p-5 md:p-6',
-                  s.title === 'Approve' ? 'border-brand shadow-[var(--selected-ring),var(--shadow-raised-md)]' : 'border-line shadow-raised-md',
-                )}
-              >
-                <span className="flex items-center justify-between">
-                  <IconTile icon={s.icon} tone="brand" />
-                  <span className="text-caption font-bold text-ink-2">Step {i + 1}</span>
-                </span>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-h3 text-ink">{s.title}</h3>
-                  {'inDevelopment' in s ? <TagChip tone="plain">In development</TagChip> : null}
-                </div>
-                <p className="text-body text-ink-2">{s.body}</p>
-              </li>
-            ))}
-          </ol>
+        <Section id="how" title="One workflow, from spreadsheet to listing" lede="The same steps run for one product or a whole catalog. Here is one example listing, from a CSV row to Live.">
+          <div data-reveal="pop">
+            <HowItWorksDemo />
+          </div>
         </Section>
 
         {/* AI proposes, rules decide */}

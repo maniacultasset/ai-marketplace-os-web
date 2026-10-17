@@ -276,8 +276,21 @@ describe('review rules', () => {
       bullets: 'Write at least one bullet, one per line.',
       description: 'Write a description.',
     })
-    expect(validateEdit({ title: 'T', bullets: Array.from({ length: 11 }, (_, i) => `b${i}`).join('\n'), description: 'd' }).bullets).toBe('At most 10 bullets.')
+    expect(validateEdit({ title: 'T', bullets: Array.from({ length: 11 }, (_, i) => `b${i}`).join('\n'), description: 'd' }).bullets).toBe('Use 10 bullets or fewer.')
     expect(editToContent({ title: ' T ', bullets: 'a\n\n b ', description: ' d ' })).toEqual({ title: 'T', bullets: ['a', 'b'], description: 'd' })
+  })
+
+  it('counts code points like the backend and refuses stray control characters', () => {
+    // 2,000 emoji is 2,000 code points (4,000 UTF-16 units): still a valid note.
+    expect(validateSendBack({ reason: 'poor_quality', note: '\u{1F642}'.repeat(2000), rewrite: true }).note).toBeUndefined()
+    expect(validateSendBack({ reason: 'poor_quality', note: 'Fix\u0000this', rewrite: true }).note).toMatch(/control character/)
+    // Line breaks and tabs are ordinary text in a note.
+    expect(validateSendBack({ reason: 'poor_quality', note: 'Line one\n\tLine two', rewrite: true })).toEqual({})
+    expect(validateEdit({ title: '\u{1F642}'.repeat(500), bullets: 'राहुल का कुर्ता', description: 'd' })).toEqual({})
+    expect(validateEdit({ title: 'x'.repeat(501), bullets: 'a', description: 'd' }).title).toBe('Shorten the title to 500 characters or fewer.')
+    expect(validateEdit({ title: 'T', bullets: `ok\n${'b'.repeat(1001)}`, description: 'd' }).bullets).toBe('Shorten bullet 2 to 1,000 characters or fewer.')
+    expect(validateEdit({ title: 'T', bullets: 'a', description: 'd'.repeat(5001) }).description).toMatch(/5,000 characters or fewer/)
+    expect(validateEdit({ title: 'T\u0007', bullets: 'a', description: 'd' }).title).toMatch(/control character/)
   })
 
   it('approves all only validated listings, and only with two or more', () => {

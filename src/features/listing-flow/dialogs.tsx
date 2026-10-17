@@ -2,11 +2,11 @@
  * Review dialogs (p13): "Send back with a note" (reject, optionally rewrite with the note) and
  * "Edit" (a human edit creates a new version; the editor can no longer approve it).
  */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { describeError, isApiError } from '@/api/errors'
 import { useIntentKey } from '@/api/idempotency'
 import type { Versioned } from '@/api/etag'
-import { LaField } from '@/components/la'
+import { fieldHintId, LaField } from '@/components/la'
 import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -16,7 +16,35 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { useReviewListings, useSaveContent } from '@/features/listings/api'
 import { REJECT_REASONS, summarizeBatch, type BatchItemResult, type ListingDetail, type RejectReason } from '@/features/listings/model'
-import { FEEDBACK_MAX, editToContent, sendBackItem, validateEdit, validateSendBack, type EditDraft, type SendBackInput } from './review-model'
+import { codePoints, focusFirstInvalid } from '@/lib/validation'
+import {
+  BULLETS_MAX,
+  DESCRIPTION_MAX,
+  FEEDBACK_MAX,
+  TITLE_MAX,
+  editToContent,
+  sendBackItem,
+  splitBullets,
+  validateEdit,
+  validateSendBack,
+  type EditDraft,
+  type SendBackInput,
+} from './review-model'
+
+type Touched<K extends string> = Partial<Record<K, boolean>>
+
+/** Like react-hook-form's onTouched: a field's error shows after it is left or the form is submitted, then tracks every change. */
+function shownErrors<K extends string>(all: Partial<Record<K, string>>, touched: Touched<K>, submits: number): Partial<Record<K, string>> {
+  if (submits > 0) return all
+  const out: Partial<Record<K, string>> = {}
+  for (const k of Object.keys(all) as K[]) if (touched[k]) out[k] = all[k]
+  return out
+}
+
+/** Focus the first invalid control once the error state has rendered. */
+const focusAfterRender = (root: HTMLElement | null) => {
+  requestAnimationFrame(() => focusFirstInvalid(root))
+}
 
 export function SendBackDialog({
   open,
@@ -34,13 +62,15 @@ export function SendBackDialog({
   const review = useReviewListings()
   const key = useIntentKey()
   const [v, setV] = useState<SendBackInput>({ reason: '', note: '', rewrite: true })
-  const [touched, setTouched] = useState(false)
+  const [touched, setTouched] = useState<Touched<'reason' | 'note'>>({})
+  const [submits, setSubmits] = useState(0)
   const [refusal, setRefusal] = useState<{ message: string; ref: string | null } | null>(null)
-  const errors = touched ? validateSendBack(v) : {}
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const errors = shownErrors(validateSendBack(v), touched, submits)
 
   function submit() {
-    setTouched(true)
-    if (Object.keys(validateSendBack(v)).length) return
+    setSubmits((n) => n + 1)
+    if (Object.keys(validateSendBack(v)).length) return focusAfterRender(bodyRef.current)
     setRefusal(null)
     review.mutate(
       { items: [sendBackItem(listing, v)], key: key.get() },
@@ -69,10 +99,21 @@ export function SendBackDialog({
             The {marketplaceName} listing is not approved. Your note goes to the agent and stays in the listing’s history.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-4">
-          <LaField label="Reason" htmlFor="sendback-reason" error={errors.reason}>
-            <Select value={v.reason} onValueChange={(r) => setV((s) => ({ ...s, reason: r as RejectReason }))}>
-              <SelectTrigger id="sendback-reason" className="w-full" aria-invalid={!!errors.reason}>
+        <div ref={bodyRef} className="flex flex-col gap-4">
+          <LaField label="Reason" htmlFor="sendback-reason" error={errors.reason} submitCount={submits} confirmFix>
+            <Select
+              name="reason"
+              value={v.reason}
+              onValueChange={(r) => setV((s) => ({ ...s, reason: r as RejectReason }))}
+              // Closing the list without a choice counts as leaving the field.
+              onOpenChange={(o) => !o && setTouched((t) => ({ ...t, reason: true }))}
+            >
+              <SelectTrigger
+                id="sendback-reason"
+                className="w-full"
+                aria-invalid={!!errors.reason}
+                aria-describedby={fieldHintId('sendback-reason')}
+              >
                 <SelectValue placeholder="Choose a reason" />
               </SelectTrigger>
               <SelectContent>
@@ -84,14 +125,24 @@ export function SendBackDialog({
               </SelectContent>
             </Select>
           </LaField>
-          <LaField label="Note" htmlFor="sendback-note" error={errors.note} hint={`${v.note.length.toLocaleString()} / ${FEEDBACK_MAX.toLocaleString()}`}>
+          <LaField
+            label="Note"
+            htmlFor="sendback-note"
+            error={errors.note}
+            hint={`${codePoints(v.note.trim()).toLocaleString()} / ${FEEDBACK_MAX.toLocaleString()}`}
+            submitCount={submits} confirmFix
+          >
             <Textarea
               id="sendback-note"
+              name="note"
               rows={4}
               value={v.note}
+              autoComplete="off"
               aria-invalid={!!errors.note}
+              aria-describedby={fieldHintId('sendback-note')}
               placeholder="Say what is wrong and what it should say instead."
               onChange={(e) => setV((s) => ({ ...s, note: e.target.value }))}
+              onBlur={() => setTouched((t) => ({ ...t, note: true }))}
             />
           </LaField>
           <label className="flex items-start gap-2.5 text-body text-ink">
@@ -138,13 +189,17 @@ export function EditDialog({
   const save = useSaveContent(listing.id)
   const c = listing.content?.content
   const [d, setD] = useState<EditDraft>({ title: c?.title ?? '', bullets: (c?.bullets ?? []).join('\n'), description: c?.description ?? '' })
-  const [touched, setTouched] = useState(false)
+  const [touched, setTouched] = useState<Touched<keyof EditDraft>>({})
+  const [submits, setSubmits] = useState(0)
   const [refusal, setRefusal] = useState<{ message: string; ref: string | null } | null>(null)
-  const errors = touched ? validateEdit(d) : {}
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const errors = shownErrors(validateEdit(d), touched, submits)
+  const touch = (k: keyof EditDraft) => () => setTouched((t) => ({ ...t, [k]: true }))
+  const bulletCount = splitBullets(d.bullets).length
 
   function submit() {
-    setTouched(true)
-    if (Object.keys(validateEdit(d)).length) return
+    setSubmits((n) => n + 1)
+    if (Object.keys(validateEdit(d)).length) return focusAfterRender(bodyRef.current)
     setRefusal(null)
     save.mutate(
       { body: { content: editToContent(d) }, etag },
@@ -171,20 +226,61 @@ export function EditDialog({
             Saving creates a new version and runs the checks on it again. Because you edited it, someone else must approve it.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-4">
-          <LaField label="Title" htmlFor="edit-title" error={errors.title} hint={`${d.title.length} / 500`}>
-            <Input id="edit-title" value={d.title} aria-invalid={!!errors.title} onChange={(e) => setD((s) => ({ ...s, title: e.target.value }))} />
+        <div ref={bodyRef} className="flex flex-col gap-4">
+          <LaField
+            label="Title"
+            htmlFor="edit-title"
+            error={errors.title}
+            hint={`${codePoints(d.title.trim()).toLocaleString()} / ${TITLE_MAX.toLocaleString()}`}
+            submitCount={submits} confirmFix
+          >
+            <Input
+              id="edit-title"
+              name="title"
+              value={d.title}
+              autoComplete="off"
+              aria-invalid={!!errors.title}
+              aria-describedby={fieldHintId('edit-title')}
+              onChange={(e) => setD((s) => ({ ...s, title: e.target.value }))}
+              onBlur={touch('title')}
+            />
           </LaField>
-          <LaField label="Bullets" htmlFor="edit-bullets" error={errors.bullets} hint="One bullet per line, up to 10.">
-            <Textarea id="edit-bullets" rows={6} value={d.bullets} aria-invalid={!!errors.bullets} onChange={(e) => setD((s) => ({ ...s, bullets: e.target.value }))} />
+          <LaField
+            label="Bullets"
+            htmlFor="edit-bullets"
+            error={errors.bullets}
+            hint={`One bullet per line, up to ${BULLETS_MAX} (${bulletCount} / ${BULLETS_MAX}).`}
+            submitCount={submits} confirmFix
+          >
+            <Textarea
+              id="edit-bullets"
+              name="bullets"
+              rows={6}
+              value={d.bullets}
+              autoComplete="off"
+              aria-invalid={!!errors.bullets}
+              aria-describedby={fieldHintId('edit-bullets')}
+              onChange={(e) => setD((s) => ({ ...s, bullets: e.target.value }))}
+              onBlur={touch('bullets')}
+            />
           </LaField>
-          <LaField label="Description" htmlFor="edit-description" error={errors.description} hint={`${d.description.length.toLocaleString()} / 5,000`}>
+          <LaField
+            label="Description"
+            htmlFor="edit-description"
+            error={errors.description}
+            hint={`${codePoints(d.description.trim()).toLocaleString()} / ${DESCRIPTION_MAX.toLocaleString()}`}
+            submitCount={submits} confirmFix
+          >
             <Textarea
               id="edit-description"
+              name="description"
               rows={6}
               value={d.description}
+              autoComplete="off"
               aria-invalid={!!errors.description}
+              aria-describedby={fieldHintId('edit-description')}
               onChange={(e) => setD((s) => ({ ...s, description: e.target.value }))}
+              onBlur={touch('description')}
             />
           </LaField>
           {refusal ? (

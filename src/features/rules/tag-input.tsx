@@ -1,13 +1,20 @@
 import { Icon } from '@/components/la/icons'
-import { useState, type KeyboardEvent } from 'react'
+import { useId, useState, type KeyboardEvent, type Ref } from 'react'
 import { cn } from '@/lib/utils'
-import { charCount } from './listing-form'
+import { ErrorLine } from './error-line'
+import { charCount, CONTROL_MSG } from './listing-form'
+
+/** Control characters other than tab and line breaks (a term is one line, so those go too). */
+const CONTROL = /\p{Cc}/u
 
 /** Terms as chips: Enter or comma adds, Backspace on an empty input removes the last one. */
 export function TagInput({
   id,
+  name,
+  ref,
   value,
   onChange,
+  onBlur,
   max,
   maxLength,
   placeholder,
@@ -15,8 +22,12 @@ export function TagInput({
   describedBy,
 }: {
   id?: string
+  name?: string
+  /** The text input, so react-hook-form can focus it when the field is invalid. */
+  ref?: Ref<HTMLInputElement>
   value: string[]
   onChange: (next: string[]) => void
+  onBlur?: () => void
   max: number
   maxLength: number
   placeholder?: string
@@ -25,6 +36,8 @@ export function TagInput({
 }) {
   const [draft, setDraft] = useState('')
   const [hint, setHint] = useState<string | null>(null)
+  const auto = useId()
+  const hintId = `${id ?? auto}-term-error`
 
   const commit = () => {
     const parts = draft
@@ -34,12 +47,15 @@ export function TagInput({
     if (!parts.length) return
     const room = max - value.length
     if (room <= 0) {
-      setHint(`At most ${max} terms.`)
+      setHint(`You can add up to ${max} terms. Remove one to add another.`)
       return
     }
-    const tooLong = parts.find((p) => charCount(p) > maxLength)
-    if (tooLong) {
-      setHint(`Each term at most ${maxLength} characters.`)
+    if (parts.some((p) => CONTROL.test(p))) {
+      setHint(CONTROL_MSG)
+      return
+    }
+    if (parts.some((p) => charCount(p) > maxLength)) {
+      setHint(`Shorten the term to ${maxLength} characters or fewer.`)
       return
     }
     const fresh = parts.filter((p) => !value.includes(p)).slice(0, room)
@@ -57,12 +73,15 @@ export function TagInput({
     }
   }
 
+  const showInvalid = invalid || !!hint
   return (
-    <div className="space-y-1">
+    <div>
       <div
         className={cn(
-          'flex min-h-10 w-full flex-wrap items-center gap-1.5 rounded-control border inset-field px-2.5 py-1.5 transition-[border-color,box-shadow,background-color] duration-150 hover:border-edge-hover focus-within:border-brand focus-within:shadow-[var(--focus-ring),var(--shadow-inset-sm)]',
-          invalid && 'border-danger shadow-[var(--focus-ring-danger),var(--shadow-inset-sm)]',
+          'flex min-h-10 w-full flex-wrap items-center gap-1.5 rounded-control border inset-field px-2.5 py-1.5 transition-[border-color,box-shadow,background-color] duration-200 hover:border-edge-hover focus-within:border-brand focus-within:shadow-[var(--focus-ring),var(--shadow-inset-sm)]',
+          // Like Input: danger border and faint fill at rest, the danger ring only while focused.
+          showInvalid &&
+            'border-danger bg-field-invalid hover:border-danger focus-within:border-danger focus-within:shadow-[var(--focus-ring-danger),var(--shadow-inset-sm)]',
         )}
       >
         {value.map((t, i) => (
@@ -83,24 +102,27 @@ export function TagInput({
         ))}
         <input
           id={id}
+          name={name}
+          ref={ref}
           value={draft}
           onChange={(e) => {
             setDraft(e.target.value)
             setHint(null)
           }}
           onKeyDown={onKeyDown}
-          onBlur={commit}
+          onBlur={() => {
+            commit()
+            onBlur?.()
+          }}
           placeholder={value.length ? '' : placeholder}
-          aria-invalid={invalid || !!hint}
-          aria-describedby={describedBy}
+          autoComplete="off"
+          enterKeyHint="enter"
+          aria-invalid={showInvalid}
+          aria-describedby={hint ? hintId : describedBy}
           className="min-w-24 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
         />
       </div>
-      {hint ? (
-        <p role="alert" className="text-xs text-destructive">
-          {hint}
-        </p>
-      ) : null}
+      <ErrorLine message={hint} id={hintId} />
     </div>
   )
 }

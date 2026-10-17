@@ -52,15 +52,15 @@ export function ComplianceForm({ className }: { className?: string }) {
 
       <div className="grid gap-4 md:grid-cols-2">
         <LaField label="Customer care email" htmlFor="care-email">
-          <Input id="care-email" type="email" disabled placeholder="care@yourbrand.in" />
+          <Input id="care-email" type="email" inputMode="email" autoComplete="email" spellCheck={false} disabled placeholder="care@yourbrand.in" />
         </LaField>
         <LaField label="Customer care phone" htmlFor="care-phone">
-          <Input id="care-phone" type="tel" disabled placeholder="+91" />
+          <Input id="care-phone" type="tel" inputMode="tel" autoComplete="tel" disabled placeholder="+91" />
         </LaField>
       </div>
 
       <LaField label="Registered address" htmlFor="registered-address">
-        <Textarea id="registered-address" disabled placeholder="Street, city, state, PIN code" className="min-h-[64px]" />
+        <Textarea id="registered-address" autoComplete="street-address" disabled placeholder="Street, city, state, PIN code" className="min-h-[64px]" />
       </LaField>
 
       <LaCard emphasis="tint" pad="sm" className="flex flex-col gap-3">
@@ -73,10 +73,10 @@ export function ComplianceForm({ className }: { className?: string }) {
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <LaField label="Name" htmlFor="mfr-name">
-            <Input id="mfr-name" disabled placeholder="Who makes the garments" />
+            <Input id="mfr-name" autoComplete="off" disabled placeholder="Who makes the garments" />
           </LaField>
           <LaField label="Address" htmlFor="mfr-address">
-            <Input id="mfr-address" disabled placeholder="Factory address" />
+            <Input id="mfr-address" autoComplete="off" disabled placeholder="Factory address" />
           </LaField>
         </div>
         <DisabledToggle label="We import some products (adds importer details)" />
@@ -87,7 +87,7 @@ export function ComplianceForm({ className }: { className?: string }) {
           <FakeSelect id="origin" placeholder="Choose a country" />
         </LaField>
         <LaField label="GST number" htmlFor="gst">
-          <Input id="gst" disabled placeholder="15 characters" />
+          <Input id="gst" maxLength={15} autoCapitalize="characters" autoComplete="off" spellCheck={false} disabled placeholder="15 characters" />
         </LaField>
         <LaField label="Default HSN code" htmlFor="hsn">
           <FakeSelect id="hsn" placeholder="Choose, or set per product" />

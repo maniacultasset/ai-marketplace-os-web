@@ -74,8 +74,40 @@ describe('signup form schema (SignupCreate)', () => {
   it('rejects blank names, names over 200 code points and NUL', () => {
     expect(signupFormSchema.safeParse({ ...valid, brand_name: '   ' }).success).toBe(false)
     expect(signupFormSchema.safeParse({ ...valid, owner_name: 'a'.repeat(201) }).success).toBe(false)
-    expect(signupFormSchema.safeParse({ ...valid, owner_name: '🙂'.repeat(200) }).success).toBe(true)
+    // Length is code points, as the backend counts: 200 Devanagari letters are fine, 201 are not.
+    expect(signupFormSchema.safeParse({ ...valid, owner_name: 'क'.repeat(200) }).success).toBe(true)
+    expect(signupFormSchema.safeParse({ ...valid, brand_name: '𝒜'.repeat(200) }).success).toBe(true)
+    expect(signupFormSchema.safeParse({ ...valid, brand_name: '𝒜'.repeat(201) }).success).toBe(false)
     expect(signupFormSchema.safeParse({ ...valid, brand_name: 'A\u0000B' }).success).toBe(false)
+  })
+
+  const issue = (patch: Partial<SignupFormValues>) => signupFormSchema.safeParse({ ...valid, ...patch }).error?.issues[0]?.message
+
+  it('says "Enter your name." for a blank name (not "Enter the your name.")', () => {
+    expect(issue({ owner_name: '  ' })).toBe('Enter your name.')
+    expect(issue({ brand_name: '' })).toBe('Enter the brand name.')
+  })
+
+  it('rejects a person name made of digits, accepts real names from any script', () => {
+    expect(issue({ owner_name: '12345' })).toBe('Use letters for your name, not numbers.')
+    expect(issue({ owner_name: 'Meera 2' })).toBe('Use letters for your name, not numbers.')
+    expect(signupFormSchema.safeParse({ ...valid, owner_name: '...' }).success).toBe(false)
+    expect(signupFormSchema.safeParse({ ...valid, owner_name: '🙂' }).success).toBe(false)
+    for (const owner_name of ["Ananya D'Souza", 'राहुल', 'मीरा अय्यर', 'Jean-Luc Picard', 'J. R. Rao', 'Zoë Ó Briain', 'ശ്രീ', '李小龙', 'O’Brien'])
+      expect(signupFormSchema.safeParse({ ...valid, owner_name }).success, owner_name).toBe(true)
+  })
+
+  it('accepts brand names with digits and punctuation, but not digits or symbols only', () => {
+    for (const brand_name of ['boAt 2.0', '7 Seas', 'H&M', "Levi's", 'Marks & Spencer', 'Yahoo!', 'कलाकार', 'Brand™'])
+      expect(signupFormSchema.safeParse({ ...valid, brand_name }).success, brand_name).toBe(true)
+    expect(issue({ brand_name: '12345' })).toBe('Include at least one letter in the brand name, not only numbers or symbols.')
+    expect(signupFormSchema.safeParse({ ...valid, brand_name: '<script>' }).success).toBe(false)
+  })
+
+  it('collapses runs of spaces in names before sending', () => {
+    const body = toSignupBody(signupFormSchema.parse({ ...valid, brand_name: ' Kalakar   Weaves ', owner_name: 'Meera  Iyer' }))
+    expect(body.brand_name).toBe('Kalakar Weaves')
+    expect(body.owner_name).toBe('Meera Iyer')
   })
 
   it('mirrors the email rules: visible ASCII, one @, 254 octets after normalising', () => {
@@ -90,6 +122,9 @@ describe('signup form schema (SignupCreate)', () => {
     expect(signupFormSchema.safeParse({ ...valid, phone: '022 (4000)-1234' }).success).toBe(true)
     expect(signupFormSchema.safeParse({ ...valid, phone: '(022) 4000-1234' }).success).toBe(false)
     expect(signupFormSchema.safeParse({ ...valid, phone: '+91 abc' }).success).toBe(false)
+    expect(issue({ phone: 'call me' })).toBe('Use digits for the phone number, not letters.')
+    expect(signupFormSchema.safeParse({ ...valid, phone: '+91 98765 43210 9999' }).success).toBe(false) // 16 digits
+    expect(signupFormSchema.safeParse({ ...valid, phone: '+1 415 555 0100' }).success).toBe(true)
     expect(signupFormSchema.safeParse({ ...valid, website: 'localhost' }).success).toBe(false)
     expect(signupFormSchema.safeParse({ ...valid, website: 'ftp://kalakar.in' }).success).toBe(false)
     expect(signupFormSchema.safeParse({ ...valid, website: 'HTTPS://kalakar.in/shop' }).success).toBe(true)
@@ -115,6 +150,9 @@ describe('status, reject and approve bodies', () => {
   it('reject: reason is required, at most 1000 characters, trimmed', () => {
     expect(rejectFormSchema.safeParse({ reason: '  ' }).success).toBe(false)
     expect(rejectFormSchema.safeParse({ reason: 'x'.repeat(1001) }).success).toBe(false)
+    expect(rejectFormSchema.safeParse({ reason: 'No website.\nAdd it and apply again.' }).success).toBe(true)
+    expect(rejectFormSchema.safeParse({ reason: 'No\u0000website' }).success).toBe(false)
+    expect(rejectFormSchema.safeParse({ reason: '  ' }).error?.issues[0]?.message).toMatch(/Tell the brand why/)
     expect(toRejectBody(rejectFormSchema.parse({ reason: '  No website.  ' }))).toEqual({ reason: 'No website.' })
   })
 

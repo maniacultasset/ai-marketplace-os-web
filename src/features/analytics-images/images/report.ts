@@ -53,9 +53,9 @@ export function isImageContentType(t: string): t is ImageContentType {
 
 /** A plain sentence for a file the API would refuse, or null when it may be sent. */
 export function validateImageFile(f: { size: number; type: string }): string | null {
-  if (!isImageContentType(f.type)) return 'Use a JPEG, PNG or WebP image.'
-  if (f.size === 0) return 'The file is empty.'
-  if (f.size > MAX_IMAGE_BYTES) return 'The image is larger than 10 MB.'
+  if (!isImageContentType(f.type)) return 'This file type is not supported. Use a JPEG, PNG or WebP image.'
+  if (f.size === 0) return 'The file is empty. Choose the image again.'
+  if (f.size > MAX_IMAGE_BYTES) return 'The image is over 10 MB. Use a smaller one.'
   return null
 }
 

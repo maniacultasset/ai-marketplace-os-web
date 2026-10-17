@@ -8,6 +8,7 @@
  */
 import { describeError, type ApiError } from '@/api/errors'
 import type { Schema } from '@/api/types'
+import { codePoints } from '@/lib/validation'
 
 export type BrandDocument = Schema<'BrandDocumentOut'>
 export type DocumentStatus = BrandDocument['status']
@@ -40,8 +41,8 @@ export function hasAllowedExtension(name: string) {
 /** Client-side check before upload; the backend repeats every one of these. */
 export function checkDocumentFile(f: { name: string; size: number }): string | null {
   if (!hasAllowedExtension(f.name)) return 'Choose a .txt or .md file.'
-  if (f.name.length > FILENAME_MAX) return `Rename the file to ${FILENAME_MAX} characters or fewer.`
-  if (f.size === 0) return 'The file is empty.'
+  if (codePoints(f.name) > FILENAME_MAX) return `Rename the file to ${FILENAME_MAX} characters or fewer.`
+  if (f.size === 0) return 'The file is empty. Choose a file with some text in it.'
   if (f.size > MAX_DOCUMENT_BYTES) return `The file is larger than 10 MiB (${formatBytes(f.size)}).`
   return null
 }

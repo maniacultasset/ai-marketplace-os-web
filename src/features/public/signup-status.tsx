@@ -8,7 +8,7 @@ import { Link } from '@tanstack/react-router'
 import { useState, type ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { applyFieldErrors, isApiError } from '@/api/errors'
-import { LaField } from '@/components/la/field'
+import { fieldHintId, LaField } from '@/components/la/field'
 import { Icon, IconTile, type IconSource, type TileTone } from '@/components/la/icons'
 import { StatusChip } from '@/components/la/status-chip'
 import { Button } from '@/components/ui/button'
@@ -17,9 +17,16 @@ import { Spinner } from '@/components/ui/spinner'
 import { useCheckSignupStatus } from '@/features/signup-admin/api'
 import { retryAfterSeconds, SIGNUP_STATUS_META, statusCheckError, type SignupStatusOut } from '@/features/signup-admin/format'
 import { PasswordInput } from '@/features/signup-admin/password-input'
-import { statusFormSchema, toStatusBody, type SignupStatusBody, type StatusFormValues } from '@/features/signup-admin/schema'
+import {
+  LOGIN_EMAIL_MAX,
+  statusFormSchema,
+  toStatusBody,
+  type SignupStatusBody,
+  type StatusFormValues,
+} from '@/features/signup-admin/schema'
 import { TimeAgo } from '@/features/signup-admin/time'
 import { useCountdown } from '@/features/signup-admin/use-countdown'
+import { FORM_VALIDATION_MODE } from '@/lib/validation'
 import { AsideLink, AuthFootnote, AuthFrame, FormAlert } from './auth-frame'
 import { signupChip } from './model'
 import { useDocumentTitle } from './use-document-title'
@@ -52,6 +59,7 @@ function SignupStatusCheck({ initialEmail }: { initialEmail?: string }) {
   const form = useForm<StatusFormValues>({
     resolver: zodResolver(statusFormSchema),
     defaultValues: { email: initialEmail ?? '', password: '' },
+    ...FORM_VALIDATION_MODE,
   })
   const { errors } = form.formState
 
@@ -106,20 +114,31 @@ function SignupStatusCheck({ initialEmail }: { initialEmail?: string }) {
         />
       ) : null}
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
-        <LaField label="Email" htmlFor="email" error={errors.email?.message}>
+        <LaField label="Email" htmlFor="email" error={errors.email?.message} submitCount={form.formState.submitCount}>
           <Input
             id="email"
             type="email"
+            inputMode="email"
             autoComplete="username"
+            autoCapitalize="none"
             autoFocus={!initialEmail}
             spellCheck={false}
+            maxLength={LOGIN_EMAIL_MAX}
             placeholder="you@yourbrand.com"
             aria-invalid={!!errors.email}
+            aria-describedby={fieldHintId('email')}
             {...form.register('email')}
           />
         </LaField>
-        <LaField label="Password" htmlFor="password" error={errors.password?.message}>
-          <PasswordInput id="password" autoComplete="current-password" autoFocus={!!initialEmail} aria-invalid={!!errors.password} {...form.register('password')} />
+        <LaField label="Password" htmlFor="password" error={errors.password?.message} submitCount={form.formState.submitCount}>
+          <PasswordInput
+            id="password"
+            autoComplete="current-password"
+            autoFocus={!!initialEmail}
+            aria-invalid={!!errors.password}
+            aria-describedby={fieldHintId('password')}
+            {...form.register('password')}
+          />
         </LaField>
         <Button type="submit" size="lg" className="w-full" disabled={check.isPending || locked} data-testid="signup-status-submit">
           {check.isPending ? <Spinner data-icon="inline-start" /> : null}

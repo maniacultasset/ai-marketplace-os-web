@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseCsv } from './csv-header'
-import { buildFamilyCsv, buildVariants, cellKey, colourCode, emptyVariants, gtinValid, validateVariants, variantSku } from './variants-model'
+import { buildFamilyCsv, buildVariants, cellKey, colourCode, colourProblem, emptyVariants, gtinProblem, gtinValid, sizeProblem, validateVariants, variantSku } from './variants-model'
 
 describe('variant SKUs', () => {
   it('builds codes like the design', () => {
@@ -35,7 +35,7 @@ describe('matrix', () => {
       commercial: { [k]: { mrp: '₹ 799', price: '999', identifier: '1234' } },
       skus: { [cellKey('Black', 'M')]: 'FSH-BLK-S' },
     })
-    expect(e[`${k}.price`]).toMatch(/above MRP/)
+    expect(e[`${k}.price`]).toMatch(/above the MRP/)
     expect(e[`${k}.identifier`]).toBeDefined()
     expect(e[`${cellKey('Black', 'M')}.sku`]).toMatch(/twice/)
     expect(validateVariants('FSH', { ...s, sizes: ['S', 'Extra Large!'] }).sizes).toBeDefined()
@@ -62,5 +62,42 @@ describe('buildFamilyCsv', () => {
     expect(rows[2]).toEqual(['FSH-TEE-001-BLK-S', 'FSH-TEE-001', 'Relaxed, Cotton "Tee"', 'tshirts', 'Black', 'S', '', '1299', '999.50', 'gtin', '4006381333931'])
     expect(rows[3]![0]).toBe('FSH-TEE-001-BLK-M')
     expect(rows).toHaveLength(4)
+  })
+})
+
+describe('field checks', () => {
+  it('needs letters in a colour name, but allows digits beside them', () => {
+    expect(colourProblem('12345')).toMatch(/with letters/)
+    expect(colourProblem('#$%')).toMatch(/with letters/)
+    for (const c of ['Black', 'Off white', 'Navy-blue', 'Pantone 19-4052', 'लाल', 'Rose’s pink']) expect(colourProblem(c)).toBeNull()
+    expect(colourProblem('a'.repeat(65))).toMatch(/64 characters or fewer/)
+  })
+
+  it('checks sizes like the import', () => {
+    for (const z of ['S', 'XL', '32', 'Free size', '3/4', '10.5', 'UK 8+']) expect(sizeProblem(z)).toBeNull()
+    expect(sizeProblem('Extra Large!')).toMatch(/can’t be used as a size/)
+    expect(sizeProblem('-S')).toBeDefined()
+    expect(sizeProblem('x'.repeat(33))).toMatch(/32 characters or fewer/)
+  })
+
+  it('explains money and GTIN problems', () => {
+    const k = cellKey('Black', 'S')
+    const base = { ...emptyVariants(), colours: ['Black'], sizes: ['S'] }
+    const err = (c: { mrp?: string; price?: string; identifier?: string }) =>
+      validateVariants('FSH', { ...base, commercial: { [k]: { mrp: '', price: '', identifier: '', ...c } } })
+    expect(err({ mrp: 'abc' })[`${k}.mrp`]).toMatch(/Use numbers for the MRP/)
+    expect(err({ price: '0' })[`${k}.price`]).toMatch(/above zero/)
+    expect(err({ price: '12.345' })[`${k}.price`]).toMatch(/at most 2 decimals/)
+    expect(err({ mrp: '₹1,299', price: '999.50' })).toEqual({})
+    expect(gtinProblem('')).toBeNull()
+    expect(gtinProblem('40063813339A1')).toMatch(/digits only/)
+    expect(gtinProblem('1234')).toMatch(/8, 12, 13 or 14 digits/)
+    expect(gtinProblem('4006381333932')).toMatch(/check\) digit/)
+    expect(gtinProblem('4006381333931')).toBeNull()
+  })
+
+  it('flags a variant that reuses the style SKU', () => {
+    const k = cellKey('', 'S')
+    expect(validateVariants('FSH', { ...emptyVariants(), sizes: ['S'], skus: { [k]: 'FSH' } })[`${k}.sku`]).toMatch(/style’s own SKU/)
   })
 })

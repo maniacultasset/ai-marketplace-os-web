@@ -17,8 +17,10 @@ import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useKeys } from '@/lib/query-keys'
+import { focusFirstInvalid, FORM_VALIDATION_MODE } from '@/lib/validation'
 import { cn } from '@/lib/utils'
 import { AttributesSection, ContentSection, KeywordsSection, TargetSection } from './draft-fields'
+import { ErrorLine } from './error-line'
 import { CATEGORY_RE, type Marketplace } from './labels'
 import {
   attrKeyForItemPath,
@@ -69,7 +71,10 @@ export function DryRunTool({
   const form = useForm<DraftValues>({
     resolver: zodResolver(draftSchema),
     defaultValues: emptyDraft(initial),
-    mode: 'onTouched',
+    ...FORM_VALIDATION_MODE,
+    // react-hook-form focuses in registration order, where the Controller-backed marketplace select
+    // and term inputs come last; focus the first invalid control on the page instead (onSubmit).
+    shouldFocusError: false,
   })
   const [mode, setMode] = useState<Mode>('form')
   const [extras, setExtras] = useState<Record<string, unknown>>({})
@@ -79,6 +84,8 @@ export function DryRunTool({
   const [last, setLast] = useState<LastRun | null>(null)
   const [problem, setProblem] = useState<Problem | null>(null)
   const resultRef = useRef<HTMLDivElement>(null)
+  const jsonRef = useRef<HTMLTextAreaElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
 
   // Category suggestions come from the whole live rule list (every page; no hardcoded list).
   const allRules = useAllRules({})
@@ -185,6 +192,7 @@ export function DryRunTool({
       const p = parseBody(jsonText)
       if (!p.ok) {
         setJsonError(p.error)
+        jsonRef.current?.focus()
         return
       }
       setJsonError(null)
@@ -196,7 +204,10 @@ export function DryRunTool({
     }
     void form.handleSubmit(
       (v) => send(toBody(v, extras), v.category.trim(), 'form'),
-      () => setProblem(null),
+      () => {
+        setProblem(null)
+        requestAnimationFrame(() => focusFirstInvalid(formRef.current))
+      },
     )()
   }
 
@@ -278,6 +289,7 @@ export function DryRunTool({
   return (
     <div className="@container/dry">
       <form
+        ref={formRef}
         noValidate
         onSubmit={(e) => {
           e.preventDefault()
@@ -378,6 +390,8 @@ export function DryRunTool({
                     </Button>
                   </div>
                   <Textarea
+                    ref={jsonRef}
+                    name="body"
                     aria-label="Request body JSON"
                     value={jsonText}
                     onChange={(e) => {
@@ -387,14 +401,13 @@ export function DryRunTool({
                     spellCheck={false}
                     rows={24}
                     aria-invalid={!!jsonError}
+                    aria-describedby={jsonError ? 'json-error' : undefined}
+                    autoComplete="off"
+                    autoCapitalize="off"
                     className="min-h-[28rem] resize-y font-mono text-xs leading-relaxed"
                     data-testid="json-editor"
                   />
-                  {jsonError ? (
-                    <p role="alert" className="text-xs text-destructive" data-testid="json-error">
-                      {jsonError}
-                    </p>
-                  ) : null}
+                  <ErrorLine message={jsonError} id="json-error" testId="json-error" />
                 </CardContent>
               </Card>
             </TabsContent>

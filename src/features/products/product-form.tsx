@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Spinner } from '@/components/ui/spinner'
 import { toastError } from '@/lib/toast'
 import { cn } from '@/lib/utils'
+import { filterInput, FORM_VALIDATION_MODE, type Sanitizer } from '@/lib/validation'
 import { fetchProductsPage, MAX_PAGE_SIZE, useCreateProduct, useProductsList } from './api'
 import {
   ATTRIBUTE_KEY_SUGGESTIONS,
@@ -32,6 +33,14 @@ import {
 } from './schema'
 
 const SKU_CONFLICT_MESSAGE = 'This SKU already exists in this brand.'
+
+/**
+ * Number attribute values: refuse keystrokes that can never be part of a decimal (letters other
+ * than an exponent's e). The schema still rejects hex, Infinity, "+5", ".5" and the like.
+ */
+const numberChars: Sanitizer = (v) => v.replace(/[^0-9.eE+-]/g, '')
+/** Text rows: no filter (also replaces a number row's filter when the row's type changes). */
+const asTyped: Sanitizer = (v) => v
 
 type Detail = { loc: (string | number)[]; msg: string }
 
@@ -146,7 +155,7 @@ export function ProductForm() {
   const form = useForm<ProductFormInput, unknown, ProductFormValues>({
     resolver: zodResolver(productFormSchema),
     defaultValues: { sku: '', title: '', category: '', attributes: [] },
-    mode: 'onTouched',
+    ...FORM_VALIDATION_MODE,
   })
   const { errors, isSubmitting, isSubmitted } = form.formState
   const attributes = useFieldArray({ control: form.control, name: 'attributes' })
@@ -229,6 +238,7 @@ export function ProductForm() {
               <Input
                 id="title"
                 autoComplete="off"
+                maxLength={TITLE_MAX * 2}
                 placeholder="Cotton kurta set"
                 aria-invalid={!!errors.title || undefined}
                 aria-describedby="title-count"
@@ -243,6 +253,7 @@ export function ProductForm() {
                   id="sku"
                   autoComplete="off"
                   spellCheck={false}
+                  autoCapitalize="none"
                   maxLength={SKU_MAX + 8}
                   className="font-mono"
                   placeholder="KURTA-003"
@@ -276,6 +287,8 @@ export function ProductForm() {
                   list="product-categories"
                   autoComplete="off"
                   spellCheck={false}
+                  autoCapitalize="none"
+                  maxLength={64 + 8}
                   placeholder="ethnic_wear_kurta_sets"
                   aria-invalid={!!errors.category || undefined}
                   {...form.register('category')}
@@ -348,6 +361,8 @@ export function ProductForm() {
                           list="attribute-keys"
                           autoComplete="off"
                           spellCheck={false}
+                          autoCapitalize="none"
+                          maxLength={64 + 8}
                           placeholder="color"
                           className="font-mono"
                           aria-label={`Attribute ${i + 1} key`}
@@ -410,8 +425,9 @@ export function ProductForm() {
                             aria-label={`Attribute ${i + 1} value`}
                             aria-invalid={!!rowErr?.value || undefined}
                             maxLength={type === 'text' ? ATTRIBUTE_TEXT_MAX * 2 : 64}
+                            spellCheck={type === 'number' ? false : undefined}
                             className={cn(type === 'number' && 'tabular-nums')}
-                            {...form.register(`attributes.${i}.value`)}
+                            {...filterInput(form.register(`attributes.${i}.value`), type === 'number' ? numberChars : asTyped)}
                           />
                         )}
                         <FieldError errors={[rowErr?.value]} className="text-xs" />

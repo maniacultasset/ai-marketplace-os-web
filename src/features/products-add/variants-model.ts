@@ -10,13 +10,54 @@
  * (₹, commas and spaces stripped), positive; selling_price ≤ mrp; identifier GTIN-8/12/13/14 with a
  * valid GS1 check digit; at most 40 sizes per family (runner.MAX_SIZE_RUN).
  */
-import { SKU_PATTERN } from '@/features/products/schema'
+import { codePoints } from '@/features/products/schema'
+import { CONTROL_MSG, hasControlChars, money, parseMoney } from '@/lib/validation'
+import { skuProblem } from './guided-model'
 
 export const SIZE_KEY_PATTERN = /^[a-z0-9][a-z0-9 ./+-]{0,31}$/
 export const MONEY_PATTERN = /^[0-9]{1,10}(\.[0-9]{1,2})?$/
 export const GTIN_PATTERN = /^([0-9]{8}|[0-9]{12,14})$/
 export const MAX_COLOUR = 64
 export const MAX_SIZE_RUN = 40
+/** SIZE_KEY_PATTERN's length: 1 + 31. */
+export const MAX_SIZE = 32
+export const GTIN_MAX = 14
+
+
+/** What is wrong with one colour name, or null. A colour is named with words ("Off white"), so it needs a letter. */
+export function colourProblem(raw: string): string | null {
+  const c = raw.trim()
+  if (!c) return 'Enter a colour name.'
+  if (hasControlChars(c)) return CONTROL_MSG
+  if (!/\p{L}/u.test(c)) return `Name the colour “${c}” with letters, for example Black or Off white.`
+  if (codePoints(c) > MAX_COLOUR) return `Shorten “${c}” to ${MAX_COLOUR} characters or fewer.`
+  return null
+}
+
+/** What is wrong with one size, or null (the import's size key, compared lower-cased). */
+export function sizeProblem(raw: string): string | null {
+  const z = raw.trim()
+  if (!z) return 'Enter a size.'
+  if (codePoints(z) > MAX_SIZE) return `Shorten “${z}” to ${MAX_SIZE} characters or fewer.`
+  if (!SIZE_KEY_PATTERN.test(z.toLowerCase()))
+    return `“${z}” can’t be used as a size. Start with a letter or digit, then use only letters, digits, spaces and . / + -.`
+  return null
+}
+
+const moneyProblem = (raw: string, label: string): string | null => {
+  const r = money(label).safeParse(raw)
+  return r.success ? null : (r.error.issues[0]?.message ?? `Check ${label}.`)
+}
+
+/** What is wrong with a GTIN / EAN / UPC, or null when blank (exempt) or valid. */
+export function gtinProblem(raw: string): string | null {
+  const id = raw.trim()
+  if (!id) return null
+  if (!/^[0-9]+$/.test(id)) return 'Use digits only for the GTIN, EAN or UPC.'
+  if (!GTIN_PATTERN.test(id)) return `Use 8, 12, 13 or 14 digits for the GTIN, EAN or UPC (this has ${id.length}).`
+  if (!gtinValid(id)) return 'The last (check) digit doesn’t match. Copy the number again from the barcode.'
+  return null
+}
 
 export const SIZE_SYSTEMS: readonly { value: string; label: string; sizes: string[] }[] = [
   { value: 'alpha', label: 'Alpha (XS to XXL)', sizes: ['S', 'M', 'L', 'XL'] },
@@ -117,11 +158,7 @@ export function buildVariants(base: string, s: VariantsState): VariantRow[] {
 }
 
 /** "₹ 1,299" → "1299" (the import's own cleaning), or null when blank. */
-export function cleanMoney(raw: string): string | null {
-  let v = raw.replace(/₹/g, '').replace(/,/g, '').replace(/\s+/g, '')
-  if (v.toUpperCase().startsWith('INR')) v = v.slice(3)
-  return v === '' ? null : v
-}
+export const cleanMoney = parseMoney
 
 /** GS1 check digit over GTIN-8/12/13/14 (row_model.gtin_valid). */
 export function gtinValid(value: string): boolean {
@@ -137,26 +174,30 @@ export type VariantErrors = Partial<Record<string, string>>
 /** Keys: colours, sizes, `<cellKey>.sku|mrp|price|identifier`, form. */
 export function validateVariants(base: string, s: VariantsState): VariantErrors {
   const e: VariantErrors = {}
-  const badColour = s.colours.find((c) => !c.trim() || c.length > MAX_COLOUR)
-  if (badColour !== undefined) e.colours = `Colours need 1 to ${MAX_COLOUR} characters.`
-  const badSize = s.sizes.find((z) => !SIZE_KEY_PATTERN.test(z.trim().toLowerCase()))
-  if (badSize !== undefined) e.sizes = `“${badSize}” is not a size the import accepts. Use letters, digits, space, . / + or -.`
-  else if (s.sizes.length > MAX_SIZE_RUN) e.sizes = `A family has at most ${MAX_SIZE_RUN} sizes.`
+  const colour = s.colours.map(colourProblem).find(Boolean)
+  if (colour) e.colours = colour
+  const size = s.sizes.map(sizeProblem).find(Boolean)
+  if (size) e.sizes = size
+  else if (s.sizes.length > MAX_SIZE_RUN) e.sizes = `A style can have at most ${MAX_SIZE_RUN} sizes. Remove ${s.sizes.length - MAX_SIZE_RUN}.`
   const rows = buildVariants(base, s)
   if (rows.length === 0) e.form = 'Add at least one colour or size.'
   const seen = new Set<string>([base])
   for (const r of rows) {
-    if (!SKU_PATTERN.test(r.sku)) e[`${r.key}.sku`] = 'No spaces or "]", at most 64 characters.'
-    else if (seen.has(r.sku)) e[`${r.key}.sku`] = 'This SKU is used twice.'
+    const sku = skuProblem(r.sku, 'the variant SKU')
+    if (sku) e[`${r.key}.sku`] = sku
+    else if (seen.has(r.sku)) e[`${r.key}.sku`] = r.sku === base ? 'This is the style’s own SKU. Give the variant its own.' : 'This SKU is used twice. Change one of them.'
     seen.add(r.sku)
     const c = s.commercial[r.key]
+    const mrpErr = c ? moneyProblem(c.mrp, 'the MRP') : null
+    const priceErr = c ? moneyProblem(c.price, 'the price') : null
+    if (mrpErr) e[`${r.key}.mrp`] = mrpErr
+    if (priceErr) e[`${r.key}.price`] = priceErr
     const mrp = c ? cleanMoney(c.mrp) : null
     const price = c ? cleanMoney(c.price) : null
-    if (mrp !== null && (!MONEY_PATTERN.test(mrp) || Number(mrp) <= 0)) e[`${r.key}.mrp`] = 'A positive amount, at most 2 decimals.'
-    if (price !== null && (!MONEY_PATTERN.test(price) || Number(price) <= 0)) e[`${r.key}.price`] = 'A positive amount, at most 2 decimals.'
-    else if (price !== null && mrp !== null && !e[`${r.key}.mrp`] && Number(price) > Number(mrp)) e[`${r.key}.price`] = 'Price can’t be above MRP.'
-    const id = c?.identifier.trim() ?? ''
-    if (id && !gtinValid(id)) e[`${r.key}.identifier`] = 'Not a valid GTIN, EAN or UPC (8, 12, 13 or 14 digits).'
+    if (!mrpErr && !priceErr && price !== null && mrp !== null && Number(price) > Number(mrp))
+      e[`${r.key}.price`] = `The price can’t be above the MRP (₹${Number(mrp).toLocaleString('en-IN', { minimumFractionDigits: mrp.includes('.') ? 2 : 0 })}). Lower it or raise the MRP.`
+    const id = gtinProblem(c?.identifier ?? '')
+    if (id) e[`${r.key}.identifier`] = id
   }
   return e
 }

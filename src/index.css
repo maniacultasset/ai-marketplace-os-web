@@ -23,6 +23,8 @@
   --surface: #fbfcfd;
   --subtle: #e8ecf3;
   --field: #eef1f6;
+  /* An invalid field: the field fill with a breath of danger, so the red edge reads at rest. */
+  --field-invalid: color-mix(in srgb, var(--danger-bg) 45%, var(--field));
   --sunken: #f4f6f9;
   --scrim: rgb(27 34 56 / 0.28);
   --line: #dde2ec;
@@ -226,6 +228,7 @@
   --color-surface: var(--surface);
   --color-subtle: var(--subtle);
   --color-field: var(--field);
+  --color-field-invalid: var(--field-invalid);
   --color-sunken: var(--sunken);
   --color-scrim: var(--scrim);
   --color-hover: var(--hover);
@@ -579,6 +582,54 @@
   }
 }
 
+/* Field feedback (src/components/la/field.tsx). The hint line opens and folds on the spring
+   (grid rows 0fr -> 1fr, so it measures its own height); the hint and the error share one cell and
+   cross-fade, the error settling 2px down into place. Clipped only while closed or moving. */
+.field-reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--dur-spring) var(--ease-spring),
+    opacity 200ms ease-out;
+}
+.field-reveal[data-open] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.field-reveal > * {
+  min-height: 0;
+  overflow: hidden;
+}
+.field-reveal[data-settled] > * {
+  overflow: visible;
+}
+.field-swap {
+  grid-area: 1 / 1;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition:
+    opacity 180ms ease-out,
+    transform var(--dur-spring) var(--ease-spring);
+}
+.field-swap[data-shown] {
+  opacity: 1;
+  transform: none;
+  transition-delay: 60ms;
+}
+.field-tick {
+  animation: field-tick 1600ms var(--ease-tactile) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .field-swap {
+    transform: none;
+  }
+  .field-tick {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 /* One icon weight: lucide defaults (stroke 2) are drawn at the hi-fi 1.75. An explicit
    strokeWidth other than 2 (e.g. a bold check) is left alone. */
 svg.lucide[stroke-width="2"] {
@@ -604,5 +655,22 @@ svg.lucide[stroke-width="2"] {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+@keyframes field-tick {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  15% {
+    opacity: 1;
+    transform: none;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }

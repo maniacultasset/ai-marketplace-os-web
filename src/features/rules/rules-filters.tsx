@@ -90,8 +90,12 @@ export function RulesFiltersBar({
                 if (error) setError(null)
               }}
               onBlur={applyCategory}
+              name="category"
+              maxLength={64}
+              autoComplete="off"
+              enterKeyHint="search"
               placeholder="Exact category, e.g. home_decor_lamps"
-              className={cn('pr-8 pl-8', error && 'border-destructive')}
+              className="pr-8 pl-8"
               aria-invalid={!!error}
               aria-describedby={hintId}
               spellCheck={false}

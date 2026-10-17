@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Icon, IconTile } from '@/components/la/icons'
 import { isApiError } from '@/api/errors'
 import { ReferenceId } from '@/components/states/reference-id'
@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
+import { digitsOnly, filterInput } from '@/lib/validation'
 import { useApproveSignup } from './api'
 import { decisionError, type SignupRequest } from './format'
 import { parseTrialDays, toApproveBody, TRIAL_DAYS_DEFAULT, TRIAL_DAYS_MAX, TRIAL_DAYS_MIN } from './schema'
@@ -28,6 +29,9 @@ export function ApproveDialog({
 }) {
   const approve = useApproveSignup()
   const [trial, setTrial] = useState(String(TRIAL_DAYS_DEFAULT))
+  /** The error waits for blur or a confirm attempt, then follows every change. */
+  const [trialTouched, setTrialTouched] = useState(false)
+  const trialRef = useRef<HTMLInputElement>(null)
   const [approved, setApproved] = useState<{ out: SignupRequest; trialDays: number } | null>(null)
   const trialId = useId()
 
@@ -36,6 +40,7 @@ export function ApproveDialog({
   useEffect(() => {
     if (!open) return
     setTrial(String(TRIAL_DAYS_DEFAULT))
+    setTrialTouched(false)
     setApproved(null)
     approve.reset()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only when the request changes
@@ -43,9 +48,15 @@ export function ApproveDialog({
 
   const parsed = parseTrialDays(trial)
   const trialInvalid = parsed === 'invalid'
+  const showTrialError = trialInvalid && trialTouched
 
   const onConfirm = () => {
-    if (!request || trialInvalid) return
+    if (!request) return
+    if (trialInvalid) {
+      setTrialTouched(true)
+      trialRef.current?.focus()
+      return
+    }
     approve.mutate(
       { id: request.id, body: toApproveBody(parsed) },
       { onSuccess: (out) => setApproved({ out, trialDays: parsed ?? TRIAL_DAYS_DEFAULT }) },
@@ -76,28 +87,36 @@ export function ApproveDialog({
                 <TimeAgo iso={request.created_at} />
               </Row>
             </dl>
-            <Field data-invalid={trialInvalid || undefined}>
+            <Field data-invalid={showTrialError || undefined}>
               <FieldLabel htmlFor={trialId}>Trial length</FieldLabel>
               <div className="flex items-center gap-2">
                 <Input
                   id={trialId}
+                  name="trial_days"
+                  type="text"
                   inputMode="numeric"
+                  autoComplete="off"
+                  maxLength={String(TRIAL_DAYS_MAX).length}
                   className="w-24 tabular-nums"
                   value={trial}
-                  onChange={(e) => setTrial(e.target.value)}
-                  aria-invalid={trialInvalid}
+                  {...filterInput({ onChange: (e) => setTrial(e.target.value), ref: trialRef }, digitsOnly)}
+                  onBlur={() => setTrialTouched(true)}
+                  aria-invalid={showTrialError}
+                  aria-describedby={`${trialId}-hint`}
                   disabled={busy}
                   data-testid="approve-trial-days"
                 />
                 <span className="text-sm text-muted-foreground">days</span>
               </div>
-              {trialInvalid ? (
-                <FieldError>
-                  Enter a whole number from {TRIAL_DAYS_MIN} to {TRIAL_DAYS_MAX}.
-                </FieldError>
-              ) : (
-                <FieldDescription className="text-xs">Leave empty for the default ({TRIAL_DAYS_DEFAULT} days).</FieldDescription>
-              )}
+              <div id={`${trialId}-hint`}>
+                {showTrialError ? (
+                  <FieldError>
+                    Enter a whole number of days from {TRIAL_DAYS_MIN} to {TRIAL_DAYS_MAX}, or leave it empty for the default.
+                  </FieldError>
+                ) : (
+                  <FieldDescription className="text-xs">Leave empty for the default ({TRIAL_DAYS_DEFAULT} days).</FieldDescription>
+                )}
+              </div>
             </Field>
             {approve.isError ? (
               <div role="alert" className="flex flex-col gap-1 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2" data-testid="approve-error">
@@ -109,7 +128,7 @@ export function ApproveDialog({
               <Button variant="outline" onClick={onClose} disabled={busy}>
                 Cancel
               </Button>
-              <Button onClick={onConfirm} disabled={busy || trialInvalid} data-testid="approve-confirm">
+              <Button onClick={onConfirm} disabled={busy} data-testid="approve-confirm">
                 {busy ? <Spinner data-icon="inline-start" /> : null}
                 {busy ? 'Approving…' : 'Approve and create workspace'}
               </Button>

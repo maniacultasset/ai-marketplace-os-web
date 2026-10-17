@@ -4,6 +4,7 @@
  * lengths in code points (Python `len`).
  */
 import { z } from 'zod'
+import { CONTROL_MSG, hasControlChars, hasStrayControlChars } from '@/lib/validation'
 import type { ProductCreateBody } from './api'
 
 export const SKU_MAX = 64
@@ -17,7 +18,52 @@ export const ATTRIBUTE_KEY_PATTERN = /^[a-z][a-z0-9_]{0,63}$/
 
 /** Length as the backend counts it (code points, not UTF-16 units). */
 export const codePoints = (s: string) => [...s].length
-const hasNul = (s: string) => s.includes('\u0000')
+
+/** Shared by /products/new and the guided form. */
+export const ATTRIBUTE_KEY_MSG =
+  'Use lowercase letters, digits and _ in the attribute, starting with a letter (for example occasion).'
+/** A number attribute value that is not a plain decimal (the same wording as the rules dry run). */
+export const NUMBER_MSG = 'Enter a number, like 42, -5 or 3.5.'
+
+/**
+ * What is wrong with a seller SKU (backend `^[^\]\s]{1,64}$`, no BOM), or null. `label` reads after
+ * a verb ("the SKU", "the variant SKU"). Shared by /products/new, the guided form and variants.
+ */
+export function skuProblem(raw: string, label = 'the SKU'): string | null {
+  const sku = raw.trim()
+  if (!sku) return 'Enter a SKU.'
+  if (hasControlChars(sku) || sku.includes('\uFEFF')) return CONTROL_MSG
+  if (/\s/.test(sku)) return `Remove the spaces from ${label}. Use - or _ to separate words.`
+  if (sku.includes(']')) return `Remove the "]" from ${label}.`
+  if (!SKU_PATTERN.test(sku)) return `Shorten ${label} to ${SKU_MAX} characters or fewer.`
+  return null
+}
+
+/**
+ * What is wrong with a product title, or null: required, at most 500 code points, no control
+ * characters, and at least one letter ("12345" is not a name; "Levi’s 501", "खादी कुर्ता" are).
+ * `label` is the noun as the form names it ("the title", "the product name").
+ */
+export function productTitleProblem(raw: string, label = 'the title'): string | null {
+  const v = raw.trim()
+  if (!v) return `Enter ${label}.`
+  if (hasStrayControlChars(v)) return CONTROL_MSG
+  if (!/\p{L}/u.test(v)) return `Include at least one letter in ${label}, not only numbers or symbols.`
+  if (codePoints(v) > TITLE_MAX) return `Shorten ${label} to ${TITLE_MAX} characters or fewer.`
+  return null
+}
+
+/** What is wrong with a category slug (`^[a-z0-9_]{2,64}$`), or null, with the fixed value when obvious. */
+export function categoryProblem(raw: string): string | null {
+  const category = raw.trim()
+  if (!category) return 'Enter a category.'
+  if (CATEGORY_PATTERN.test(category)) return null
+  const lower = category.toLowerCase()
+  if (/[A-Z]/.test(category) && CATEGORY_PATTERN.test(lower)) return `Use lowercase letters in the category: ${lower}.`
+  const joined = lower.replace(/[\s-]+/g, '_')
+  if (/[\s-]/.test(category) && CATEGORY_PATTERN.test(joined)) return `Use _ between words in the category: ${joined}.`
+  return 'Use 2 to 64 lowercase letters, digits or _ in the category, for example ethnic_wear_kurta_sets.'
+}
 
 /** Decimal only: no hex/binary/octal, no Infinity, no leading "+" or ".5". */
 export const DECIMAL_NUMBER_PATTERN = /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/
@@ -46,7 +92,7 @@ const attributeRow = z
       .string()
       .trim()
       .min(1, 'Enter a key.')
-      .regex(ATTRIBUTE_KEY_PATTERN, 'Lowercase letters, digits and _; start with a letter; max 64.'),
+      .regex(ATTRIBUTE_KEY_PATTERN, ATTRIBUTE_KEY_MSG),
     type: z.enum(ATTRIBUTE_TYPES),
     value: z.string(),
   })
@@ -54,12 +100,16 @@ const attributeRow = z
     const v = row.type === 'text' ? row.value.trim() : row.value
     if (row.type === 'text') {
       if (!v) ctx.addIssue({ code: 'custom', path: ['value'], message: 'Enter a value or remove the row.' })
+      else if (hasStrayControlChars(v)) ctx.addIssue({ code: 'custom', path: ['value'], message: CONTROL_MSG })
       else if (codePoints(v) > ATTRIBUTE_TEXT_MAX)
-        ctx.addIssue({ code: 'custom', path: ['value'], message: `At most ${ATTRIBUTE_TEXT_MAX} characters.` })
-      else if (hasNul(v)) ctx.addIssue({ code: 'custom', path: ['value'], message: 'Remove the NUL character.' })
+        ctx.addIssue({
+          code: 'custom',
+          path: ['value'],
+          message: `Shorten the value to ${ATTRIBUTE_TEXT_MAX.toLocaleString('en-IN')} characters or fewer.`,
+        })
     } else if (row.type === 'number') {
       if (toJsonNumber(v) === null)
-        ctx.addIssue({ code: 'custom', path: ['value'], message: 'Enter a finite number.' })
+        ctx.addIssue({ code: 'custom', path: ['value'], message: NUMBER_MSG })
     } else if (v !== 'true' && v !== 'false') {
       ctx.addIssue({ code: 'custom', path: ['value'], message: 'Choose true or false.' })
     }
@@ -70,21 +120,24 @@ export const productFormSchema = z
     sku: z
       .string()
       .trim()
-      .min(1, 'Enter a SKU.')
-      .max(SKU_MAX, `At most ${SKU_MAX} characters.`)
-      .refine((s) => SKU_PATTERN.test(s) && !s.includes('﻿'), 'No spaces or "]" allowed.')
-      .refine((s) => !hasNul(s), 'Remove the NUL character.'),
+      .superRefine((v, ctx) => {
+        const p = skuProblem(v)
+        if (p) ctx.addIssue({ code: 'custom', message: p })
+      }),
     title: z
       .string()
       .trim()
-      .min(1, 'Enter a title.')
-      .refine((s) => codePoints(s) <= TITLE_MAX, `At most ${TITLE_MAX} characters.`)
-      .refine((s) => !hasNul(s), 'Remove the NUL character.'),
+      .superRefine((v, ctx) => {
+        const p = productTitleProblem(v)
+        if (p) ctx.addIssue({ code: 'custom', message: p })
+      }),
     category: z
       .string()
       .trim()
-      .min(1, 'Enter a category.')
-      .regex(CATEGORY_PATTERN, '2-64 lowercase letters, digits or _ (e.g. ethnic_wear_kurta_sets).'),
+      .superRefine((v, ctx) => {
+        const p = categoryProblem(v)
+        if (p) ctx.addIssue({ code: 'custom', message: p })
+      }),
     attributes: z.array(attributeRow).max(MAX_ATTRIBUTES, `At most ${MAX_ATTRIBUTES} attributes.`),
   })
   .superRefine((form, ctx) => {

@@ -26,7 +26,7 @@ import { isStaleVersion, type Versioned } from '@/api/etag'
 import { useSoloExit } from '@/components/app/solo-exit'
 import { Banner } from '@/components/la/banner'
 import { LaCard } from '@/components/la/cards'
-import { LaField } from '@/components/la/field'
+import { fieldHintId, LaField } from '@/components/la/field'
 import { CardHead } from '@/components/la/cards'
 import { Icon, IconTile } from '@/components/la/icons'
 import { ComingSoon, NOT_YET, UnavailableButton } from '@/components/la/unavailable'
@@ -40,6 +40,7 @@ import { fetchProfile, useBrandProfile, useSaveProfile } from '@/features/brand/
 import {
   buildPatch,
   FIELD_LABEL,
+  fieldLength,
   mapServerErrors,
   NAME_MAX,
   rebase,
@@ -53,6 +54,7 @@ import {
 } from '@/features/brand/profile-model'
 import { useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
+import { focusFirstInvalid } from '@/lib/validation'
 import { cn } from '@/lib/utils'
 import { NEEDS_BACKEND, savedClock } from './model'
 import { SetupBody, SetupColumns, SetupFooter, SetupHeading } from './setup-frame'
@@ -106,6 +108,8 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
   const [state, setState] = useState<SaveState>({ kind: 'idle' })
   const [continuing, setContinuing] = useState(false)
   const [touched, setTouched] = useState<ReadonlySet<'name' | 'tone'>>(() => new Set())
+  // Explicit saves that ran into a field error: drives LaField's one-off nudge.
+  const [attempts, setAttempts] = useState(0)
   const touch = (k: 'name' | 'tone') => setTouched((t) => (t.has(k) ? t : new Set(t).add(k)))
 
   // Refs so a blur-save and a click-save that race read the newest values and run one at a time.
@@ -134,12 +138,13 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
     // Unresolved conflict: the person must look before it is sent, so a blur does not save it.
     if (source === 'blur' && staleRef.current?.conflicts.length) return false
     const current = draftRef.current
-    const v = validateDraft(current)
+    const v = validateDraft(current, baseRef.current.data)
     const local: ProfileErrors = {}
     if (v.name) local.name = v.name
     if (v.tone) local.tone = v.tone
     if (Object.keys(local).length) {
       setErrors(local)
+      if (source === 'explicit') setAttempts((n) => n + 1)
       return false
     }
     const body = buildPatch(baseRef.current.data, current)
@@ -201,11 +206,17 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
     const ok = await saveNow('explicit')
     setContinuing(false)
     if (ok) await navigate({ to: '/setup/compliance' })
-    else requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-setup-form] [aria-invalid="true"]')?.focus())
+    else requestAnimationFrame(() => focusFirstInvalid(document.querySelector('[data-setup-form]')))
     // A stale-version banner focuses itself (see doSave).
   }
 
   const err = (k: 'name' | 'tone') => errors[k]
+  // Once a field shows an error, re-check it on every change so it clears the moment it is fixed
+  // (and updates if it is wrong in a new way). A field without an error waits for blur or save.
+  const recheck = (k: 'name' | 'tone', next: ProfileDraft) => {
+    if (!errors[k]) return
+    setErrors((x) => ({ ...x, [k]: validateDraft(next, baseRef.current.data)[k] }))
+  }
   const dirty = buildPatch(base.data, draft) !== null
 
   return (
@@ -249,6 +260,9 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
                   <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                     <Input
                       aria-label="Your website, to read"
+                      type="url"
+                      inputMode="url"
+                      spellCheck={false}
                       placeholder="https://yourbrand.in"
                       disabled
                       className="sm:flex-1"
@@ -271,13 +285,15 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <LaField label="Legal business name" htmlFor="legal-name">
-                  <Input id="legal-name" disabled placeholder="Your company’s registered name" />
+                  <Input id="legal-name" autoComplete="organization" disabled placeholder="Your company’s registered name" />
                 </LaField>
                 <LaField
                   label="Brand name"
                   htmlFor="brand-name"
                   hint="Exactly as customers see it. Marketplaces match on this."
                   error={err('name')}
+                  submitCount={attempts}
+                  confirmFix
                   source={canEdit && touched.has('name') && draft.name.trim() ? { kind: 'you' } : undefined}
                   hintAction={
                     <UnavailableButton variant="secondary" size="xs" reason={`Adding more brand names: ${NEEDS_BACKEND}`}>
@@ -289,18 +305,20 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
                 >
                   <Input
                     id="brand-name"
+                    name="name"
                     value={draft.name}
                     maxLength={NAME_MAX + 50}
                     readOnly={!canEdit}
                     className={cn(!canEdit && READ_ONLY_CONTROL)}
                     aria-invalid={err('name') ? true : undefined}
-                    aria-describedby="brand-name-hint"
+                    aria-describedby={fieldHintId('brand-name')}
                     autoComplete="organization"
+                    autoCapitalize="words"
                     onChange={(e) => {
                       const v = e.target.value
                       setDraft((d) => ({ ...d, name: v }))
                       touch('name')
-                      if (errors.name) setErrors((x) => ({ ...x, name: undefined }))
+                      recheck('name', { ...draftRef.current, name: v })
                     }}
                     onBlur={() => void saveNow('blur')}
                   />
@@ -336,7 +354,7 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <LaField label="Brand website" htmlFor="website">
-                  <Input id="website" type="url" disabled placeholder="https://yourbrand.in" />
+                  <Input id="website" type="url" inputMode="url" autoComplete="url" spellCheck={false} disabled placeholder="https://yourbrand.in" />
                 </LaField>
                 <div className="min-w-0">
                   <p className="mb-1.5 text-small font-bold text-ink">Logo</p>
@@ -352,28 +370,33 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
               </div>
 
               <LaField label="Short brand description" htmlFor="description" hint="Up to 300 characters. Factual, no claims.">
-                <Textarea id="description" disabled placeholder="What you make, in one line" className="min-h-[64px]" />
+                <Textarea id="description" maxLength={300} disabled placeholder="What you make, in one line" className="min-h-[64px]" />
               </LaField>
 
               <LaField
                 label="Brand voice"
                 htmlFor="brand-voice"
-                hint={`How listings should sound, for example “warm and plain, no hype”. The agent writes in this voice. ${draft.tone.length.toLocaleString()} of ${TONE_MAX.toLocaleString()} characters.`}
+                hint={`How listings should sound, for example “warm and plain, no hype”. The agent writes in this voice. ${fieldLength(draft.tone).toLocaleString()} of ${TONE_MAX.toLocaleString()} characters.`}
                 error={err('tone')}
+                submitCount={attempts}
+                confirmFix
                 source={canEdit && touched.has('tone') && draft.tone.trim() ? { kind: 'you' } : undefined}
               >
                 <Textarea
                   id="brand-voice"
+                  name="tone"
                   value={draft.tone}
+                  maxLength={TONE_MAX * 2}
+                  autoComplete="off"
                   readOnly={!canEdit}
                   className={cn('min-h-[64px]', !canEdit && READ_ONLY_CONTROL)}
                   aria-invalid={err('tone') ? true : undefined}
-                  aria-describedby="brand-voice-hint"
+                  aria-describedby={fieldHintId('brand-voice')}
                   onChange={(e) => {
                     const v = e.target.value
                     setDraft((d) => ({ ...d, tone: v }))
                     touch('tone')
-                    if (errors.tone) setErrors((x) => ({ ...x, tone: undefined }))
+                    recheck('tone', { ...draftRef.current, tone: v })
                   }}
                   onBlur={() => void saveNow('blur')}
                 />

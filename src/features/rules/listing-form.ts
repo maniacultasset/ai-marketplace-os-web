@@ -5,6 +5,7 @@
  */
 import { z } from 'zod'
 import type { ErrorDetail, Schema } from '@/api/types'
+import { CONTROL_MSG, hasStrayControlChars } from '@/lib/validation'
 import { CATEGORY_HINT, CATEGORY_RE } from './labels'
 
 export type DryRunBody = Schema<'DryRunRequest'>
@@ -41,11 +42,28 @@ export interface AttrRow {
  */
 export const charCount = (s: string) => [...s].length
 
-const nonBlank = (max: number, label: string) =>
-  z
-    .string()
-    .refine((s) => s.trim().length > 0, `${label} can't be blank.`)
-    .refine((s) => charCount(s) <= max, `${label} must be at most ${max.toLocaleString()} characters.`)
+export { CONTROL_MSG }
+
+/** Required text: not blank, no stray control characters, at most `max` code points. `what` reads after "Shorten". */
+const nonBlank = (max: number, label: string, what = `the ${label.toLowerCase()}`) =>
+  z.string().superRefine((s, ctx) => {
+    const fail = (message: string) => ctx.addIssue({ code: 'custom', message })
+    if (!s.trim()) return fail(`${label} can't be blank.`)
+    if (hasStrayControlChars(s)) return fail(CONTROL_MSG)
+    if (charCount(s) > max) fail(`Shorten ${what} to ${max.toLocaleString()} characters or fewer.`)
+  })
+
+/**
+ * A number attribute as typed: optional minus, digits, at most one dot. Anything `Number()`
+ * reads as finite is still accepted by the schema (e.g. 1e21 from the JSON editor).
+ */
+export function signedDecimal(value: string): string {
+  const neg = value.trimStart().startsWith('-')
+  const body = value.replace(/[^0-9.]/g, '')
+  const dot = body.indexOf('.')
+  const clean = dot === -1 ? body : body.slice(0, dot + 1) + body.slice(dot + 1).replace(/\./g, '')
+  return (neg ? '-' : '') + clean
+}
 
 export function splitList(value: string): string[] {
   return value
@@ -58,18 +76,18 @@ export const draftSchema = z
   .object({
     marketplace: z.enum(['amazon', 'flipkart'], { error: 'Pick a marketplace.' }),
     category: z.string().trim().regex(CATEGORY_RE, CATEGORY_HINT),
-    product_id: z.string().regex(UUID_RE, 'Product ID must be a UUID.'),
+    product_id: z.string().regex(UUID_RE, 'Product ID must be a UUID. Press New draft ID to make one.'),
     title: nonBlank(LIMITS.title, 'Title'),
     bullets: z
-      .array(z.object({ value: nonBlank(LIMITS.bullet, 'Bullet') }))
+      .array(z.object({ value: nonBlank(LIMITS.bullet, 'Bullet', 'this bullet') }))
       .min(LIMITS.bulletsMin, 'Add at least one bullet.')
-      .max(LIMITS.bulletsMax, `At most ${LIMITS.bulletsMax} bullets.`),
+      .max(LIMITS.bulletsMax, `Use ${LIMITS.bulletsMax} bullets or fewer.`),
     description: nonBlank(LIMITS.description, 'Description'),
-    search_terms: z.array(nonBlank(LIMITS.term, 'Term')).max(LIMITS.terms, `At most ${LIMITS.terms} terms.`),
-    hidden_terms: z.array(nonBlank(LIMITS.term, 'Term')).max(LIMITS.terms, `At most ${LIMITS.terms} terms.`),
+    search_terms: z.array(nonBlank(LIMITS.term, 'Term', 'each term')).max(LIMITS.terms, `Use ${LIMITS.terms} terms or fewer.`),
+    hidden_terms: z.array(nonBlank(LIMITS.term, 'Term', 'each term')).max(LIMITS.terms, `Use ${LIMITS.terms} terms or fewer.`),
     attributes: z
       .array(z.object({ key: z.string(), type: z.enum(['text', 'number', 'boolean', 'list']), value: z.string() }))
-      .max(LIMITS.attributes, `At most ${LIMITS.attributes} attributes.`)
+      .max(LIMITS.attributes, `Use ${LIMITS.attributes} attributes or fewer.`)
       // On the array (not the object) so these show even while other fields are invalid.
       .superRefine((rows, ctx) => {
         const seen = new Set<string>()
@@ -92,14 +110,16 @@ export type DraftValues = z.input<typeof draftSchema>
 function attrValueError(a: AttrRow): string | null {
   switch (a.type) {
     case 'text':
-      return charCount(a.value) > LIMITS.attrString ? `At most ${LIMITS.attrString} characters.` : null
+      if (hasStrayControlChars(a.value)) return CONTROL_MSG
+      return charCount(a.value) > LIMITS.attrString ? `Shorten this value to ${LIMITS.attrString} characters or fewer.` : null
     case 'number':
-      return a.value.trim() === '' || !Number.isFinite(Number(a.value)) ? 'Enter a finite number.' : null
+      return a.value.trim() === '' || !Number.isFinite(Number(a.value)) ? 'Enter a number, like 42, -5 or 3.5.' : null
     case 'boolean':
       return a.value === 'true' || a.value === 'false' ? null : 'Pick yes or no.'
     case 'list': {
       const items = splitList(a.value)
-      if (items.some((s) => charCount(s) > LIMITS.attrString)) return `Each item at most ${LIMITS.attrString} characters.`
+      if (hasStrayControlChars(a.value)) return CONTROL_MSG
+      if (items.some((s) => charCount(s) > LIMITS.attrString)) return `Shorten each item to ${LIMITS.attrString} characters or fewer.`
       return null
     }
   }

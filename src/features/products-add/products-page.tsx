@@ -350,8 +350,14 @@ export function ProductsPage() {
                 <div className="relative w-full sm:w-[260px]">
                   <Icon name="search" size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-3" />
                   <Input
+                    type="search"
+                    name="q"
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                    enterKeyHint="search"
+                    maxLength={200}
                     placeholder="Search name or SKU"
                     aria-label="Search loaded products by name or SKU"
                     className="pl-9"

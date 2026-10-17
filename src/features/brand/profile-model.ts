@@ -7,7 +7,9 @@
  *   glossary    <= 500 entries, term -> preferred term, each NonBlank <= 100 chars (`{}` clears)
  * A PATCH carries only the fields that changed (the backend refuses an empty patch).
  */
+import type { z } from 'zod'
 import type { ErrorDetail, Schema } from '@/api/types'
+import { codePoints, freeText, orgName } from '@/lib/validation'
 
 export type TenantOut = Schema<'TenantOut'>
 export type TenantPatch = Schema<'TenantPatch'>
@@ -139,18 +141,39 @@ export function buildPatch(base: TenantOut, draft: ProfileDraft): TenantPatch | 
 /** Field errors keyed like the form: `name`, `tone`, `guidelines`, `guidelines.<rowId>`, `glossary.<rowId>.avoid|use`, `glossary`, `profile`. */
 export type ProfileErrors = Partial<Record<string, string>>
 
-/** Client checks that match the backend's limits; empty object when valid. */
-export function validateDraft(d: ProfileDraft): ProfileErrors {
+/** The first message `schema` gives for `value`, or undefined when it passes. */
+function issue(schema: z.ZodType<string>, value: string): string | undefined {
+  const r = schema.safeParse(value)
+  return r.success ? undefined : r.error.issues[0]?.message
+}
+
+/** Brand name: needs a letter (not digits or symbols only); digits and brand punctuation are fine. */
+const BRAND_NAME = orgName('the brand name', NAME_MAX)
+/** Only the length and blank checks, for a name already saved (never block a stored value). */
+const BRAND_NAME_STORED = freeText('the brand name', NAME_MAX, { required: true })
+const TONE = freeText('the brand voice', TONE_MAX)
+const GUIDELINE = freeText('the guideline', GUIDELINE_MAX)
+const AVOID = freeText('the term to avoid', TERM_MAX, { required: true })
+const USE = freeText('the term to use instead', TERM_MAX, { required: true })
+
+/**
+ * Client checks that match the backend's limits (code points, as Python counts them); empty object
+ * when valid. With `base`, a brand name that is unchanged from the saved one gets only the length
+ * and blank checks, so a name stored before these rules never blocks saving the voice.
+ */
+export function validateDraft(d: ProfileDraft, base?: Pick<TenantOut, 'name'>): ProfileErrors {
   const e: ProfileErrors = {}
-  const name = d.name.trim()
-  if (!name) e.name = 'Enter the brand name.'
-  else if (name.length > NAME_MAX) e.name = `Use ${NAME_MAX} characters or fewer.`
-  if (d.tone.trim().length > TONE_MAX) e.tone = `Use ${TONE_MAX.toLocaleString()} characters or fewer.`
+  const unchangedName = base !== undefined && d.name.trim() === base.name.trim()
+  const name = issue(unchangedName ? BRAND_NAME_STORED : BRAND_NAME, d.name)
+  if (name) e.name = name
+  const tone = issue(TONE, d.tone)
+  if (tone) e.tone = tone
 
   const guidelines = d.guidelines.filter((g) => g.text.trim())
   if (guidelines.length > GUIDELINES_MAX) e.guidelines = `Keep it to ${GUIDELINES_MAX} guidelines.`
   for (const g of d.guidelines) {
-    if (g.text.trim().length > GUIDELINE_MAX) e[`guidelines.${g.id}`] = `Use ${GUIDELINE_MAX} characters or fewer.`
+    const msg = issue(GUIDELINE, g.text)
+    if (msg) e[`guidelines.${g.id}`] = msg
   }
 
   const seen = new Map<string, string>()
@@ -160,16 +183,19 @@ export function validateDraft(d: ProfileDraft): ProfileErrors {
     const use = r.use.trim()
     if (!avoid && !use) continue
     entries++
-    if (!avoid) e[`glossary.${r.id}.avoid`] = 'Enter the term to avoid.'
-    else if (avoid.length > TERM_MAX) e[`glossary.${r.id}.avoid`] = `Use ${TERM_MAX} characters or fewer.`
-    else if (seen.has(avoid)) e[`glossary.${r.id}.avoid`] = 'This term is already in the glossary.'
+    const avoidMsg = issue(AVOID, r.avoid)
+    if (avoidMsg) e[`glossary.${r.id}.avoid`] = avoidMsg
+    else if (seen.has(avoid)) e[`glossary.${r.id}.avoid`] = 'This term is already in the glossary. Remove one of them.'
     else seen.set(avoid, r.id)
-    if (!use) e[`glossary.${r.id}.use`] = 'Enter the term to use instead.'
-    else if (use.length > TERM_MAX) e[`glossary.${r.id}.use`] = `Use ${TERM_MAX} characters or fewer.`
+    const useMsg = issue(USE, r.use)
+    if (useMsg) e[`glossary.${r.id}.use`] = useMsg
   }
   if (entries > GLOSSARY_MAX) e.glossary = `Keep it to ${GLOSSARY_MAX} terms.`
   return e
 }
+
+/** Length as the backend counts it, for the "12 / 200" counters. */
+export const fieldLength = (s: string) => codePoints(s.trim())
 
 const SECRET_HINT = 'Remove anything that looks like a password, API key or token.'
 

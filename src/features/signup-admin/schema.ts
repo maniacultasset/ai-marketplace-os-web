@@ -6,59 +6,58 @@
  */
 import { z } from 'zod'
 import type { Schema } from '@/api/types'
+import {
+  codePoints,
+  collapseSpaces,
+  email,
+  EMAIL_OCTETS_MAX,
+  EMAIL_SPACES_MSG,
+  EMAIL_PATTERN,
+  freeText,
+  LOGIN_EMAIL_MAX,
+  NAME_MAX,
+  normalizeEmail,
+  normalizeWebsite,
+  orgName,
+  personName,
+  phone,
+  PHONE_MAX,
+  PHONE_PATTERN,
+  website,
+  WEBSITE_MAX,
+  WEBSITE_PATTERN,
+} from '@/lib/validation'
 
 export type SignupCreateBody = Schema<'SignupCreate'>
 export type SignupStatusBody = Schema<'SignupStatusRequest'>
 export type SignupRejectBody = Schema<'SignupReject'>
 export type SignupApproveBody = Schema<'SignupApprove'>
 
-/** tenants.NAME_MAX (ProfileName: non-blank, no NUL). */
-export const NAME_MAX = 200
-/** signup.EMAIL_OCTETS_MAX (ck_users_email), checked after trim + lower-case. */
-export const EMAIL_OCTETS_MAX = 254
-/** auth.Email max length (login and status). */
-export const LOGIN_EMAIL_MAX = 320
+// The shared primitives live in src/lib/validation.ts; re-exported for existing importers.
+export {
+  codePoints,
+  EMAIL_OCTETS_MAX,
+  EMAIL_SPACES_MSG,
+  LOGIN_EMAIL_MAX,
+  NAME_MAX,
+  normalizeEmail,
+  normalizeWebsite,
+  PHONE_MAX,
+  PHONE_PATTERN,
+  WEBSITE_MAX,
+  WEBSITE_PATTERN,
+}
+
 /** core/passwords.py PASSWORD_MIN / PASSWORD_MAX. */
 export const PASSWORD_MIN = 12
 export const PASSWORD_MAX = 1024
-export const PHONE_MAX = 32
-export const WEBSITE_MAX = 2048
 /** signup.REASON_MAX. */
 export const REASON_MAX = 1000
 export const TRIAL_DAYS_MIN = 1
 export const TRIAL_DAYS_MAX = 365
 export const TRIAL_DAYS_DEFAULT = 14
 
-export const PHONE_PATTERN = /^\+?[0-9][0-9 ()-]{5,30}$/
-export const WEBSITE_PATTERN = /^https?:\/\/[^\s/?#]+\.[^\s]+$/
-const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+$/
 const VISIBLE_ASCII = /^[\x21-\x7E]+$/
-
-export const codePoints = (s: string) => [...s].length
-const hasNul = (s: string) => s.includes('\u0000')
-const utf8Bytes = (s: string) => new TextEncoder().encode(s).length
-
-/**
- * A website as the backend accepts it. People type "kalakar.in" far more often than
- * "https://kalakar.in", so a bare host gets `https://`. Anything else is kept as typed.
- */
-export function normalizeWebsite(input: string): string {
-  const v = input.trim()
-  if (!v) return ''
-  if (/^https?:\/\//i.test(v)) return v.replace(/^https?/i, (s) => s.toLowerCase())
-  if (v.includes('://')) return v // another scheme: the pattern rejects it with a clear message
-  return `https://${v}`
-}
-
-/** The sign-up email exactly as the backend stores it (trimmed, lower-cased). */
-export const normalizeEmail = (input: string) => input.trim().toLowerCase()
-
-const name = (label: string) =>
-  z
-    .string()
-    .refine((v) => v.trim().length > 0, `Enter the ${label}.`)
-    .refine((v) => codePoints(v.trim()) <= NAME_MAX, `Keep the ${label} under ${NAME_MAX} characters.`)
-    .refine((v) => !hasNul(v), 'Remove the invisible control character.')
 
 const loginEmail = z
   .string()
@@ -66,30 +65,28 @@ const loginEmail = z
   .min(1, 'Enter your email.')
   .min(3, 'Email is too short.')
   .max(LOGIN_EMAIL_MAX, 'Email is too long.')
+  .regex(/^\S*$/, EMAIL_SPACES_MSG)
   .regex(VISIBLE_ASCII, 'Email must be plain ASCII.')
   .regex(EMAIL_PATTERN, 'Enter a valid email address.')
 
-export const signupFormSchema = z
-  .object({
-    brand_name: name('brand name'),
-    owner_name: name('your name'),
-    email: loginEmail.refine((v) => utf8Bytes(normalizeEmail(v)) <= EMAIL_OCTETS_MAX, 'Email is too long.'),
-    phone: z
-      .string()
-      .trim()
-      .refine((v) => v === '' || v.length <= PHONE_MAX, 'Phone number is too long.')
-      .refine((v) => v === '' || PHONE_PATTERN.test(v), 'Start with + or a digit, then digits, spaces, brackets or dashes, e.g. +91 98765 43210.'),
-    website: z
-      .string()
-      .refine((v) => normalizeWebsite(v).length <= WEBSITE_MAX, 'Website address is too long.')
-      .refine((v) => v.trim() === '' || WEBSITE_PATTERN.test(normalizeWebsite(v)), 'Enter a full address, e.g. https://yourbrand.in.'),
-    password: z
-      .string()
-      .refine((v) => codePoints(v) >= PASSWORD_MIN, `Use at least ${PASSWORD_MIN} characters.`)
-      .refine((v) => codePoints(v) <= PASSWORD_MAX, 'Password is too long.'),
-    /** Client-side only: `SignupCreate` has no consent field, so this is not sent or stored. */
-    agree: z.boolean().refine((v) => v, 'Confirm that you have read the privacy policy.'),
-  })
+/**
+ * Stricter than the backend only where a value is clearly wrong for a human: a person's name with
+ * digits, a brand name with no letter at all, a phone number with letters or too few digits. Every
+ * backend limit (200 code points, PHONE_PATTERN, 254 email octets, 2048 website) still applies.
+ */
+export const signupFormSchema = z.object({
+  brand_name: orgName('the brand name'),
+  owner_name: personName('your name'),
+  email: email(),
+  phone: phone(),
+  website: website(),
+  password: z
+    .string()
+    .refine((v) => codePoints(v) >= PASSWORD_MIN, `Use at least ${PASSWORD_MIN} characters.`)
+    .refine((v) => codePoints(v) <= PASSWORD_MAX, `Shorten the password to ${PASSWORD_MAX} characters or fewer.`),
+  /** Client-side only: `SignupCreate` has no consent field, so this is not sent or stored. */
+  agree: z.boolean().refine((v) => v, 'Confirm that you have read the privacy policy.'),
+})
 
 export type SignupFormValues = z.infer<typeof signupFormSchema>
 
@@ -106,8 +103,8 @@ export const SIGNUP_FORM_DEFAULTS: SignupFormValues = {
 /** Form values to the strict `SignupCreate` body: optional fields omitted when empty. */
 export function toSignupBody(v: SignupFormValues): SignupCreateBody {
   const body: SignupCreateBody = {
-    brand_name: v.brand_name.trim(),
-    owner_name: v.owner_name.trim(),
+    brand_name: collapseSpaces(v.brand_name),
+    owner_name: collapseSpaces(v.owner_name),
     email: normalizeEmail(v.email),
     password: v.password,
   }
@@ -129,13 +126,12 @@ export function toStatusBody(v: StatusFormValues): SignupStatusBody {
   return { email: normalizeEmail(v.email), password: v.password }
 }
 
-/** `SignupReject.reason`: non-blank, at most 1000 characters, no NUL. */
+/** `SignupReject.reason`: non-blank, at most 1000 characters; line breaks fine, other control characters not. */
 export const rejectFormSchema = z.object({
-  reason: z
-    .string()
-    .refine((v) => v.trim().length > 0, 'Tell the brand why, so they can fix it and apply again.')
-    .refine((v) => codePoints(v.trim()) <= REASON_MAX, `Keep the reason under ${REASON_MAX} characters.`)
-    .refine((v) => !hasNul(v), 'Remove the invisible control character.'),
+  reason: freeText('the reason', REASON_MAX).refine(
+    (v) => v.trim().length > 0,
+    'Tell the brand why, so they can fix it and apply again.',
+  ),
 })
 export type RejectFormValues = z.infer<typeof rejectFormSchema>
 

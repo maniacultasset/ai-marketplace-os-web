@@ -225,11 +225,11 @@ test.describe('products', () => {
     await page.getByRole('option', { name: 'number' }).click()
     await page.getByLabel('Attribute 1 value').fill('abc')
     await page.getByTestId('create-product').click()
-    await expect(page.getByText('No spaces or "]" allowed.')).toBeVisible()
-    await expect(page.getByText('Enter a title.')).toBeVisible()
-    await expect(page.getByText(/2-64 lowercase letters/)).toBeVisible()
-    await expect(page.getByText(/start with a letter/)).toBeVisible()
-    await expect(page.getByText('Enter a finite number.')).toBeVisible()
+    await expect(page.getByText('Remove the spaces from the SKU. Use - or _ to separate words.')).toBeVisible()
+    await expect(page.getByText('Enter the title.')).toBeVisible()
+    await expect(page.getByText('Use lowercase letters in the category: kurtas.')).toBeVisible()
+    await expect(page.getByText(/starting with a letter/)).toBeVisible()
+    await expect(page.getByText('Enter a number, like 42, -5 or 3.5.')).toBeVisible()
     expect(posted).toBe(false)
   })
 
@@ -321,11 +321,16 @@ test.describe('products', () => {
     const tokens = await loginAs(page, USERS.acme.operator, '/products/new')
     const guard = forbidCreate(page)
     await fillBasics(page, `PW-${RUN}-num`)
-    await addAttribute(page, 1, 'gsm', '0x10', 'number')
-    for (const bad of ['0x10', '0b11', '0o7', '1e400', 'Infinity', '+5', '.5', '1_000']) {
+    await addAttribute(page, 1, 'gsm', '', 'number')
+    // Letters and other non-number characters are refused as they are typed or pasted.
+    await page.getByLabel('Attribute 1 value').pressSequentially('1x2')
+    await expect(page.getByLabel('Attribute 1 value')).toHaveValue('12')
+    await page.getByLabel('Attribute 1 value').fill('Infinity')
+    await expect(page.getByLabel('Attribute 1 value')).toHaveValue('')
+    for (const bad of ['1e400', '+5', '.5', '1..5', '--5', '1e']) {
       await page.getByLabel('Attribute 1 value').fill(bad)
       await page.getByTestId('create-product').click()
-      await expect(page.getByTestId('attribute-row-0').getByText('Enter a finite number.')).toBeVisible()
+      await expect(page.getByTestId('attribute-row-0').getByText('Enter a number, like 42, -5 or 3.5.')).toBeVisible()
     }
     expect(guard.posted).toBe(false)
 
