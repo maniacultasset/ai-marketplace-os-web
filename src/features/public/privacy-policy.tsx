@@ -50,9 +50,10 @@ export const POLICY_SECTIONS: PolicySection[] = [
     body: (
       <>
         <p>
-          Kuinn is a web application that helps brands prepare marketplace listings, check them against marketplace rules
-          and send them after a person on the brand’s team approves them. It is operated by {COMPANY.legalName}, registered at{' '}
-          {COMPANY_ADDRESS} (“we”, “us”).
+          Kuinn gives marketplace sellers software and AI tools to run their business on marketplaces such as Amazon and
+          Flipkart. Today it helps brands prepare listings, check them against each marketplace’s rules and send them after
+          a person on the brand’s team approves them. We plan to add more, such as reports, recommendations and alerts.
+          Kuinn is operated by {COMPANY.legalName}, registered at {COMPANY_ADDRESS} (“we”, “us”).
         </p>
         <p>
           This policy explains what personal data we collect when you request access to or use Kuinn, why we use it,
@@ -402,8 +403,9 @@ export const POLICY_SECTIONS: PolicySection[] = [
     title: 'Changes to this policy',
     body: (
       <p>
-        We will update this page when how we handle data changes, and change the “Last updated” date at the top. If a change
-        materially affects how we use your data, we will tell account owners before it takes effect.
+        We will update this page when how we handle data changes, and change the “Last updated” date at the top. Before a
+        new feature collects or uses a new kind of data, we will add it to this policy. If a change materially affects how we
+        use your data, we will tell account owners before it takes effect.
       </p>
     ),
   },
