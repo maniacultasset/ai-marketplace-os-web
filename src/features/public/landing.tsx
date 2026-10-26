@@ -15,6 +15,7 @@ import { useReveal } from '@/lib/use-reveal'
 import { cn } from '@/lib/utils'
 import { HeroFinding } from './hero-finding'
 import { HowItWorksDemo } from './how-it-works-demo'
+import { COMPANY } from './company'
 import { MARKET_STATUS, STAGE_CHIP } from './model'
 import { useDocumentTitle } from './use-document-title'
 
@@ -94,6 +95,7 @@ const SECTIONS = [
   { id: 'how', label: 'How it works' },
   { id: 'bulk', label: 'Bulk' },
   { id: 'marketplaces', label: 'Marketplaces' },
+  { id: 'pricing', label: 'Pricing' },
 ] as const
 
 /** Marks the in-page link for the section in the middle band of the viewport as current. */
@@ -154,7 +156,7 @@ export function Landing() {
                 Two marketplaces. Two rulebooks. One catalog.
               </h1>
               <p data-reveal style={d(1, 90)} className="mt-6 max-w-[46ch] text-[18px] leading-[1.55] text-ink-2">
-                Listing Agent checks every field of your Amazon and Flipkart listings against each marketplace’s rules and waits
+                Kuinn checks every field of your Amazon and Flipkart listings against each marketplace’s rules and waits
                 for someone on your team to approve before anything is sent. Drafting in your brand’s voice is in development.
               </p>
               <div data-reveal style={d(2, 90)} className="mt-8 flex flex-wrap items-center gap-3 sm:gap-4">
@@ -314,6 +316,87 @@ export function Landing() {
               )
             })}
           </ul>
+        </Section>
+
+        {/* Pricing and contact: Amazon's developer website rules ask for pricing (or "quote based") and a direct contact. */}
+        <Section
+          id="pricing"
+          title="Pricing and contact"
+          lede="Every brand’s catalog is different, so we price each one on its own."
+        >
+          <div
+            data-reveal="pop"
+            className="grid overflow-hidden rounded-card border border-line bg-surface shadow-raised-md md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]"
+          >
+            <div className="flex flex-col gap-5 p-6 md:p-10">
+              <h3 className="font-display text-[clamp(1.5rem,2.4vw,2rem)] leading-[1.1] font-bold tracking-[-0.02em] text-ink">
+                Quoted per brand
+              </h3>
+              <p className="max-w-[48ch] text-[15px] leading-[1.6] text-ink-2">
+                Your price depends on how many products you list and on which marketplaces. Tell us about your catalog and we
+                will send you a quote. You pay nothing to request access.
+              </p>
+              <ul className="flex flex-col gap-2.5 text-[15px] text-ink" aria-label="Every plan includes">
+                {[
+                  'Rule checks on every field, for Amazon and Flipkart',
+                  'Approval by your team before anything is sent',
+                  'CSV import for the whole catalog',
+                  'A full history of every draft and approval',
+                ].map((t) => (
+                  <li key={t} className="flex items-start gap-2.5">
+                    <Icon name="check" size={16} className="mt-[3px] shrink-0 text-success" aria-hidden />
+                    {t}
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-2 flex flex-wrap gap-3">
+                <Button asChild size="lg">
+                  <a href={`mailto:${COMPANY.email}?subject=${encodeURIComponent('Kuinn pricing')}`}>Ask for a quote</a>
+                </Button>
+                <Button asChild size="lg" variant="secondary">
+                  <Link to="/signup">Request access</Link>
+                </Button>
+              </div>
+            </div>
+            <div id="contact" className="flex flex-col gap-6 border-t border-line bg-sunken p-6 md:border-t-0 md:border-l md:p-10">
+              <div>
+                <h3 className="text-h3 text-ink">Talk to us</h3>
+                <p className="mt-1.5 text-small text-ink-2">Questions about Kuinn, your data or your account.</p>
+              </div>
+              <ul className="flex flex-col gap-5 text-[15px]">
+                {[
+                  { icon: 'mail' as const, label: 'Email', value: COMPANY.email, href: `mailto:${COMPANY.email}` },
+                  { icon: 'phone' as const, label: 'Phone', value: COMPANY.phone, href: COMPANY.phoneHref },
+                ].map((c) => (
+                  <li key={c.label} className="flex items-start gap-3">
+                    <IconTile icon={c.icon} tone="brand" size="sm" />
+                    <div className="min-w-0">
+                      <p className="text-caption font-semibold text-ink-3">{c.label}</p>
+                      <div>
+                        <a href={c.href} className="font-semibold break-words text-ink underline-offset-4 hover:text-brand hover:underline">
+                          {c.value}
+                        </a>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+                <li className="flex items-start gap-3">
+                  <IconTile icon="pin" tone="neutral" size="sm" />
+                  <div className="min-w-0">
+                    <p className="text-caption font-semibold text-ink-3">Registered office</p>
+                    <div className="text-ink">
+                      <span className="block font-semibold">{COMPANY.legalName}</span>
+                      {COMPANY.addressLines.map((line) => (
+                        <span key={line} className="block text-ink-2">
+                          {line}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
         </Section>
 
         {/* Final CTA */}

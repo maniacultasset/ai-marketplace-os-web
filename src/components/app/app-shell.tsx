@@ -104,7 +104,7 @@ export function AppShell() {
 
   useEffect(() => setDrawer(false), [pathname])
   useEffect(() => {
-    document.title = title ? `${title} · Listing Agent` : 'Listing Agent'
+    document.title = title ? `${title} · Kuinn` : 'Kuinn'
   }, [title])
 
   return (
@@ -143,7 +143,7 @@ export function AppShell() {
       <Sheet open={drawer} onOpenChange={setDrawer}>
         <SheetContent side="left" className="w-[264px] max-w-[85vw] gap-0 p-0" showCloseButton={false}>
           <SheetTitle className="sr-only">Navigation</SheetTitle>
-          <SheetDescription className="sr-only">Pages in Listing Agent</SheetDescription>
+          <SheetDescription className="sr-only">Pages in Kuinn</SheetDescription>
           <AppSidebar collapsed={false} onNavigate={() => setDrawer(false)} className="border-r-0" />
         </SheetContent>
       </Sheet>

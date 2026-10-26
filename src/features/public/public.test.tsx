@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { isValidElement } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { MARKETPLACES } from '@/components/la/marketplace'
 import { HeroFinding } from './hero-finding'
@@ -6,6 +7,7 @@ import { HowItWorksDemo } from './how-it-works-demo'
 import { advance, checksAt, FINAL, FIX_BEATS, FIX_HEAD, FIX_TAIL, FIXED_TITLE, fixedText, LAST_BEAT, LIMIT, NARRATION, RAIL, SCENES, START } from './how-it-works-script'
 import { DESCRIBES_YOU, HERO_EXAMPLE, heroFindings, heroTitleLength, MARKET_STATUS, signupChip, STAGE_CHIP } from './model'
 import { Ph, POLICY_SECTIONS } from './privacy-policy'
+import { LEGAL_EMAIL, TERMS_SECTIONS } from './terms'
 
 describe('hero example (seeded kurta-set rules)', () => {
   // jsdom has no matchMedia; the length count-up asks for it. Report reduced motion so the real
@@ -72,6 +74,16 @@ describe('privacy policy', () => {
     for (const id of ['data-we-collect', 'ai-processing', 'retention', 'cookies', 'your-rights', 'grievance-officer']) {
       expect(ids).toContain(id)
     }
+  })
+  it('has no placeholder left in any section', () => {
+    // Walk the element trees without rendering (the sections hold router links).
+    const hasPh = (node: unknown): boolean => {
+      if (Array.isArray(node)) return node.some(hasPh)
+      if (!isValidElement(node)) return false
+      if (node.type === Ph) return true
+      return hasPh((node.props as { children?: unknown }).children)
+    }
+    for (const s of POLICY_SECTIONS) expect(hasPh(s.body), s.id).toBe(false)
   })
   it('renders placeholders visibly', () => {
     render(<Ph>contact email</Ph>)
@@ -170,5 +182,17 @@ describe('how it works demo: static fallback (no IntersectionObserver)', () => {
     expect(screen.getByText(/reduced motion/)).toBeTruthy()
     fireEvent.click(screen.getByTestId('demo-step-fix'))
     expect(screen.getByTestId('demo-narration').textContent).toBe(NARRATION.fix)
+  })
+})
+
+describe('terms and conditions', () => {
+  it('keeps the company’s 16 numbered sections plus the contact block, with unique anchors', () => {
+    const ids = TERMS_SECTIONS.map((s) => s.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(ids).toHaveLength(17)
+    expect(ids.at(-1)).toBe('contact')
+  })
+  it('names the legal contact on the company domain', () => {
+    expect(LEGAL_EMAIL).toBe('mukul@kuinn.in')
   })
 })

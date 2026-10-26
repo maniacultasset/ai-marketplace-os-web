@@ -94,7 +94,7 @@ export function auditActorLabel(
   e: { actor_type: 'user' | 'system' | 'staff'; actor_user_id?: string | null },
   meId: string | null | undefined,
 ): string {
-  if (e.actor_type === 'system') return 'Listing Agent'
+  if (e.actor_type === 'system') return 'Kuinn'
   if (e.actor_type === 'staff') return 'Support team'
   return meId && e.actor_user_id === meId ? 'You' : 'Your team'
 }

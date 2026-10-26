@@ -8,6 +8,7 @@ import type { ReactNode } from 'react'
 import { Wordmark } from '@/components/la/icons'
 import { Button } from '@/components/ui/button'
 import { useScrolled } from '@/lib/use-scrolled'
+import { COMPANY, COMPANY_ADDRESS } from '@/features/public/company'
 import { cn } from '@/lib/utils'
 
 /** `compactLinks`: the same in-page links as a second, scrollable row inside the bar below md. */
@@ -16,7 +17,7 @@ export function PublicHeader({ links, compactLinks }: { links?: ReactNode; compa
   return (
     <header data-scrolled={scrolled || undefined} className="material-bar sticky top-0 z-30">
       <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-3 px-4 md:gap-6 md:px-8">
-        <Link to="/" aria-label="Listing Agent home" className="inline-flex min-h-10 shrink-0 items-center">
+        <Link to="/" aria-label="Kuinn home" className="inline-flex min-h-10 shrink-0 items-center">
           {/* The name stays at phone width; screens under 375px (where the name and both buttons cannot fit) drop to the mark. */}
           <Wordmark size="lg" className="max-[374px]:[&>span]:hidden" />
         </Link>
@@ -39,20 +40,41 @@ export function PublicHeader({ links, compactLinks }: { links?: ReactNode; compa
   )
 }
 
+const YEAR = new Date().getFullYear()
+const footerLink = 'inline-flex min-h-10 items-center rounded-control hover:text-ink hover:underline underline-offset-4'
+
+/** Plain footer on every public page. Carries the company name and a direct contact, which Amazon's developer website rules ask for. */
 export function PublicFooter() {
   return (
     <footer className="border-t border-line bg-surface">
-      <div className="mx-auto flex max-w-[1200px] flex-wrap items-center gap-x-6 gap-y-2 px-4 py-6 text-small text-ink-2 md:px-8">
-        <Wordmark />
-        <span>Amazon and Flipkart listings, checked against the rules and approved by you.</span>
-        <nav aria-label="Legal" className="flex gap-4 sm:ml-auto">
-          <Link to="/privacy" className="inline-flex min-h-10 items-center hover:text-ink hover:underline">
+      <div className="mx-auto grid max-w-[1200px] gap-8 px-4 pt-10 pb-8 text-small text-ink-2 md:grid-cols-[minmax(0,1fr)_auto] md:px-8">
+        <div className="flex max-w-[44ch] flex-col gap-3">
+          <Wordmark />
+          <p>Amazon and Flipkart listings, checked against each marketplace’s rules and approved by your team.</p>
+        </div>
+        <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-1 md:justify-end md:self-start">
+          <Link to="/" hash="pricing" className={footerLink}>
+            Pricing
+          </Link>
+          <a href={`mailto:${COMPANY.email}`} className={footerLink}>
+            Contact
+          </a>
+          <Link to="/terms" className={footerLink}>
+            Terms
+          </Link>
+          <Link to="/privacy" className={footerLink}>
             Privacy policy
           </Link>
-          <Link to="/login" className="inline-flex min-h-10 items-center hover:text-ink hover:underline">
+          <Link to="/login" className={footerLink}>
             Sign in
           </Link>
         </nav>
+        <div className="flex flex-col gap-1 border-t border-line pt-6 text-caption text-ink-3 md:col-span-2 md:flex-row md:justify-between md:gap-6">
+          <p>
+            © {YEAR} {COMPANY.legalName}
+          </p>
+          <address className="not-italic">{COMPANY_ADDRESS}</address>
+        </div>
       </div>
     </footer>
   )

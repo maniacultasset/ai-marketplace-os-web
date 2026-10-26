@@ -85,7 +85,7 @@ export const signupFormSchema = z.object({
     .refine((v) => codePoints(v) >= PASSWORD_MIN, `Use at least ${PASSWORD_MIN} characters.`)
     .refine((v) => codePoints(v) <= PASSWORD_MAX, `Shorten the password to ${PASSWORD_MAX} characters or fewer.`),
   /** Client-side only: `SignupCreate` has no consent field, so this is not sent or stored. */
-  agree: z.boolean().refine((v) => v, 'Confirm that you have read the privacy policy.'),
+  agree: z.boolean().refine((v) => v, 'Agree to the terms and confirm that you have read the privacy policy.'),
 })
 
 export type SignupFormValues = z.infer<typeof signupFormSchema>

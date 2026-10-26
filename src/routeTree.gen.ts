@@ -13,7 +13,9 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AppSplatRouteImport } from './routes/_app/$'
 import { Route as AppSettingsRouteImport } from './routes/_app/_settings'
 import { Route as AppAboutRouteImport } from './routes/_app/about'
@@ -73,9 +75,19 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
+  id: '/privacy-policy',
+  path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppSplatRoute = AppSplatRouteImport.update({
@@ -284,7 +296,9 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
   '/signup': typeof SignupRouteWithChildren
+  '/terms': typeof TermsRoute
   '/$': typeof AppSplatRoute
   '/about': typeof AppAboutRoute
   '/activity': typeof AppActivityRoute
@@ -328,6 +342,8 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
+  '/terms': typeof TermsRoute
   '/$': typeof AppSplatRoute
   '/about': typeof AppAboutRoute
   '/activity': typeof AppActivityRoute
@@ -373,7 +389,9 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
   '/signup': typeof SignupRouteWithChildren
+  '/terms': typeof TermsRoute
   '/_app/$': typeof AppSplatRoute
   '/_app/_settings': typeof AppSettingsRouteWithChildren
   '/_app/about': typeof AppAboutRoute
@@ -420,7 +438,9 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/privacy'
+    | '/privacy-policy'
     | '/signup'
+    | '/terms'
     | '/$'
     | '/about'
     | '/activity'
@@ -464,6 +484,8 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/privacy'
+    | '/privacy-policy'
+    | '/terms'
     | '/$'
     | '/about'
     | '/activity'
@@ -508,7 +530,9 @@ export interface FileRouteTypes {
     | '/_app'
     | '/login'
     | '/privacy'
+    | '/privacy-policy'
     | '/signup'
+    | '/terms'
     | '/_app/$'
     | '/_app/_settings'
     | '/_app/about'
@@ -555,7 +579,9 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
+  PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   SignupRoute: typeof SignupRouteWithChildren
+  TermsRoute: typeof TermsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -588,11 +614,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy-policy': {
+      id: '/privacy-policy'
+      path: '/privacy-policy'
+      fullPath: '/privacy-policy'
+      preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
       fullPath: '/signup'
       preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/$': {
@@ -981,7 +1021,9 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,
+  PrivacyPolicyRoute: PrivacyPolicyRoute,
   SignupRoute: SignupRouteWithChildren,
+  TermsRoute: TermsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

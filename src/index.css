@@ -12,7 +12,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Listing Agent design tokens, one to one with the hi-fi handoff
+ * Kuinn design tokens, one to one with the hi-fi handoff
  * ("Tokens (copy for engineering)", docs/design-reference/listing-agent-hifi-handoff.html).
  * Components use the Tailwind names below (bg-canvas, text-ink-2, border-line-strong, rounded-card,
  * text-h1, shadow-pop …). Never write a raw hex or pixel value in a component.

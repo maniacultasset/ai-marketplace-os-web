@@ -1,5 +1,5 @@
 /**
- * Setup frame (hi-fi 02-04 "solo"): white header with the Listing Agent mark and "Save and exit",
+ * Setup frame (hi-fi 02-04 "solo"): white header with the Kuinn mark and "Save and exit",
  * body padding 28/64 on canvas. Screens add their own Stepper and FooterBar.
  *
  * A screen with unsaved work registers what "Save and exit" must do first with `useSoloExit`
@@ -16,7 +16,7 @@ export function SoloShell({ title }: { title?: string }) {
   const navigate = useNavigate()
   const [leaving, setLeaving] = useState(false)
   useEffect(() => {
-    document.title = title ? `${title} · Listing Agent` : 'Listing Agent'
+    document.title = title ? `${title} · Kuinn` : 'Kuinn'
   }, [title])
 
   const saveAndExit = async () => {
@@ -34,7 +34,7 @@ export function SoloShell({ title }: { title?: string }) {
     <SoloExitContext.Provider value={exitRef}>
       <div className="flex min-h-svh flex-col bg-canvas">
         <header className="flex items-center justify-between gap-4 border-b border-line bg-surface px-4 py-[18px] md:px-10">
-          <Link to="/home" aria-label="Listing Agent home">
+          <Link to="/home" aria-label="Kuinn home">
             <Wordmark size="lg" />
           </Link>
           <Button variant="ghost" size="sm" onClick={() => void saveAndExit()} disabled={leaving} data-testid="save-and-exit">

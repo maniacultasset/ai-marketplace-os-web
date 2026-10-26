@@ -16,26 +16,33 @@ test.describe('public pages', () => {
     await expect(page).toHaveURL(/\/signup$/)
   })
 
-  test('privacy policy is marked as a draft and has anchors', async ({ page }) => {
+  test('privacy policy is final, names the company and has anchors', async ({ page }) => {
     await page.goto('/privacy')
-    await expect(page.getByTestId('privacy-draft')).toContainText('Draft, pending legal review')
+    await expect(page.locator('[data-placeholder]')).toHaveCount(0)
+    await expect(page.getByRole('article')).toContainText('Maniacult Technology Pvt Ltd')
     await page.getByRole('navigation', { name: 'On this page' }).getByRole('link', { name: /Grievance Officer/ }).click()
     await expect(page).toHaveURL(/#grievance-officer$/)
+  })
+
+  test('terms page loads and /privacy-policy redirects to the policy', async ({ page }) => {
+    await page.goto('/terms')
+    await expect(page.getByRole('heading', { level: 1, name: 'Terms and Conditions' })).toBeVisible()
+    await page.goto('/privacy-policy')
+    await expect(page).toHaveURL(/\/privacy$/)
   })
 
   test('sign-up requires the privacy box and shows the pending state from /signup/status', async ({ page }) => {
     const email = `e2e-public-${Date.now()}@example.com`
     const password = 'correct horse battery staple'
     await page.goto('/signup')
-    await expect(page.getByRole('button', { name: /Continue with Google/ })).toHaveAttribute('aria-disabled', 'true')
-    await expect(page.getByTestId('signup-describes')).toBeDisabled()
+    await expect(page.getByText('Coming soon')).toHaveCount(0)
 
     await page.getByLabel('Brand name').fill('E2E Public Brand')
     await page.getByLabel('Your name').fill('E2E Owner')
     await page.getByLabel('Work email').fill(email)
     await page.locator('#password').fill(password)
     await page.getByTestId('signup-submit').click()
-    await expect(page.getByText('Confirm that you have read the privacy policy.')).toBeVisible()
+    await expect(page.getByText('Agree to the terms and confirm that you have read the privacy policy.')).toBeVisible()
 
     await page.getByTestId('signup-agree').click()
     const created = page.waitForResponse((r) => r.url().endsWith('/api/v1/signup') && r.request().method() === 'POST')

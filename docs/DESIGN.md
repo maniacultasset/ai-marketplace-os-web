@@ -1,4 +1,4 @@
-# Listing Agent design system
+# Kuinn design system
 
 The system that screen builders work from. Source of truth:
 `docs/design-reference/listing-agent-hifi-handoff.html` (tokens, components, 19 frames plus 15b, "Notes for the
@@ -147,7 +147,7 @@ Mapping for area agents (use the left column; replace ad-hoc lucide imports with
 
 ## Components
 
-The shadcn kit in `src/components/ui` is restyled to the tokens. The Listing Agent pieces are in
+The shadcn kit in `src/components/ui` is restyled to the tokens. The Kuinn pieces are in
 `src/components/la` (`import { StatusChip, Banner, … } from '@/components/la'`).
 
 | Component | Where | Notes |
@@ -201,7 +201,9 @@ features. The owner restyles them to this system.
 | Route | File | Owner | State |
 |---|---|---|---|
 | `/` landing (signed out; signed in → `/home`) | `routes/index.tsx` → `features/public/landing.tsx` | public | built |
-| `/privacy` (draft, pending legal review) | `routes/privacy.tsx` → `features/public/privacy-policy.tsx` | public | built |
+| `/privacy` | `routes/privacy.tsx` → `features/public/privacy-policy.tsx` | public | built |
+| `/terms` | `routes/terms.tsx` → `features/public/terms.tsx` | public | built |
+| `/privacy-policy` | `routes/privacy-policy.tsx` (redirects to `/privacy`) | public | built |
 | `/login`, `/signup`, `/signup/status` | `routes/login.tsx`, `routes/signup*` → `features/public/*` (`AuthFrame`) | public | built (p01) |
 | `/setup/brand`, `/setup/compliance`, `/setup/marketplaces` | `routes/_app/setup/*` (solo), `features/onboarding` | setup | built (step 1 saves name + tone; step 2 fields await an API) |
 | `/settings/compliance` | `routes/_app/_settings/settings/compliance.tsx` | setup | built (shares `ComplianceForm`; disabled until an API exists) |

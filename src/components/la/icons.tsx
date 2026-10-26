@@ -56,6 +56,9 @@ const PATHS = {
   copy: 'M8 8h12v12H8zM4 16V4h12',
   external: 'M14 4h6v6M20 4l-9 9M18 14v6H4V6h6',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
+  mail: 'M3 6h18v12H3zM3 7l9 6 9-6',
+  phone: 'M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2',
+  pin: 'M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21zM9.5 9.5a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0',
 } as const
 
 export type IconName = keyof typeof PATHS
@@ -173,21 +176,18 @@ export function MonogramTile({
   )
 }
 
-/** Listing Agent mark: brand tile with the dashed "A" stroke (hi-fi LOGO). */
+/** Kuinn mark: the "K" from the company logo on its night-blue tile (public/kuinn-mark-84.png: 3x of the 28px default; the 256px file is the touch icon). */
 export function LogoMark({ size = 28, className }: { size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 28 28" aria-hidden className={cn('shrink-0 rounded-[8px] shadow-raised-brand', className)}>
-      <rect width="28" height="28" rx="8" fill="var(--brand)" />
-      <path
-        d="M7 20L14 8l7 12"
-        stroke="#fff"
-        strokeWidth="2"
-        fill="none"
-        strokeDasharray="3 2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <img
+      src="/kuinn-mark-84.png"
+      width={size}
+      height={size}
+      alt=""
+      aria-hidden
+      decoding="async"
+      className={cn('shrink-0 rounded-[8px] shadow-raised-brand', className)}
+    />
   )
 }
 
@@ -205,7 +205,7 @@ export function Wordmark({
   return (
     <span className={cn('inline-flex items-center gap-2.5 font-display font-bold text-ink', size === 'lg' ? 'text-[16px]' : 'text-[15px]', className)}>
       <LogoMark />
-      <span className={cn('whitespace-nowrap', compactBelowSm && 'max-sm:hidden')}>Listing Agent</span>
+      <span className={cn('whitespace-nowrap', compactBelowSm && 'max-sm:hidden')}>Kuinn</span>
     </span>
   )
 }
