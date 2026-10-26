@@ -232,7 +232,7 @@ function MarketplaceDetail({ info, account, loading }: { info: MarketplaceInfo; 
           'Not supported yet',
         )}
         <p className="text-body text-ink-2">
-          Listing Agent lists on Amazon and Flipkart today. {info.name} needs API access we do not have yet, and the
+          Kuinn lists on Amazon and Flipkart today. {info.name} needs API access we do not have yet, and the
           waitlist is not open, so there is nothing to connect here.
         </p>
       </LaCard>
@@ -298,7 +298,7 @@ function MarketplaceDetail({ info, account, loading }: { info: MarketplaceInfo; 
         <div className="flex flex-col items-start gap-3">
           <p className="text-body text-ink-2">
             {canConnect
-              ? `You approve access on ${info.name}, then come back to Listing Agent. We never see your password.`
+              ? `You approve access on ${info.name}, then come back to Kuinn. We never see your password.`
               : `An owner or admin can connect ${info.name}.`}
           </p>
           {connectButton}

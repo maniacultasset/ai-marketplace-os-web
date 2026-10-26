@@ -1,5 +1,5 @@
 /**
- * Sidebar (hi-fi app shell): 232px white column (72px icon rail when collapsed), Listing Agent
+ * Sidebar (hi-fi app shell): 232px white column (72px icon rail when collapsed), Kuinn
  * mark, brand switcher, nav (38px rows, 40px on touch; active = brand label on one raised tile
  * that slides between rows), Platform section for platform admins, Agent status card at the
  * bottom, collapse control.
@@ -46,10 +46,10 @@ export function AppSidebar({
         to="/home"
         onClick={onNavigate}
         className={cn('mb-3.5 flex items-center gap-2.5 rounded-control px-1.5 font-display text-[15px] font-bold text-ink', collapsed && 'justify-center px-0')}
-        aria-label="Listing Agent home"
+        aria-label="Kuinn home"
       >
         <LogoMark />
-        <span className={cn(collapsed && 'sr-only')}>Listing Agent</span>
+        <span className={cn(collapsed && 'sr-only')}>Kuinn</span>
       </Link>
       <BrandSwitcher collapsed={collapsed} />
       <div ref={navRef} data-testid="main-nav" className="relative flex flex-col gap-0.5">

@@ -1,5 +1,5 @@
 /**
- * /privacy: Privacy policy DRAFT, written from how the product really handles data. Sources:
+ * /privacy: Privacy policy, written from how the product really handles data. Sources:
  * backend ADR-0001 (GCP asia-south1, GCS lifecycle, log retention), ADR-0014 (offboarding, purge,
  * retention: proposed, pending counsel), ADR-0018 (token envelope encryption with Cloud KMS),
  * ADR-0019 (sign-up reviewed by a person), core/passwords.py (argon2id), core/observability.py
@@ -7,12 +7,13 @@
  * sign-in and refresh, IP only on sign-out), services/embeddings.py (the only model call today:
  * embeddings of the brand profile and documents; drafting is not built), LISTING-AGENT-ANALYSIS §2.8 (no credentials in prompts, signed image URLs
  * ≤10 min), src/api/session.ts (refresh token in localStorage, access token in memory).
- * Every fact a lawyer or the company must supply is a visible [PLACEHOLDER: …].
+ * Company facts come from ./company (Certificate of Incorporation and Terms, 26 Oct 2026). `Ph` stays for any
+ * future fact that is still to be supplied, so it is impossible to miss on the page.
  */
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { PublicLayout } from '@/components/app/public-layout'
-import { Banner } from '@/components/la/banner'
+import { COMPANY, COMPANY_ADDRESS } from './company'
 import { useDocumentTitle } from './use-document-title'
 
 /** A fact still to be supplied, impossible to miss on the page. */
@@ -23,6 +24,16 @@ export function Ph({ children }: { children: ReactNode }) {
     </mark>
   )
 }
+
+export const POLICY_UPDATED = '26 October 2026'
+/** Named by the company: its director, who is also the legal and support contact in the Terms. */
+export const GRIEVANCE_OFFICER = 'Mukul Jasoria, Director'
+
+const Mail = () => (
+  <a href={`mailto:${COMPANY.email}`} className="font-semibold text-brand underline-offset-4 hover:underline">
+    {COMPANY.email}
+  </a>
+)
 
 export interface PolicySection {
   id: string
@@ -39,14 +50,14 @@ export const POLICY_SECTIONS: PolicySection[] = [
     body: (
       <>
         <p>
-          Listing Agent is a web application that helps brands prepare marketplace listings, check them against marketplace
-          rules and send them after a person on the brand’s team approves them. It is operated by <Ph>company legal name</Ph>,
-          registered at <Ph>registered address</Ph> (“we”, “us”).
+          Kuinn is a web application that helps brands prepare marketplace listings, check them against marketplace rules
+          and send them after a person on the brand’s team approves them. It is operated by {COMPANY.legalName}, registered at{' '}
+          {COMPANY_ADDRESS} (“we”, “us”).
         </p>
         <p>
-          This policy explains what personal data we collect when you request access to or use Listing Agent, why we use it,
+          This policy explains what personal data we collect when you request access to or use Kuinn, why we use it,
           who we share it with, how long we keep it and the rights you have under India’s Digital Personal Data Protection Act,
-          2023 (“DPDP Act”). For your account data we act as the Data Fiduciary. Contact us at <Ph>contact email</Ph>.
+          2023 (“DPDP Act”). For your account data we act as the Data Fiduciary. Contact us at <Mail />.
         </p>
       </>
     ),
@@ -85,7 +96,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
         </ul>
         <Sub>Collected automatically</Sub>
         <ul>
-          <li>Your IP address and browser user agent when you sign in or refresh a session, and your IP address when you sign out.</li>
+          <li>Your IP address and browser user agent when you sign in, refresh a session or switch brands, and your IP address when you sign out.</li>
           <li>
             An audit log of important actions (for example approvals, role changes and marketplace connections) with who did
             them, when and from which IP address.
@@ -119,11 +130,13 @@ export const POLICY_SECTIONS: PolicySection[] = [
         </ul>
         <p>
           The lawful basis for each purpose above is{' '}
-          <Ph>
-            counsel to confirm the lawful basis for each purpose under sections 6 and 7 of the DPDP Act. If consent is relied
-            on, the sign-up form must first record it: today its privacy-policy checkbox is not sent to or stored by our servers
-          </Ph>
-          . We do not sell your data and we do not use it for advertising.
+          the consent you give when you request access and agree to our{' '}
+          <Link to="/terms" className="font-semibold text-brand underline-offset-4 hover:underline">
+            Terms and Conditions
+          </Link>
+          , and, where the law requires us to keep or share data, the legitimate uses in section 7 of the DPDP Act. You can
+          withdraw your consent at any time by writing to us; we will then stop the processing that relies on it and close your
+          account. We do not sell your data and we do not use it for advertising.
         </p>
       </>
     ),
@@ -135,8 +148,8 @@ export const POLICY_SECTIONS: PolicySection[] = [
       <>
         <p>
           Today the only AI processing is turning your brand profile (tone of voice, guidelines, glossary) and the brand
-          documents you upload into text embeddings, so that drafts can later follow your brand. The embedding provider is{' '}
-          <Ph>AI provider name, its role as our processor and its processing region</Ph>.
+          documents you upload into text embeddings, so that drafts can later follow your brand. The embedding provider is
+          OpenAI (OpenAI, L.L.C.), which acts as our processor and handles this data in the United States.
         </p>
         <p>
           AI drafting of titles, bullets, descriptions and attributes is in development and is not running yet. Before it
@@ -158,8 +171,9 @@ export const POLICY_SECTIONS: PolicySection[] = [
           </li>
         </ul>
         <p>
-          The provider’s retention and training terms for this data: <Ph>confirm the AI provider’s data processing terms and
-          retention setting in use</Ph>.
+          We do not use your data, or data from your connected marketplace accounts, to train or fine-tune AI models, and our
+          AI providers may not use it to train theirs. OpenAI does not train on data sent through its API, and keeps it for up
+          to 30 days only to detect abuse.
         </p>
       </>
     ),
@@ -186,20 +200,14 @@ export const POLICY_SECTIONS: PolicySection[] = [
                 <td className="px-4 py-2.5">India, asia-south1 (Mumbai)</td>
               </tr>
               <tr>
-                <td className="px-4 py-2.5 font-semibold">
-                  <Ph>AI provider</Ph>
-                </td>
+                <td className="px-4 py-2.5 font-semibold">OpenAI (OpenAI, L.L.C.)</td>
                 <td className="px-4 py-2.5">Text embeddings of your brand profile and brand documents (and, once launched, drafting listing content)</td>
-                <td className="px-4 py-2.5">
-                  <Ph>processing region</Ph>
-                </td>
+                <td className="px-4 py-2.5">United States</td>
               </tr>
               <tr>
                 <td className="px-4 py-2.5 font-semibold">Sentry (Functional Software, Inc.)</td>
                 <td className="px-4 py-2.5">Error monitoring</td>
-                <td className="px-4 py-2.5">
-                  <Ph>data region</Ph>
-                </td>
+                <td className="px-4 py-2.5">Outside India, in Sentry’s hosting region</td>
               </tr>
             </tbody>
           </table>
@@ -225,7 +233,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
           be processed outside India as described in their row.
         </p>
         <ul>
-          <li>All traffic to Listing Agent is encrypted in transit (HTTPS).</li>
+          <li>All traffic to Kuinn is encrypted in transit (HTTPS).</li>
           <li>
             Marketplace access tokens are encrypted with keys held in Google Cloud Key Management Service, and they are used
             only by the code that talks to each marketplace.
@@ -246,7 +254,9 @@ export const POLICY_SECTIONS: PolicySection[] = [
     body: (
       <>
         <p>
-          The periods below are our current proposal and are pending legal review <Ph>counsel to confirm retention periods</Ph>.
+          We keep data only as long as we need it for the purposes above. These are the periods we keep it for. Imported
+          rows, sessions and invitations are deleted automatically; the other deletions are carried out by our team when the
+          period ends.
         </p>
         <div className="my-4 max-w-full min-w-0 overflow-x-auto rounded-card border border-line bg-surface shadow-raised-md">
           <table className="w-full min-w-[520px] text-left text-small">
@@ -259,13 +269,14 @@ export const POLICY_SECTIONS: PolicySection[] = [
             <tbody className="divide-y divide-line text-ink">
               {[
                 ['Account, brand profile, catalog and listings', 'While the brand is active, then 30 days after it is offboarded'],
-                ['Imported CSV files', '30 days after upload'],
+                ['Imported CSV rows', '90 days after upload'],
+                ['Uploaded CSV files', 'Until you ask us to delete them, or the brand is offboarded'],
                 ['AI run and validation records', '13 months'],
                 ['Closed issues and finished tasks', '13 months'],
                 ['Audit log', '24 months after the brand’s data is deleted (never less than 12 months)'],
                 ['Server logs', '30 days'],
                 ['Database backups', 'Expire within 35 days'],
-                ['Sign-up requests that are not approved', <Ph key="s">retention period</Ph>],
+                ['Sign-up requests that are not approved', 'Until you ask us to delete them'],
               ].map(([what, how], i) => (
                 <tr key={i}>
                   <td className="px-4 py-2.5 font-semibold">{what}</td>
@@ -284,7 +295,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
     body: (
       <>
         <p>
-          A brand owner can ask us to close (offboard) the brand’s workspace by writing to <Ph>contact email</Ph>. Deletion then
+          A brand owner can ask us to close (offboard) the brand’s workspace by writing to <Mail />. Deletion then
           happens in two steps:
         </p>
         <ol>
@@ -299,6 +310,12 @@ export const POLICY_SECTIONS: PolicySection[] = [
           </li>
         </ol>
         <p>
+          You can disconnect Amazon or Flipkart at any time. If you disconnect in Kuinn, we delete that connection’s access
+          tokens straight away. If you remove Kuinn in the marketplace’s own seller account, the marketplace stops accepting
+          those tokens at once. Either way, Kuinn can no longer read from or send to that account.
+          Listings and other data already in your workspace stay until you ask us to delete them or the brand is offboarded.
+        </p>
+        <p>
           You can also ask us to erase your own personal data at any time (see “Your rights”). If you are the last owner of a
           brand, we will ask the brand to name another owner first. Backups that already contain your data expire on their own
           schedule.
@@ -311,7 +328,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
     title: 'Cookies and browser storage',
     body: (
       <>
-        <p>Listing Agent does not use cookies to sign you in, and it uses no advertising or analytics cookies or trackers.</p>
+        <p>Kuinn does not use cookies to sign you in, and it uses no advertising or analytics cookies or trackers.</p>
         <ul>
           <li>Your short-lived access token is kept only in the page’s memory and is gone when you close the tab.</li>
           <li>
@@ -320,7 +337,8 @@ export const POLICY_SECTIONS: PolicySection[] = [
           </li>
           <li>
             Local and session storage also keep small conveniences on your device, such as whether the sidebar is collapsed,
-            your recent imports and the last job you started.
+            your recent imports and the last job you started, and a product form you have not saved yet, until you save or
+            discard it.
           </li>
           <li>Fonts are served from our own domain, so loading a page does not contact a font provider.</li>
         </ul>
@@ -342,8 +360,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
           <li>nominate another person to exercise these rights for you in case of death or incapacity.</li>
         </ul>
         <p>
-          To use any of these rights, write to <Ph>contact email</Ph> or to our Grievance Officer below. We will respond within{' '}
-          <Ph>response period</Ph>. If you are not satisfied with our response, you may complain to the Data Protection Board
+          To use any of these rights, write to <Mail /> or to our Grievance Officer below. We will respond within 30 days. If you are not satisfied with our response, you may complain to the Data Protection Board
           of India.
         </p>
       </>
@@ -354,7 +371,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
     title: 'Children',
     body: (
       <p>
-        Listing Agent is a business tool for people aged 18 or over. We do not knowingly process personal data of children. If
+        Kuinn is a business tool for people aged 18 or over. We do not knowingly process personal data of children. If
         you believe a child has given us personal data, contact us and we will delete it.
       </p>
     ),
@@ -367,16 +384,14 @@ export const POLICY_SECTIONS: PolicySection[] = [
         <p>For questions or complaints about this policy or our handling of your data, contact our Grievance Officer:</p>
         <dl className="my-4 grid gap-x-6 gap-y-2 rounded-card border border-line bg-surface p-5 text-body shadow-raised-md sm:grid-cols-[140px_1fr]">
           <dt className="font-semibold text-ink-2">Name</dt>
-          <dd>
-            <Ph>grievance officer name</Ph>
-          </dd>
+          <dd>{GRIEVANCE_OFFICER}</dd>
           <dt className="font-semibold text-ink-2">Email</dt>
           <dd>
-            <Ph>grievance officer email</Ph>
+            <Mail />
           </dd>
           <dt className="font-semibold text-ink-2">Address</dt>
           <dd>
-            <Ph>registered address</Ph>
+            {COMPANY.legalName}, {COMPANY_ADDRESS}
           </dd>
         </dl>
       </>
@@ -399,18 +414,12 @@ export function PrivacyPolicy() {
   return (
     <PublicLayout>
       <div className="mx-auto max-w-[1200px] px-4 py-10 md:px-8 md:py-14">
-        <div data-testid="privacy-draft" className="max-w-[72ch]">
-          <Banner tone="attention" title="Draft, pending legal review">
-            This policy describes how Listing Agent handles data today, but a lawyer has not reviewed it yet. Items marked
-            [PLACEHOLDER] still need to be filled in.
-          </Banner>
-        </div>
-        <header className="mt-8 max-w-[72ch]">
+        <header className="max-w-[72ch]">
           <h1 className="font-display text-[clamp(2rem,4vw,2.75rem)] leading-[1.1] font-bold tracking-[-0.015em] text-ink">
             Privacy policy
           </h1>
           <p className="mt-3 text-body text-ink-2">
-            Last updated: <Ph>date</Ph> · Applies to the Listing Agent web app and API
+            Last updated: {POLICY_UPDATED}. Applies to the Kuinn website, web app and API.
           </p>
         </header>
         <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[220px_minmax(0,1fr)]">
@@ -450,7 +459,7 @@ export function PrivacyPolicy() {
               </section>
             ))}
             <p className="mt-8 border-t border-line pt-6 text-small text-ink-2">
-              Questions? Write to <Ph>contact email</Ph>, or{' '}
+              Questions? Write to <Mail />, or{' '}
               <Link to="/" className="font-semibold text-brand underline-offset-4 hover:underline">
                 go back to the home page
               </Link>

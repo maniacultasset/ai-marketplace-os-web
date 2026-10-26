@@ -92,7 +92,7 @@ describe('auditActorLabel', () => {
     expect(auditActorLabel({ actor_type: 'user', actor_user_id: 'u1' }, 'u1')).toBe('You')
     expect(auditActorLabel({ actor_type: 'user', actor_user_id: 'u2' }, 'u1')).toBe('Your team')
     expect(auditActorLabel({ actor_type: 'user', actor_user_id: null }, undefined)).toBe('Your team')
-    expect(auditActorLabel({ actor_type: 'system' }, 'u1')).toBe('Listing Agent')
+    expect(auditActorLabel({ actor_type: 'system' }, 'u1')).toBe('Kuinn')
     expect(auditActorLabel({ actor_type: 'staff' }, 'u1')).toBe('Support team')
   })
 })

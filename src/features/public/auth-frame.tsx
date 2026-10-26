@@ -21,7 +21,7 @@ export function AuthFrame({ aside, children }: { aside: ReactNode; children: Rea
         Skip to content
       </a>
       <header className="flex h-[65px] shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-4 md:px-10">
-        <Link to="/" aria-label="Listing Agent home" className="rounded-control">
+        <Link to="/" aria-label="Kuinn home" className="rounded-control">
           <Wordmark size="lg" />
         </Link>
         <p className="text-small text-ink-2">{aside}</p>

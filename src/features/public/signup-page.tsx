@@ -15,7 +15,6 @@ import { LaCard } from '@/components/la/cards'
 import { fieldHintId, LaField } from '@/components/la/field'
 import { Icon, IconTile } from '@/components/la/icons'
 import { StatusChip } from '@/components/la/status-chip'
-import { ComingSoon, NOT_YET, UnavailableButton } from '@/components/la/unavailable'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -38,8 +37,8 @@ import {
 import { TimeAgo } from '@/features/signup-admin/time'
 import { useCountdown } from '@/features/signup-admin/use-countdown'
 import { filterInput, FORM_VALIDATION_MODE, phoneChars } from '@/lib/validation'
-import { AsideLink, AuthColumn, AuthFrame, FormAlert, GoogleGlyph, OrDivider, StepTag } from './auth-frame'
-import { DESCRIBES_YOU, signupChip } from './model'
+import { AsideLink, AuthColumn, AuthFrame, FormAlert } from './auth-frame'
+import { signupChip } from './model'
 import { useDocumentTitle } from './use-document-title'
 
 const FIELDS = ['brand_name', 'owner_name', 'email', 'phone', 'website', 'password'] as const
@@ -90,7 +89,6 @@ export function SignupPage({ initialEmail }: { initialEmail?: string }) {
     >
       <div className="grid flex-1 lg:grid-cols-2">
         <AuthColumn>
-          <StepTag>1a · Account</StepTag>
           {sent ? (
             <SentSummary email={sent.email} brand={sent.brand} />
           ) : (
@@ -99,12 +97,6 @@ export function SignupPage({ initialEmail }: { initialEmail?: string }) {
                 <h1 className="text-h1 text-ink">Create your account</h1>
                 <p className="mt-2 text-body text-ink-2">List once. Sell on every marketplace.</p>
               </div>
-              <UnavailableButton variant="secondary" size="lg" className="w-full" reason={NOT_YET.googleSignIn}>
-                <GoogleGlyph />
-                Continue with Google
-                <ComingSoon className="ml-1" />
-              </UnavailableButton>
-              <OrDivider />
               {formError ? (
                 <FormAlert
                   testId="signup-error"
@@ -218,7 +210,11 @@ export function SignupPage({ initialEmail }: { initialEmail?: string }) {
                       )}
                     />
                     <label htmlFor="agree" className="text-small text-ink-2">
-                      I have read the{' '}
+                      I agree to the{' '}
+                      <Link to="/terms" target="_blank" className="font-semibold text-brand underline-offset-4 hover:underline">
+                        Terms and Conditions
+                      </Link>{' '}
+                      and have read the{' '}
                       <Link to="/privacy" target="_blank" className="font-semibold text-brand underline-offset-4 hover:underline">
                         Privacy policy
                       </Link>
@@ -245,8 +241,6 @@ export function SignupPage({ initialEmail }: { initialEmail?: string }) {
           )}
         </AuthColumn>
         <AuthColumn tone="canvas">
-          <StepTag>1b · About you</StepTag>
-          <DescribesYou />
           {sent ? <LiveStatus creds={sent} /> : <HowAccessWorks />}
         </AuthColumn>
       </div>
@@ -259,33 +253,6 @@ function Optional({ children }: { children: ReactNode }) {
     <>
       {children} <span className="font-normal text-ink-2">(optional)</span>
     </>
-  )
-}
-
-/** p01 1b, shown honestly: the sign-up API has no field for it, so it is disabled with the reason. */
-function DescribesYou() {
-  return (
-    <fieldset disabled aria-describedby="describes-reason" className="flex flex-col gap-2" data-testid="signup-describes">
-      <legend className="mb-2">
-        <span className="flex flex-wrap items-center gap-2">
-          <span className="font-display text-h2 font-bold text-ink">What best describes you?</span>
-          <ComingSoon />
-        </span>
-        <span id="describes-reason" className="mt-1 block text-small text-ink-2">
-          The sign-up form can’t save this answer yet, so it is switched off. You set up your brand profile after your
-          request is approved.
-        </span>
-      </legend>
-      {DESCRIBES_YOU.map((label) => (
-        <label
-          key={label}
-          className="flex h-11 cursor-not-allowed items-center gap-3 rounded-[10px] border border-dashed border-line-strong bg-subtle px-3.5 text-body text-ink-2"
-        >
-          <input type="radio" name="describes" disabled className="size-[18px] shrink-0 cursor-not-allowed appearance-none rounded-full border-[1.5px] border-line-strong bg-field shadow-inset-sm" />
-          {label}
-        </label>
-      ))}
-    </fieldset>
   )
 }
 
@@ -341,7 +308,7 @@ function SentSummary({ email, brand }: { email: string; brand: string }) {
         </div>
       </dl>
       <p className="text-small text-ink-2">
-        If this email already has a Listing Agent login, the request only counts when you used that login’s password.
+        If this email already has a Kuinn login, the request only counts when you used that login’s password.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button asChild size="lg" variant="secondary" className="flex-1">

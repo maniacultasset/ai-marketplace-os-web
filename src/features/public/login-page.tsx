@@ -10,7 +10,6 @@ import { useForm } from 'react-hook-form'
 import { applyFieldErrors, describeError, isApiError } from '@/api/errors'
 import { Banner } from '@/components/la/banner'
 import { fieldHintId, LaField } from '@/components/la/field'
-import { ComingSoon, NOT_YET, UnavailableButton } from '@/components/la/unavailable'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
@@ -19,7 +18,7 @@ import { LOGIN_EMAIL_MAX, statusFormSchema, type StatusFormValues } from '@/feat
 import { useCountdown } from '@/features/signup-admin/use-countdown'
 import { login, useSession } from '@/lib/auth'
 import { FORM_VALIDATION_MODE } from '@/lib/validation'
-import { AsideLink, AuthFootnote, AuthFrame, FormAlert, GoogleGlyph, OrDivider } from './auth-frame'
+import { AsideLink, AuthFootnote, AuthFrame, FormAlert } from './auth-frame'
 import { useDocumentTitle } from './use-document-title'
 
 /**
@@ -95,12 +94,6 @@ export function LoginPage({ target }: { target: string }) {
             Your session ended. Sign in again.
           </Banner>
         ) : null}
-        <UnavailableButton variant="secondary" size="lg" className="w-full" reason={NOT_YET.googleSignIn}>
-          <GoogleGlyph />
-          Continue with Google
-          <ComingSoon className="ml-1" />
-        </UnavailableButton>
-        <OrDivider />
         {formError ? (
           <FormAlert
             testId="login-error"
