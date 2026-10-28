@@ -66,6 +66,12 @@ export const MATRIX: Readonly<Record<Role, ReadonlySet<Action>>> = {
 export const OP_ACTION = {
   'GET /auth/me': 'tenant:read',
   'POST /auth/switch-tenant': 'tenant:read',
+  'POST /auth/mfa/totp/enroll': 'tenant:read',
+  'POST /auth/mfa/totp/confirm': 'tenant:read',
+  'GET /auth/security': 'tenant:read',
+  'POST /auth/mfa/recovery-codes': 'tenant:read',
+  'POST /auth/mfa/step-up': 'tenant:read',
+  'POST /auth/password': 'tenant:read',
   'GET /members': 'team:manage',
   'PATCH /members/{user_id}': 'team:manage',
   'GET /tenants/me': 'tenant:read',
