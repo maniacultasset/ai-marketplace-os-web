@@ -1,5 +1,5 @@
 import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
-import { isApiError } from '@/api/errors'
+import { isApiError, isMfaRequired } from '@/api/errors'
 import { getSession } from '@/api/session'
 import { toastError } from '@/lib/toast'
 
@@ -17,7 +17,7 @@ declare module '@tanstack/react-query' {
 
 function refetchMeAfter403(client: QueryClient, error: unknown) {
   // Role is re-read on every request; a 403 means ours may have changed.
-  if (isApiError(error) && error.status === 403) {
+  if (isApiError(error) && error.status === 403 && !isMfaRequired(error)) {
     const { tenantId } = getSession()
     if (tenantId) void client.invalidateQueries({ queryKey: ['t', tenantId, 'me'] })
   }

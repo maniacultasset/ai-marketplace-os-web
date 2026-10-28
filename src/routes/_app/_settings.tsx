@@ -20,6 +20,7 @@ type SubPath =
   | '/rules'
   | '/settings/imports'
   | '/account'
+  | '/settings/security'
   | '/admin/signups'
 
 interface SubItem {
@@ -43,6 +44,7 @@ const SETTINGS_ITEMS: readonly SubItem[] = [
   { label: 'Imports history', to: '/settings/imports' },
   { label: 'Audit log', reason: NOT_YET.auditLog },
   { label: 'Account', to: '/account' },
+  { label: 'Security', to: '/settings/security' },
   { label: 'Sign-up requests', to: '/admin/signups', action: 'platform:admin', group: 'Platform' },
 ]
 

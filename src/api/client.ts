@@ -1,18 +1,36 @@
 import createClient from 'openapi-fetch'
 import { asApiError, networkError, toApiError } from './errors'
 import { API_BASE, API_ORIGIN, clearSession, getAccessToken, getSession, refreshOnce } from './session'
+import { isStepUpRoute, notifyEnrollmentRequired, requestStepUp, stepUpModeFor } from './step-up'
 import type { V1Paths } from './types'
 
 /**
- * Ops that never carry a bearer token and whose 401 never triggers a refresh. `/signup/status`
- * answers 401 for a wrong email/password, which must not end (or refresh) a session.
+ * Ops that never carry a bearer token and whose 401 never triggers a refresh, matched exactly
+ * against the path under /api/v1. `/signup/status` answers 401 for a wrong email/password, and the
+ * four sign-in challenge routes (DPP-1) answer 401 for a wrong code or a dead challenge: neither may
+ * end (or refresh) a session. The bearer MFA routes (`/auth/mfa/*`, `/auth/password`) are not here.
  */
-const PUBLIC_PATHS = ['/auth/login', '/auth/refresh', '/auth/logout', '/api/v1/signup', '/signup/status']
+const PUBLIC_PATHS: ReadonlySet<string> = new Set([
+  '/auth/login',
+  '/auth/refresh',
+  '/auth/logout',
+  '/signup',
+  '/signup/status',
+  '/auth/login/mfa',
+  '/auth/login/mfa/enroll',
+  '/auth/login/mfa/confirm',
+  '/auth/password/expired',
+])
 
-function isPublic(url: string) {
+const V1_PREFIX = new URL(API_BASE, 'http://x').pathname.replace(/\/+$/, '')
+
+/** The request path under /api/v1 (`/members/abc`), or the full path for anything else. */
+export function v1Path(url: string): string {
   const path = new URL(url, window.location.origin).pathname
-  return PUBLIC_PATHS.some((p) => path.endsWith(p))
+  return path.startsWith(`${V1_PREFIX}/`) ? path.slice(V1_PREFIX.length) : path
 }
+
+export const isPublicPath = (url: string) => PUBLIC_PATHS.has(v1Path(url))
 
 // ---------- connectivity (drives the "Can't reach the server" banner) ----------
 let offline = false
@@ -47,25 +65,63 @@ async function send(req: Request, token: string | null): Promise<Response> {
   return res
 }
 
+/** The envelope `error.type` of a 403, read from a clone so the caller can still parse the body. */
+async function errorType(res: Response): Promise<string | null> {
+  if (!(res.headers.get('content-type') ?? '').includes('json')) return null
+  try {
+    const body = (await res.clone().json()) as { error?: { type?: unknown } } | null
+    return typeof body?.error?.type === 'string' ? body.error.type : null
+  } catch {
+    return null
+  }
+}
+
 /**
  * fetch used by the typed client: attaches X-Request-ID + bearer token, and on a 401 from a
  * non-public op runs the single-flight refresh and replays the request once (same headers,
  * so the same Idempotency-Key). A second 401 ends the session.
+ *
+ * A 403 `MFA_STEP_UP_REQUIRED` opens the step-up dialog; after a code the request is replayed
+ * once with the new access token (step-up.ts). A 403 `MFA_ENROLLMENT_REQUIRED` routes to
+ * enrolment. Either way the caller gets the final response.
  */
 export async function authFetch(input: Request): Promise<Response> {
-  if (isPublic(input.url)) return send(input, null)
+  if (isPublicPath(input.url)) return send(input, null)
 
+  // A pristine copy: each replay (refresh, step-up) sends a fresh clone of it.
+  const template = input.clone()
   let token = getAccessToken()
   if (!token && getSession().status !== 'anonymous') token = await refreshOnce(null)
-  const replay = input.clone()
-  const first = await send(input, token)
-  if (first.status !== 401 || getSession().status === 'anonymous') return first
+  let res = await send(input, token)
+  /** The access token the current `res` was sent with. */
+  let sent = token
 
-  const fresh = await refreshOnce(token)
-  if (!fresh) return first
-  const second = await send(replay, fresh)
-  if (second.status === 401) clearSession('expired', { broadcast: true })
-  return second
+  if (res.status === 401 && getSession().status !== 'anonymous') {
+    const fresh = await refreshOnce(token)
+    if (!fresh) return res
+    sent = fresh
+    res = await send(template.clone(), fresh)
+    if (res.status === 401) {
+      clearSession('expired', { broadcast: true })
+      return res
+    }
+  }
+
+  if (res.status !== 403) return res
+  const path = v1Path(input.url)
+  if (isStepUpRoute(path)) return res
+  const type = await errorType(res)
+  if (type === 'MFA_ENROLLMENT_REQUIRED') {
+    notifyEnrollmentRequired()
+    return res
+  }
+  if (type !== 'MFA_STEP_UP_REQUIRED') return res
+  // The token changed while this request was in flight (a step-up done for a parallel request, or
+  // another tab's): replay once with it before asking for another code.
+  const now = getAccessToken()
+  if (now && now !== sent) return send(template.clone(), now)
+  if (!(await requestStepUp(stepUpModeFor(input.method, path)))) return res
+  return send(template.clone(), getAccessToken())
 }
 
 /** Typed API client. Paths are relative to `/api/v1`: `api.GET('/auth/me')`. */

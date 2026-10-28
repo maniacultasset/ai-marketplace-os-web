@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { applyFieldErrors, isInvalidCursor, isNotImplemented, toApiError } from './errors'
+import { applyFieldErrors, describeError, isForbidden, isInvalidCursor, isMfaRequired, isNotImplemented, toApiError } from './errors'
 
 const envelope = (status: number, type: string, details: unknown = null) => ({
   error: { type, message: 'm', status, correlation_id: 'req-1', details, error_report: null },
@@ -44,5 +44,21 @@ describe('applyFieldErrors', () => {
     expect(setError).toHaveBeenCalledWith('sku', { type: 'server', message: 'bad sku' }, { shouldFocus: true })
     expect(setError).toHaveBeenCalledWith('content.bullets.2', { type: 'server', message: 'too long' }, { shouldFocus: false })
     expect(rest).toEqual([{ loc: ['query', 'limit'], msg: 'bad limit' }])
+  })
+})
+
+describe('login-code 403s (DPP-1)', () => {
+  const e403 = (type: string) => toApiError(new Response(null, { status: 403 }), envelope(403, type))
+  it('are not role denials', () => {
+    expect(isMfaRequired(e403('MFA_STEP_UP_REQUIRED'))).toBe(true)
+    expect(isMfaRequired(e403('MFA_ENROLLMENT_REQUIRED'))).toBe(true)
+    expect(isForbidden(e403('MFA_STEP_UP_REQUIRED'))).toBe(false)
+    expect(isForbidden(e403('PERMISSION_DENIED'))).toBe(true)
+    expect(isMfaRequired(e403('PERMISSION_DENIED'))).toBe(false)
+  })
+  it('say what to do instead of "no permission"', () => {
+    expect(describeError(e403('MFA_STEP_UP_REQUIRED'))).toBe('Not changed: this needs a code from your authenticator app.')
+    expect(describeError(e403('MFA_ENROLLMENT_REQUIRED'))).toBe('Set up login codes in Settings > Security, then try again.')
+    expect(describeError(e403('PERMISSION_DENIED'))).toBe("You don't have permission for this.")
   })
 })

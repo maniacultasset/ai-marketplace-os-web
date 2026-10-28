@@ -1,6 +1,6 @@
 import { useIsMutating, useMutation, useMutationState, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { api, unwrap } from '@/api/client'
-import { isApiError } from '@/api/errors'
+import { describeError, isApiError, isMfaRequired } from '@/api/errors'
 import type { Page, Schema } from '@/api/types'
 import { useCursorList, PAGE_SIZE } from '@/hooks/use-cursor-list'
 import { logout } from '@/lib/auth'
@@ -24,6 +24,7 @@ export function useMembersList() {
 export function inlineMemberError(error: unknown): string | null {
   if (!isApiError(error)) return null
   if (error.type === 'LAST_OWNER_REQUIRED') return 'A brand must keep at least one active owner.'
+  if (isMfaRequired(error)) return describeError(error)
   if (error.status === 403) return "You can't change this member."
   return null
 }
