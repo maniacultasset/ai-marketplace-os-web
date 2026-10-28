@@ -210,6 +210,34 @@ describe('LoginPage: every LoginResult status', () => {
     expect(calls.find((c) => c.path === '/auth/login/mfa/confirm')!.body).toEqual({ challenge_token: 'ch-mfa_enrollment_required', code: '654321' })
   })
 
+  it('starts the next challenge clock when confirm answers, and warns before leaving the codes screen', async () => {
+    const { user } = setup({
+      'POST /auth/login': () => challenge('mfa_enrollment_required', 900),
+      'POST /auth/login/mfa/enroll': () => json(200, { otpauth_uri: 'otpauth://totp/x?secret=ABCD', secret_b32: 'ABCD' }),
+      // The password challenge lives 1 s from the moment confirm answers.
+      'POST /auth/login/mfa/confirm': () =>
+        json(200, { recovery_codes: CODES, result: { status: 'password_change_required', challenge_token: 'ch-pw', challenge_expires_in: 1 } }),
+    })
+    await signInWith(user)
+    await user.type(await screen.findByLabelText('6-digit code'), '654321')
+    await user.click(screen.getByRole('button', { name: 'Turn on login codes' }))
+    await screen.findByRole('heading', { name: 'Save your recovery codes' })
+
+    const leave = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(leave)
+    expect(leave.defaultPrevented).toBe(true)
+
+    // Read the codes for longer than the next challenge lives, then continue.
+    await new Promise((r) => setTimeout(r, 1200))
+    await user.click(screen.getByRole('checkbox', { name: 'I saved these codes somewhere safe' }))
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(await screen.findByText('That sign-in step timed out. Sign in again.')).toBeTruthy()
+    // Off the codes screen, leaving is no longer blocked.
+    const later = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(later)
+    expect(later.defaultPrevented).toBe(false)
+  })
+
   it('password_change_required: shows the server rule sentences (history) under the field', async () => {
     const { user } = setup({
       'POST /auth/login': () => challenge('password_change_required'),

@@ -25,7 +25,8 @@ export type FlowStep =
   | { kind: 'mfa'; challenge: Challenge }
   | { kind: 'enroll'; challenge: Challenge }
   | { kind: 'password'; challenge: Challenge }
-  | { kind: 'recovery-codes'; codes: string[]; next: LoginResult }
+  /** `next` is decided when the confirm answer arrives, so its challenge clock is the server's. */
+  | { kind: 'recovery-codes'; codes: string[]; next: Advance }
 
 export type Advance =
   | { kind: 'signed-in'; tokens: TokenResponse; graceUntil: string | null }

@@ -1,8 +1,9 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { StrictMode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { clearSession, storeTokens } from '@/api/session'
+import { clearSession, currentRefreshToken, getSession, onSessionEnd, storeTokens } from '@/api/session'
 import type { SecurityOut } from '@/api/types'
 import { queryClient } from '@/lib/query-client'
 import { envelope, installFetch, json, jwt, type Handler } from '@/test/fake-api'
@@ -24,8 +25,12 @@ const base: SecurityOut = {
   password_expires_at: '2027-10-01T10:00:00Z',
 }
 
-function setup(security: Partial<SecurityOut>, routes: Record<string, Handler | Handler[]> = {}, opts: { setup?: boolean } = {}) {
-  storeTokens({ access_token: jwt(), refresh_token: 'rt-1', expires_in: 1800, token_type: 'bearer', memberships })
+function setup(
+  security: Partial<SecurityOut>,
+  routes: Record<string, Handler | Handler[]> = {},
+  opts: { setup?: boolean; strict?: boolean; sid?: string } = {},
+) {
+  storeTokens({ access_token: jwt(opts.sid ? { sid: opts.sid } : {}), refresh_token: 'rt-1', expires_in: 1800, token_type: 'bearer', memberships })
   const api = installFetch({
     'GET /auth/me': () => json(200, ME),
     'GET /auth/security': () => json(200, { ...base, ...security }),
@@ -34,11 +39,12 @@ function setup(security: Partial<SecurityOut>, routes: Record<string, Handler | 
   })
   const onSetupShown = vi.fn()
   const user = userEvent.setup()
-  render(
+  const tree = (
     <QueryClientProvider client={queryClient}>
       <SecurityView setup={opts.setup} onSetupShown={onSetupShown} />
-    </QueryClientProvider>,
+    </QueryClientProvider>
   )
+  render(opts.strict ? <StrictMode>{tree}</StrictMode> : tree)
   return { ...api, user, onSetupShown }
 }
 
@@ -60,7 +66,7 @@ describe('SecurityView', () => {
     expect(screen.getByText('1 Oct 2027')).toBeTruthy()
   })
 
-  it('sets up the authenticator: current password → QR → code → recovery codes → done', async () => {
+  it('sets up the authenticator under StrictMode: current password → QR → code → recovery codes → done', async () => {
     const { user, calls } = setup(
       { mfa_grace_until: '2999-11-20T00:00:00+05:30' },
       {
@@ -70,6 +76,7 @@ describe('SecurityView', () => {
         ],
         'POST /auth/mfa/totp/confirm': () => json(200, { recovery_codes: CODES }),
       },
+      { strict: true, sid: 'fam-1' },
     )
     expect(await screen.findByText(/Set up login codes by 20 Nov 2999/)).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Set up authenticator' }))
@@ -132,16 +139,18 @@ describe('SecurityView', () => {
     expect(await screen.findByText('Not changed: this needs a code from your authenticator app.')).toBeTruthy()
   })
 
-  it('changes the password; the once-a-day refusal is shown as the API words it', async () => {
+  it('changes the password (MFA on, sid kept): stays signed in; the once-a-day refusal is shown as the API words it', async () => {
     const { user, calls } = setup(
-      { enforcement: 'off' },
+      { enforcement: 'all', mfa_enrolled: true, recovery_codes_left: 10 },
       {
         'POST /auth/password': [
           () => envelope(422, 'VALIDATION_FAILED', 'The password can be changed once a day. Try again tomorrow.'),
           () => new Response(null, { status: 204 }),
         ],
       },
+      { sid: 'fam-1' },
     )
+    expect(await screen.findByText(/signs you out on your other devices/)).toBeTruthy()
     await user.click(await screen.findByRole('button', { name: 'Change password' }))
     await user.type(screen.getByLabelText('Current password'), 'old-password')
     await user.type(screen.getByLabelText('New password'), 'Tulip-Rain-2026')
@@ -156,5 +165,23 @@ describe('SecurityView', () => {
       { current_password: 'old-password', new_password: 'Tulip-Rain-2026' },
       { current_password: 'old-password', new_password: 'Tulip-Rain-2026' },
     ])
+  })
+
+  it('changes the password (MFA off, no sid): the backend revoked this session too, so it ends here', async () => {
+    const ended = vi.fn()
+    const off = onSessionEnd(ended)
+    const { user, calls } = setup({ enforcement: 'off' }, { 'POST /auth/password': () => new Response(null, { status: 204 }) })
+    expect(await screen.findByText(/signs you out everywhere, here too/)).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Change password' }))
+    await user.type(screen.getByLabelText('Current password'), 'old-password')
+    await user.type(screen.getByLabelText('New password'), 'Tulip-Rain-2026')
+    await user.type(screen.getByLabelText('Type it again'), 'Tulip-Rain-2026')
+    await user.click(screen.getByRole('button', { name: 'Change password' }))
+    await waitFor(() => expect(ended).toHaveBeenCalledWith('password-changed'))
+    expect(getSession()).toMatchObject({ status: 'anonymous', endReason: 'password-changed' })
+    // The revoked refresh token is dropped, never presented again (that would read as reuse).
+    expect(currentRefreshToken()).toBeNull()
+    expect(calls.some((c) => c.path === '/auth/refresh')).toBe(false)
+    off()
   })
 })

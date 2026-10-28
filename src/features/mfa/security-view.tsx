@@ -14,7 +14,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { isApiError } from '@/api/errors'
-import { getAccessToken, refreshOnce } from '@/api/session'
+import { clearSession, getAccessToken, refreshOnce, sessionHasFamily } from '@/api/session'
 import type { SecurityOut, TotpEnrollOut } from '@/api/types'
 import { Banner } from '@/components/la/banner'
 import { fieldHintId, LaField } from '@/components/la/field'
@@ -102,15 +102,6 @@ function TotpSetup({
   const codeRef = useRef<HTMLInputElement>(null)
   const pwId = useId()
 
-  // Secrets, codes and the password go with the panel.
-  useEffect(
-    () => () => {
-      setStage(null)
-      setPassword('')
-      setCode('')
-    },
-    [],
-  )
   // Each new stage moves focus to the panel heading, so the change is announced.
   useEffect(() => {
     if (stage) headingRef.current?.focus()
@@ -297,7 +288,6 @@ function NewCodes({ email, onClose }: { email: string; onClose: () => void }) {
     started.current = true
     run()
   }, [])
-  useEffect(() => () => setCodes(null), [])
   useEffect(() => {
     if (codes) headingRef.current?.focus()
   }, [codes])
@@ -468,6 +458,9 @@ function PasswordCard({ security, email, displayName }: { security: SecurityOut;
   const qc = useQueryClient()
   const keys = useKeys()
   const [open, setOpen] = useState(false)
+  // With a refresh family in the token the backend keeps this session; without one (MFA off) it
+  // revokes every family, this one too, so the copy and the outcome differ.
+  const keepsSession = sessionHasFamily()
   const changed = day(security.password_changed_at)
   const expires = day(security.password_expires_at)
   return (
@@ -475,7 +468,9 @@ function PasswordCard({ security, email, displayName }: { security: SecurityOut;
       <CardHeader className="pt-5 pb-4">
         <CardTitle>Password</CardTitle>
         <CardDescription className="max-w-[60ch]">
-          You can change it once a day. Changing it signs you out on your other devices.
+          {keepsSession
+            ? 'You can change it once a day. Changing it signs you out on your other devices.'
+            : 'You can change it once a day. Changing it signs you out everywhere, here too: sign in again with the new password.'}
         </CardDescription>
       </CardHeader>
       <dl>
@@ -494,6 +489,12 @@ function PasswordCard({ security, email, displayName }: { security: SecurityOut;
             testId="change-password-form"
             onSubmit={async ({ current_password, new_password }) => {
               await changePassword(current_password, new_password)
+              if (!keepsSession) {
+                // This family is revoked server side: using its refresh token would look like
+                // token theft. End the session now; the login page explains why.
+                clearSession('password-changed', { broadcast: true })
+                return
+              }
               toast.success('Password changed', { description: 'Your other devices were signed out.' })
               setOpen(false)
               void qc.invalidateQueries({ queryKey: keys.security() })

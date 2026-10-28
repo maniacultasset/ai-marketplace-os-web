@@ -19,7 +19,7 @@ import { PasswordInput } from '@/features/signup-admin/password-input'
 import { LOGIN_EMAIL_MAX, statusFormSchema, type StatusFormValues } from '@/features/signup-admin/schema'
 import { useCountdown } from '@/features/signup-admin/use-countdown'
 import type { LoginResult } from '@/api/types'
-import { advance, RESTART_MESSAGES, type FlowStep, type RestartReason } from '@/features/mfa/login-flow'
+import { advance, RESTART_MESSAGES, type Advance, type FlowStep, type RestartReason } from '@/features/mfa/login-flow'
 import { EnrollStep, MfaCodeStep, PasswordChangeStep, RecoveryCodesStep } from '@/features/mfa/login-steps'
 import { finishSignIn, signIn, useSession } from '@/lib/auth'
 import { toast } from '@/lib/toast'
@@ -70,10 +70,9 @@ export function LoginPage({ target }: { target: string }) {
     [form],
   )
 
-  /** Apply one `LoginResult`: store tokens and leave, or show the next step. */
-  const onResult = useCallback(
-    async (result: LoginResult) => {
-      const next = advance(result)
+  /** Apply a decided next step: store tokens and leave, or show the step. */
+  const apply = useCallback(
+    async (next: Advance) => {
       if (next.kind === 'invalid') return restart('invalid')
       if (next.kind === 'step') {
         setFormError(null)
@@ -99,6 +98,8 @@ export function LoginPage({ target }: { target: string }) {
     },
     [restart, router, target],
   )
+  /** Apply one `LoginResult` now (its challenge clock starts when it arrives). */
+  const onResult = useCallback((result: LoginResult) => apply(advance(result)), [apply])
 
   const onSubmit = form.handleSubmit(async (values) => {
     setFormError(null)
@@ -138,11 +139,12 @@ export function LoginPage({ target }: { target: string }) {
             <EnrollStep
               key={step.challenge.token}
               challenge={step.challenge}
-              onConfirmed={(out) => setStep({ kind: 'recovery-codes', codes: out.recovery_codes, next: out.result })}
+              // Decide the next step (and start its challenge clock) as the answer arrives, not on Continue.
+              onConfirmed={(out) => setStep({ kind: 'recovery-codes', codes: out.recovery_codes, next: advance(out.result) })}
               onRestart={restart}
             />
           ) : step.kind === 'recovery-codes' ? (
-            <RecoveryCodesStep codes={step.codes} email={email} onContinue={() => void onResult(step.next)} />
+            <RecoveryCodesStep codes={step.codes} email={email} onContinue={() => void apply(step.next)} />
           ) : (
             <PasswordChangeStep key={step.challenge.token} challenge={step.challenge} email={email} onResult={(r) => void onResult(r)} onRestart={restart} />
           )}
@@ -187,6 +189,11 @@ export function LoginPage({ target }: { target: string }) {
         {session.endReason === 'expired' && !formError ? (
           <Banner tone="info" role="status">
             Your session ended. Sign in again.
+          </Banner>
+        ) : null}
+        {session.endReason === 'password-changed' && !formError ? (
+          <Banner tone="success" role="status">
+            Password changed. Sign in with your new password.
           </Banner>
         ) : null}
         {formError ? (

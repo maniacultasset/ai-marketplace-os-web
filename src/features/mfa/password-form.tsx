@@ -4,7 +4,7 @@
  * checked live (password-rules.ts); the server's 422 rule sentences land under the field.
  */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useId, useState } from 'react'
+import { useId, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import { isApiError } from '@/api/errors'
@@ -66,8 +66,6 @@ export function PasswordForm({
     defaultValues: { current_password: '', new_password: '', confirm: '' },
     ...FORM_VALIDATION_MODE,
   })
-  // Passwords never outlive the form.
-  useEffect(() => () => form.reset({ current_password: '', new_password: '', confirm: '' }), [form])
 
   const ids = {
     current: `${idPrefix}-current`,

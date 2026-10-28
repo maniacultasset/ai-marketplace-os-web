@@ -2,7 +2,8 @@
  * The sign-in steps after the password (contract 2.0.0; docs/HANDOFF-FE.md §6): the code step
  * (`mfa_required`), forced enrolment (`mfa_enrollment_required`), the recovery codes shown once,
  * and the forced password change (`password_change_required`). Each step holds its challenge token,
- * codes and secrets in component state only; they go with the step.
+ * codes and secrets in component state only, which React drops when the step unmounts (no
+ * setState-on-unmount cleanups: StrictMode replays effects on a live component).
  *
  * Every refusal on the challenge routes is the same 401 (wrong code, used code, expired or burned
  * challenge, locked account), so the copy never says which: no account enumeration.
@@ -125,7 +126,6 @@ export function MfaCodeStep({
   const introId = useId()
   const sub = useCodeSubmit(onRestart)
   useChallengeExpiry(challenge, () => onRestart('expired'))
-  useEffect(() => () => setValue(''), [])
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -232,14 +232,6 @@ export function EnrollStep({
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per challenge token
   }, [challenge.token])
-  // The secret and the typed code go with the step.
-  useEffect(
-    () => () => {
-      setSecret(null)
-      setValue('')
-    },
-    [],
-  )
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()

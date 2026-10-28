@@ -99,8 +99,6 @@ export function QrCode({ uri, size = 184 }: { uri: string; size?: number }) {
       live = false
     }
   }, [uri])
-  // The image (it encodes the secret) goes with the component.
-  useEffect(() => () => setDrawn(null), [])
   const current = drawn?.uri === uri ? drawn : null
   const src = current?.src ?? null
   const failed = current?.failed ?? false
@@ -211,6 +209,15 @@ export function RecoveryCodes({
 }) {
   const [saved, setSaved] = useState(false)
   const { copied, copy } = useCopied()
+  // Leaving the page now would lose codes that are never shown again: ask the browser to warn.
+  useEffect(() => {
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [])
   const checkId = useId()
   return (
     <div className="flex flex-col gap-4" data-testid="recovery-codes">

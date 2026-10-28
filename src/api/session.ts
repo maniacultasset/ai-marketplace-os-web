@@ -23,7 +23,8 @@ const LOCK_NAME = 'mkos-refresh'
 const CHANNEL_NAME = 'mkos-auth'
 
 export type SessionStatus = 'unknown' | 'authenticated' | 'anonymous' | 'unreachable'
-export type EndReason = 'logout' | 'expired' | 'remote-logout'
+/** `password-changed`: a self-service change revoked this session's family too (no `sid`). */
+export type EndReason = 'logout' | 'expired' | 'remote-logout' | 'password-changed'
 
 export interface SessionState {
   status: SessionStatus
@@ -38,6 +39,8 @@ interface Access {
   exp: number // epoch ms
   tid: string
   sub: string
+  /** The refresh family (contract 2.0.0); only minted under MFA_ENFORCEMENT=all. */
+  sid: string | null
 }
 
 type BroadcastMsg =
@@ -77,9 +80,9 @@ function decodeJwt(token: string): Access | null {
     const part = token.split('.')[1]
     if (!part) return null
     const json = atob(part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '='))
-    const claims = JSON.parse(json) as { exp?: number; tid?: string; sub?: string }
+    const claims = JSON.parse(json) as { exp?: number; tid?: string; sub?: string; sid?: unknown }
     if (!claims.exp || !claims.tid || !claims.sub) return null
-    return { token, exp: claims.exp * 1000, tid: claims.tid, sub: claims.sub }
+    return { token, exp: claims.exp * 1000, tid: claims.tid, sub: claims.sub, sid: typeof claims.sid === 'string' ? claims.sid : null }
   } catch {
     return null
   }
@@ -98,6 +101,11 @@ export function subscribeSession(listener: () => void) {
 export const getSession = () => state
 export const getAccessToken = () => access?.token ?? null
 export const hasRefreshToken = () => readRt() !== null
+/**
+ * True when the access token names its refresh family (`sid`). The backend keeps that family on a
+ * password change; without it (tokens minted under MFA off) every family is revoked, this one too.
+ */
+export const sessionHasFamily = () => !!access?.sid
 
 /** Called when the session ends for any reason (cache clear + redirect live in the app layer). */
 export function onSessionEnd(fn: (reason: EndReason) => void) {
