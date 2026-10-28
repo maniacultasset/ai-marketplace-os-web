@@ -3,7 +3,7 @@
  * sentences shown for each error the sign-up endpoints answer
  * (apps/api/app/api/v1/routers/signup.py and routers/admin.py).
  */
-import { describeError, isApiError } from '@/api/errors'
+import { describeError, isApiError, isMfaRequired } from '@/api/errors'
 import type { Schema } from '@/api/types'
 
 export type SignupRequest = Schema<'SignupRequestOut'>
@@ -77,6 +77,7 @@ export function decisionError(e: unknown, decision: Decision): string {
       ? 'This request was already rejected, so it can no longer be approved. The list has been refreshed.'
       : 'This request was already approved, so it can no longer be rejected. The list has been refreshed.'
   if (e.status === 404) return 'This request no longer exists. The list has been refreshed.'
+  if (isMfaRequired(e)) return describeError(e)
   if (e.status === 403) return 'Only platform admins can decide sign-up requests.'
   return describeError(e)
 }

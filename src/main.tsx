@@ -3,6 +3,7 @@ import { createRouter, RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { onSessionEnd } from '@/api/session'
+import { setEnrollmentHandler } from '@/api/step-up'
 import { Page } from '@/components/app/page-header'
 import { ErrorState } from '@/components/states/error-state'
 import { NotFound } from '@/components/states/not-found'
@@ -44,6 +45,13 @@ onSessionEnd((reason) => {
   void router
     .navigate({ to: '/login', search: reason === 'expired' ? { redirect: here } : {}, replace: true })
     .then(() => queryClient.clear())
+})
+
+// 403 MFA_ENROLLMENT_REQUIRED (a sensitive action before login codes are set up): go set them up.
+setEnrollmentHandler(() => {
+  if (router.state.location.pathname === '/settings/security') return
+  toast.info('Set up login codes first', { description: 'This change needs login codes. It takes a minute.' })
+  void router.navigate({ to: '/settings/security', search: { setup: true } })
 })
 
 createRoot(document.getElementById('root')!).render(

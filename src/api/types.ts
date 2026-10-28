@@ -13,6 +13,13 @@ export type Role = Schema<'MeOut'>['role']
 export type Me = Schema<'MeOut'>
 export type Membership = Schema<'MembershipOut'>
 export type TokenResponse = Schema<'TokenResponse'>
+/** POST /auth/login and the challenge steps (contract 2.0.0): tokens, or the next sign-in step. */
+export type LoginResult = Schema<'LoginResult'>
+export type SignInStatus = NonNullable<LoginResult['status']>
+export type LoginConfirmOut = Schema<'LoginConfirmOut'>
+export type TotpEnrollOut = Schema<'TotpEnrollOut'>
+export type SecurityOut = Schema<'SecurityOut'>
+export type StepUpOut = Schema<'StepUpOut'>
 export type ErrorCode = Schema<'ErrorCode'>
 export type ErrorReport = Schema<'ErrorReport'>
 export type ErrorItem = Schema<'ErrorItem'>

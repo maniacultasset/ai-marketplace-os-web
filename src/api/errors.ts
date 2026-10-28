@@ -112,7 +112,11 @@ export const isNotImplemented = (e: unknown) =>
   isApiError(e) && (e.status === 501 || e.type === 'NOT_IMPLEMENTED')
 
 export const isNotFound = (e: unknown) => isApiError(e) && e.status === 404
-export const isForbidden = (e: unknown) => isApiError(e) && e.status === 403
+/** 403 because a login code is needed (DPP-1): a step-up, or an authenticator not set up yet. */
+export const isMfaRequired = (e: unknown) =>
+  isApiError(e) && e.status === 403 && (e.type === 'MFA_STEP_UP_REQUIRED' || e.type === 'MFA_ENROLLMENT_REQUIRED')
+/** 403 for the caller's role (not a login-code 403, which a code or an enrolment fixes). */
+export const isForbidden = (e: unknown) => isApiError(e) && e.status === 403 && !isMfaRequired(e)
 export const isRateLimited = (e: unknown) => isApiError(e) && e.status === 429
 export const isNetworkError = (e: unknown) => isApiError(e) && e.status === 0
 /** 422 whose loc is ["query","cursor"]: reset pagination to the first page. */
@@ -133,6 +137,8 @@ export function describeError(e: unknown): string {
     case 401:
       return 'Your session ended. Sign in again.'
     case 403:
+      if (err.type === 'MFA_STEP_UP_REQUIRED') return 'Not changed: this needs a code from your authenticator app.'
+      if (err.type === 'MFA_ENROLLMENT_REQUIRED') return 'Set up login codes in Settings > Security, then try again.'
       return "You don't have permission for this."
     case 404:
       return 'This item was not found. It may have been removed.'

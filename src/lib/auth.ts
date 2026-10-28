@@ -13,7 +13,7 @@ import {
   storeTokens,
   subscribeSession,
 } from '@/api/session'
-import type { Me } from '@/api/types'
+import type { LoginResult, Me, TokenResponse } from '@/api/types'
 import { queryClient } from '@/lib/query-client'
 import { toast } from '@/lib/toast'
 
@@ -43,8 +43,16 @@ export function tenantName(me: Me | undefined) {
   return me?.memberships.find((m) => m.tenant_id === me.tenant_id)?.tenant_name ?? ''
 }
 
-export async function login(email: string, password: string): Promise<Me> {
-  const tokens = await unwrap(api.POST('/auth/login', { body: { email, password } }))
+/**
+ * POST /auth/login. Returns the `LoginResult` as is: the caller reads `status` before anything is
+ * stored (contract 2.0.0; only `signed_in` carries tokens). See features/mfa/login-flow.ts.
+ */
+export function signIn(email: string, password: string): Promise<LoginResult> {
+  return unwrap(api.POST('/auth/login', { body: { email, password } }))
+}
+
+/** Store a signed-in token pair, tell other tabs, and load `me` for the new session. */
+export async function finishSignIn(tokens: TokenResponse): Promise<Me> {
   queryClient.clear()
   storeTokens(tokens)
   broadcast({ type: 'login', access_token: tokens.access_token })
