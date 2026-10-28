@@ -12,8 +12,18 @@
 /** `any`: a TOTP or a recovery code; `otp`: a TOTP code only (backend `step_up="otp"`). */
 export type StepUpMode = 'any' | 'otp'
 
+/**
+ * One step-up prompt. `mode` can tighten from `any` to `otp` while the prompt is open, when a
+ * TOTP-only request joins it: `subscribe` tells the dialog (a recovery code would be spent and the
+ * TOTP-only request would still fail).
+ */
+export interface StepUpPrompt {
+  readonly mode: StepUpMode
+  subscribe(listener: (mode: StepUpMode) => void): () => void
+}
+
 /** Resolves true once a step-up succeeded and the new access token is in place. */
-export type StepUpHandler = (mode: StepUpMode) => Promise<boolean>
+export type StepUpHandler = (prompt: StepUpPrompt) => Promise<boolean>
 
 /**
  * Ops that need a TOTP code only (surface.py `step_up="otp"`): the account revoke and the sign-up
@@ -54,7 +64,7 @@ export const isStepUpRoute = (path: string) => path === STEP_UP_ROUTE
 
 let handler: StepUpHandler | null = null
 let enrollmentHandler: (() => void) | null = null
-let pending: Promise<boolean> | null = null
+let pending: { promise: Promise<boolean>; tighten: () => void } | null = null
 
 /** Register the step-up dialog. Returns the unregister function. */
 export function setStepUpHandler(fn: StepUpHandler) {
@@ -73,18 +83,39 @@ export function setEnrollmentHandler(fn: () => void) {
 }
 
 /**
- * Ask for a step-up. Single-flight: parallel 403s share one dialog (its mode is the first
- * caller's; a request whose replay still answers 403 surfaces that error, never a second loop).
+ * Ask for a step-up. Single-flight: parallel 403s share one prompt. If any waiter needs `otp`, the
+ * shared prompt switches to `otp`, so every waiter's replay can succeed. A request whose replay
+ * still answers 403 surfaces that error, never a second loop.
  */
 export function requestStepUp(mode: StepUpMode): Promise<boolean> {
-  if (pending) return pending
+  if (pending) {
+    if (mode === 'otp') pending.tighten()
+    return pending.promise
+  }
   if (!handler) return Promise.resolve(false)
-  pending = handler(mode)
+  let current: StepUpMode = mode
+  const listeners = new Set<(m: StepUpMode) => void>()
+  const prompt: StepUpPrompt = {
+    get mode() {
+      return current
+    },
+    subscribe(l) {
+      listeners.add(l)
+      return () => listeners.delete(l)
+    },
+  }
+  const tighten = () => {
+    if (current === 'otp') return
+    current = 'otp'
+    listeners.forEach((l) => l(current))
+  }
+  const promise = handler(prompt)
     .catch(() => false)
     .finally(() => {
       pending = null
     })
-  return pending
+  pending = { promise, tighten }
+  return promise
 }
 
 export function notifyEnrollmentRequired() {

@@ -91,6 +91,28 @@ describe('StepUpHost: a sensitive request answered 403 MFA_STEP_UP_REQUIRED', ()
     expect(await result).toMatchObject({ status: 403, type: 'MFA_STEP_UP_REQUIRED' })
   })
 
+  it('switches to TOTP when a TOTP-only request joins an open dialog', async () => {
+    const user = userEvent.setup()
+    const { calls } = installFetch({
+      'PATCH /members/u2': [() => envelope(403, 'MFA_STEP_UP_REQUIRED'), () => json(200, member)],
+      'POST /marketplaces/accounts/a1/revoke': [() => envelope(403, 'MFA_STEP_UP_REQUIRED'), () => json(200, { id: 'a1' })],
+      'POST /auth/mfa/step-up': () => json(200, { access_token: stepped, token_type: 'bearer', expires_in: 1800 }),
+    })
+    const first = patchMember()
+    await user.click(await screen.findByRole('button', { name: 'Use a recovery code' }))
+    await user.type(screen.getByLabelText('Recovery code'), 'abcd')
+    const second = revoke()
+    // The recovery option goes away and the typed recovery code is dropped.
+    const input = await screen.findByLabelText('6-digit code')
+    expect((input as HTMLInputElement).value).toBe('')
+    expect(screen.queryByRole('button', { name: 'Use a recovery code' })).toBeNull()
+    await user.type(input, '123456')
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+    await Promise.all([first, second])
+    const stepUps = calls.filter((c) => c.path === '/auth/mfa/step-up')
+    expect(stepUps.map((c) => c.body)).toEqual([{ code: '123456' }])
+  })
+
   it('cancel fails the request as it was, without a retry', async () => {
     const { calls } = installFetch({ 'PATCH /members/u2': () => envelope(403, 'MFA_STEP_UP_REQUIRED') })
     const user = userEvent.setup()

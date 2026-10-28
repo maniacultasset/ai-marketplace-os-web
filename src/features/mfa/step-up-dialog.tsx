@@ -24,6 +24,7 @@ import { isRecoveryCode, isTotp } from './login-flow'
 interface Pending {
   mode: StepUpMode
   resolve: (ok: boolean) => void
+  unsubscribe: () => void
 }
 
 export function StepUpHost() {
@@ -34,9 +35,14 @@ export function StepUpHost() {
 
   useEffect(() => {
     const off = setStepUpHandler(
-      (mode) =>
+      (prompt) =>
         new Promise<boolean>((resolve) => {
-          const p = { mode, resolve }
+          // A TOTP-only request joining this prompt tightens it to `otp`.
+          const unsubscribe = prompt.subscribe((mode) => {
+            if (pendingRef.current) pendingRef.current = { ...pendingRef.current, mode }
+            setPending((cur) => (cur ? { ...cur, mode } : cur))
+          })
+          const p = { mode: prompt.mode, resolve, unsubscribe }
           pendingRef.current = p
           setSeq((n) => n + 1)
           setPending(p)
@@ -45,12 +51,14 @@ export function StepUpHost() {
     return () => {
       off()
       // Unmounted mid-request (sign-out): the waiting request fails as it was.
+      pendingRef.current?.unsubscribe()
       pendingRef.current?.resolve(false)
       pendingRef.current = null
     }
   }, [])
 
   const finish = (ok: boolean) => {
+    pendingRef.current?.unsubscribe()
     pendingRef.current?.resolve(ok)
     pendingRef.current = null
     setPending(null)
@@ -60,8 +68,14 @@ export function StepUpHost() {
 }
 
 export function StepUpDialog({ open, mode, onDone }: { open: boolean; mode: StepUpMode; onDone: (ok: boolean) => void }) {
-  const [kind, setKind] = useState<FactorKind>('totp')
+  const [chosen, setChosen] = useState<FactorKind>('totp')
   const [value, setValue] = useState('')
+  // Tightened to `otp` while open (a TOTP-only request joined): drop a typed recovery code.
+  if (mode === 'otp' && chosen === 'recovery') {
+    setChosen('totp')
+    setValue('')
+  }
+  const kind: FactorKind = mode === 'otp' ? 'totp' : chosen
   const [fieldError, setFieldError] = useState<string | null>(null)
   const [formError, setFormError] = useState<{ message: string; ref: string | null } | null>(null)
   const [busy, setBusy] = useState(false)
@@ -106,7 +120,7 @@ export function StepUpDialog({ open, mode, onDone }: { open: boolean; mode: Step
   }
 
   const toggle = () => {
-    setKind((k) => (k === 'totp' ? 'recovery' : 'totp'))
+    setChosen((k) => (k === 'totp' ? 'recovery' : 'totp'))
     setValue('')
     setFieldError(null)
     requestAnimationFrame(() => inputRef.current?.focus())

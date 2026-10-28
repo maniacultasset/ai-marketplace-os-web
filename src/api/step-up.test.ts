@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import openapi from './openapi.json'
-import { requestStepUp, setStepUpHandler, STEP_UP_OPS, stepUpModeFor } from './step-up'
+import { requestStepUp, setStepUpHandler, STEP_UP_OPS, stepUpModeFor, type StepUpPrompt } from './step-up'
 
 type Op = { responses?: Record<string, { description?: string }> }
 
@@ -43,19 +43,40 @@ describe('requestStepUp', () => {
 
   it('shares one dialog between parallel requests', async () => {
     let resolve!: (ok: boolean) => void
-    const handler = vi.fn(() => new Promise<boolean>((r) => (resolve = r)))
+    const handler = vi.fn<(p: StepUpPrompt) => Promise<boolean>>(() => new Promise<boolean>((r) => (resolve = r)))
     off = setStepUpHandler(handler)
     const a = requestStepUp('any')
-    const b = requestStepUp('otp')
+    const b = requestStepUp('any')
     resolve(true)
     expect(await Promise.all([a, b])).toEqual([true, true])
     expect(handler).toHaveBeenCalledTimes(1)
-    expect(handler).toHaveBeenCalledWith('any')
+    expect(handler.mock.calls[0]![0].mode).toBe('any')
     // The next 403 opens a new dialog.
     const c = requestStepUp('otp')
     resolve(false)
     expect(await c).toBe(false)
     expect(handler).toHaveBeenCalledTimes(2)
+  })
+
+  it('tightens the shared prompt to otp when a TOTP-only request joins', async () => {
+    let resolve!: (ok: boolean) => void
+    let prompt!: StepUpPrompt
+    const seen: string[] = []
+    off = setStepUpHandler((p) => {
+      prompt = p
+      p.subscribe((m) => seen.push(m))
+      return new Promise<boolean>((r) => (resolve = r))
+    })
+    const a = requestStepUp('any')
+    expect(prompt.mode).toBe('any')
+    const b = requestStepUp('otp')
+    expect(prompt.mode).toBe('otp')
+    expect(seen).toEqual(['otp'])
+    // A later `any` waiter never loosens it.
+    void requestStepUp('any')
+    expect(prompt.mode).toBe('otp')
+    resolve(true)
+    expect(await Promise.all([a, b])).toEqual([true, true])
   })
 
   it('treats a throwing handler as cancelled', async () => {

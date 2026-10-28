@@ -93,10 +93,13 @@ export async function authFetch(input: Request): Promise<Response> {
   let token = getAccessToken()
   if (!token && getSession().status !== 'anonymous') token = await refreshOnce(null)
   let res = await send(input, token)
+  /** The access token the current `res` was sent with. */
+  let sent = token
 
   if (res.status === 401 && getSession().status !== 'anonymous') {
     const fresh = await refreshOnce(token)
     if (!fresh) return res
+    sent = fresh
     res = await send(template.clone(), fresh)
     if (res.status === 401) {
       clearSession('expired', { broadcast: true })
@@ -113,6 +116,10 @@ export async function authFetch(input: Request): Promise<Response> {
     return res
   }
   if (type !== 'MFA_STEP_UP_REQUIRED') return res
+  // The token changed while this request was in flight (a step-up done for a parallel request, or
+  // another tab's): replay once with it before asking for another code.
+  const now = getAccessToken()
+  if (now && now !== sent) return send(template.clone(), now)
   if (!(await requestStepUp(stepUpModeFor(input.method, path)))) return res
   return send(template.clone(), getAccessToken())
 }

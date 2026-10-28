@@ -8,7 +8,7 @@ import { envelope, installFetch, json, jwt } from '@/test/fake-api'
 import { api, isPublicPath, unwrap } from './client'
 import { ApiError } from './errors'
 import { clearSession, getAccessToken, storeTokens } from './session'
-import { setEnrollmentHandler, setStepUpHandler } from './step-up'
+import { setEnrollmentHandler, setStepUpHandler, type StepUpPrompt } from './step-up'
 
 const memberships = [{ tenant_id: 't1', tenant_name: 'Acme', role: 'owner' as const }]
 const signIn = (access = jwt()) => storeTokens({ access_token: access, refresh_token: 'rt-1', expires_in: 1800, token_type: 'bearer', memberships })
@@ -44,7 +44,7 @@ describe('authFetch', () => {
 
   it('on MFA_STEP_UP_REQUIRED asks for a code, then replays the request once with the new token', async () => {
     const stepped = jwt({ amr: ['pwd', 'otp'] })
-    const handler = vi.fn(async () => {
+    const handler = vi.fn(async (_p: StepUpPrompt) => {
       // What the dialog does on success: swap the access token in.
       const { adoptStepUpToken } = await import('./session')
       return adoptStepUpToken(stepped)
@@ -55,7 +55,7 @@ describe('authFetch', () => {
     })
     const out = await patchMember()
     expect(out.role).toBe('reviewer')
-    expect(handler).toHaveBeenCalledWith('any')
+    expect(handler.mock.calls[0]![0].mode).toBe('any')
     expect(calls).toHaveLength(2)
     expect(calls[1]!.auth).toBe(`Bearer ${stepped}`)
     // The same body is replayed.
@@ -63,11 +63,11 @@ describe('authFetch', () => {
   })
 
   it('asks for a TOTP code only on an otp op', async () => {
-    const handler = vi.fn(async () => false)
+    const handler = vi.fn(async (_p: StepUpPrompt) => false)
     offs.push(setStepUpHandler(handler))
     installFetch({ 'POST /marketplaces/accounts/a1/revoke': () => envelope(403, 'MFA_STEP_UP_REQUIRED') })
     await expect(unwrap(api.POST('/marketplaces/accounts/{account_id}/revoke', { params: { path: { account_id: 'a1' } } }))).rejects.toBeInstanceOf(ApiError)
-    expect(handler).toHaveBeenCalledWith('otp')
+    expect(handler.mock.calls[0]![0].mode).toBe('otp')
   })
 
   it('returns the 403 when the step-up is cancelled', async () => {
@@ -84,6 +84,27 @@ describe('authFetch', () => {
     await expect(patchMember()).rejects.toMatchObject({ type: 'MFA_STEP_UP_REQUIRED' })
     expect(handler).toHaveBeenCalledTimes(1)
     expect(calls).toHaveLength(2)
+  })
+
+  it('replays once without asking when the token changed while the request was in flight', async () => {
+    const handler = vi.fn(async () => true)
+    offs.push(setStepUpHandler(handler))
+    const stepped = jwt({ amr: ['pwd', 'otp'], jti: 'parallel' })
+    const { adoptStepUpToken } = await import('./session')
+    const { calls } = installFetch({
+      'PATCH /members/u2': [
+        () => {
+          // A parallel request's step-up lands before this 403 comes back.
+          adoptStepUpToken(stepped)
+          return envelope(403, 'MFA_STEP_UP_REQUIRED')
+        },
+        () => json(200, member),
+      ],
+    })
+    expect(await patchMember()).toEqual(member)
+    expect(handler).not.toHaveBeenCalled()
+    expect(calls).toHaveLength(2)
+    expect(calls[1]!.auth).toBe(`Bearer ${stepped}`)
   })
 
   it('leaves a role 403 alone', async () => {
