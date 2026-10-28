@@ -52,6 +52,7 @@ import { Route as AppSettingsRulesCheckRouteImport } from './routes/_app/_settin
 import { Route as AppSettingsSettingsIndexRouteImport } from './routes/_app/_settings/settings/index'
 import { Route as AppSettingsSettingsComplianceRouteImport } from './routes/_app/_settings/settings/compliance'
 import { Route as AppSettingsSettingsImportsRouteImport } from './routes/_app/_settings/settings/imports'
+import { Route as AppSettingsSettingsSecurityRouteImport } from './routes/_app/_settings/settings/security'
 import { Route as AppListingsListingIdLiveRouteImport } from './routes/_app/listings/$listingId/live'
 import { Route as AppListingsListingIdMappingRouteImport } from './routes/_app/listings/$listingId/mapping'
 import { Route as AppListingsListingIdReviewRouteImport } from './routes/_app/listings/$listingId/review'
@@ -273,6 +274,12 @@ const AppSettingsSettingsImportsRoute =
     path: '/settings/imports',
     getParentRoute: () => AppSettingsRoute,
   } as any)
+const AppSettingsSettingsSecurityRoute =
+  AppSettingsSettingsSecurityRouteImport.update({
+    id: '/settings/security',
+    path: '/settings/security',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
 const AppListingsListingIdLiveRoute =
   AppListingsListingIdLiveRouteImport.update({
     id: '/listings/$listingId/live',
@@ -332,6 +339,7 @@ export interface FileRoutesByFullPath {
   '/rules/check': typeof AppSettingsRulesCheckRoute
   '/settings/compliance': typeof AppSettingsSettingsComplianceRoute
   '/settings/imports': typeof AppSettingsSettingsImportsRoute
+  '/settings/security': typeof AppSettingsSettingsSecurityRoute
   '/listings/$listingId/live': typeof AppListingsListingIdLiveRoute
   '/listings/$listingId/mapping': typeof AppListingsListingIdMappingRoute
   '/listings/$listingId/review': typeof AppListingsListingIdReviewRoute
@@ -377,6 +385,7 @@ export interface FileRoutesByTo {
   '/rules/check': typeof AppSettingsRulesCheckRoute
   '/settings/compliance': typeof AppSettingsSettingsComplianceRoute
   '/settings/imports': typeof AppSettingsSettingsImportsRoute
+  '/settings/security': typeof AppSettingsSettingsSecurityRoute
   '/listings/$listingId/live': typeof AppListingsListingIdLiveRoute
   '/listings/$listingId/mapping': typeof AppListingsListingIdMappingRoute
   '/listings/$listingId/review': typeof AppListingsListingIdReviewRoute
@@ -426,6 +435,7 @@ export interface FileRoutesById {
   '/_app/_settings/rules/check': typeof AppSettingsRulesCheckRoute
   '/_app/_settings/settings/compliance': typeof AppSettingsSettingsComplianceRoute
   '/_app/_settings/settings/imports': typeof AppSettingsSettingsImportsRoute
+  '/_app/_settings/settings/security': typeof AppSettingsSettingsSecurityRoute
   '/_app/listings/$listingId/live': typeof AppListingsListingIdLiveRoute
   '/_app/listings/$listingId/mapping': typeof AppListingsListingIdMappingRoute
   '/_app/listings/$listingId/review': typeof AppListingsListingIdReviewRoute
@@ -474,6 +484,7 @@ export interface FileRouteTypes {
     | '/rules/check'
     | '/settings/compliance'
     | '/settings/imports'
+    | '/settings/security'
     | '/listings/$listingId/live'
     | '/listings/$listingId/mapping'
     | '/listings/$listingId/review'
@@ -519,6 +530,7 @@ export interface FileRouteTypes {
     | '/rules/check'
     | '/settings/compliance'
     | '/settings/imports'
+    | '/settings/security'
     | '/listings/$listingId/live'
     | '/listings/$listingId/mapping'
     | '/listings/$listingId/review'
@@ -567,6 +579,7 @@ export interface FileRouteTypes {
     | '/_app/_settings/rules/check'
     | '/_app/_settings/settings/compliance'
     | '/_app/_settings/settings/imports'
+    | '/_app/_settings/settings/security'
     | '/_app/listings/$listingId/live'
     | '/_app/listings/$listingId/mapping'
     | '/_app/listings/$listingId/review'
@@ -887,6 +900,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsSettingsImportsRouteImport
       parentRoute: typeof AppSettingsRoute
     }
+    '/_app/_settings/settings/security': {
+      id: '/_app/_settings/settings/security'
+      path: '/settings/security'
+      fullPath: '/settings/security'
+      preLoaderRoute: typeof AppSettingsSettingsSecurityRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/listings/$listingId/live': {
       id: '/_app/listings/$listingId/live'
       path: '/listings/$listingId/live'
@@ -919,6 +939,7 @@ interface AppSettingsRouteChildren {
   AppSettingsRulesCheckRoute: typeof AppSettingsRulesCheckRoute
   AppSettingsSettingsComplianceRoute: typeof AppSettingsSettingsComplianceRoute
   AppSettingsSettingsImportsRoute: typeof AppSettingsSettingsImportsRoute
+  AppSettingsSettingsSecurityRoute: typeof AppSettingsSettingsSecurityRoute
   AppSettingsRulesIndexRoute: typeof AppSettingsRulesIndexRoute
   AppSettingsSettingsIndexRoute: typeof AppSettingsSettingsIndexRoute
 }
@@ -931,6 +952,7 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsRulesCheckRoute: AppSettingsRulesCheckRoute,
   AppSettingsSettingsComplianceRoute: AppSettingsSettingsComplianceRoute,
   AppSettingsSettingsImportsRoute: AppSettingsSettingsImportsRoute,
+  AppSettingsSettingsSecurityRoute: AppSettingsSettingsSecurityRoute,
   AppSettingsRulesIndexRoute: AppSettingsRulesIndexRoute,
   AppSettingsSettingsIndexRoute: AppSettingsSettingsIndexRoute,
 }

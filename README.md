@@ -57,7 +57,7 @@ refresh token as theft.
 | `pnpm lint` | oxlint |
 | `pnpm test` | Unit tests (Vitest) |
 | `pnpm e2e` | End-to-end tests (Playwright), see below |
-| `pnpm gen:api` | Refresh `src/api/openapi.json` and `src/api/schema.d.ts` from `OPENAPI_URL` |
+| `pnpm gen:api` | Refresh `src/api/openapi.json` and `src/api/schema.d.ts` from `OPENAPI_URL` (or copy the backend's committed `packages/schemas/jsonschema/openapi.json` and run `openapi-typescript`) |
 
 ## Deploying
 
@@ -68,13 +68,14 @@ the API shares the app's origin.
 
 ## Features
 
-Every working control calls the real API (contract v1.1.0, `src/api/schema.d.ts`). No sample
+Every working control calls the real API (contract v2.0.0, `src/api/schema.d.ts`). No sample
 records, no hardcoded counts: numbers on Home, Inbox and Products are counted from API pages. The
 design source is `docs/design-reference/listing-agent-hifi-handoff.html` (18 screens + Autonomy).
 
 | Area | Screens | Backed by |
 |---|---|---|
-| Public | Landing, sign in, request access, request status, privacy policy | `/auth/login`, `/signup`, `/signup/status` |
+| Public | Landing, sign in (with the login-code, forced enrolment, recovery codes and forced password steps), request access, request status, privacy policy | `/auth/login`, `/auth/login/mfa*`, `/auth/password/expired`, `/signup`, `/signup/status` |
+| Security (DPP-1) | Settings > Security: login codes status, set up or replace the authenticator, new recovery codes, change password; the step-up dialog on every sensitive action | `/auth/security`, `/auth/mfa/*`, `/auth/password` |
 | Setup (02-04) | Brand and business, compliance defaults, connect marketplaces | `PATCH /tenants/me` (If-Match), `/marketplaces/*` |
 | Home and Inbox (05, 06, 11, 16) | Home (first run + working), Inbox, issue detail | `/listings`, `/tasks`, `/issues`, `/issues/{id}/dismiss`, submissions |
 | Products and add (07-10, 17) | Products table/cards, product detail tabs, add chooser, guided form, bulk upload, variants and media | `/products`, `/products/bulk`, `/imports/*`, `/jobs/{id}`, `/images/*`, `POST /listings/generate` |
@@ -93,7 +94,7 @@ App: `/home`, `/inbox`, `/issues/$issueId`, `/products`, `/products/$productId`,
 `/listings/$listingId/mapping`, `/listings/$listingId/live`, `/marketplaces`, `/marketplaces/connected`,
 `/activity`, `/analytics`, `/about`, `/imports`, `/imports/new`, `/imports/$importId`, `/jobs/$jobId`.
 Settings: `/settings`, `/settings/compliance`, `/settings/imports`, `/brand`, `/team`, `/rules`,
-`/rules/check`, `/account`, `/admin/signups`.
+`/rules/check`, `/account`, `/settings/security`, `/admin/signups`.
 
 ### Shown but not in the API yet (honest disabled)
 
