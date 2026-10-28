@@ -130,6 +130,19 @@ export function storeTokens(t: TokenResponse) {
   adoptAccess(t.access_token)
 }
 
+/**
+ * Swap in the access token of a step-up (POST /auth/mfa/step-up). `StepUpOut` has no refresh
+ * token, so this never goes through `storeTokens` (which would wipe the stored one). Only a token
+ * for the same user and tenant is taken; other tabs adopt it through the usual broadcast.
+ */
+export function adoptStepUpToken(token: string): boolean {
+  const decoded = decodeJwt(token)
+  if (!decoded || decoded.sub !== state.userId || decoded.tid !== state.tenantId) return false
+  adoptAccess(token)
+  post({ type: 'tokens', access_token: token })
+  return true
+}
+
 /** Drop everything locally. `broadcast` tells other tabs to do the same. */
 export function clearSession(reason: EndReason, opts: { broadcast?: boolean } = {}) {
   const wasAuthed = state.status === 'authenticated'

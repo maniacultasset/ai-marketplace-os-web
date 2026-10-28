@@ -7,6 +7,7 @@ import { networkError } from '@/api/errors'
 import { getSession, restoreSession, retryRestore } from '@/api/session'
 import { meQueryOptions } from '@/lib/auth'
 import { ImportJobsWatcher } from '@/features/imports/import-jobs-watcher'
+import { StepUpHost } from '@/features/mfa/step-up-dialog'
 import { SoloShell } from '@/components/app/solo-shell'
 import { useRouteMeta } from '@/lib/route-meta'
 
@@ -34,6 +35,8 @@ function AppLayout() {
     <>
       {/* Polls import jobs this browser started so every screen refreshes when they end. */}
       <ImportJobsWatcher />
+      {/* Answers 403 MFA_STEP_UP_REQUIRED from any request with a code, then the request is replayed. */}
+      <StepUpHost />
       {meta.solo ? <SoloShell title={meta.title} /> : <AppShell />}
     </>
   )
