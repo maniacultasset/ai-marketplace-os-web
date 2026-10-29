@@ -5,7 +5,6 @@
  */
 import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
-import { ApiStatus } from '@/components/app/api-status'
 import { Banner } from '@/components/la/banner'
 import { Wordmark } from '@/components/la/icons'
 import { ReferenceId } from '@/components/states/reference-id'
@@ -99,11 +98,10 @@ export function FormAlert({ message, reference, testId }: { message: ReactNode; 
   )
 }
 
-/** Quiet footer line with the live API status (GET /readyz). */
+/** Quiet footer line. An unreachable server is shown by the app-wide NetworkBanner instead. */
 export function AuthFootnote({ children }: { children?: ReactNode }) {
   return (
-    <div className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pt-6 text-caption text-ink-2">
-      <ApiStatus />
+    <div className="mt-auto flex flex-wrap items-center justify-end gap-x-4 gap-y-2 pt-6 text-caption text-ink-2">
       {children}
     </div>
   )
