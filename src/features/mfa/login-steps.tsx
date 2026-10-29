@@ -369,9 +369,7 @@ export function EnrollStep({
           {/* Icons, not numbers: the stepper above already numbers the sign-in steps. */}
           {steps.map((st) => (
             <li key={st.title} className="grid grid-cols-[28px_minmax(0,1fr)] gap-x-3 gap-y-3">
-              <span aria-hidden className="mt-0.5 inline-flex size-7 items-center justify-center rounded-full border border-brand-line bg-brand-bg text-brand-ink">
-                <st.icon className="size-3.5" strokeWidth={2.25} />
-              </span>
+              <IconTile icon={st.icon} tone="brand" size="sm" className="mt-0.5" />
               <div className="min-w-0 self-center">
                 <p className="text-body font-semibold text-ink">{st.title}</p>
                 {st.body ? <p className="mt-0.5 text-small text-ink-2">{st.body}</p> : null}

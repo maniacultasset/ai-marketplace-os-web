@@ -78,7 +78,7 @@ const SHEET = [
   // The full-width Cancel is the way out on a phone; the small corner X is a desktop affordance.
   'max-sm:[&>[data-slot=dialog-close]]:hidden',
   'max-sm:top-auto max-sm:bottom-0 max-sm:left-0 max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0',
-  'max-sm:rounded-b-none max-sm:rounded-t-[20px] max-sm:border-x-0 max-sm:border-b-0 max-sm:px-4 max-sm:pt-3',
+  'max-sm:rounded-b-none max-sm:rounded-t-3xl max-sm:border-x-0 max-sm:border-b-0 max-sm:px-4 max-sm:pt-3',
   'max-sm:pb-[max(1rem,env(safe-area-inset-bottom))]',
   'max-sm:data-open:slide-in-from-bottom max-sm:data-open:zoom-in-100 max-sm:data-closed:slide-out-to-bottom max-sm:data-closed:zoom-out-100',
   'max-sm:data-open:duration-300 max-sm:data-open:ease-[var(--ease-spring)]',

@@ -133,9 +133,10 @@ function CodesMeter({ n }: { n: number }) {
   const low = n <= LOW_CODES
   return (
     <span className="flex flex-col items-end gap-1.5 @xl:flex-col-reverse @xl:items-start @xl:gap-2">
-      <span aria-hidden className="flex gap-1">
+      {/* One inset track (with its hairline) holding the ten segments, as every meter does. */}
+      <span aria-hidden className="inset-track flex gap-1 rounded-full border border-line p-0.5">
         {Array.from({ length: 10 }, (_, i) => (
-          <span key={i} className={cn('h-1.5 w-2.5 rounded-full @xl:w-4', i < n ? (low ? 'bg-attention' : 'bg-success') : 'bg-subtle shadow-inset-sm')} />
+          <span key={i} className={cn('h-1.5 w-2.5 rounded-full @xl:w-4', i < n ? (low ? 'bg-attention' : 'bg-success') : 'bg-ink-3/35')} />
         ))}
       </span>
       <span data-testid="codes-left" className="leading-5 tabular-nums">
@@ -708,7 +709,7 @@ export function SecurityView({ setup = false, onSetupShown }: { setup?: boolean;
         {[0, 1].map((i) => (
           <Card key={i} className="gap-0 py-0">
             <div className="flex flex-col gap-4 p-5 sm:flex-row sm:p-6">
-              <Skeleton className="size-11 rounded-[12px]" />
+              <Skeleton className="size-11 rounded-xl" />
               <div className="flex flex-1 flex-col gap-2">
                 <Skeleton className="h-5 w-40" />
                 <Skeleton className="h-4 w-72 max-w-full" />

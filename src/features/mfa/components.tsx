@@ -127,7 +127,7 @@ export function CodeField({
 }
 
 const SLOT =
-  'flex h-14 min-w-0 flex-1 items-center justify-center rounded-[10px] border inset-field text-[28px] leading-none font-semibold tracking-[-0.01em] tabular-nums text-ink sm:h-16 sm:max-w-14 tactile'
+  'flex h-14 min-w-0 flex-1 items-center justify-center rounded-xl border inset-field text-[28px] leading-none font-semibold tracking-[-0.01em] tabular-nums text-ink sm:h-16 sm:max-w-14 tactile'
 
 /**
  * Six slots drawn over one real, transparent input: the input keeps every native behaviour (the
@@ -245,7 +245,8 @@ function OtpSlots({
               ? cn('border-danger bg-field-invalid', on && 'shadow-[var(--focus-ring-danger),var(--shadow-inset-sm)]')
               : on
                 ? cn('border-brand shadow-[var(--focus-ring),var(--shadow-inset-sm)]', digit && 'bg-surface')
-                : digit && 'border-line-strong bg-surface shadow-raised-sm',
+                : // A filled slot stays pressed in (it is still the field), on the lighter fill.
+                  digit && 'bg-surface',
         )}
       >
         {digit || (on ? <span className="otp-caret h-7 w-0.5 rounded-full bg-brand" /> : null)}
@@ -342,19 +343,19 @@ export function QrCode({ uri, size = 184, className }: { uri: string; size?: num
   const box = { width: size, height: size }
   if (failed) {
     return (
-      <div style={box} className={cn('flex items-center justify-center rounded-[10px] border border-line bg-surface p-3 text-center text-caption text-ink-2', className)}>
+      <div style={box} className={cn('flex items-center justify-center rounded-lg border border-line bg-surface p-3 text-center text-caption text-ink-2', className)}>
         The QR code could not be drawn. Use the setup key instead.
       </div>
     )
   }
-  if (!src) return <Skeleton style={box} className={cn('rounded-[10px]', className)} aria-label="Drawing the QR code" />
+  if (!src) return <Skeleton style={box} className={cn('rounded-lg', className)} aria-label="Drawing the QR code" />
   return (
     <img
       src={src}
       width={size}
       height={size}
       alt="QR code to scan with your authenticator app. If you can't scan it, type the setup key instead."
-      className={cn('rounded-[10px] border border-line bg-white', className)}
+      className={cn('rounded-lg border border-line bg-surface', className)}
       data-testid="mfa-qr"
     />
   )
@@ -382,11 +383,11 @@ export function QrPanel({ secret }: { secret: { otpauth_uri: string; secret_b32:
         </div>
       ) : null}
       <div className="grid gap-5 @md:grid-cols-[auto_minmax(0,1fr)] @md:items-center">
-        <div className="mx-auto rounded-xl border border-line bg-white p-2 shadow-raised-sm @md:mx-0">
+        <div className="mx-auto rounded-xl border border-line bg-surface p-2 shadow-raised-sm @md:mx-0">
           {secret ? (
-            <QrCode uri={secret.otpauth_uri} size={QR_SIZE} className="rounded-[6px] border-0" />
+            <QrCode uri={secret.otpauth_uri} size={QR_SIZE} className="rounded-xs border-0" />
           ) : (
-            <Skeleton style={{ width: QR_SIZE, height: QR_SIZE }} className="rounded-[6px]" />
+            <Skeleton style={{ width: QR_SIZE, height: QR_SIZE }} className="rounded-xs" />
           )}
         </div>
         {secret ? (
@@ -431,7 +432,7 @@ export function SetupKey({ secret }: { secret: string }) {
       <div className="flex w-full items-stretch gap-2">
         <code
           aria-labelledby={labelId}
-          className="grid min-w-0 flex-1 grid-cols-4 gap-x-3 gap-y-1 rounded-[10px] border border-line bg-surface px-3.5 py-2.5 font-mono text-[15px] leading-6 tracking-[0.04em] text-ink shadow-inset-sm"
+          className="grid min-w-0 flex-1 grid-cols-4 gap-x-3 gap-y-1 rounded-control border inset-field px-3.5 py-2.5 font-mono text-[15px] leading-6 tracking-[0.04em] text-ink"
           data-testid="mfa-secret"
         >
           {groups.map((g, i) => (
@@ -525,7 +526,7 @@ export function RecoveryCodes({
       <ol
         aria-label="Recovery codes"
         className={cn(
-          'grid gap-x-6 rounded-2xl border border-line bg-surface px-4 py-1 shadow-inset-sm [counter-reset:rc]',
+          'grid gap-x-6 rounded-2xl border inset-field px-4 py-1 [counter-reset:rc]',
           twoColumns && codes.length === 10 && '@sm:grid-flow-col @sm:grid-cols-2 @sm:grid-rows-5 @sm:[&>li:nth-child(5)]:border-b-0',
         )}
       >
@@ -565,7 +566,7 @@ export function RecoveryCodes({
       </div>
       <label
         htmlFor={checkId}
-        className="tactile flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-line bg-canvas px-4 py-3 has-[[data-state=checked]]:border-success-line has-[[data-state=checked]]:bg-success-tint"
+        className="tactile raised flex min-h-12 cursor-pointer items-center gap-3 rounded-xl px-4 py-3 has-[[data-state=checked]]:border-success-line has-[[data-state=checked]]:bg-success-tint has-[[data-state=checked]]:shadow-inset-sm"
       >
         <Checkbox id={checkId} checked={saved} onCheckedChange={(v) => setSaved(v === true)} data-testid="codes-saved" />
         <span className="text-body text-ink">I saved these codes somewhere safe</span>
@@ -626,10 +627,10 @@ export function PasswordRules({
                 aria-hidden
                 className={cn(
                   'tactile mt-px inline-flex size-4 shrink-0 items-center justify-center rounded-full',
-                  met ? 'bg-success text-white' : 'border-[1.5px] border-line-strong bg-surface',
+                  met ? 'bg-success text-primary-foreground' : 'border border-ink-3/75 bg-field shadow-inset-sm',
                 )}
               >
-                {met ? <Check className="size-3" strokeWidth={3} /> : null}
+                {met ? <Check className="size-3" strokeWidth={2.5} /> : null}
               </span>
               <span>
                 {RULE_LABELS[rule]}

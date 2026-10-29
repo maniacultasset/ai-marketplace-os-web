@@ -63,7 +63,7 @@ export function AuthCard({ size = 'sm', children, testId = 'login-card' }: { siz
 /** "Signing in as …" on the steps after the password, with the way back to a different account. */
 export function AccountChip({ email, onSwitch }: { email: string; onSwitch?: () => void }) {
   return (
-    <div className="flex min-h-11 items-center gap-3 rounded-xl border border-line bg-canvas py-1.5 pr-1.5 pl-3">
+    <div className="flex min-h-11 items-center gap-3 rounded-xl border border-line bg-canvas py-1.5 pr-1.5 pl-3 shadow-inset-sm">
       <IconTile icon="user" tone="neutral" size="sm" />
       {/* A long address wraps (two lines at most) rather than hiding which account this is. */}
       <p className="line-clamp-2 min-w-0 flex-1 text-small font-semibold [overflow-wrap:anywhere] text-ink" title={email}>
@@ -75,7 +75,7 @@ export function AccountChip({ email, onSwitch }: { email: string; onSwitch?: () 
           type="button"
           variant="ghost"
           size="sm"
-          className="-my-1.5 shrink-0 px-2.5 max-sm:h-11"
+          className="-my-1.5 shrink-0 rounded-md px-2.5 max-sm:h-11"
           onClick={onSwitch}
           aria-label="Switch account"
           data-testid="login-start-over"
@@ -162,7 +162,7 @@ export function FormAlert({
   focusRef?: Ref<HTMLDivElement>
 }) {
   return (
-    <div data-testid={testId} ref={focusRef} tabIndex={-1} className="rounded-[10px] outline-none focus-visible:shadow-[var(--focus-ring)]">
+    <div data-testid={testId} ref={focusRef} tabIndex={-1} className="rounded-banner outline-none focus-visible:shadow-[var(--focus-ring)]">
       <Banner tone={tone} icon={icon} role={tone === 'danger' ? 'alert' : 'status'}>
         <span className="block">{message}</span>
         <ReferenceId id={reference} className="mt-1" />
