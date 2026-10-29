@@ -685,3 +685,23 @@ svg.lucide[stroke-width="2"] {
     opacity: 0;
   }
 }
+
+/* OTP slot caret: a 2px brand bar that blinks while the slot row has focus. */
+@keyframes otp-caret {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+.otp-caret {
+  animation: otp-caret 1.06s steps(1, end) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .otp-caret {
+    animation: none;
+    opacity: 1;
+  }
+}

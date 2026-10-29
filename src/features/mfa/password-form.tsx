@@ -4,18 +4,16 @@
  * checked live (password-rules.ts); the server's 422 rule sentences land under the field.
  */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import { isApiError } from '@/api/errors'
 import { fieldHintId, LaField } from '@/components/la/field'
-import { Button } from '@/components/ui/button'
-import { Spinner } from '@/components/ui/spinner'
 import { FormAlert } from '@/features/public/auth-frame'
 import { PasswordInput } from '@/features/signup-admin/password-input'
 import { FORM_VALIDATION_MODE } from '@/lib/validation'
 import { mfaErrorMessage, ruleMessages } from './api'
-import { PasswordRules } from './components'
+import { PasswordRules, SubmitButton, TOUCH_TEXT } from './components'
 import { checkPassword, PASSWORD_MAX } from './password-rules'
 
 export interface PasswordFormValues {
@@ -48,6 +46,8 @@ export function PasswordForm({
   autoFocus,
   idPrefix = 'pw',
   testId,
+  submitSize = 'lg',
+  actions,
 }: {
   email: string
   displayName?: string | null
@@ -58,8 +58,20 @@ export function PasswordForm({
   autoFocus?: boolean
   idPrefix?: string
   testId?: string
+  submitSize?: 'md' | 'lg'
+  /** Buttons beside the submit (e.g. Cancel): right-aligned from 640px, stacked under it on a phone. */
+  actions?: ReactNode
 }) {
   const [formError, setFormError] = useState<{ message: string; ref: string | null } | null>(null)
+  const alertRef = useRef<HTMLDivElement>(null)
+  // A refusal from the server (e.g. once a day) may land above the fold: bring it into view.
+  useEffect(() => {
+    const el = alertRef.current
+    if (!formError || !el) return
+    const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    el.scrollIntoView?.({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' })
+    el.focus({ preventScroll: true })
+  }, [formError])
   const rulesId = useId()
   const form = useForm<PasswordFormValues>({
     resolver: zodResolver(schema({ email, displayName }, requireCurrent)),
@@ -91,11 +103,12 @@ export function PasswordForm({
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4" data-testid={testId}>
-      {formError ? <FormAlert testId="password-error" message={formError.message} reference={formError.ref} /> : null}
+      {formError ? <FormAlert testId="password-error" message={formError.message} reference={formError.ref} focusRef={alertRef} /> : null}
       {requireCurrent ? (
         <LaField label="Current password" htmlFor={ids.current} error={errors.current_password?.message} submitCount={submitCount}>
           <PasswordInput
             id={ids.current}
+            className={TOUCH_TEXT}
             autoComplete="current-password"
             autoFocus={autoFocus}
             aria-invalid={!!errors.current_password}
@@ -107,6 +120,7 @@ export function PasswordForm({
       <LaField label="New password" htmlFor={ids.next} error={errors.new_password?.message} submitCount={submitCount}>
         <PasswordInput
           id={ids.next}
+          className={TOUCH_TEXT}
           autoComplete="new-password"
           autoFocus={autoFocus && !requireCurrent}
           maxLength={PASSWORD_MAX}
@@ -119,6 +133,7 @@ export function PasswordForm({
       <LaField label="Type it again" htmlFor={ids.confirm} error={errors.confirm?.message} submitCount={submitCount}>
         <PasswordInput
           id={ids.confirm}
+          className={TOUCH_TEXT}
           autoComplete="new-password"
           maxLength={PASSWORD_MAX}
           aria-invalid={!!errors.confirm}
@@ -126,10 +141,14 @@ export function PasswordForm({
           {...form.register('confirm')}
         />
       </LaField>
-      <Button type="submit" size="lg" className="w-full sm:w-auto sm:self-start" disabled={isSubmitting}>
-        {isSubmitting ? <Spinner data-icon="inline-start" /> : null}
-        {isSubmitting ? 'Saving…' : submitLabel}
-      </Button>
+      {actions ? (
+        <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
+          {actions}
+          <SubmitButton busy={isSubmitting} waiting={0} label={submitLabel} busyLabel="Saving…" size={submitSize} className="w-full sm:w-auto" />
+        </div>
+      ) : (
+        <SubmitButton busy={isSubmitting} waiting={0} label={submitLabel} busyLabel="Saving…" size={submitSize} className="w-full" />
+      )}
     </form>
   )
 }
