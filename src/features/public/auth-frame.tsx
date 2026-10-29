@@ -38,24 +38,28 @@ export function AuthFrame({ aside, tone = 'surface', children }: { aside?: React
 }
 
 /**
- * The single frame for every sign-in step: centred when short, top-aligned when tall. `sm` (440)
- * for the password and code steps, `lg` (640) for enrolment, the recovery codes and a new password,
- * so that sequence never changes width. No border or padding on a phone: the 16px gutter is the
+ * The single frame for every sign-in step. `sm` (440, centred) for the password and code steps,
+ * `lg` (704, top-aligned) for enrolment, the recovery codes and a new password, so that sequence
+ * never changes width or moves. No border or padding on a phone: the 16px gutter is the
  * only margin.
  */
 export function AuthCard({ size = 'sm', children, testId = 'login-card' }: { size?: 'sm' | 'lg'; children: ReactNode; testId?: string }) {
   return (
-    <div className="mx-auto flex w-full flex-1 flex-col px-4 py-6 sm:px-6 sm:py-10 lg:py-14">
+    <div className={cn('mx-auto flex w-full flex-1 flex-col px-4 py-6 sm:px-6', size === 'sm' ? 'sm:py-10 lg:py-14' : 'max-sm:pb-0 sm:py-8')}>
       <div
         className={cn(
-          'mx-auto flex w-full flex-col gap-5 sm:my-auto sm:rounded-2xl sm:border sm:border-line sm:bg-surface sm:p-8 sm:shadow-card',
-          size === 'sm' ? 'max-w-[440px]' : 'max-w-[640px] md:p-10',
+          'mx-auto flex w-full flex-col gap-5 sm:rounded-2xl sm:border sm:border-line sm:bg-surface sm:p-8 sm:shadow-card',
+          // The wide steps (enrolment, recovery codes, a new password) keep one top edge, so the
+          // card does not jump up and down as each step's height changes.
+          // On a phone the wide card fills the screen, so a step's sticky button bar can sit on
+          // the bottom edge (the card is borderless there).
+          size === 'sm' ? 'max-w-[440px] sm:my-auto' : 'max-w-[704px] max-sm:flex-1 md:p-10',
         )}
         data-testid={testId}
       >
         {children}
       </div>
-      <AuthFootnote />
+      {size === 'sm' ? <AuthFootnote /> : <AuthFootnote className="max-sm:hidden" />}
     </div>
   )
 }
@@ -172,9 +176,9 @@ export function FormAlert({
 }
 
 /** Quiet footer line. An unreachable server is shown by the app-wide NetworkBanner instead. */
-export function AuthFootnote({ children }: { children?: ReactNode }) {
+export function AuthFootnote({ children, className }: { children?: ReactNode; className?: string }) {
   return (
-    <div className="mt-auto flex flex-wrap items-center justify-end gap-x-4 gap-y-2 pt-6 text-caption text-ink-2">
+    <div className={cn('mt-auto flex flex-wrap items-center justify-end gap-x-4 gap-y-2 pt-6 text-caption text-ink-2', className)}>
       {children}
     </div>
   )

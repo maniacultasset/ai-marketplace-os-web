@@ -113,8 +113,10 @@ test.describe('login codes under MFA_ENFORCEMENT=all', () => {
 
     const enroll = page.getByTestId('enroll-step')
     await expect(enroll.getByTestId('step-title')).toHaveText('Set up login codes')
+    await enroll.getByTestId('enrol-continue').click()
     await expect(enroll.getByTestId('mfa-qr')).toBeVisible()
     auth = new Authenticator(await readSetupKey(page))
+    await enroll.getByTestId('enrol-continue').click()
 
     // A wrong code first: the generic words, still on the step.
     await enroll.getByTestId('totp-input').fill(auth.wrongCode())
@@ -267,8 +269,9 @@ test.describe('login codes under MFA_ENFORCEMENT=all', () => {
     const setup = page.getByTestId('totp-setup')
     await setup.getByLabel('Current password').fill(STAFF_PASSWORD)
     await setup.getByRole('button', { name: 'Continue' }).click()
-    const graceAuth = new Authenticator(await readSetupKey(page))
     await expect(setup.getByTestId('mfa-qr')).toBeVisible()
+    const graceAuth = new Authenticator(await readSetupKey(page))
+    await setup.getByTestId('enrol-continue').click()
     await setup.getByTestId('totp-input').fill(await graceAuth.code())
     await setup.getByRole('button', { name: 'Turn on login codes' }).click()
     await expect(setup.getByTestId('recovery-codes').locator('ol li')).toHaveCount(10)

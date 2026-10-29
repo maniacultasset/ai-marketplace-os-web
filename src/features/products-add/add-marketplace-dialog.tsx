@@ -72,7 +72,7 @@ export function AddMarketplaceDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="max-w-[560px]">
+      <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>Add marketplace</DialogTitle>
           <DialogDescription>

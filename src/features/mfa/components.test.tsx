@@ -2,7 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { CodeField, SetupKey } from './components'
+import { CodeField, QrPanel, SetupKey } from './components'
 
 function Harness({ onSubmit, canAutoSubmit = true, error }: { onSubmit: (v: string) => void; canAutoSubmit?: boolean; error?: string }) {
   const [value, setValue] = useState('')
@@ -126,5 +126,26 @@ describe('SetupKey', () => {
   it('keeps the grouped text exactly, four characters a group', () => {
     render(<SetupKey secret="JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP" />)
     expect(screen.getByTestId('mfa-secret').textContent).toBe('JBSW Y3DP EHPK 3PXP JBSW Y3DP EHPK 3PXP')
+  })
+})
+
+describe('QrPanel setup key', () => {
+  afterEach(cleanup)
+  it('keeps the key out of the page until asked for, and the copy button copies it without spaces', async () => {
+    // user-event puts a clipboard stub on navigator; the copy is read back from it.
+    const user = userEvent.setup()
+    render(<QrPanel secret={{ otpauth_uri: 'otpauth://totp/Kuinn:x?secret=JBSWY3DPEHPK3PXP', secret_b32: 'JBSWY3DPEHPK3PXP' }} />)
+    expect(screen.queryByTestId('mfa-secret')).toBeNull()
+    expect(document.body.textContent).not.toContain('JBSW')
+    const toggle = screen.getByRole('button', { name: "Can't scan? Show setup key" })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    await user.click(toggle)
+    expect(screen.getByRole('button', { name: 'Hide setup key' }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByTestId('mfa-secret').textContent).toBe('JBSW Y3DP EHPK 3PXP')
+    await user.click(screen.getByRole('button', { name: 'Copy setup key' }))
+    expect(await navigator.clipboard.readText()).toBe('JBSWY3DPEHPK3PXP')
+    expect(await screen.findByRole('button', { name: 'Setup key copied' })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Hide setup key' }))
+    expect(screen.queryByTestId('mfa-secret')).toBeNull()
   })
 })

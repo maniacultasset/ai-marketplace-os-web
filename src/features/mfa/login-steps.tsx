@@ -8,18 +8,19 @@
  * Every refusal on the challenge routes is the same 401 (wrong code, used code, expired or burned
  * challenge, locked account), so the copy never says which: no account enumeration.
  */
-import { Hash, KeyRound, QrCode, RotateCw, Smartphone, type LucideIcon } from 'lucide-react'
+import { ArrowRight, KeyRound, RotateCw, Smartphone } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { isApiError } from '@/api/errors'
 import type { LoginConfirmOut, LoginResult, TotpEnrollOut } from '@/api/types'
 import { Icon, IconTile } from '@/components/la/icons'
-import { Stepper } from '@/components/la/progress'
 import { Button } from '@/components/ui/button'
 import { FormAlert } from '@/features/public/auth-frame'
 import { useCountdown } from '@/features/signup-admin/use-countdown'
 import { cn } from '@/lib/utils'
 import { loginConfirm, loginEnroll, loginMfa, mfaErrorMessage, passwordExpired } from './api'
 import { CodeField, QrPanel, RecoveryCodes, SubmitButton, type FactorKind } from './components'
+import { BackButton, EnrolWizard, GetAppBody, QrAgain } from './enrol-wizard'
+import { PRIMARY } from './enrol-steps'
 import { CHALLENGE_ATTEMPTS, CODE_REJECTED, TOO_MANY, isRecoveryCode, isTotp, ttlLabel, type Challenge, type RestartReason } from './login-flow'
 import { PasswordForm } from './password-form'
 
@@ -97,8 +98,6 @@ function ExpiryNote({ challenge, className }: { challenge: Challenge; className?
     </p>
   )
 }
-
-const ENROL_STEPS = [{ label: 'Connect app' }, { label: 'Save recovery codes' }] as const
 
 interface CodeAttempt {
   error: string | null
@@ -241,9 +240,11 @@ export function MfaCodeStep({
 // ---------------------------------------------------------------------------------------------
 
 /**
- * `mfa_enrollment_required`: a new secret (POST /auth/login/mfa/enroll, once per challenge), shown
- * as a QR code and a setup key, confirmed with a code (POST /auth/login/mfa/confirm), whose answer
- * carries the recovery codes and the next `LoginResult`.
+ * `mfa_enrollment_required`: a new secret (POST /auth/login/mfa/enroll, once per challenge, as the
+ * step opens), then four short steps: get the app, scan, enter the code (POST
+ * /auth/login/mfa/confirm, whose answer carries the recovery codes and the next `LoginResult`),
+ * and the recovery codes (`RecoveryCodesStep`). Back and Continue between the first three are
+ * client-only: the challenge and the secret stay the same.
  */
 export function EnrollStep({
   challenge,
@@ -254,13 +255,13 @@ export function EnrollStep({
   onConfirmed: (out: LoginConfirmOut) => void
   onRestart: (r: RestartReason) => void
 }) {
+  const [step, setStep] = useState<0 | 1 | 2>(0)
   const [secret, setSecret] = useState<TotpEnrollOut | null>(null)
   const [loadError, setLoadError] = useState<{ message: string; ref: string | null } | null>(null)
   const [value, setValue] = useState('')
   const [localError, setLocalError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const started = useRef<string | null>(null)
-  const introId = useId()
   const sub = useCodeSubmit(onRestart)
   useChallengeExpiry(challenge, () => onRestart('expired'))
 
@@ -299,104 +300,110 @@ export function EnrollStep({
     )
   }
 
-  const steps: { title: string; icon: LucideIcon; body: ReactNode; content: ReactNode }[] = [
-    {
-      title: 'Get an authenticator app',
-      icon: Smartphone,
-      body: (
-        <>
-          Google Authenticator, Microsoft Authenticator, 1Password or any app that shows{' '}
-          <span className="whitespace-nowrap">6-digit codes</span>.
-        </>
-      ),
-      content: null,
-    },
-    {
-      title: 'Scan the QR code',
-      icon: QrCode,
-      body: null,
-      content: <QrPanel secret={secret} />,
-    },
-    {
-      title: 'Enter the code the app shows',
-      icon: Hash,
-      body: null,
-      // As wide as the code slots, so the field, the alert and the button share one right edge.
-      content: (
-        <div className="flex max-w-[392px] flex-col gap-4">
-          {sub.formError ? (
-            <FormAlert testId="enroll-confirm-error" reference={sub.formError.ref} message={sub.formError.message} />
-          ) : null}
-          <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
-            <CodeField
-              id="enroll-code"
-              kind="totp"
-              value={value}
-              onChange={(v) => {
-                setValue(v)
-                setLocalError(null)
-              }}
-              error={localError ?? sub.error}
-              disabled={!secret}
-              inputRef={inputRef}
-              canAutoSubmit={!sub.busy && sub.waiting === 0}
-              busy={sub.busy}
-            />
-            <SubmitButton busy={sub.busy} waiting={sub.waiting} label="Turn on login codes" busyLabel="Checking…" disabled={!secret} />
-          </form>
-        </div>
-      ),
-    },
-  ]
-
-  return (
-    <div className="flex flex-col gap-6" data-testid="enroll-step">
-      <Stepper steps={ENROL_STEPS} current={0} className="text-small sm:text-body" />
-      <StepHeader title="Set up login codes" introId={introId} focus icon={<IconTile icon="shield" tone="brand" size="lg" />}>
-        Your account now needs a code from an authenticator app each time you sign in. It keeps your marketplace data safe
-        even if your password leaks.
-      </StepHeader>
-      {loadError ? (
-        <div className="flex flex-col gap-4">
-          <FormAlert testId="enroll-error" message={loadError.message} reference={loadError.ref} />
-          <Button type="button" variant="secondary" size="lg" onClick={load} className="w-full sm:w-auto sm:self-start">
-            <RotateCw data-icon="inline-start" />
-            Try again
-          </Button>
-        </div>
-      ) : (
-        <ol className="flex flex-col gap-6">
-          {/* Icons, not numbers: the stepper above already numbers the sign-in steps. */}
-          {steps.map((st) => (
-            <li key={st.title} className="grid grid-cols-[28px_minmax(0,1fr)] gap-x-3 gap-y-3">
-              <IconTile icon={st.icon} tone="brand" size="sm" className="mt-0.5" />
-              <div className="min-w-0 self-center">
-                <p className="text-body font-semibold text-ink">{st.title}</p>
-                {st.body ? <p className="mt-0.5 text-small text-ink-2">{st.body}</p> : null}
-              </div>
-              {st.content ? <div className="col-span-2 min-w-0 sm:col-span-1 sm:col-start-2">{st.content}</div> : null}
-            </li>
-          ))}
-        </ol>
-      )}
-      <ExpiryNote challenge={challenge} className={loadError ? undefined : 'pl-10'} />
+  const retry = loadError ? (
+    <div className="flex flex-col gap-4">
+      <FormAlert testId="enroll-error" message={loadError.message} reference={loadError.ref} />
+      <Button type="button" variant="secondary" size="lg" onClick={load} className="w-full sm:w-auto sm:self-start">
+        <RotateCw data-icon="inline-start" />
+        Try again
+      </Button>
     </div>
+  ) : null
+  const note = <ExpiryNote challenge={challenge} />
+
+  if (step === 0) {
+    return (
+      <EnrolWizard
+        step={0}
+        title="Set up login codes"
+        intro="Your account now needs a code from an authenticator app each time you sign in. It keeps your marketplace data safe even if your password leaks."
+        testId="enroll-step"
+        actions={
+          <Button type="button" size="lg" className={PRIMARY} onClick={() => setStep(1)} data-testid="enrol-continue">
+            Continue
+            <ArrowRight data-icon="inline-end" />
+          </Button>
+        }
+        note={note}
+      >
+        <GetAppBody>{retry}</GetAppBody>
+      </EnrolWizard>
+    )
+  }
+  if (step === 1) {
+    return (
+      <EnrolWizard
+        step={1}
+        title="Scan the QR code"
+        intro="Open your authenticator app, add an account and scan this code with your phone's camera."
+        testId="enroll-step"
+        actions={
+          <>
+            <BackButton onClick={() => setStep(0)} />
+            <Button type="button" size="lg" className={PRIMARY} onClick={() => setStep(2)} disabled={!secret} data-testid="enrol-continue">
+              Continue
+              <ArrowRight data-icon="inline-end" />
+            </Button>
+          </>
+        }
+        note={note}
+      >
+        {retry ?? <QrPanel secret={secret} />}
+      </EnrolWizard>
+    )
+  }
+  return (
+    <EnrolWizard
+      step={2}
+      title="Enter the 6-digit code"
+      intro="Type the code your app now shows for Kuinn."
+      testId="enroll-step"
+      onSubmit={onSubmit}
+      error={sub.formError ? <FormAlert testId="enroll-confirm-error" reference={sub.formError.ref} message={sub.formError.message} /> : null}
+      actions={
+        <>
+          <BackButton onClick={() => setStep(1)} disabled={sub.busy} />
+          <SubmitButton busy={sub.busy} waiting={sub.waiting} label="Turn on login codes" busyLabel="Checking…" disabled={!secret} className={PRIMARY} />
+        </>
+      }
+      note={note}
+    >
+      {retry ?? (
+        <div className="flex flex-col gap-4">
+          <CodeField
+            id="enroll-code"
+            kind="totp"
+            value={value}
+            onChange={(v) => {
+              setValue(v)
+              setLocalError(null)
+            }}
+            error={localError ?? sub.error}
+            disabled={!secret}
+            inputRef={inputRef}
+            canAutoSubmit={!sub.busy && sub.waiting === 0}
+            busy={sub.busy}
+          />
+          <QrAgain uri={secret?.otpauth_uri ?? null} />
+        </div>
+      )}
+    </EnrolWizard>
   )
 }
 
 // ---------------------------------------------------------------------------------------------
 
-/** The 10 recovery codes after enrolment, shown once; Continue goes on with `next`. */
+/** Step 4: the 10 recovery codes after enrolment, shown once; Continue goes on with `next`. */
 export function RecoveryCodesStep({ codes, email, onContinue }: { codes: string[]; email: string; onContinue: () => void }) {
-  const introId = useId()
   return (
-    <div className="flex flex-col gap-6" data-testid="recovery-step">
-      <Stepper steps={ENROL_STEPS} current={1} className="text-small sm:text-body" />
-      <StepHeader title="Save your recovery codes" introId={introId} focus icon={<IconTile icon="lock" tone="warn" size="lg" />}>
-        If you lose your phone, sign in with one of these codes instead.
-      </StepHeader>
-      <RecoveryCodes codes={codes} account={email} onContinue={onContinue} />
-    </div>
+    <EnrolWizard
+      step={3}
+      title="Save your recovery codes"
+      intro="Login codes are on. If you lose your phone, sign in with one of these codes instead."
+      testId="recovery-step"
+    >
+      <RecoveryCodes codes={codes} account={email} onContinue={onContinue} bar="page" continueClassName={cn(PRIMARY, 'sm:self-end')} />
+    </EnrolWizard>
   )
 }
 
@@ -420,7 +427,8 @@ export function PasswordChangeStep({
   const introId = useId()
   useChallengeExpiry(challenge, () => onRestart('expired'))
   return (
-    <div className="flex flex-col gap-6" data-testid="password-step">
+    // The wide card has no bottom padding on a phone (the other wide steps end in a sticky bar).
+    <div className="flex flex-col gap-6 max-sm:pb-6" data-testid="password-step">
       <StepHeader title="Choose a new password" introId={introId} focus icon={<IconTile icon="lock" tone="brand" size="lg" />}>
         Your password needs to change before you continue. It may be a year old, set by our support team, or not meet
         the current rules.

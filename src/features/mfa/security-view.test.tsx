@@ -88,9 +88,19 @@ describe('SecurityView', () => {
     await user.type(pw, 'right-password')
     await user.click(screen.getByRole('button', { name: 'Continue' }))
 
+    // The password confirms on step 1 and enrols once; the setup moves on to the scan.
     expect(await screen.findByTestId('mfa-qr')).toBeTruthy()
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Scan the QR code' })))
+    expect(screen.queryByTestId('mfa-secret')).toBeNull()
+    await user.click(screen.getByRole('button', { name: "Can't scan? Show setup key" }))
     expect(screen.getByTestId('mfa-secret').textContent).toBe('JBSW Y3DP EHPK 3PXP')
-    await user.type(screen.getByLabelText('6-digit code'), '123456')
+    // Back shows the password as confirmed and Continue goes on without a second enrol.
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+    expect(await screen.findByText('Password confirmed')).toBeTruthy()
+    expect(screen.queryByLabelText('Current password')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    await user.click(await screen.findByRole('button', { name: 'Continue' }))
+    await user.type(await screen.findByLabelText('6-digit code'), '123456')
     await user.click(screen.getByRole('button', { name: 'Turn on login codes' }))
 
     const list = await screen.findByRole('list', { name: 'Recovery codes' })
@@ -128,9 +138,17 @@ describe('SecurityView', () => {
       { 'POST /auth/mfa/totp/enroll': () => json(200, { otpauth_uri: 'otpauth://totp/x?secret=ABCD', secret_b32: 'ABCD' }) },
     )
     await user.click(await screen.findByRole('button', { name: 'Replace authenticator' }))
+    // Enrols as the panel opens, while step 1 shows; Continue only moves on.
+    expect(await screen.findByText(/old authenticator keeps working/)).toBeTruthy()
+    await waitFor(() => expect(calls.filter((c) => c.path === '/auth/mfa/totp/enroll')).toHaveLength(1))
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
     expect(await screen.findByTestId('mfa-qr')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(await screen.findByRole('button', { name: 'Use this authenticator' })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+    expect(await screen.findByTestId('mfa-qr')).toBeTruthy()
+    expect(calls.filter((c) => c.path === '/auth/mfa/totp/enroll')).toHaveLength(1)
     expect(calls.find((c) => c.path === '/auth/mfa/totp/enroll')!.body).toEqual({})
-    expect(screen.getByText(/old authenticator keeps working/)).toBeTruthy()
   })
 
   it('a cancelled step-up while replacing shows why nothing changed', async () => {

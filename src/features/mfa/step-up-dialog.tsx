@@ -16,7 +16,7 @@ import { setStepUpHandler, type StepUpMode } from '@/api/step-up'
 import { Banner } from '@/components/la/banner'
 import { IconTile } from '@/components/la/icons'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FormAlert } from '@/features/public/auth-frame'
 import { useCountdown } from '@/features/signup-admin/use-countdown'
 import { useKeyboardInset } from '@/hooks/use-keyboard-inset'
@@ -72,7 +72,7 @@ export function StepUpHost() {
 
 /** A centred 420px dialog from 640px up; below it, a bottom sheet clear of the safe area and the keyboard. */
 const SHEET = [
-  'gap-5 p-6 sm:max-w-[420px]',
+  'gap-5 [--dialog-pad:--spacing(6)] sm:max-w-[420px]',
   // Never taller than the space above the keyboard: the sheet scrolls instead of running off the top.
   'max-sm:max-h-[calc(100dvh-var(--kb-inset,0px)-env(safe-area-inset-top)-8px)] max-sm:overflow-y-auto max-sm:overscroll-contain',
   // The full-width Cancel is the way out on a phone; the small corner X is a desktop affordance.
@@ -198,7 +198,8 @@ export function StepUpDialog({ open, mode, onDone }: { open: boolean; mode: Step
               This action needs a code from your authenticator app; recovery codes don't work here.
             </Banner>
           )}
-          <DialogFooter className="mx-0 mb-0 rounded-none border-0 bg-transparent p-0 pt-1">
+          {/* A plain row, not the grey DialogFooter band: the sheet keeps its own padding. */}
+          <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
             <Button
               type="button"
               variant="secondary"
@@ -217,7 +218,7 @@ export function StepUpDialog({ open, mode, onDone }: { open: boolean; mode: Step
               className="w-full max-sm:h-11 max-sm:text-[15px] sm:w-auto"
               testId="step-up-submit"
             />
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
