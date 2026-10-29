@@ -125,8 +125,21 @@ repo). Put these in `.env.local` or the environment:
 | `E2E_WORKERS` | no | Default 1, because login is rate limited per user |
 | `E2E_PASSWORD` | no | Seed users' password, default `devpassword123` |
 | `E2E_RESET_RATE_LIMITS` | no | `0` skips the rate-limit reset |
+| `E2E_MFA_SLOW` | no | `1` runs the login-code spec's 10-minute step-up test |
 
 The backend's job worker must be running for the import specs.
+
+`tests/e2e/mfa.spec.ts` (login codes, DPP-1) needs `E2E_BACKEND_DIR`: it creates its own tenant and
+users through the backend's staff CLI and never touches the seed users. It probes the API's
+`MFA_ENFORCEMENT`: under `off` it checks the plain login still works; under `all` (with
+`MFA_GRACE_UNTIL` in the future) it covers forced enrolment, the code step, recovery codes,
+step-up, the grace notice, forced password changes and the lockout. The other specs need `off`,
+because the seed users have no authenticator. Run it twice, once per mode:
+
+```sh
+pnpm e2e tests/e2e/mfa.spec.ts   # backend started with MFA_ENFORCEMENT=all, MFA_GRACE_UNTIL=<future, with offset>
+pnpm e2e tests/e2e/mfa.spec.ts   # backend restarted with MFA_ENFORCEMENT=off
+```
 
 ## Docs
 
