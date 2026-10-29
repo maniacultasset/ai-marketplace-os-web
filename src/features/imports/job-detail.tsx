@@ -41,7 +41,7 @@ export function JobDetail({ jobId }: { jobId: string }) {
               className="inline-flex items-center gap-1 rounded-sm font-medium text-brand underline-offset-4 outline-none hover:underline focus-visible:underline"
               data-testid="job-result-link"
             >
-              Open import report <Icon name="arrow" size={12} />
+              Open import report <Icon name="arrow" size={14} />
             </Link>
           ) : job?.kind === 'bulk_import' && !job.result_url ? (
             <span>The report link appears once the worker starts.</span>

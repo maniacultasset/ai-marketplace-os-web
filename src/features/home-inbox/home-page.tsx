@@ -10,7 +10,8 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Page, PageHeader } from '@/components/app/page-header'
 import { LaCard, CardHead, MetricTile, TaskRow } from '@/components/la/cards'
 import { CountUp } from '@/components/la/count-up'
-import { Icon, IconTile } from '@/components/la/icons'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
+import { Icon, IconGlyph, IconTile } from '@/components/la/icons'
 import { MarketplaceTile, type MarketplaceId } from '@/components/la/marketplace'
 import { StatusChip } from '@/components/la/status-chip'
 import { ComingSoon, NOT_YET, UnavailableButton } from '@/components/la/unavailable'
@@ -110,7 +111,10 @@ function DashboardBody({
           <>
             {can('analytics:read') ? (
               <Button asChild variant="ghost" className="max-sm:flex-1" data-testid="home-reports">
-                <Link to="/analytics">Listing reports</Link>
+                <Link to="/analytics">
+                  <IconGlyph icon={CONCEPT_ICON.reports} size={16} />
+                  Listing reports
+                </Link>
               </Button>
             ) : null}
             {can('product:import') ? (
@@ -158,9 +162,13 @@ function DashboardBody({
                   <Link to="/inbox">Open Inbox</Link>
                 </Button>
                 {snapshot.approve + snapshot.publish > 0 ? (
-                  <Button asChild size="sm" variant="secondary" data-testid="tile-needs-listings">
+                  <Button asChild size="sm" variant="secondary" className="min-w-0 max-w-full" data-testid="tile-needs-listings">
                     <Link to="/products">
-                      {snapshot.approve ? 'Approve' : 'Publish'} in Products
+                      {/* One text item: the button is a flex row with a gap, and the label must not split. */}
+                      <span className="min-w-0 truncate">
+                        {snapshot.approve ? 'Approve' : 'Publish'}
+                        <span className="max-lg:sr-only"> in Products</span>
+                      </span>
                     </Link>
                   </Button>
                 ) : null}
@@ -176,7 +184,7 @@ function DashboardBody({
         <WaitingCard tasks={tasks} issues={issues} total={fmtCount({ n: tasksCount.n + issuesCount.n, more: tasksCount.more || issuesCount.more })} />
         {/* Not built yet: a flat tint card so it recedes behind the live cards. */}
         <LaCard emphasis="tint" data-testid="agent-feed">
-          <CardHead title="What the agent did" action={<ComingSoon />} />
+          <CardHead title="What the agent did" icon="activity" iconTone="neutral" action={<ComingSoon />} />
           <p className="mt-3 max-w-[52ch] text-small text-ink-2">
             {NOT_YET.activityFeed} Open a product to see what happened to each of its listings, step by step.
           </p>
@@ -256,7 +264,7 @@ function MarketplaceRow({ snapshot }: { snapshot: ListingsSnapshot }) {
           return (
             <LaCard key={id} emphasis="dashed" pad="sm" data-testid={`home-mp-${id}`}>
               <div className="flex items-center gap-3 font-semibold text-ink">
-                <MarketplaceTile id={id} className="shadow-none" />
+                <MarketplaceTile id={id} />
                 {name}
               </div>
               <div className="mt-3">
@@ -313,7 +321,6 @@ function MarketplaceRow({ snapshot }: { snapshot: ListingsSnapshot }) {
                   to="/marketplaces"
                   className="inline-flex min-h-10 items-center gap-1 font-semibold text-attention-ink underline decoration-attention-line underline-offset-4 hover:decoration-attention pointer-fine:min-h-0"
                 >
-                  <Icon name="link" size={14} aria-hidden />
                   {view.sub}
                 </Link>
               ) : (
@@ -371,7 +378,7 @@ function WaitingCard({
         ) : pending ? (
           Array.from({ length: 3 }, (_, i) => (
             <div key={i} className="flex items-center gap-3 border-b border-line py-3 last:border-b-0">
-              <Skeleton className="size-11 rounded-[12px]" />
+              <Skeleton className="size-9 rounded-tile" />
               <div className="flex-1 space-y-1.5">
                 <Skeleton className="h-4 w-40" />
                 <Skeleton className="h-3 w-56" />
@@ -396,7 +403,7 @@ function WaitingCard({
                 key={itemKey(it)}
                 className="py-3.5"
                 interactive
-                leading={<ItemTile item={it} size={44} />}
+                leading={<ItemTile item={it} />}
                 title={<span data-testid="waiting-title">{title}</span>}
                 meta={meta}
                 action={

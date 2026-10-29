@@ -1,6 +1,6 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { LogOut } from 'lucide-react'
-import { Icon, IconTile } from '@/components/la/icons'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
+import { Icon, IconGlyph, IconTile } from '@/components/la/icons'
 import { useState, type ReactNode } from 'react'
 import { isApiError } from '@/api/errors'
 import { ErrorState } from '@/components/states/error-state'
@@ -25,7 +25,7 @@ function CopyValue({ value, label }: { value: string; label: string }) {
       <button
         type="button"
         aria-label={copied ? `Copied ${label}` : `Copy ${label}`}
-        className="inline-flex size-6 tactile shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-hover hover:text-foreground active:bg-pressed active:shadow-pressed focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+        className="-my-2 inline-flex size-10 tactile shrink-0 items-center md:size-8 justify-center rounded-md text-muted-foreground hover:bg-hover hover:text-foreground active:bg-pressed active:shadow-pressed focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
         onClick={() =>
           void navigator.clipboard
             ?.writeText(value)
@@ -216,7 +216,7 @@ function SessionCard() {
           }}
           data-testid="account-sign-out"
         >
-          {signingOut ? <Spinner data-icon="inline-start" /> : <LogOut data-icon="inline-start" />}
+          {signingOut ? <Spinner data-icon="inline-start" /> : <IconGlyph icon={CONCEPT_ICON.logOut} size={16} />}
           {signingOut ? 'Signing out…' : 'Sign out'}
         </Button>
       </CardContent>

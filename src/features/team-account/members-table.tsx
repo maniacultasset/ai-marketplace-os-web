@@ -123,7 +123,7 @@ function RoleCell({ member }: { member: Member }) {
         <Locked reason={g.canEditRole ? null : g.roleLockedReason}>
           <Select value={member.role} onValueChange={pick} disabled={!g.canEditRole || rowPending}>
             <SelectTrigger ref={triggerRef} size="sm" className="w-[6.5rem] bg-card sm:w-36" aria-label={`Role for ${member.email}`} data-testid="role-select">
-              {g.canEditRole ? null : <Icon name="lock" size={12} className="text-muted-foreground" />}
+              {g.canEditRole ? null : <Icon name="lock" size={14} className="text-muted-foreground" />}
               <SelectValue>{ROLE_INFO[member.role].label}</SelectValue>
             </SelectTrigger>
             <SelectContent align="start" className="w-72 p-1">

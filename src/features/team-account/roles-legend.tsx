@@ -1,7 +1,15 @@
-import { Icon } from '@/components/la/icons'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
+import { Icon, IconGlyph, type IconSource } from '@/components/la/icons'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { ROLE_INFO, ROLE_ORDER } from './roles'
+
+const ROLE_ICON: Record<(typeof ROLE_ORDER)[number], IconSource> = {
+  owner: CONCEPT_ICON.owner,
+  admin: CONCEPT_ICON.admin,
+  operator: CONCEPT_ICON.operator,
+  reviewer: CONCEPT_ICON.reviewer,
+}
 
 /** What each role can do, plus the approvals note. */
 export function RolesLegend({ className }: { className?: string }) {
@@ -19,7 +27,10 @@ export function RolesLegend({ className }: { className?: string }) {
             key={r}
             className="space-y-0.5 border-t px-5 py-3.5 sm:odd:border-r xl:odd:border-r-0"
           >
-            <dt className="text-sm font-medium">{ROLE_INFO[r].label}</dt>
+            <dt className="flex items-center gap-2 text-sm font-medium">
+              <IconGlyph icon={ROLE_ICON[r]} size={16} className="text-ink-3" />
+              {ROLE_INFO[r].label}
+            </dt>
             <dd className="text-[0.8125rem] leading-snug text-muted-foreground">{ROLE_INFO[r].summary}</dd>
           </div>
         ))}
@@ -28,7 +39,7 @@ export function RolesLegend({ className }: { className?: string }) {
         className="flex items-start gap-2 border-t border-line bg-sunken px-5 py-3.5 text-xs leading-relaxed text-muted-foreground"
         data-testid="approvals-note"
       >
-        <Icon name="info" size={14} className="mt-0.5" />
+        <Icon name="info" size={14} className="mt-[calc((1lh-14px)/2)]" />
         Approvals need a second person: the person who generated or edited a listing cannot approve it.
       </p>
     </Card>

@@ -20,7 +20,7 @@ import { describeError, isApiError, isNotFound } from '@/api/errors'
 import { idempotencyHeader, useIntentKey } from '@/api/idempotency'
 import type { Schema } from '@/api/types'
 import { Page, PageHeader } from '@/components/app/page-header'
-import { Banner, CardHead, FooterBar, Icon, IconTile, LaCard, StatusChip, Stepper, UnavailableButton } from '@/components/la'
+import { Banner, CardHead, CONCEPT_ICON, FooterBar, Icon, IconTile, LaCard, StatusChip, Stepper, UnavailableButton } from '@/components/la'
 import { ErrorState } from '@/components/states/error-state'
 import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
@@ -182,7 +182,7 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
               </p>
             </LaCard>
             <LaCard emphasis="tint">
-              <CardHead title="How columns are matched" />
+              <CardHead title="How columns are matched" icon={CONCEPT_ICON.columns} />
               <ul className="mt-3 flex list-disc flex-col gap-1.5 pl-5 text-small text-ink-2">
                 <li>By header name, exactly as in the template (any letter case).</li>
                 <li>A column we don’t recognise stops the whole file, so the upload step lists every column first.</li>
@@ -261,6 +261,7 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
         {step === 0 ? (
           <Button onClick={() => setStep(1)} data-testid="bulk-next">
             Next: Upload
+            <Icon name="arrow" size={16} />
           </Button>
         ) : (
           <Button
@@ -462,7 +463,7 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
                 disabled={!failedRows.data?.rows.length}
                 onClick={() => downloadErrorRows(`${name?.replace(/\.csv$/i, '') ?? 'import'}-error-rows.csv`, failedRows.data?.rows ?? [])}
               >
-                <Icon name="download" size={14} />
+                <Icon name="download" size={16} />
                 Error rows
               </Button>
             </div>

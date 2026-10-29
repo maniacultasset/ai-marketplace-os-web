@@ -3,10 +3,11 @@
  * not shipped yet). An item appears when (1) its route exists in the generated route tree,
  * (2) the current role holds `action`, and (3) its optional `capability` is BUILT and probed live.
  */
-import { Gauge, UserCheck, UserRound, type LucideIcon } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useRouter } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { BUILT, type Capability } from '@/api/capabilities'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import type { IconName } from '@/components/la/icons'
 import { useCapabilityProbe } from '@/hooks/use-capabilities'
 import { useCan, type Policy } from '@/lib/permissions'
@@ -15,7 +16,7 @@ export interface NavItem {
   id: string
   label: string
   to: string
-  /** Sidebar items use the hi-fi icon set; user-menu items a lucide icon. */
+  /** A hi-fi icon name, or a lucide component where the set lacks the concept (docs/DESIGN.md → Icons). */
   icon: IconName | LucideIcon
   /** RBAC action (or 'platform:admin') required to see the item (src/lib/permissions.ts). */
   action: Policy
@@ -117,7 +118,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     section: 'Main',
     label: 'Settings',
     to: '/settings',
-    icon: 'sliders',
+    icon: CONCEPT_ICON.settings,
     action: 'tenant:read',
     placement: 'main',
     keywords: ['brand', 'team', 'rules', 'autonomy', 'compliance'],
@@ -129,7 +130,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     section: 'Platform',
     label: 'Sign-up requests',
     to: '/admin/signups',
-    icon: UserCheck,
+    icon: CONCEPT_ICON.signups,
     action: 'platform:admin',
     capability: 'signups',
     placement: 'main',
@@ -140,7 +141,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     id: 'account',
     label: 'Account',
     to: '/account',
-    icon: UserRound,
+    icon: 'user',
     action: 'tenant:read',
     placement: 'user',
     keywords: ['profile', 'brand', 'switch'],
@@ -150,7 +151,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     id: 'about',
     label: 'Diagnostics',
     to: '/about',
-    icon: Gauge,
+    icon: CONCEPT_ICON.diagnostics,
     action: 'settings:manage',
     placement: 'user',
     devOnly: true,

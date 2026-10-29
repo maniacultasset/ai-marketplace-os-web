@@ -124,6 +124,14 @@
   --tile-fail-bg: var(--danger-bg);
   --tile-fail-fg: var(--danger);
   --tile-fail-line: #f1cfca;
+  /* Marketplace monogram letter colours (neutral tile, coloured letter). Each is >= 4.5:1 on
+     --surface; the name always prints beside the tile, so colour never carries meaning alone. */
+  --mp-amazon: #a34a00;
+  --mp-flipkart: #1f55c4;
+  --mp-myntra: #b0185a;
+  --mp-ajio: var(--ink);
+  --mp-meesho: #7b2a8c;
+  --mp-nykaa: #0e7490; /* teal, so it never reads as Myntra’s magenta */
 
   /* legacy names, mapped onto the matte scale so every screen picks it up */
   --shadow-sm: var(--shadow-raised-sm);
@@ -273,6 +281,8 @@
   --radius-card: 12px;
   --radius-pill: 999px;
   --radius-banner: 10px;
+  /* md icon and monogram tiles, nav rows and inner rows: between a control (8) and a card (12). */
+  --radius-tile: 10px;
 
   --shadow-sm: var(--shadow-raised-sm);
   --shadow-md: var(--shadow-raised-md);
@@ -294,6 +304,7 @@
   --shadow-focus: var(--focus-ring);
   --shadow-focus-danger: var(--focus-ring-danger);
   --shadow-selected: var(--selected-ring);
+  --shadow-selected-inset: var(--selected-ring), var(--shadow-inset-sm);
   --shadow-elev-1: var(--elev-1);
   --shadow-elev-2: var(--elev-2);
   --shadow-elev-3: var(--elev-3);

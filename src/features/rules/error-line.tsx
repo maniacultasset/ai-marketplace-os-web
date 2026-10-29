@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CircleAlert } from 'lucide-react'
+import { Icon } from '@/components/la/icons'
 import { cn } from '@/lib/utils'
 
 /** Matches LaField: the line opens and folds on --dur-spring. */
@@ -49,7 +49,7 @@ export function ErrorLine({
             data-shown={open ? true : undefined}
             className="field-swap field-error flex items-start gap-1 pt-1.5 text-xs font-semibold text-danger"
           >
-            <CircleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
+            <Icon name="alert" size={14} className="mt-[calc((1lh-14px)/2)]" />
             <span className="min-w-0">{message || shown}</span>
           </p>
         ) : null}

@@ -228,7 +228,7 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
               <SetupHeading title="Tell us about your brand once" sub="We reuse this on every product and marketplace." />
 
               {stale ? (
-                <div id="setup-stale" tabIndex={-1} className="rounded-[10px] outline-none">
+                <div id="setup-stale" tabIndex={-1} className="rounded-banner outline-none">
                   <Banner tone="attention" role="alert" title="Someone saved a newer version">
                     We loaded it and kept your changes on top
                     {stale.conflicts.length
@@ -245,13 +245,13 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
               ) : null}
 
               {!canEdit ? (
-                <Banner tone="neutral" icon="shield" title="Only owners and admins can change the brand profile">
+                <Banner tone="neutral" icon="lock" title="Only owners and admins can change the brand profile">
                   You can look through setup. Ask an owner or admin to fill it in.
                 </Banner>
               ) : null}
 
               {/* "Read my site": designed, not in the API. */}
-              <div className="flex items-start gap-3 rounded-[10px] border border-brand-line bg-brand-bg px-4 py-3 text-brand-ink">
+              <div className="flex items-start gap-3 rounded-tile border border-brand-line bg-brand-bg px-4 py-3 text-brand-ink">
                 <IconTile icon="globe" tone="brand" size="sm" className="-mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-2 font-bold">
@@ -297,7 +297,7 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
                   source={canEdit && touched.has('name') && draft.name.trim() ? { kind: 'you' } : undefined}
                   hintAction={
                     <UnavailableButton variant="secondary" size="xs" reason={`Adding more brand names: ${NEEDS_BACKEND}`}>
-                      <Icon name="plus" size={12} />
+                      <Icon name="plus" size={14} />
                       Add another name
                     </UnavailableButton>
                   }
@@ -469,7 +469,7 @@ function BrandStepSkeleton() {
           <LaCard className="flex flex-col gap-4" aria-busy="true" aria-label="Loading your brand profile">
             <Skeleton className="h-6 w-72" />
             <Skeleton className="h-4 w-80" />
-            <Skeleton className="h-[108px] w-full rounded-[10px]" />
+            <Skeleton className="h-[108px] w-full rounded-tile" />
             <div className="grid gap-4 md:grid-cols-2">
               {[0, 1].map((i) => (
                 <div key={i} className="space-y-1.5">

@@ -10,7 +10,8 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Page, PageHeader } from '@/components/app/page-header'
 import { CardHead, LaCard } from '@/components/la/cards'
-import { IconTile, type IconName } from '@/components/la/icons'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
+import { IconTile, type IconSource } from '@/components/la/icons'
 import { ProgressRing, Stepper } from '@/components/la/progress'
 import { StatusChip, TagChip } from '@/components/la/status-chip'
 import { ComingSoon, NOT_YET } from '@/components/la/unavailable'
@@ -33,9 +34,9 @@ const STEP_LINK: Partial<Record<SetupStep['id'], '/setup/brand' | '/marketplaces
 }
 
 type RouteId = 'photos' | 'guided' | 'bulk'
-const ROUTES: readonly { id: RouteId; icon: IconName; title: string; sub: string; to?: '/products/new' | '/imports/new' }[] = [
+const ROUTES: readonly { id: RouteId; icon: IconSource; title: string; sub: string; to?: '/products/new' | '/imports/new' }[] = [
   { id: 'photos', icon: 'image', title: 'Photos and basics', sub: 'Start from product photos.' },
-  { id: 'guided', icon: 'file', title: 'Guided form', sub: 'One product, step by step.', to: '/products/new' },
+  { id: 'guided', icon: CONCEPT_ICON.guidedForm, title: 'Guided form', sub: 'One product, step by step.', to: '/products/new' },
   { id: 'bulk', icon: 'table', title: 'Bulk spreadsheet', sub: 'Many products at once.', to: '/imports/new' },
 ]
 
@@ -105,7 +106,7 @@ export function FirstRun({ brand }: { brand: string }) {
               const on = route === r.id
               const body = (
                 <>
-                  <IconTile icon={r.icon} tone={available ? 'brand' : 'neutral'} size="lg" flat={!available} className="size-10 rounded-[11px]" />
+                  <IconTile icon={r.icon} tone={available ? 'brand' : 'neutral'} size="lg" flat={!available} className="size-10 rounded-tile" />
                   <h4 className="mt-3 text-[15px] leading-5 font-bold text-ink">{r.title}</h4>
                   <p className="mt-1 text-small text-ink-2">{r.sub}</p>
                   {!available ? <ComingSoon className="mt-2" /> : null}
@@ -145,7 +146,7 @@ export function FirstRun({ brand }: { brand: string }) {
                   className={cn(
                     'focus-ring tactile rounded-card border p-4 text-left',
                     on
-                      ? 'border-brand bg-brand-bg/60 shadow-[var(--selected-ring),var(--shadow-inset-sm)]'
+                      ? 'border-brand bg-brand-bg/60 shadow-selected-inset'
                       : 'lift border-line bg-surface shadow-raised-sm hover:border-line-strong active:shadow-pressed',
                   )}
                 >

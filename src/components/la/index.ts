@@ -34,3 +34,4 @@ export { formatConfidence, SourceBadge, sourceLabel, type Source } from './sourc
 export { CHIP_META, Glyph, StatusChip, TagChip, type ChipStatus } from './status-chip'
 export { RouteTabs, Segmented, type RouteTab, type SegmentOption } from './tabs'
 export { ComingSoon, NOT_YET, UnavailableButton, UnavailableHint } from './unavailable'
+export { CONCEPT_ICON } from './concept-icons'

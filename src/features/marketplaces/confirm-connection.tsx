@@ -1,5 +1,5 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Link2Off } from 'lucide-react'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { isApiError, isForbidden } from '@/api/errors'
 import { Icon, IconTile, type IconSource, type TileTone } from '@/components/la'
@@ -45,7 +45,7 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
   if (!pending) {
     return (
       <Panel
-        icon={Link2Off}
+        icon={CONCEPT_ICON.revoke}
         title="No connection to confirm"
         description="Open this page from the marketplace's approval screen. To start a new connection, go to Marketplaces."
         actions={<BackButton />}
@@ -55,7 +55,7 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
   if (!valid) {
     return (
       <Panel
-        icon={Link2Off}
+        icon={CONCEPT_ICON.revoke}
         tone="danger"
         title="This connection link is not valid"
         description="The link is incomplete or was changed. Start again from Marketplaces."
@@ -122,7 +122,7 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
     if (isApiError(err) && err.type === 'OAUTH_STATE_INVALID') {
       return (
         <Panel
-          icon={Link2Off}
+          icon={CONCEPT_ICON.revoke}
           tone="danger"
           title="This connection link expired or was already used."
           description="Links work once and for about 10 minutes. Start again from Marketplaces."
@@ -168,7 +168,7 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
     <Card className="py-0" role="status" aria-live="polite" data-testid="connect-confirming">
       <StatusHead
         tile={
-          <span className="flex size-11 items-center justify-center rounded-[12px] border border-[var(--tile-brand-line)] bg-[var(--tile-brand-bg)] text-[var(--tile-brand-fg)] shadow-raised-sm">
+          <span className="flex size-11 items-center justify-center rounded-xl border border-[var(--tile-brand-line)] bg-[var(--tile-brand-bg)] text-[var(--tile-brand-fg)] shadow-raised-sm">
             <Spinner className="size-5" />
           </span>
         }

@@ -1,5 +1,4 @@
 import { Link } from '@tanstack/react-router'
-import { ShieldOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from './empty-state'
 
@@ -7,7 +6,7 @@ import { EmptyState } from './empty-state'
 export function Forbidden({ description }: { description?: string }) {
   return (
     <EmptyState
-      icon={ShieldOff}
+      icon="lock"
       title="You don't have access to this page"
       description={description ?? 'Your role in this brand does not allow it. Ask an owner if you need access.'}
       actions={

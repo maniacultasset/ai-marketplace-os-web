@@ -262,7 +262,7 @@ function RunBody({
         {!active && (listing.status === 'validated' || listing.status === 'needs_review') ? (
           <Banner
             tone="info"
-            icon="shield"
+            icon="eye"
             title="Ready for review."
             action={
               <Button size="sm" asChild>

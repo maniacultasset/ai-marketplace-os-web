@@ -9,7 +9,8 @@ import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { Icon, LogoMark } from '@/components/la/icons'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { InboxNavBadge } from '@/features/inbox/inbox-nav-badge'
-import { activeNavId, NAV_SECTIONS, useNavItems } from '@/lib/nav'
+import { useInboxBadgeLabel } from '@/features/inbox/use-inbox-badge'
+import { activeNavId, NAV_SECTIONS, useNavItems, type NavItem } from '@/lib/nav'
 import { cn } from '@/lib/utils'
 import { AgentStatusCard } from './agent-status'
 import { BrandSwitcher } from './brand-switcher'
@@ -57,7 +58,7 @@ export function AppSidebar({
         {indicatorY === null ? null : (
           <span
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 h-10 rounded-[10px] border border-line bg-surface shadow-raised-sm transition-transform duration-[var(--dur-spring)] ease-[var(--ease-spring)] motion-reduce:transition-none md:h-[38px]"
+            className="pointer-events-none absolute inset-x-0 top-0 h-11 rounded-tile border border-line bg-surface shadow-raised-sm transition-transform duration-[var(--dur-spring)] ease-[var(--ease-spring)] motion-reduce:transition-none md:h-[38px]"
             style={{ transform: `translateY(${indicatorY}px)` }}
           />
         )}
@@ -66,45 +67,13 @@ export function AppSidebar({
             {section !== 'Main' ? (
               <p className={cn('mt-4 mb-1 px-2.5 text-caption text-ink-3', collapsed && 'sr-only')}>{section}</p>
             ) : null}
-            {sectionItems.map((item) => {
-              const active = item.id === activeId
-              const link = (
-                <Link
-                  to={item.to}
-                  onClick={onNavigate}
-                  data-nav-id={item.id}
-                  aria-current={active ? 'page' : undefined}
-                  className={cn(
-                    'tactile press relative z-10 flex h-10 items-center gap-2.5 rounded-[10px] border border-transparent px-2.5 font-semibold text-ink-2 hover:bg-hover hover:text-ink active:shadow-pressed md:h-[38px]',
-                    // Active: the brand label over the sliding tile, the icon in a brand tint. Only the
-                    // colour changes, so the label never reflows.
-                    active && 'text-brand hover:bg-transparent hover:text-brand',
-                    collapsed && 'justify-center px-0',
-                  )}
-                >
-                  <span
-                    aria-hidden
-                    className={cn(
-                      'tactile -ml-1 inline-flex size-7 shrink-0 items-center justify-center rounded-[8px]',
-                      active && 'bg-brand-bg text-brand',
-                      collapsed && 'ml-0',
-                    )}
-                  >
-                    <NavIcon icon={item.icon} />
-                  </span>
-                  <span className={cn('truncate', collapsed && 'sr-only')}>{item.label}</span>
-                  {item.id === 'inbox' && !collapsed ? <InboxNavBadge /> : null}
-                </Link>
-              )
-              return collapsed ? (
-                <Tooltip key={item.id}>
-                  <TooltipTrigger asChild>{link}</TooltipTrigger>
-                  <TooltipContent side="right">{item.label}</TooltipContent>
-                </Tooltip>
+            {sectionItems.map((item) =>
+              item.id === 'inbox' ? (
+                <InboxNavRow key={item.id} item={item} active={item.id === activeId} collapsed={collapsed} onNavigate={onNavigate} />
               ) : (
-                <div key={item.id}>{link}</div>
-              )
-            })}
+                <NavRow key={item.id} item={item} active={item.id === activeId} collapsed={collapsed} onNavigate={onNavigate} />
+              ),
+            )}
           </div>
         ))}
       </div>
@@ -116,7 +85,7 @@ export function AppSidebar({
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           aria-expanded={!collapsed}
           className={cn(
-            'tactile press mt-2 flex h-10 items-center gap-2.5 rounded-[10px] px-2.5 text-caption font-semibold text-ink-3 hover:bg-hover hover:text-ink active:shadow-pressed',
+            'tactile press mt-2 flex h-10 items-center gap-2.5 rounded-tile px-2.5 text-caption font-semibold text-ink-3 hover:bg-hover hover:text-ink active:shadow-pressed',
             'md:h-8',
             collapsed && 'justify-center px-0',
           )}
@@ -126,6 +95,62 @@ export function AppSidebar({
         </button>
       ) : null}
     </nav>
+  )
+}
+
+interface RowProps {
+  item: NavItem
+  active: boolean
+  collapsed: boolean
+  onNavigate?: () => void
+}
+
+/** Inbox row: carries the open count, as a pill (expanded) or a corner badge on the icon (rail). */
+function InboxNavRow(props: RowProps) {
+  const label = useInboxBadgeLabel()
+  return <NavRow {...props} badge={label} />
+}
+
+function NavRow({ item, active, collapsed, onNavigate, badge = null }: RowProps & { badge?: string | null }) {
+  // In the rail the label is visually hidden, so the count goes into the name and the tooltip.
+  const name = collapsed && badge ? `${item.label}, ${badge} open` : undefined
+  const link = (
+    <Link
+      to={item.to}
+      onClick={onNavigate}
+      data-nav-id={item.id}
+      aria-current={active ? 'page' : undefined}
+      aria-label={name}
+      className={cn(
+        'tactile press relative z-10 flex h-11 items-center gap-2.5 rounded-tile border border-transparent px-2.5 font-semibold text-ink-2 hover:bg-hover hover:text-ink active:shadow-pressed md:h-[38px]',
+        // Active: the brand label over the sliding tile, the icon in a brand tint. Only the
+        // colour changes, so the label never reflows.
+        active && 'text-brand hover:bg-transparent hover:text-brand',
+        collapsed && 'justify-center px-0',
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          'tactile relative -ml-1 inline-flex size-7 shrink-0 items-center justify-center rounded-lg',
+          active && 'bg-brand-bg text-brand',
+          collapsed && 'ml-0',
+        )}
+      >
+        <NavIcon icon={item.icon} />
+        {collapsed ? <InboxNavBadge label={badge} compact /> : null}
+      </span>
+      <span className={cn('truncate', collapsed && 'sr-only')}>{item.label}</span>
+      {collapsed ? null : <InboxNavBadge label={badge} />}
+    </Link>
+  )
+  return collapsed ? (
+    <Tooltip>
+      <TooltipTrigger asChild>{link}</TooltipTrigger>
+      <TooltipContent side="right">{name ?? item.label}</TooltipContent>
+    </Tooltip>
+  ) : (
+    <div>{link}</div>
   )
 }
 

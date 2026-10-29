@@ -29,7 +29,7 @@ const PATHS = {
   chev: 'M6 9l6 6 6-6',
   search: 'M4 11a7 7 0 1 0 14 0a7 7 0 1 0-14 0M20 20l-4-4',
   upload: 'M12 16V4M7 9l5-5 5 5M4 20h16',
-  spark: 'M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z',
+  spark: 'M12 4l2 6 6 2-6 2-2 6-2-6-6-2 6-2z',
   file: 'M6 3h8l4 4v14H6zM14 3v4h4',
   image: 'M3 5h18v14H3zM3 16l5-5 4 4 3-3 6 6',
   globe: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
@@ -110,9 +110,9 @@ const TILE_TONE: Record<TileTone, string> = {
 
 /** Tile box and the icon size that sits in it. sm 28/16, md 36/18, lg 44/22. */
 const TILE_SIZE: Record<TileSize, { box: string; icon: number }> = {
-  sm: { box: 'size-7 rounded-[8px]', icon: 16 },
-  md: { box: 'size-9 rounded-[10px]', icon: 18 },
-  lg: { box: 'size-11 rounded-[12px]', icon: 22 },
+  sm: { box: 'size-7 rounded-lg', icon: 16 },
+  md: { box: 'size-9 rounded-tile', icon: 18 },
+  lg: { box: 'size-11 rounded-xl', icon: 22 },
 }
 
 const TILE_BASE = 'inline-flex shrink-0 items-center justify-center border shadow-raised-sm'
@@ -186,7 +186,7 @@ export function LogoMark({ size = 28, className }: { size?: number; className?: 
       alt=""
       aria-hidden
       decoding="async"
-      className={cn('shrink-0 rounded-[8px] shadow-raised-brand', className)}
+      className={cn('shrink-0 rounded-lg shadow-raised-brand', className)}
     />
   )
 }

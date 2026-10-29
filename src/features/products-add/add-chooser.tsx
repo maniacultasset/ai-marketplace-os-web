@@ -7,7 +7,7 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useState, type KeyboardEvent } from 'react'
 import { Page, PageHeader } from '@/components/app/page-header'
-import { Banner, ComingSoon, FooterBar, IconTile, NOT_YET, TagChip, type IconName } from '@/components/la'
+import { Banner, ComingSoon, CONCEPT_ICON, FooterBar, IconTile, NOT_YET, TagChip, type IconSource } from '@/components/la'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -18,7 +18,7 @@ type RouteId = 'guided' | 'bulk'
 
 interface RouteDef {
   id: RouteId | 'photos' | 'catalog' | 'url' | 'pim'
-  icon: IconName
+  icon: IconSource
   title: string
   body: string
   /** Why it is not available (cards without a route). */
@@ -27,12 +27,12 @@ interface RouteDef {
 }
 
 const ROUTES: readonly RouteDef[] = [
-  { id: 'guided', icon: 'file', title: 'Guided form', body: 'One product at a time. We ask only for what a listing needs.' },
+  { id: 'guided', icon: CONCEPT_ICON.guidedForm, title: 'Guided form', body: 'One product at a time. We ask only for what a listing needs.' },
   { id: 'bulk', icon: 'table', title: 'Bulk spreadsheet', body: 'Download the template, fill it in, then upload.' },
   { id: 'photos', icon: 'image', title: 'Photos and basics', body: 'Upload images plus a name and price. We read the rest.', reason: NOT_YET.intakePhotos },
   { id: 'catalog', icon: 'upload', title: 'Catalog export', body: 'Upload a file from another marketplace or store.', reason: NOT_YET.intakeCatalog },
-  { id: 'url', icon: 'link', title: 'Product page URL', body: 'Paste your own website’s product link.', reason: NOT_YET.intakeUrl },
-  { id: 'pim', icon: 'grid', title: 'PIM or ERP', body: 'Connect a system of record. Not in V1.', reason: NOT_YET.pim, later: true },
+  { id: 'url', icon: CONCEPT_ICON.productUrl, title: 'Product page URL', body: 'Paste your own website’s product link.', reason: NOT_YET.intakeUrl },
+  { id: 'pim', icon: CONCEPT_ICON.pim, title: 'PIM or ERP', body: 'Connect a system of record. Not in V1.', reason: NOT_YET.pim, later: true },
 ]
 
 const LIVE: readonly RouteId[] = ['guided', 'bulk']
@@ -75,7 +75,7 @@ function RouteCard({ def, selected, onSelect }: { def: RouteDef; selected: boole
       className={cn(
         'focus-ring tactile flex cursor-pointer flex-col rounded-card border p-5 text-left',
         selected
-          ? 'border-brand bg-brand-bg/40 shadow-[var(--selected-ring),var(--shadow-inset-sm)]'
+          ? 'border-brand bg-brand-bg/40 shadow-selected-inset'
           : 'lift border-line bg-surface shadow-raised-md hover:border-line-strong active:shadow-pressed',
       )}
     >
@@ -116,7 +116,7 @@ export function AddChooser() {
             <RouteCard key={r.id} def={r} selected={r.id === route} onSelect={LIVE.includes(r.id as RouteId) ? () => setRoute(r.id as RouteId) : undefined} />
           ))}
         </div>
-        <Banner tone="info" icon="spark" className="mt-4">
+        <Banner tone="info" className="mt-4">
           {route === 'bulk'
             ? 'Rows are matched by seller SKU. A row whose SKU already exists updates that product instead of adding a second one.'
             : 'Each product needs its own seller SKU. A SKU that already exists is refused; the form links you to that product instead.'}

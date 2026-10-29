@@ -1,20 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ChevronDown,
-  ImageIcon,
-  RotateCw,
-  Sparkles,
-  UploadCloud,
-  X,
-  XCircle,
-} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useDropzone, type FileRejection } from 'react-dropzone'
 import { api, unwrap } from '@/api/client'
 import { describeError, isApiError, isNotFound } from '@/api/errors'
 import { newIdempotencyKey } from '@/api/idempotency'
+import { Icon, type IconName } from '@/components/la/icons'
+import { MarketplaceTile } from '@/components/la/marketplace'
 import { ErrorState } from '@/components/states/error-state'
 import { ReferenceId } from '@/components/states/reference-id'
 import { Badge } from '@/components/ui/badge'
@@ -155,7 +146,7 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
 
       {count === 0 && !canUpload && inFlight.length === 0 ? (
         <div className="flex items-center gap-3 px-5 py-4 text-sm text-muted-foreground" data-testid="no-images">
-          <ImageIcon className="size-4 shrink-0" aria-hidden />
+          <Icon name="image" size={16} />
           <span>No images yet. Owners and operators can upload them here.</span>
         </div>
       ) : null}
@@ -247,7 +238,7 @@ function Dropzone({
             dragging && '-translate-y-0.5 text-brand group-hover:text-brand',
           )}
         >
-          <UploadCloud className="size-[1.125rem]" aria-hidden />
+          <Icon name="upload" size={18} />
         </div>
         <div className="text-left">
           <p className="text-sm font-medium">
@@ -273,7 +264,7 @@ function Thumb({ src, alt }: { src?: string; alt: string }) {
     <img src={src} alt={alt} className="size-10 shrink-0 rounded-md bg-muted object-cover ring-1 ring-border" />
   ) : (
     <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground ring-1 ring-border">
-      <ImageIcon className="size-4" aria-hidden />
+      <Icon name="image" size={16} />
     </span>
   )
 }
@@ -303,12 +294,12 @@ function UploadRow({ upload, onRetry, onDismiss }: { upload: SessionUpload; onRe
         <div className="flex shrink-0 items-center gap-1">
           {stage.kind === 'failed' ? (
             <Button variant="outline" size="sm" onClick={onRetry}>
-              <RotateCw data-icon="inline-start" />
+              <Icon name="refresh" size={16} data-icon="inline-start" />
               Retry
             </Button>
           ) : null}
           <Button variant="ghost" size="icon-sm" aria-label={`Dismiss ${file.name}`} onClick={onDismiss}>
-            <X />
+            <Icon name="x" size={16} />
           </Button>
         </div>
       )}
@@ -368,7 +359,7 @@ function ImageRow({
                 <Badge variant="muted">Replaced</Badge>
               ) : (
                 <Button variant="ghost" size="sm" onClick={() => void report.refetch()} title={describeError(report.error)}>
-                  <AlertTriangle data-icon="inline-start" className="text-destructive" />
+                  <Icon name="alert" size={16} data-icon="inline-start" className="text-destructive" />
                   Retry report
                 </Button>
               )
@@ -382,7 +373,7 @@ function ImageRow({
             {reports.length ? (
               <CollapsibleTrigger asChild>
                 <Button variant="ghost" size="icon-sm" aria-label={open ? 'Hide report' : 'Show report'} data-testid="image-report-toggle">
-                  <ChevronDown className={cn('transition-transform duration-150', open && 'rotate-180')} />
+                  <Icon name="chev" size={16} className={cn('transition-transform duration-150 motion-reduce:transition-none', open && 'rotate-180')} />
                 </Button>
               </CollapsibleTrigger>
             ) : report.data?.compliance_status === 'pending' && !jobId ? (
@@ -394,7 +385,7 @@ function ImageRow({
                 disabled={report.isFetching}
                 onClick={() => void report.refetch()}
               >
-                <RotateCw className={cn(report.isFetching && 'motion-safe:animate-spin')} />
+                <Icon name="refresh" size={16} className={cn(report.isFetching && 'motion-safe:animate-spin')} />
               </Button>
             ) : null}
           </div>
@@ -465,15 +456,14 @@ function ComplianceBadge({
   )
 }
 
-const OUTCOME_META: Record<CheckOutcome, { icon: typeof CheckCircle2; className: string; label: string }> = {
-  pass: { icon: CheckCircle2, className: 'text-success', label: 'Pass' },
-  warn: { icon: AlertTriangle, className: 'text-warning', label: 'Warning' },
-  fail: { icon: XCircle, className: 'text-destructive', label: 'Fail' },
+const OUTCOME_META: Record<CheckOutcome, { icon: IconName; className: string; label: string }> = {
+  pass: { icon: 'check', className: 'text-success', label: 'Pass' },
+  warn: { icon: 'alert', className: 'text-warning', label: 'Warning' },
+  fail: { icon: 'x', className: 'text-destructive', label: 'Fail' },
 }
 
 function MarketplaceReport({ report }: { report: ImageReport }) {
   const meta = MARKETPLACE_META[report.marketplace]
-  const Icon = meta.icon
   const rows = checkRows(report)
   const t = tally(rows)
   return (
@@ -484,9 +474,7 @@ function MarketplaceReport({ report }: { report: ImageReport }) {
     >
       <header className="flex h-11 items-center justify-between gap-2 border-b bg-muted/40 px-3">
         <span className="flex items-center gap-2 text-sm font-medium">
-          <span className={cn('flex size-6 items-center justify-center rounded-md ring-1 ring-inset', meta.tileClass)}>
-            <Icon className="size-3.5" aria-hidden />
-          </span>
+          <MarketplaceTile id={report.marketplace} size="xs" className="shadow-none" />
           {meta.short}
         </span>
         <span className="flex items-center gap-2">
@@ -502,15 +490,14 @@ function MarketplaceReport({ report }: { report: ImageReport }) {
         <ul className="divide-y divide-border/70">
           {rows.map((r) => {
             const o = OUTCOME_META[r.outcome]
-            const OIcon = o.icon
             return (
               <li key={r.check} className="flex gap-2.5 px-3 py-2" data-check={r.check} data-outcome={r.outcome}>
-                <OIcon className={cn('mt-0.5 size-4 shrink-0', o.className)} aria-hidden />
+                <Icon name={o.icon} size={16} className={cn('mt-[calc((1lh-16px)/2)] text-sm', o.className)} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm">{r.label}</span>
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      {r.method === 'vision' ? <Sparkles className="size-3" aria-hidden /> : null}
+                      {r.method === 'vision' ? <Icon name="spark" size={14} /> : null}
                       <span className="sr-only">{o.label}: </span>
                       {r.method === 'vision' ? 'AI check' : 'Automated'}
                     </span>

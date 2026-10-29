@@ -1,6 +1,5 @@
 /** Avatar menu (hi-fi top bar): 28px brand circle with the user's initial; account, sign out. */
 import { Link } from '@tanstack/react-router'
-import { LogOut } from 'lucide-react'
 import { useState } from 'react'
 import {
   DropdownMenu,
@@ -11,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { logout, useMe } from '@/lib/auth'
 import { useNavItems } from '@/lib/nav'
 import { NavIcon } from './nav-icon'
@@ -52,7 +52,7 @@ export function UserMenu() {
               {items.map((item) => (
                 <DropdownMenuItem key={item.id} asChild>
                   <Link to={item.to}>
-                    <NavIcon icon={item.icon} size={16} />
+                    <NavIcon icon={item.icon} size={16} className="text-ink-3" />
                     {item.label}
                   </Link>
                 </DropdownMenuItem>
@@ -70,7 +70,7 @@ export function UserMenu() {
           }}
           data-testid="sign-out"
         >
-          <LogOut />
+          <NavIcon icon={CONCEPT_ICON.logOut} size={16} className="text-ink-3" />
           {signingOut ? 'Signing out…' : 'Sign out'}
         </DropdownMenuItem>
       </DropdownMenuContent>

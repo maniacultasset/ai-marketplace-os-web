@@ -52,6 +52,7 @@ export function Stepper({
                 state === 'todo' && 'border-line-strong bg-field text-ink-2 shadow-inset-sm',
               )}
             >
+              {/* Status-dot exception: a check inside a filled circle takes stroke 2.5. */}
               {state === 'done' ? <Icon name="check" size={14} strokeWidth={2.5} /> : i + 1}
             </span>
             <span className="truncate">

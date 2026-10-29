@@ -11,6 +11,7 @@ import { Page, PageHeader } from '@/components/app/page-header'
 import { columnHelper, DataTable, selectionColumn } from '@/components/data-table'
 import {
   BulkBar,
+  Glyph,
   Icon,
   MARKETPLACES,
   MarketplaceCell,
@@ -18,6 +19,7 @@ import {
   Segmented,
   StatusChip,
   UnavailableButton,
+  type ChipStatus,
   type MarketplaceId,
 } from '@/components/la'
 import { EmptyState } from '@/components/states/empty-state'
@@ -47,19 +49,28 @@ import {
 
 const col = columnHelper<CatalogRow>()
 
+/** The status chip's own glyph and colour before each filter label (the same signs as the table). */
+const BUCKET_GLYPH: Record<(typeof BUCKETS)[number]['value'], { status: ChipStatus; className: string }> = {
+  live: { status: 'live', className: 'text-success' },
+  progress: { status: 'working', className: 'text-brand' },
+  'needs-you': { status: 'needs-you', className: 'text-attention' },
+  error: { status: 'error', className: 'text-danger' },
+  draft: { status: 'draft', className: 'text-ink-3' },
+}
+
 /** Interactive elements inside a row sit above the row's stretched SKU link. */
 const ABOVE = 'relative z-10'
 
 export function ProductThumb({ size = 40, className }: { size?: number; className?: string }) {
-  // Product images are storage keys, not URLs the browser can show, so the thumbnail is the
-  // neutral product tile from the kit (hi-fi "Product thumbnail 40").
+  // Product images are storage keys, not URLs the browser can show, so every row gets the image
+  // placeholder (hi-fi "Product thumbnail 40"); `box` stays the catalog icon, not a photo stand-in.
   return (
     <span
       aria-hidden
-      className={cn('inline-flex shrink-0 items-center justify-center rounded-[10px] border border-line bg-field text-ink-3 shadow-inset-sm', className)}
+      className={cn('inline-flex shrink-0 items-center justify-center rounded-tile border border-line bg-field text-ink-3 shadow-inset-sm', className)}
       style={{ width: size, height: size }}
     >
-      <Icon name="box" size={Math.round(size * 0.45)} />
+      <Icon name="image" size={size > 40 ? 22 : 18} />
     </span>
   )
 }
@@ -111,7 +122,7 @@ function MarketCell({ row, id, className }: { row: CatalogRow; id: MarketplaceId
       to="/products/$productId"
       params={{ productId: row.product.id }}
       search={{ tab: 'marketplaces' }}
-      className={cn(ABOVE, 'inline-flex rounded-control')}
+      className={cn(ABOVE, 'inline-flex max-w-full rounded-control')}
       tabIndex={-1}
     >
       <MarketplaceCell status={chip.status} label={`${info.name}: ${chip.label}`} sub={sub} className={className} />
@@ -372,7 +383,16 @@ export function ProductsPage() {
                     { value: 'all', label: 'All', count: catalog.isPending ? undefined : counts.all },
                     ...(catalog.listingsState === 'error'
                       ? []
-                      : BUCKETS.map((b) => ({ value: b.value, label: b.label, count: listingsReady ? counts[b.value] : undefined }))),
+                      : BUCKETS.map((b) => ({
+                          value: b.value,
+                          label: (
+                            <>
+                              <Glyph status={BUCKET_GLYPH[b.value].status} className={BUCKET_GLYPH[b.value].className} />
+                              {b.label}
+                            </>
+                          ),
+                          count: listingsReady ? counts[b.value] : undefined,
+                        }))),
                   ]}
                 />
                 <FilterSelect
@@ -394,7 +414,7 @@ export function ProductsPage() {
                 )}
               </div>
               <p className="text-caption text-ink-3">
-                Marketplace columns: ● live · ◐ working · ▲ needs you · ✕ error · – not listed. The small text is the listing ID.
+                Marketplace columns: ● live · ◐ working · ▲ needs you · ■ blocked · ✕ error · – not listed. The small text is the listing ID.
                 {catalog.listingsState === 'error' ? ' Listing status could not be loaded, so status cells show “?”.' : ''}
                 {catalog.listingsState !== 'error' && catalog.issuesState === 'error' ? ' Open issues could not be loaded.' : ''}
                 {catalog.listingsState === 'error' || catalog.issuesState === 'error' ? (

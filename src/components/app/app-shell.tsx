@@ -49,7 +49,7 @@ function TopBar({ title, onOpenMenu }: { title: string; onOpenMenu: () => void }
         type="button"
         onClick={onOpenMenu}
         aria-label="Open navigation"
-        className="tactile press -ml-1 inline-flex size-10 items-center justify-center rounded-[10px] text-ink-2 hover:bg-hover active:shadow-pressed md:hidden md:size-9"
+        className="tactile press -ml-1 inline-flex size-10 items-center justify-center rounded-tile text-ink-2 hover:bg-hover active:shadow-pressed md:hidden md:size-9"
       >
         <Icon name="menu" size={20} />
       </button>
@@ -65,7 +65,7 @@ function TopBar({ title, onOpenMenu }: { title: string; onOpenMenu: () => void }
               aria-disabled="true"
               aria-label="Search products and SKUs (not available yet)"
               onClick={(e) => e.preventDefault()}
-              className="focus-ring inset-field hidden h-[34px] w-60 cursor-not-allowed items-center gap-2 rounded-[10px] border px-2.5 text-left text-small text-ink-3 sm:flex"
+              className="focus-ring inset-field hidden h-[34px] w-60 cursor-not-allowed items-center gap-2 rounded-tile border px-2.5 text-left text-small text-ink-3 sm:flex"
             >
               <Icon name="search" size={16} />
               <span className="truncate">Search products, SKUs</span>
@@ -80,7 +80,7 @@ function TopBar({ title, onOpenMenu }: { title: string; onOpenMenu: () => void }
               aria-disabled
               aria-label="Notifications (coming soon)"
               onClick={(e) => e.preventDefault()}
-              className="focus-ring inline-flex size-10 cursor-not-allowed items-center justify-center rounded-[10px] text-ink-2 md:size-9"
+              className="focus-ring inline-flex size-10 cursor-not-allowed items-center justify-center rounded-tile text-ink-3 md:size-9"
             >
               <Icon name="bell" size={20} />
             </button>

@@ -1,8 +1,9 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3, CalendarRange } from 'lucide-react'
+import { ArrowDownRight, ArrowRight, ArrowUpRight, CalendarRange } from 'lucide-react'
 import { useId, useState, type ReactNode } from 'react'
 import { Page, PageHeader } from '@/components/app/page-header'
-import { Icon } from '@/components/la/icons'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
+import { Icon, IconGlyph } from '@/components/la/icons'
 import { MarketplaceTile } from '@/components/la/marketplace'
 import { EmptyState } from '@/components/states/empty-state'
 import { ErrorState } from '@/components/states/error-state'
@@ -61,7 +62,7 @@ export function Dashboard({ preset, onPreset }: { preset: RangePreset; onPreset:
         title="Listing reports"
         description={
           <span className="inline-flex items-center gap-1.5">
-            <CalendarRange className="size-3.5" aria-hidden />
+            <IconGlyph icon={CalendarRange} size={14} />
             <span data-testid="dashboard-range">{formatRange(range)}</span>
             <span aria-hidden>·</span>
             <span>UTC days</span>
@@ -208,7 +209,7 @@ function Kpi({
 }
 
 function DeltaChip({ delta }: { delta: Delta }) {
-  const Icon = delta.direction === 'up' ? ArrowUpRight : delta.direction === 'down' ? ArrowDownRight : ArrowRight
+  const arrow = delta.direction === 'up' ? ArrowUpRight : delta.direction === 'down' ? ArrowDownRight : ArrowRight
   return (
     <span
       className={cn(
@@ -219,7 +220,7 @@ function DeltaChip({ delta }: { delta: Delta }) {
       )}
       title="Change against the previous period of the same length"
     >
-      <Icon className="size-3.5" aria-hidden />
+      <IconGlyph icon={arrow} size={14} />
       {delta.label}
       <span className="sr-only"> against the previous period</span>
     </span>
@@ -352,7 +353,7 @@ function ColumnChart({ points, metric }: { points: TrendPoint[]; metric: MetricD
                     <div className="relative mb-0 h-0.5 w-[min(24px,60%)] rounded-full bg-border-strong" />
                   ) : (
                     <div
-                      className={cn('relative w-[min(24px,60%)] rounded-t-[4px] transition-[height,background-color] duration-300', isActive ? 'bg-brand' : 'bg-brand/80')}
+                      className={cn('relative w-[min(24px,60%)] rounded-t-xs transition-[height,background-color] duration-300', isActive ? 'bg-brand' : 'bg-brand/80')}
                       style={{ height: `${h}%` }}
                     />
                   )}
@@ -596,7 +597,7 @@ function EmptyDashboard({ preset, onPreset }: { preset: RangePreset; onPreset: (
   return (
     <Card className="py-0" data-testid="dashboard-empty">
       <EmptyState
-        icon={BarChart3}
+        icon={CONCEPT_ICON.reports}
         title={`No listing activity in ${PRESET_LABEL[preset].long}`}
         description="Metrics appear once listings are generated, reviewed, checked against rules or published. Start from a product in your catalog."
         className="py-16"

@@ -32,6 +32,7 @@ import { Route as AppAddIndexRouteImport } from './routes/_app/add/index'
 import { Route as AppAddBulkRouteImport } from './routes/_app/add/bulk'
 import { Route as AppAddGuidedRouteImport } from './routes/_app/add/guided'
 import { Route as AppAddVariantsRouteImport } from './routes/_app/add/variants'
+import { Route as AppAdminSignupsRouteImport } from './routes/_app/admin/signups'
 import { Route as AppImportsIndexRouteImport } from './routes/_app/imports/index'
 import { Route as AppImportsImportIdRouteImport } from './routes/_app/imports/$importId'
 import { Route as AppImportsNewRouteImport } from './routes/_app/imports/new'
@@ -46,7 +47,6 @@ import { Route as AppRunsRunIdRouteImport } from './routes/_app/runs/$runId'
 import { Route as AppSetupBrandRouteImport } from './routes/_app/setup/brand'
 import { Route as AppSetupComplianceRouteImport } from './routes/_app/setup/compliance'
 import { Route as AppSetupMarketplacesRouteImport } from './routes/_app/setup/marketplaces'
-import { Route as AppSettingsAdminSignupsRouteImport } from './routes/_app/_settings/admin/signups'
 import { Route as AppSettingsRulesIndexRouteImport } from './routes/_app/_settings/rules/index'
 import { Route as AppSettingsRulesCheckRouteImport } from './routes/_app/_settings/rules/check'
 import { Route as AppSettingsSettingsIndexRouteImport } from './routes/_app/_settings/settings/index'
@@ -170,6 +170,11 @@ const AppAddVariantsRoute = AppAddVariantsRouteImport.update({
   path: '/add/variants',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminSignupsRoute = AppAdminSignupsRouteImport.update({
+  id: '/admin/signups',
+  path: '/admin/signups',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppImportsIndexRoute = AppImportsIndexRouteImport.update({
   id: '/imports/',
   path: '/imports/',
@@ -240,11 +245,6 @@ const AppSetupMarketplacesRoute = AppSetupMarketplacesRouteImport.update({
   id: '/setup/marketplaces',
   path: '/setup/marketplaces',
   getParentRoute: () => AppRoute,
-} as any)
-const AppSettingsAdminSignupsRoute = AppSettingsAdminSignupsRouteImport.update({
-  id: '/admin/signups',
-  path: '/admin/signups',
-  getParentRoute: () => AppSettingsRoute,
 } as any)
 const AppSettingsRulesIndexRoute = AppSettingsRulesIndexRouteImport.update({
   id: '/rules/',
@@ -320,6 +320,7 @@ export interface FileRoutesByFullPath {
   '/add/bulk': typeof AppAddBulkRoute
   '/add/guided': typeof AppAddGuidedRoute
   '/add/variants': typeof AppAddVariantsRoute
+  '/admin/signups': typeof AppAdminSignupsRoute
   '/imports/$importId': typeof AppImportsImportIdRoute
   '/imports/new': typeof AppImportsNewRoute
   '/issues/$issueId': typeof AppIssuesIssueIdRoute
@@ -335,7 +336,6 @@ export interface FileRoutesByFullPath {
   '/imports/': typeof AppImportsIndexRoute
   '/marketplaces/': typeof AppMarketplacesIndexRoute
   '/products/': typeof AppProductsIndexRoute
-  '/admin/signups': typeof AppSettingsAdminSignupsRoute
   '/rules/check': typeof AppSettingsRulesCheckRoute
   '/settings/compliance': typeof AppSettingsSettingsComplianceRoute
   '/settings/imports': typeof AppSettingsSettingsImportsRoute
@@ -366,6 +366,7 @@ export interface FileRoutesByTo {
   '/add/bulk': typeof AppAddBulkRoute
   '/add/guided': typeof AppAddGuidedRoute
   '/add/variants': typeof AppAddVariantsRoute
+  '/admin/signups': typeof AppAdminSignupsRoute
   '/imports/$importId': typeof AppImportsImportIdRoute
   '/imports/new': typeof AppImportsNewRoute
   '/issues/$issueId': typeof AppIssuesIssueIdRoute
@@ -381,7 +382,6 @@ export interface FileRoutesByTo {
   '/imports': typeof AppImportsIndexRoute
   '/marketplaces': typeof AppMarketplacesIndexRoute
   '/products': typeof AppProductsIndexRoute
-  '/admin/signups': typeof AppSettingsAdminSignupsRoute
   '/rules/check': typeof AppSettingsRulesCheckRoute
   '/settings/compliance': typeof AppSettingsSettingsComplianceRoute
   '/settings/imports': typeof AppSettingsSettingsImportsRoute
@@ -416,6 +416,7 @@ export interface FileRoutesById {
   '/_app/add/bulk': typeof AppAddBulkRoute
   '/_app/add/guided': typeof AppAddGuidedRoute
   '/_app/add/variants': typeof AppAddVariantsRoute
+  '/_app/admin/signups': typeof AppAdminSignupsRoute
   '/_app/imports/$importId': typeof AppImportsImportIdRoute
   '/_app/imports/new': typeof AppImportsNewRoute
   '/_app/issues/$issueId': typeof AppIssuesIssueIdRoute
@@ -431,7 +432,6 @@ export interface FileRoutesById {
   '/_app/imports/': typeof AppImportsIndexRoute
   '/_app/marketplaces/': typeof AppMarketplacesIndexRoute
   '/_app/products/': typeof AppProductsIndexRoute
-  '/_app/_settings/admin/signups': typeof AppSettingsAdminSignupsRoute
   '/_app/_settings/rules/check': typeof AppSettingsRulesCheckRoute
   '/_app/_settings/settings/compliance': typeof AppSettingsSettingsComplianceRoute
   '/_app/_settings/settings/imports': typeof AppSettingsSettingsImportsRoute
@@ -465,6 +465,7 @@ export interface FileRouteTypes {
     | '/add/bulk'
     | '/add/guided'
     | '/add/variants'
+    | '/admin/signups'
     | '/imports/$importId'
     | '/imports/new'
     | '/issues/$issueId'
@@ -480,7 +481,6 @@ export interface FileRouteTypes {
     | '/imports/'
     | '/marketplaces/'
     | '/products/'
-    | '/admin/signups'
     | '/rules/check'
     | '/settings/compliance'
     | '/settings/imports'
@@ -511,6 +511,7 @@ export interface FileRouteTypes {
     | '/add/bulk'
     | '/add/guided'
     | '/add/variants'
+    | '/admin/signups'
     | '/imports/$importId'
     | '/imports/new'
     | '/issues/$issueId'
@@ -526,7 +527,6 @@ export interface FileRouteTypes {
     | '/imports'
     | '/marketplaces'
     | '/products'
-    | '/admin/signups'
     | '/rules/check'
     | '/settings/compliance'
     | '/settings/imports'
@@ -560,6 +560,7 @@ export interface FileRouteTypes {
     | '/_app/add/bulk'
     | '/_app/add/guided'
     | '/_app/add/variants'
+    | '/_app/admin/signups'
     | '/_app/imports/$importId'
     | '/_app/imports/new'
     | '/_app/issues/$issueId'
@@ -575,7 +576,6 @@ export interface FileRouteTypes {
     | '/_app/imports/'
     | '/_app/marketplaces/'
     | '/_app/products/'
-    | '/_app/_settings/admin/signups'
     | '/_app/_settings/rules/check'
     | '/_app/_settings/settings/compliance'
     | '/_app/_settings/settings/imports'
@@ -760,6 +760,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAddVariantsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/admin/signups': {
+      id: '/_app/admin/signups'
+      path: '/admin/signups'
+      fullPath: '/admin/signups'
+      preLoaderRoute: typeof AppAdminSignupsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/imports/': {
       id: '/_app/imports/'
       path: '/imports'
@@ -858,13 +865,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSetupMarketplacesRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/_settings/admin/signups': {
-      id: '/_app/_settings/admin/signups'
-      path: '/admin/signups'
-      fullPath: '/admin/signups'
-      preLoaderRoute: typeof AppSettingsAdminSignupsRouteImport
-      parentRoute: typeof AppSettingsRoute
-    }
     '/_app/_settings/rules/': {
       id: '/_app/_settings/rules/'
       path: '/rules'
@@ -935,7 +935,6 @@ interface AppSettingsRouteChildren {
   AppSettingsAccountRoute: typeof AppSettingsAccountRoute
   AppSettingsBrandRoute: typeof AppSettingsBrandRoute
   AppSettingsTeamRoute: typeof AppSettingsTeamRoute
-  AppSettingsAdminSignupsRoute: typeof AppSettingsAdminSignupsRoute
   AppSettingsRulesCheckRoute: typeof AppSettingsRulesCheckRoute
   AppSettingsSettingsComplianceRoute: typeof AppSettingsSettingsComplianceRoute
   AppSettingsSettingsImportsRoute: typeof AppSettingsSettingsImportsRoute
@@ -948,7 +947,6 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsAccountRoute: AppSettingsAccountRoute,
   AppSettingsBrandRoute: AppSettingsBrandRoute,
   AppSettingsTeamRoute: AppSettingsTeamRoute,
-  AppSettingsAdminSignupsRoute: AppSettingsAdminSignupsRoute,
   AppSettingsRulesCheckRoute: AppSettingsRulesCheckRoute,
   AppSettingsSettingsComplianceRoute: AppSettingsSettingsComplianceRoute,
   AppSettingsSettingsImportsRoute: AppSettingsSettingsImportsRoute,
@@ -972,6 +970,7 @@ interface AppRouteChildren {
   AppAddBulkRoute: typeof AppAddBulkRoute
   AppAddGuidedRoute: typeof AppAddGuidedRoute
   AppAddVariantsRoute: typeof AppAddVariantsRoute
+  AppAdminSignupsRoute: typeof AppAdminSignupsRoute
   AppImportsImportIdRoute: typeof AppImportsImportIdRoute
   AppImportsNewRoute: typeof AppImportsNewRoute
   AppIssuesIssueIdRoute: typeof AppIssuesIssueIdRoute
@@ -1003,6 +1002,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAddBulkRoute: AppAddBulkRoute,
   AppAddGuidedRoute: AppAddGuidedRoute,
   AppAddVariantsRoute: AppAddVariantsRoute,
+  AppAdminSignupsRoute: AppAdminSignupsRoute,
   AppImportsImportIdRoute: AppImportsImportIdRoute,
   AppImportsNewRoute: AppImportsNewRoute,
   AppIssuesIssueIdRoute: AppIssuesIssueIdRoute,

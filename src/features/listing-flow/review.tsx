@@ -58,6 +58,7 @@ import { ListOnButton } from './list-on'
 import { approveAllTargets } from './review-model'
 import { ActionButton, CardSkeleton, GateLegend, GateList } from './ui'
 import { useListingChecks } from './use-listing-checks'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
 
 function itemsSummary(okCount: number, failed: { message: string }[], verb: string): string {
   const parts = [okCount ? `${okCount} ${verb}` : null, failed.length ? `${failed.length} refused: ${failed[0]!.message}` : null]
@@ -91,7 +92,7 @@ function ReviewSkeleton() {
   return (
     <Page>
       <div aria-busy="true" aria-label="Loading the review">
-        <Skeleton className="h-12 w-full rounded-[10px]" />
+        <Skeleton className="h-12 w-full rounded-tile" />
         <Skeleton className="mt-4 h-[42px] w-80" />
         <div className="mt-5 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
           <CardSkeleton lines={6} />
@@ -201,7 +202,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
           )}
           {product ? <span> · {product.sku}</span> : null}
         </div>
-        <Banner tone="info" icon="shield" className="mb-4">
+        <Banner tone="info" icon={CONCEPT_ICON.approval} className="mb-4">
           <b>Approval is always on.</b> Nothing is sent to a marketplace until a person approves it.
         </Banner>
 
@@ -473,7 +474,7 @@ function ReadsAs({
       />
       <div className="mt-4 flex flex-col items-start gap-4 sm:flex-row">
         <div
-          className="flex size-[130px] shrink-0 flex-col items-center justify-center gap-1 rounded-[12px] border border-line bg-field text-ink-2 shadow-inset-md"
+          className="flex size-[130px] shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-line bg-field text-ink-2 shadow-inset-md"
           role="img"
           aria-label={`${canonical.images?.length ?? 0} images attached`}
         >
@@ -488,9 +489,9 @@ function ReadsAs({
             {content.bullets.map((b, i) => {
               const flag = bulletFinding(claims, i, b)
               return (
-                <li key={i} className={cn(flag && '-ml-1.5 list-inside rounded-[6px] bg-attention-bg pl-1.5')}>
+                <li key={i} className={cn(flag && '-ml-1.5 list-inside rounded-sm bg-attention-bg pl-1.5')}>
                   {b} {flag ? (
-                    <span className="ml-1 inline-flex h-[18px] items-center rounded-[5px] border border-attention-line bg-attention-bg px-1.5 align-middle text-[11px] leading-none font-semibold text-attention">
+                    <span className="ml-1 inline-flex h-[18px] items-center rounded-sm border border-attention-line bg-attention-bg px-1.5 align-middle text-[11px] leading-none font-semibold text-attention">
                       No evidence
                     </span>
                   ) : null}

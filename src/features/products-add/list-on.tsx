@@ -47,8 +47,8 @@ export function ListOnPicker({
           if (!m.supported) {
             return (
               <UnavailableHint key={m.id} reason={`${m.name}: ${NOT_YET.waitlist}`}>
-                <span className="flex h-11 items-center gap-2 rounded-control border border-dashed border-line-strong px-3 font-medium text-ink-3">
-                  <span className="size-[18px] rounded-[5px] border border-line-strong bg-subtle" aria-hidden />
+                <span className="flex h-11 items-center gap-2.5 rounded-control border border-dashed border-line-strong pr-4 pl-2 font-medium text-ink-3">
+                  <MarketplaceTile id={m.id} size="sm" />
                   {m.short}
                 </span>
               </UnavailableHint>
@@ -63,7 +63,7 @@ export function ListOnPicker({
               className={cn(
                 'tactile flex h-11 cursor-pointer items-center gap-2.5 rounded-control border pr-4 pl-3 font-medium text-ink',
                 on
-                  ? 'border-brand bg-brand-bg shadow-[var(--selected-ring),var(--shadow-inset-sm)]'
+                  ? 'border-brand bg-brand-bg shadow-selected-inset'
                   : 'lift border-line-strong bg-surface shadow-raised-sm hover:border-ink-3',
               )}
             >
