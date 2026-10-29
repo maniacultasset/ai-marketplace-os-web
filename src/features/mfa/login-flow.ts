@@ -89,3 +89,9 @@ export const RESTART_MESSAGES: Record<RestartReason, string> = {
 
 /** Wrong code or a dead challenge: the same 401, the same words. */
 export const CODE_REJECTED = "That code didn't work. Check it and try again."
+
+/**
+ * A 429 on a sign-in or code form. Fixed text: the alert is assertive, so a count in it would be
+ * read out every second; the seconds left show on the disabled submit button.
+ */
+export const TOO_MANY = 'Too many attempts. Wait for the timer on the button, then try again.'

@@ -2,9 +2,10 @@ import { EyeOff } from 'lucide-react'
 import { Icon } from '@/components/la/icons'
 import { useState, type ComponentProps } from 'react'
 import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
 
 /** Password input with a show/hide toggle (same control as the login page). */
-export function PasswordInput({ id, ...props }: ComponentProps<typeof Input> & { id: string }) {
+export function PasswordInput({ id, className, ...props }: ComponentProps<typeof Input> & { id: string }) {
   const [show, setShow] = useState(false)
   return (
     <div className="relative">
@@ -14,8 +15,8 @@ export function PasswordInput({ id, ...props }: ComponentProps<typeof Input> & {
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}
-        className="pr-10"
         {...props}
+        className={cn('pr-10', className)}
       />
       <button
         type="button"
