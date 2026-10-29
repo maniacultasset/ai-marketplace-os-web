@@ -143,9 +143,10 @@ export async function enforcementMode(): Promise<'off' | 'all'> {
 
 // ---- UI steps ------------------------------------------------------------------------------
 
-/** The setup key as shown (groups of four), without spaces. */
+/** The setup key as shown (groups of four), without spaces. It is hidden until asked for. */
 export async function readSetupKey(page: Page): Promise<string> {
   const key = page.getByTestId('mfa-secret')
+  if (!(await key.isVisible())) await page.getByTestId('show-setup-key').click()
   await expect(key).toBeVisible()
   return (await key.innerText()).replace(/\s+/g, '')
 }

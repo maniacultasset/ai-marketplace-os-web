@@ -12,7 +12,7 @@
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { KeyRound, RefreshCw, RotateCw, Smartphone } from 'lucide-react'
+import { ArrowRight, KeyRound, RefreshCw, RotateCw, Smartphone } from 'lucide-react'
 import { Children, useEffect, useId, useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from 'react'
 import { isApiError } from '@/api/errors'
 import { clearSession, getAccessToken, refreshOnce, sessionHasFamily } from '@/api/session'
@@ -21,7 +21,6 @@ import { Banner } from '@/components/la/banner'
 import { LaCard } from '@/components/la/cards'
 import { fieldHintId, LaField } from '@/components/la/field'
 import { IconTile, type IconSource, type TileTone } from '@/components/la/icons'
-import { Stepper } from '@/components/la/progress'
 import { ErrorState } from '@/components/states/error-state'
 import {
   AlertDialog,
@@ -46,6 +45,8 @@ import { cn } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { changePassword, mfaErrorMessage, regenerateRecoveryCodes, securityQueryOptions, totpConfirm, totpEnroll } from './api'
 import { CodeField, QrPanel, RecoveryCodes, SubmitButton, TOUCH_TEXT } from './components'
+import { BackButton, EnrolWizard, GetAppBody, PasswordConfirmed, QrAgain } from './enrol-wizard'
+import { PRIMARY } from './enrol-steps'
 import { isTotp } from './login-flow'
 import { PasswordForm } from './password-form'
 
@@ -93,7 +94,7 @@ function CardTop({
   title: string
   status?: ReactNode
   action?: ReactNode
-  children: ReactNode
+  children?: ReactNode
 }) {
   return (
     <div className="flex flex-wrap items-start gap-4 p-5 sm:p-6 @xl:flex-nowrap">
@@ -103,7 +104,7 @@ function CardTop({
           <h2 className="text-h3 text-ink">{title}</h2>
           {status}
         </div>
-        <p className="mt-1 max-w-[68ch] text-small text-ink-2">{children}</p>
+        {children ? <p className="mt-1 max-w-[68ch] text-small text-ink-2">{children}</p> : null}
       </div>
       {action ? <div className="w-full @xl:ml-auto @xl:w-auto @xl:shrink-0 @xl:self-center">{action}</div> : null}
     </div>
@@ -170,15 +171,12 @@ function Busy({ children }: { children: ReactNode }) {
 
 type SetupStage = { kind: 'password' } | { kind: 'scan'; secret: TotpEnrollOut } | { kind: 'codes'; codes: string[] }
 
-const SETUP_STEPS: readonly { label: string; stage: SetupStage['kind'] }[] = [
-  { label: 'Confirm password', stage: 'password' },
-  { label: 'Connect app', stage: 'scan' },
-  { label: 'Save codes', stage: 'codes' },
-]
-
 /**
- * Set up (`replace` false: the current password first) or replace the authenticator, confirm with
- * a code, then show the new recovery codes once.
+ * Set up (`replace` false: the current password first) or replace the authenticator in the four
+ * enrolment steps (the sign-in enrolment's shell): get the app, scan, enter the code, then the new
+ * recovery codes once. Setting up asks for the current password on the first step and enrols when
+ * it is confirmed; replacing enrols as the panel opens (the step-up dialog may open first). Back
+ * and Continue between the first three steps never enrol again.
  */
 function TotpSetup({
   replace,
@@ -195,19 +193,18 @@ function TotpSetup({
   onStage?: (kind: SetupStage['kind'] | null) => void
 }) {
   const [stage, setStage] = useState<SetupStage | null>(replace ? null : { kind: 'password' })
+  const [step, setStep] = useState<0 | 1 | 2>(0)
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
   const [fieldError, setFieldError] = useState<string | null>(null)
   const [err, setErr] = useState<Problem>(null)
   const [busy, setBusy] = useState(false)
   const started = useRef(false)
-  const headingRef = useRef<HTMLHeadingElement>(null)
   const codeRef = useRef<HTMLInputElement>(null)
   const pwId = useId()
+  const headingId = useId()
 
-  // Each new stage moves focus to the panel heading, so the change is announced.
   useEffect(() => {
-    if (stage) headingRef.current?.focus()
     onStage?.(stage?.kind ?? null)
   }, [stage?.kind]) // eslint-disable-line react-hooks/exhaustive-deps -- on stage change only
 
@@ -219,6 +216,8 @@ function TotpSetup({
       const secret = await totpEnroll(currentPassword)
       setPassword('')
       setStage({ kind: 'scan', secret })
+      // Setting up: the password was this step's Continue, so go on to the scan.
+      if (currentPassword !== undefined) setStep(1)
     } catch (e) {
       if (isApiError(e) && e.status === 422 && !replace) setFieldError(mfaErrorMessage(e))
       else setErr(problem(e))
@@ -235,8 +234,11 @@ function TotpSetup({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once
   }, [replace])
 
+  const secret = stage?.kind === 'scan' ? stage.secret : null
+
   const onPassword = (e: FormEvent) => {
     e.preventDefault()
+    if (secret) return setStep(1)
     if (!password) {
       setFieldError('Enter your current password.')
       return
@@ -269,119 +271,178 @@ function TotpSetup({
     }
   }
 
-  const title =
-    stage?.kind === 'codes' ? 'Save your recovery codes' : replace ? 'Replace your authenticator' : 'Set up login codes'
+  const alert = err ? <FormAlert testId="totp-setup-error" message={err.message} reference={err.ref} /> : null
+  const cancel = (
+    <Button type="button" variant="ghost" size="sm" className="-mt-px shrink-0" onClick={onClose} disabled={busy} data-testid="setup-cancel">
+      Cancel
+    </Button>
+  )
+  // Replacing: the enrol call failed (or a step-up was cancelled) and there is no key yet.
+  const retry =
+    replace && !secret && !busy && err ? (
+      <Button type="button" variant="secondary" className="w-full sm:w-auto sm:self-start" onClick={() => void enroll()}>
+        <RotateCw data-icon="inline-start" />
+        Try again
+      </Button>
+    ) : null
+  const panel = (children: ReactNode) => (
+    <PanelSurface aria-labelledby={headingId} data-testid="totp-setup" className="max-w-[720px] gap-0">
+      {children}
+    </PanelSurface>
+  )
+  const continueLabel = (
+    <>
+      Continue
+      <ArrowRight data-icon="inline-end" />
+    </>
+  )
 
-  const steps = replace ? SETUP_STEPS.slice(1) : SETUP_STEPS
-  const at = stage === null ? 'scan' : stage.kind
-  const current = Math.max(0, steps.findIndex((st) => st.stage === at))
+  if (stage?.kind === 'codes') {
+    return panel(
+      <EnrolWizard step={3} level={3} variant="panel" headingId={headingId} title="Save your recovery codes" intro="Login codes are on and your other devices were signed out. If you lose your phone, sign in with one of these codes.">
+        <RecoveryCodes
+          codes={stage.codes}
+          account={email}
+          continueLabel="Done"
+          continueClassName={cn(PRIMARY, 'sm:self-end')}
+          onContinue={onDone}
+          bar="panel"
+        />
+      </EnrolWizard>,
+    )
+  }
 
-  return (
-    <PanelSurface aria-labelledby={`${pwId}-title`} data-testid="totp-setup">
-      <div>
-        <Stepper steps={steps} current={current} />
-        <h3 id={`${pwId}-title`} ref={headingRef} tabIndex={-1} className="mt-4 text-h3 text-ink outline-none">
-          {title}
-        </h3>
-      </div>
-      {err ? <FormAlert testId="totp-setup-error" message={err.message} reference={err.ref} /> : null}
-
-      {stage === null ? (
-        busy ? (
-          <Busy>Preparing a new setup key…</Busy>
-        ) : (
-          <div className={FOOTER}>
-            <Button type="button" variant="ghost" className="w-full sm:w-auto" onClick={onClose}>
-              Cancel
+  if (step === 0) {
+    return panel(
+      <EnrolWizard
+        step={0}
+        headingId={headingId}
+        level={3}
+        variant="panel"
+        aside={cancel}
+        title={replace ? 'Replace your authenticator' : 'Set up login codes'}
+        intro={
+          replace
+            ? 'Install an authenticator app on the phone you want to use. Your old authenticator keeps working until you confirm the new one.'
+            : 'Install an authenticator app on your phone, then confirm your password.'
+        }
+        error={alert}
+        onSubmit={onPassword}
+        actions={
+          replace ? (
+            <Button type="button" size="lg" className={PRIMARY} onClick={() => setStep(1)} data-testid="enrol-continue">
+              {continueLabel}
             </Button>
-            <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => void enroll()}>
-              <RotateCw data-icon="inline-start" />
-              Try again
-            </Button>
-          </div>
-        )
-      ) : stage.kind === 'password' ? (
-        <form onSubmit={onPassword} noValidate className="flex flex-col gap-4">
-          <p className="text-small text-ink-2">Confirm it's you with your current password.</p>
-          <LaField label="Current password" htmlFor={`${pwId}-pw`} error={fieldError ?? undefined} className="max-w-[400px]">
-            <PasswordInput
-              id={`${pwId}-pw`}
-              className={TOUCH_TEXT}
-              autoComplete="current-password"
-              autoFocus
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value)
-                setFieldError(null)
-              }}
-              aria-invalid={!!fieldError}
-              aria-describedby={fieldHintId(`${pwId}-pw`)}
-            />
-          </LaField>
-          <div className={FOOTER}>
-            <Button type="button" variant="ghost" className="w-full sm:w-auto" onClick={onClose} disabled={busy}>
-              Cancel
-            </Button>
-            <SubmitButton busy={busy} waiting={0} label="Continue" busyLabel="Continue" size="md" className="w-full sm:w-auto" />
-          </div>
-        </form>
-      ) : stage.kind === 'scan' ? (
-        <div className="flex flex-col gap-5">
-          <p className="max-w-[60ch] text-small text-ink-2">
-            Scan the QR code with an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password), or type the
-            setup key. Then enter the 6-digit code it shows.
-          </p>
-          <QrPanel secret={stage.secret} />
-          {replace ? (
-            <Banner tone="info" icon="info">
-              Your old authenticator keeps working until you confirm the new one.
-            </Banner>
-          ) : null}
-          <form onSubmit={(e) => void onConfirm(e)} noValidate className="flex flex-col gap-4">
-            <CodeField
-              id={`${pwId}-code`}
-              kind="totp"
-              value={code}
-              onChange={(v) => {
-                setCode(v)
-                setFieldError(null)
-              }}
-              error={fieldError}
-              inputRef={codeRef}
-              canAutoSubmit={!busy}
-              busy={busy}
-            />
-            <div className={FOOTER}>
-              <Button type="button" variant="ghost" className="w-full sm:w-auto" onClick={onClose} disabled={busy}>
-                Cancel
-              </Button>
-              <SubmitButton
-                busy={busy}
-                waiting={0}
-                label={replace ? 'Use this authenticator' : 'Turn on login codes'}
-                busyLabel="Checking…"
-                size="md"
-                className="w-full sm:w-auto"
+          ) : (
+            <SubmitButton busy={busy} waiting={0} label="Continue" busyLabel="Checking…" className={PRIMARY} testId="enrol-continue" />
+          )
+        }
+      >
+        <GetAppBody>
+          {retry}
+          {replace ? null : secret ? (
+            <PasswordConfirmed />
+          ) : (
+            <LaField
+              label="Current password"
+              hint="Confirm it's you before the setup key is made."
+              htmlFor={`${pwId}-pw`}
+              error={fieldError ?? undefined}
+              className="max-w-[400px]"
+            >
+              <PasswordInput
+                id={`${pwId}-pw`}
+                className={TOUCH_TEXT}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  setFieldError(null)
+                }}
+                aria-invalid={!!fieldError}
+                aria-describedby={fieldHintId(`${pwId}-pw`)}
               />
-            </div>
-          </form>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1 text-small text-ink-2">
-            <p>Login codes are on. Your other devices were signed out.</p>
-            <p>If you lose your phone, sign in with one of these codes.</p>
-          </div>
-          <RecoveryCodes
-            codes={stage.codes}
-            account={email}
-            continueLabel="Done"
-            continueClassName="w-full sm:w-auto sm:min-w-[200px] sm:self-end"
-            onContinue={onDone}
+            </LaField>
+          )}
+        </GetAppBody>
+      </EnrolWizard>,
+    )
+  }
+
+  if (step === 1) {
+    return panel(
+      <EnrolWizard
+        step={1}
+        headingId={headingId}
+        level={3}
+        variant="panel"
+        aside={cancel}
+        title="Scan the QR code"
+        intro="Open your authenticator app, add an account and scan this code with your phone's camera."
+        error={alert}
+        actions={
+          <>
+            <BackButton onClick={() => setStep(0)} />
+            <Button type="button" size="lg" className={PRIMARY} onClick={() => setStep(2)} disabled={!secret} data-testid="enrol-continue">
+              {continueLabel}
+            </Button>
+          </>
+        }
+      >
+        {retry ?? (!secret && busy ? <Busy>Preparing a new setup key…</Busy> : <QrPanel secret={secret} />)}
+      </EnrolWizard>,
+    )
+  }
+
+  return panel(
+    <EnrolWizard
+      step={2}
+      headingId={headingId}
+      level={3}
+      variant="panel"
+      aside={cancel}
+      title="Enter the 6-digit code"
+      intro={
+        replace
+          ? 'Type the code your new app shows for Kuinn. Your old authenticator stops working once you confirm.'
+          : 'Type the code your app now shows for Kuinn.'
+      }
+      error={alert}
+      onSubmit={(e) => void onConfirm(e)}
+      actions={
+        <>
+          <BackButton onClick={() => setStep(1)} disabled={busy} />
+          <SubmitButton
+            busy={busy}
+            waiting={0}
+            label={replace ? 'Use this authenticator' : 'Turn on login codes'}
+            busyLabel="Checking…"
+            disabled={!secret}
+            className={PRIMARY}
           />
+        </>
+      }
+    >
+      {retry ?? (
+        <div className="flex flex-col gap-4">
+          <CodeField
+            id={`${pwId}-code`}
+            kind="totp"
+            value={code}
+            onChange={(v) => {
+              setCode(v)
+              setFieldError(null)
+            }}
+            error={fieldError}
+            disabled={!secret}
+            inputRef={codeRef}
+            canAutoSubmit={!busy}
+            busy={busy}
+          />
+          <QrAgain uri={secret?.otpauth_uri ?? null} />
         </div>
       )}
-    </PanelSurface>
+    </EnrolWizard>,
   )
 }
 
@@ -499,6 +560,9 @@ function LoginCodesCard({ security, email, autoSetup, onSetupShown }: { security
   const showingCodes = panel === 'codes' || setupStage === 'codes'
   const tone: TileTone = !on ? 'neutral' : enrolled || showingCodes ? 'ok' : 'warn'
   const opened = panel !== null
+  // While the setup steps show, the card's description and the deadline banner only repeat
+  // what the steps say: drop them so each step fits on one screen.
+  const stepping = panel === 'setup' || panel === 'replace'
 
   return (
     <Card ref={cardRef} className="@container gap-0 py-0" data-testid="login-codes-card">
@@ -528,12 +592,14 @@ function LoginCodesCard({ security, email, autoSetup, onSetupShown }: { security
           ) : null
         }
       >
-        {on
+        {stepping
+          ? null
+          : on
           ? 'Each sign-in asks for a 6-digit code from an authenticator app on your phone, after your password.'
           : 'Two-step sign-in with an authenticator app is coming to Kuinn. When it is switched on you can set it up here, or at your next sign-in.'}
       </CardTop>
 
-      {on && !enrolled && !showingCodes ? (
+      {on && !enrolled && !showingCodes && !stepping ? (
         <div className="px-5 pb-5 sm:px-6">
           <Banner
             tone="attention"

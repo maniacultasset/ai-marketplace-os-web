@@ -3,7 +3,7 @@
  * QR panel, the setup key, the recovery codes panel and the live password checklist. Nothing here
  * logs or stores a secret.
  */
-import { Check, Copy, Download, ExternalLink, Info } from 'lucide-react'
+import { Check, ChevronDown, Copy, Download, ExternalLink, Info } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type ClipboardEvent, type ReactNode, type Ref } from 'react'
 import { Banner } from '@/components/la/banner'
 import { fieldHintId, LaField } from '@/components/la/field'
@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
+import { stepBarClass, TOGGLE, type StepBarVariant } from './enrol-steps'
 import { groupSecret, totpInput } from './login-flow'
 import { checkPassword, RULE_LABELS, RULE_ORDER, SERVER_RULES } from './password-rules'
 
@@ -361,14 +362,20 @@ export function QrCode({ uri, size = 184, className }: { uri: string; size?: num
   )
 }
 
-const QR_SIZE = 160
+const QR_SIZE = 168
+
+const SCAN_STEPS = ['Open your authenticator app', 'Tap + or "Add account"', 'Point the camera at this code'] as const
 
 /**
- * The QR code and the setup key in one panel. Side by side only when the panel itself is wide
- * enough (a container query), so a narrow settings panel stacks them like a phone does. Pass no
- * secret while it loads.
+ * The QR code in one panel, with the setup key behind a "Can't scan?" disclosure (kept out of
+ * sight, so it is not read over a shoulder or caught in a screenshot). Side by side with the scan
+ * steps only when the panel itself is wide enough (a container query). Pass no secret while it
+ * loads.
  */
 export function QrPanel({ secret }: { secret: { otpauth_uri: string; secret_b32: string } | null }) {
+  const [showKey, setShowKey] = useState(false)
+  const keyId = useId()
+  const key = secret?.secret_b32 ?? null
   return (
     <div className="@container rounded-2xl border border-line bg-canvas p-4 @md:p-5">
       {secret ? (
@@ -382,23 +389,50 @@ export function QrPanel({ secret }: { secret: { otpauth_uri: string; secret_b32:
           <p className="text-center text-caption text-ink-3">Or scan the code below from another device.</p>
         </div>
       ) : null}
-      <div className="grid gap-5 @md:grid-cols-[auto_minmax(0,1fr)] @md:items-center">
+      <div className="grid gap-4 @md:grid-cols-[auto_minmax(0,1fr)] @md:items-center @md:gap-6">
         <div className="mx-auto rounded-xl border border-line bg-surface p-2 shadow-raised-sm @md:mx-0">
           {secret ? (
             <QrCode uri={secret.otpauth_uri} size={QR_SIZE} className="rounded-xs border-0" />
           ) : (
-            <Skeleton style={{ width: QR_SIZE, height: QR_SIZE }} className="rounded-xs" />
+            <Skeleton style={{ width: QR_SIZE, height: QR_SIZE }} className="rounded-xs" aria-label="Preparing your QR code" />
           )}
         </div>
-        {secret ? (
-          <SetupKey secret={secret.secret_b32} />
-        ) : (
-          <div className="flex min-w-0 flex-col gap-2" aria-busy="true" aria-label="Preparing your setup key">
-            <Skeleton className="h-4 w-48 max-w-full" />
-            <Skeleton className="h-6 w-full" />
-            <Skeleton className="h-6 w-3/4" />
+        {/* Beside the QR: the scan steps, or the setup key in their place once asked for, so
+            showing it does not make the step taller. */}
+        <div className="flex min-w-0 flex-col gap-3">
+          {showKey ? null : (
+            <ol className="hidden flex-col gap-3 @md:flex">
+              {SCAN_STEPS.map((t, i) => (
+                <li key={t} className="flex items-center gap-3 text-small text-ink">
+                  <span
+                    aria-hidden
+                    className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-brand-line bg-brand-bg text-caption font-semibold text-brand tabular-nums"
+                  >
+                    {i + 1}
+                  </span>
+                  {t}
+                </li>
+              ))}
+            </ol>
+          )}
+          <div id={keyId} hidden={!showKey}>
+            {showKey && key ? <SetupKey secret={key} /> : null}
           </div>
-        )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn('self-start max-@md:self-center @md:-ml-3', TOGGLE)}
+            aria-expanded={showKey}
+            aria-controls={keyId}
+            disabled={!key}
+            onClick={() => setShowKey((o) => !o)}
+            data-testid="show-setup-key"
+          >
+            <ChevronDown aria-hidden className={cn('tactile', showKey && 'rotate-180')} />
+            {showKey ? 'Hide setup key' : "Can't scan? Show setup key"}
+          </Button>
+        </div>
       </div>
     </div>
   )
@@ -427,12 +461,12 @@ export function SetupKey({ secret }: { secret: string }) {
   return (
     <div className="min-w-0">
       <p id={labelId} className="mb-2 text-small font-semibold text-ink">
-        Can't scan? Type this setup key
+        Type this setup key in your app
       </p>
       <div className="flex w-full items-stretch gap-2">
         <code
           aria-labelledby={labelId}
-          className="grid min-w-0 flex-1 grid-cols-4 gap-x-3 gap-y-1 rounded-control border inset-field px-3.5 py-2.5 font-mono text-[15px] leading-6 tracking-[0.04em] text-ink"
+          className="grid min-w-0 flex-1 grid-cols-[repeat(4,max-content)] justify-between gap-x-3 gap-y-1 rounded-control border inset-field px-3.5 py-2.5 font-mono text-[15px] leading-6 tracking-[0.04em] text-ink"
           data-testid="mfa-secret"
         >
           {groups.map((g, i) => (
@@ -495,6 +529,7 @@ export function RecoveryCodes({
   continueClassName = 'w-full',
   onContinue,
   busy,
+  bar,
 }: {
   codes: string[]
   account?: string
@@ -502,6 +537,8 @@ export function RecoveryCodes({
   continueClassName?: string
   onContinue: () => void
   busy?: boolean
+  /** Put the continue button in the step's sticky phone bar (see `stepBarClass`). */
+  bar?: StepBarVariant
 }) {
   const [saved, setSaved] = useState(false)
   const { copied, copy } = useCopied()
@@ -515,9 +552,10 @@ export function RecoveryCodes({
     return () => window.removeEventListener('beforeunload', warn)
   }, [])
   const checkId = useId()
-  // Two columns only when short codes fit side by side in a wide enough panel (a container query).
-  // A long code in a narrow panel wraps after a dash, never inside a group.
-  const twoColumns = codes.every((c) => c.length <= 20)
+  // Two columns when the codes fit side by side in a wide enough panel (a container query): short
+  // codes from 24rem, the real 32-character ones from 38.5rem (letters set a touch tighter; the sign-in card is 38.9rem inside). A long code in a narrow panel wraps
+  // after a dash, never inside a group.
+  const columns = codes.length !== 10 ? null : codes.every((c) => c.length <= 20) ? 'short' : codes.every((c) => c.length <= 34) ? 'long' : null
   return (
     <div className="@container flex flex-col gap-4" data-testid="recovery-codes">
       <Banner tone="attention" icon="alert" title="You'll only see these codes once">
@@ -526,8 +564,12 @@ export function RecoveryCodes({
       <ol
         aria-label="Recovery codes"
         className={cn(
-          'grid gap-x-6 rounded-2xl border inset-field px-4 py-1 [counter-reset:rc]',
-          twoColumns && codes.length === 10 && '@sm:grid-flow-col @sm:grid-cols-2 @sm:grid-rows-5 @sm:[&>li:nth-child(5)]:border-b-0',
+          // Rows tighten to 28px once the panel is wider than a phone, so all ten fit with the
+          // buttons below them on a tablet.
+          'grid gap-x-6 rounded-2xl border inset-field px-4 py-1 [counter-reset:rc] @sm:[&>li]:py-0.5',
+          columns === 'short' && '@sm:grid-flow-col @sm:grid-cols-2 @sm:grid-rows-5 @sm:[&>li:nth-child(5)]:border-b-0',
+          columns === 'long' &&
+            '@min-[38.5rem]:grid-flow-col @min-[38.5rem]:grid-cols-2 @min-[38.5rem]:grid-rows-5 @min-[38.5rem]:gap-x-3 @min-[38.5rem]:[&>li]:gap-2 @min-[38.5rem]:px-2 @min-[38.5rem]:[&>li>span]:tracking-[-0.01em] @min-[38.5rem]:[&>li:nth-child(5)]:border-b-0',
         )}
       >
         {codes.map((c) => (
@@ -571,16 +613,18 @@ export function RecoveryCodes({
         <Checkbox id={checkId} checked={saved} onCheckedChange={(v) => setSaved(v === true)} data-testid="codes-saved" />
         <span className="text-body text-ink">I saved these codes somewhere safe</span>
       </label>
-      <Button
-        type="button"
-        size="lg"
-        className={cn('disabled:opacity-60', continueClassName)}
-        disabled={!saved || busy}
-        onClick={onContinue}
-        data-testid="codes-continue"
-      >
-        {continueLabel}
-      </Button>
+      <div className={cn('flex flex-col', bar && stepBarClass(bar))}>
+        <Button
+          type="button"
+          size="lg"
+          className={cn('disabled:opacity-60', continueClassName)}
+          disabled={!saved || busy}
+          onClick={onContinue}
+          data-testid="codes-continue"
+        >
+          {continueLabel}
+        </Button>
+      </div>
     </div>
   )
 }

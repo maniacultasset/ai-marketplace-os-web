@@ -52,6 +52,20 @@ function setup(routes: Record<string, Handler | Handler[]>) {
   return { ...api, user }
 }
 
+/** The name of the enrolment step marked current (aria-current="step"). */
+function currentStep() {
+  const li = screen.getByRole('list', { name: 'Setup steps' }).querySelector('[aria-current="step"]')
+  return li?.textContent?.replace(/^\d+/, '').trim()
+}
+
+/** Enrolment: Continue past "get the app" and "scan" to the code step. */
+async function toCodeStep(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: 'Continue' }))
+  await screen.findByTestId('mfa-qr')
+  await user.click(screen.getByRole('button', { name: 'Continue' }))
+  await screen.findByRole('heading', { name: 'Enter the 6-digit code' })
+}
+
 async function signInWith(user: ReturnType<typeof userEvent.setup>, password = 'old-password') {
   await user.type(screen.getByLabelText('Email'), 'meera@acme.test')
   await user.type(screen.getByLabelText('Password', { exact: true }), password)
@@ -169,20 +183,46 @@ describe('LoginPage: every LoginResult status', () => {
     })
     await signInWith(user)
 
-    // Enrol: heading focused, QR drawn locally, the key grouped for manual entry.
+    // Step 1 (get the app): heading focused, the stepper on step 1 of 4.
     const heading = await screen.findByRole('heading', { name: 'Set up login codes' })
     await waitFor(() => expect(document.activeElement).toBe(heading))
+    expect(currentStep()).toBe('Get the app')
+    expect(screen.getByText(/expires after 15 minutes/)).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+
+    // Step 2 (scan): QR drawn locally; the setup key stays hidden until asked for, then grouped.
+    const scan = await screen.findByRole('heading', { name: 'Scan the QR code' })
+    await waitFor(() => expect(document.activeElement).toBe(scan))
+    expect(currentStep()).toBe('Scan')
     const qr = await screen.findByTestId('mfa-qr')
     expect(qr.getAttribute('src')).toMatch(/^data:image\/svg\+xml/)
+    expect(screen.queryByTestId('mfa-secret')).toBeNull()
+    await user.click(screen.getByRole('button', { name: "Can't scan? Show setup key" }))
     expect(screen.getByTestId('mfa-secret').textContent).toBe('JBSW Y3DP EHPK 3PXP')
-    expect(screen.getByText(/expires after 15 minutes/)).toBeTruthy()
-    // Exactly one enrol call (a second would mint another secret).
+
+    // Back and forth between the steps is client-only: still exactly one enrol call (a second
+    // would mint another secret), and the same key.
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+    await screen.findByRole('heading', { name: 'Set up login codes' })
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    await user.click(await screen.findByRole('button', { name: "Can't scan? Show setup key" }))
+    expect(screen.getByTestId('mfa-secret').textContent).toBe('JBSW Y3DP EHPK 3PXP')
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+
+    // Step 3 (enter the code), with the QR one click away.
+    const enter = await screen.findByRole('heading', { name: 'Enter the 6-digit code' })
+    await waitFor(() => expect(document.activeElement).toBe(enter))
+    expect(currentStep()).toBe('Enter code')
+    expect(screen.getAllByRole('listitem').filter((li) => li.getAttribute('data-state') === 'done')).toHaveLength(2)
+    await user.click(screen.getByRole('button', { name: 'Show QR code again' }))
+    expect(await screen.findByTestId('mfa-qr')).toBeTruthy()
     expect(calls.filter((c) => c.path === '/auth/login/mfa/enroll')).toHaveLength(1)
     await user.type(screen.getByLabelText('6-digit code'), '654321')
     await user.click(screen.getByRole('button', { name: 'Turn on login codes' }))
 
-    // Recovery codes: shown once, Continue gated by "I saved them".
+    // Step 4, recovery codes: shown once, Continue gated by "I saved them".
     await screen.findByRole('heading', { name: 'Save your recovery codes' })
+    expect(currentStep()).toBe('Save recovery codes')
     const list = screen.getByRole('list', { name: 'Recovery codes' })
     expect(within(list).getAllByRole('listitem').map((li) => li.textContent)).toEqual(CODES)
     expect(screen.getByRole('button', { name: 'Download .txt' })).toBeTruthy()
@@ -219,6 +259,7 @@ describe('LoginPage: every LoginResult status', () => {
         json(200, { recovery_codes: CODES, result: { status: 'password_change_required', challenge_token: 'ch-pw', challenge_expires_in: 1 } }),
     })
     await signInWith(user)
+    await toCodeStep(user)
     await user.type(await screen.findByLabelText('6-digit code'), '654321')
     await user.click(screen.getByRole('button', { name: 'Turn on login codes' }))
     await screen.findByRole('heading', { name: 'Save your recovery codes' })
