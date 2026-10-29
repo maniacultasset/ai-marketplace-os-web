@@ -12,19 +12,19 @@ import { useForm } from 'react-hook-form'
 import { applyFieldErrors, describeError, isApiError } from '@/api/errors'
 import { Banner } from '@/components/la/banner'
 import { fieldHintId, LaField } from '@/components/la/field'
-import { Button } from '@/components/ui/button'
+import { IconTile, type IconName } from '@/components/la/icons'
 import { Input } from '@/components/ui/input'
-import { Spinner } from '@/components/ui/spinner'
 import { PasswordInput } from '@/features/signup-admin/password-input'
 import { LOGIN_EMAIL_MAX, statusFormSchema, type StatusFormValues } from '@/features/signup-admin/schema'
 import { useCountdown } from '@/features/signup-admin/use-countdown'
 import type { LoginResult } from '@/api/types'
-import { advance, RESTART_MESSAGES, type Advance, type FlowStep, type RestartReason } from '@/features/mfa/login-flow'
+import { SubmitButton, TOUCH_TEXT } from '@/features/mfa/components'
+import { advance, RESTART_MESSAGES, TOO_MANY, type Advance, type FlowStep, type RestartReason } from '@/features/mfa/login-flow'
 import { EnrollStep, MfaCodeStep, PasswordChangeStep, RecoveryCodesStep } from '@/features/mfa/login-steps'
 import { finishSignIn, signIn, useSession } from '@/lib/auth'
 import { toast } from '@/lib/toast'
 import { FORM_VALIDATION_MODE } from '@/lib/validation'
-import { AsideLink, AuthFootnote, AuthFrame, FormAlert } from './auth-frame'
+import { AccountChip, AsideLink, AuthCard, AuthFrame, FormAlert } from './auth-frame'
 import { useDocumentTitle } from './use-document-title'
 
 /**
@@ -40,11 +40,27 @@ function graceDate(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+type Tone = 'danger' | 'attention' | 'info'
+interface FormError {
+  message: string
+  ref: string | null
+  tone?: Tone
+  icon?: IconName
+}
+
+/** How each restart notice reads: a timeout is information, too many codes or MFA off need attention. */
+const RESTART_TONE: Record<RestartReason, { tone: Tone; icon?: IconName }> = {
+  expired: { tone: 'info', icon: 'clock' },
+  attempts: { tone: 'attention' },
+  'mfa-off': { tone: 'attention' },
+  invalid: { tone: 'danger' },
+}
+
 export function LoginPage({ target }: { target: string }) {
   useDocumentTitle('Sign in')
   const router = useRouter()
   const session = useSession()
-  const [formError, setFormError] = useState<{ message: string; ref: string | null } | null>(null)
+  const [formError, setFormError] = useState<FormError | null>(null)
   const [step, setStep] = useState<FlowStep>({ kind: 'credentials' })
   /** The email of this sign-in, for the password rules' name check. Never the password. */
   const [email, setEmail] = useState('')
@@ -64,7 +80,7 @@ export function LoginPage({ target }: { target: string }) {
   const restart = useCallback(
     (reason: RestartReason) => {
       setStep({ kind: 'credentials' })
-      setFormError({ message: RESTART_MESSAGES[reason], ref: null })
+      setFormError({ message: RESTART_MESSAGES[reason], ref: null, ...RESTART_TONE[reason] })
       requestAnimationFrame(() => form.setFocus(reason === 'invalid' ? 'email' : 'password'))
     },
     [form],
@@ -119,7 +135,8 @@ export function LoginPage({ target }: { target: string }) {
         form.setFocus('password')
       } else if (e.status === 429) {
         countdown.start(e.retryAfter ?? 60)
-        setFormError({ message: 'Too many attempts.', ref: e.correlationId })
+        // Fixed text: the seconds left count down on the button, not in the (assertive) alert.
+        setFormError({ message: TOO_MANY, ref: e.correlationId })
       } else if (e.status === 422) {
         const rest = applyFieldErrors(e, form.setError, { fields: ['email', 'password'] })
         if (rest.length) setFormError({ message: describeError(e), ref: e.correlationId })
@@ -130,9 +147,14 @@ export function LoginPage({ target }: { target: string }) {
   })
 
   if (step.kind !== 'credentials') {
+    const startOver = () => {
+      setStep({ kind: 'credentials' })
+      setFormError(null)
+    }
     return (
-      <AuthFrame aside={<>Signing in as <span className="font-semibold text-ink">{email}</span></>}>
-        <div className="mx-auto flex w-full max-w-[448px] flex-1 flex-col gap-4 px-4 pt-8 pb-6 sm:pt-12" data-testid="login-card">
+      <AuthFrame tone="canvas">
+        <AuthCard size={step.kind === 'mfa' ? 'sm' : 'lg'}>
+          <AccountChip email={email} onSwitch={step.kind === 'recovery-codes' ? undefined : startOver} />
           {step.kind === 'mfa' ? (
             <MfaCodeStep key={step.challenge.token} challenge={step.challenge} onResult={(r) => void onResult(r)} onRestart={restart} />
           ) : step.kind === 'enroll' ? (
@@ -148,43 +170,28 @@ export function LoginPage({ target }: { target: string }) {
           ) : (
             <PasswordChangeStep key={step.challenge.token} challenge={step.challenge} email={email} onResult={(r) => void onResult(r)} onRestart={restart} />
           )}
-          {step.kind === 'recovery-codes' ? null : (
-            <div className="border-t border-line pt-4 text-small">
-              <Button
-                type="button"
-                variant="link"
-                onClick={() => {
-                  setStep({ kind: 'credentials' })
-                  setFormError(null)
-                }}
-                data-testid="login-start-over"
-              >
-                Sign in with a different account
-              </Button>
-            </div>
-          )}
-          <AuthFootnote />
-        </div>
+        </AuthCard>
       </AuthFrame>
     )
   }
 
   const submitting = form.formState.isSubmitting
-  const locked = countdown.left > 0
   const { errors } = form.formState
 
   return (
     <AuthFrame
+      tone="canvas"
       aside={
         <>
           New brand? <AsideLink to="/signup">Request access</AsideLink>
         </>
       }
     >
-      <div className="mx-auto flex w-full max-w-[448px] flex-1 flex-col gap-4 px-4 pt-8 pb-6 sm:pt-12" data-testid="login-card">
+      <AuthCard size="sm">
         <div>
-          <h1 className="text-h1 text-ink">Sign in</h1>
-          <p className="mt-2 text-body text-ink-2">Use the email and password for your brand account.</p>
+          <IconTile icon="lock" tone="brand" size="lg" className="mb-4" />
+          <h1 className="text-[24px] leading-[30px] font-bold tracking-[-0.02em] text-ink sm:text-h1">Sign in</h1>
+          <p className="mt-2 text-body text-pretty text-ink-2">Use the email and password for your brand account.</p>
         </div>
         {session.endReason === 'expired' && !formError ? (
           <Banner tone="info" role="status">
@@ -200,7 +207,9 @@ export function LoginPage({ target }: { target: string }) {
           <FormAlert
             testId="login-error"
             reference={formError.ref}
-            message={`${formError.message}${locked ? ` Try again in ${countdown.left} s.` : ''}`}
+            tone={formError.tone}
+            icon={formError.icon}
+            message={formError.message}
           />
         ) : null}
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
@@ -213,6 +222,7 @@ export function LoginPage({ target }: { target: string }) {
               autoCapitalize="none"
               autoFocus
               spellCheck={false}
+              className={TOUCH_TEXT}
               maxLength={LOGIN_EMAIL_MAX}
               placeholder="you@yourbrand.com"
               aria-invalid={!!errors.email}
@@ -225,34 +235,26 @@ export function LoginPage({ target }: { target: string }) {
             htmlFor="password"
             error={errors.password?.message}
             submitCount={form.formState.submitCount}
-            hint="There is no password reset yet. Your brand owner manages access. Repeated failed attempts lock the account for 15 minutes."
+            hint="There's no reset link yet. If you forget it, ask your brand owner. Too many wrong tries locks the account for 15 minutes."
           >
             <PasswordInput
               id="password"
               autoComplete="current-password"
+              className={TOUCH_TEXT}
               aria-invalid={!!errors.password}
               aria-describedby={fieldHintId('password')}
               {...form.register('password')}
             />
           </LaField>
-          <Button type="submit" size="lg" className="w-full" disabled={submitting || locked}>
-            {submitting ? <Spinner data-icon="inline-start" /> : null}
-            {locked ? `Try again in ${countdown.left} s` : submitting ? 'Signing in…' : 'Sign in'}
-          </Button>
+          <SubmitButton busy={submitting} waiting={countdown.left} label="Sign in" busyLabel="Signing in…" />
         </form>
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-line pt-4 text-small">
-          <span className="text-ink-2">
-            New brand?{' '}
-            <Link to="/signup" className="font-semibold text-brand underline-offset-4 hover:underline" data-testid="signup-link">
-              Request access
-            </Link>
-          </span>
-          <Link to="/signup/status" className="text-ink-2 underline-offset-4 hover:text-ink hover:underline" data-testid="signup-status-link">
-            Check request status
+        <p className="border-t border-line pt-5 text-center text-small text-ink-2">
+          Applied already?{' '}
+          <Link to="/signup/status" className="font-semibold text-brand underline-offset-4 hover:underline" data-testid="signup-status-link">
+            Check your request
           </Link>
-        </div>
-        <AuthFootnote />
-      </div>
+        </p>
+      </AuthCard>
     </AuthFrame>
   )
 }
