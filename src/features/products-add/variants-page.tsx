@@ -11,7 +11,6 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { CircleAlert } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { api, unwrap } from '@/api/client'
 import { describeError, isApiError } from '@/api/errors'
@@ -125,7 +124,7 @@ function TagInput({
               aria-label={`Remove ${v}`}
               onClick={() => onChange(values.filter((x) => x !== v))}
             >
-              <Icon name="x" size={12} />
+              <Icon name="x" size={14} />
             </button>
           </span>
         ))}
@@ -166,7 +165,7 @@ function CellError({ id, error }: { id: string; error?: string }) {
           aria-hidden={!error || undefined}
           className="flex items-start gap-1 pt-1 text-caption font-semibold text-danger"
         >
-          {last ? <CircleAlert aria-hidden className="mt-px size-3.5 shrink-0" /> : null}
+          {last ? <Icon name="alert" size={14} className="mt-[calc((1lh-14px)/2)]" /> : null}
           <span className="min-w-0">{error ?? last}</span>
         </p>
       </div>

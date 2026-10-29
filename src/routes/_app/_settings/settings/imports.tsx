@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Page, PageHeader } from '@/components/app/page-header'
+import { Icon } from '@/components/la/icons'
 import { Button } from '@/components/ui/button'
 import { ImportsHistory } from '@/features/imports/imports-history'
 import { Can } from '@/lib/permissions'
@@ -23,7 +24,10 @@ function ImportsSettingsPage() {
         actions={
           <Can action="product:import">
             <Button variant="secondary" asChild>
-              <Link to="/imports/new">Import a spreadsheet</Link>
+              <Link to="/imports/new">
+                <Icon name="upload" size={16} />
+                Import a spreadsheet
+              </Link>
             </Button>
           </Can>
         }

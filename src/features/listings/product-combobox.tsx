@@ -1,4 +1,4 @@
-import { Check, ChevronsUpDown, Package } from 'lucide-react'
+import { ChevronsUpDown } from 'lucide-react'
 import { useState } from 'react'
 import { api, unwrap } from '@/api/client'
 import { describeError, isApiError } from '@/api/errors'
@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { PAGE_SIZE, useCursorList } from '@/hooks/use-cursor-list'
 import { useKeys } from '@/lib/query-keys'
-import { cn } from '@/lib/utils'
+import { Icon, IconGlyph } from '@/components/la/icons'
 
 export type ProductPick = Pick<Schema<'ProductOut'>, 'id' | 'sku' | 'title' | 'category'>
 
@@ -57,7 +57,7 @@ export function ProductCombobox({
           data-testid="generate-product"
         >
           <span className="flex min-w-0 items-center gap-2 text-left">
-            <Package className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <Icon name="box" size={16} className="text-muted-foreground" />
             {value ? (
               <span className="min-w-0">
                 <span className="block truncate text-sm">{value.title}</span>
@@ -67,7 +67,7 @@ export function ProductCombobox({
               <span className="text-muted-foreground">{placeholder}</span>
             )}
           </span>
-          {disabled ? null : <ChevronsUpDown className="size-4 shrink-0 opacity-50" aria-hidden />}
+          {disabled ? null : <IconGlyph icon={ChevronsUpDown} size={16} className="text-ink-3" />}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-(--radix-popover-trigger-width) min-w-[min(22rem,calc(100vw-2rem))] p-0" align="start">
@@ -106,7 +106,7 @@ export function ProductCombobox({
                       }}
                       className="gap-2"
                     >
-                      <Check className={cn('size-4', value?.id === p.id ? 'opacity-100' : 'opacity-0')} aria-hidden />
+                      <Icon name="check" size={16} className={value?.id === p.id ? 'opacity-100' : 'opacity-0'} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate">{p.title}</span>
                         <span className="block truncate font-mono text-[11px] text-muted-foreground">

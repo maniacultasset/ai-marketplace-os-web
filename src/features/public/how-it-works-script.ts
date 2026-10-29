@@ -4,8 +4,8 @@
  * own. The example is the hero's kurta set (HERO_EXAMPLE), so the limits and the banned term are
  * the real seeded rules and every count is computed from the text, never typed.
  */
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import type { IconSource } from '@/components/la/icons'
-import { PencilLine } from 'lucide-react'
 import { HERO_EXAMPLE, heroTitleLength } from './model'
 
 /** Example-only details the hero does not carry. Shown under an "Example" label. */
@@ -46,9 +46,9 @@ export const RAIL: readonly RailStep[] = [
     body: 'The agent will draft the title, bullets, description and attributes in your brand’s voice.',
     inDevelopment: true,
   },
-  { id: 'validate', icon: 'shield', title: 'Validate', body: 'A rules engine written as code checks every field against each marketplace’s limits. No model decides pass or fail.' },
-  { id: 'fix', icon: PencilLine, title: 'Fix', body: 'A person edits the field a rule flagged, then the same rules check the new text again.' },
-  { id: 'approve', icon: 'check', title: 'Approve', body: 'A person reviews the draft beside its field-level results. Whoever edited a listing cannot approve it.' },
+  { id: 'validate', icon: CONCEPT_ICON.rules, title: 'Validate', body: 'A rules engine written as code checks every field against each marketplace’s limits. No model decides pass or fail.' },
+  { id: 'fix', icon: CONCEPT_ICON.edit, title: 'Fix', body: 'A person edits the field a rule flagged, then the same rules check the new text again.' },
+  { id: 'approve', icon: CONCEPT_ICON.approval, title: 'Approve', body: 'A person reviews the draft beside its field-level results. Whoever edited a listing cannot approve it.' },
   { id: 'publish', icon: 'store', title: 'Publish', body: 'Approved listings go to the marketplace. A listing shows as Live only after the marketplace confirms it.' },
 ]
 

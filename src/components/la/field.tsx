@@ -16,8 +16,9 @@
  * - `confirmFix` shows a small success tick for a moment once an error is fixed.
  */
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { CircleAlert, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { CONCEPT_ICON } from './concept-icons'
+import { Icon, IconGlyph } from './icons'
 import { SourceBadge, type Source } from './source-badge'
 
 /** Matches --dur-spring: the error line opens and folds away on the same spring. */
@@ -51,7 +52,7 @@ export function LaField({
   error?: ReactNode
   source?: Source
   required?: boolean
-  /** ★ critical fact: never filled by the agent. */
+  /** Critical fact (star mark): never filled by the agent. */
   critical?: boolean
   /** Attention state ("Needed"): the value is missing and blocks a listing. */
   needsInput?: boolean
@@ -139,9 +140,7 @@ export function LaField({
     >
       <label htmlFor={htmlFor} className="mb-1.5 block text-small font-bold text-ink">
         {critical ? (
-          <span aria-hidden className="mr-1 text-attention">
-            ★
-          </span>
+          <IconGlyph icon={CONCEPT_ICON.critical} size={14} className="mr-1 inline-block -translate-y-px align-middle text-attention" />
         ) : null}
         {label}
         {critical ? <span className="sr-only"> (critical fact)</span> : null}
@@ -170,7 +169,7 @@ export function LaField({
                 ) : null}
                 {fixed && !hasError && !hint ? (
                   <span className="field-swap field-tick text-success" data-shown aria-hidden>
-                    <Check className="size-3.5" strokeWidth={2.5} />
+                    <Icon name="check" size={14} />
                   </span>
                 ) : null}
                 {errorVisible ? (
@@ -182,14 +181,14 @@ export function LaField({
                     data-shown={hasError ? true : undefined}
                     className="field-swap field-error flex items-start gap-1 font-semibold text-danger"
                   >
-                    <CircleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
+                    <Icon name="alert" size={14} className="mt-[calc((1lh-14px)/2)]" />
                     <span className="min-w-0">{hasError ? error : shownError}</span>
                   </span>
                 ) : null}
               </span>
             ) : null}
             {fixed && !hasError && hint ? (
-              <Check aria-hidden className="field-tick size-3.5 text-success" strokeWidth={2.5} />
+              <Icon name="check" size={14} className="field-tick text-success" />
             ) : null}
             {hintAction}
           </div>

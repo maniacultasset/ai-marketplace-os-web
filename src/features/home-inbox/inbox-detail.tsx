@@ -154,7 +154,7 @@ function TaskDetail({
           {task.reason}
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-small text-ink">
-          <span className="rounded-[6px] border border-line-strong bg-surface px-2 py-px text-caption font-semibold text-ink-2 shadow-raised-sm">Affects</span>
+          <span className="rounded-md border border-line-strong bg-surface px-2 py-px text-caption font-semibold text-ink-2">Affects</span>
           <span>
             {[product ? `${product.sku} · ${product.title}` : task.product_id ? 'One product' : null, task.target_path, TASK_KIND_LABEL[task.kind]]
               .filter(Boolean)
@@ -173,17 +173,17 @@ function TaskDetail({
           <fieldset disabled className="flex flex-col gap-2" aria-describedby={`answer-soon-${task.id}`}>
             <legend className="sr-only">Suggested answers</legend>
             {suggestions.map((s) => (
-              <label key={s} className="flex min-h-[52px] cursor-not-allowed items-center gap-3 rounded-[10px] border border-line-strong bg-surface px-3.5 py-3 text-body text-ink lg:min-h-[46px]">
+              <label key={s} className="flex min-h-[52px] cursor-not-allowed items-center gap-3 rounded-tile border border-line-strong bg-surface px-3.5 py-3 text-body text-ink lg:min-h-[46px]">
                 <input type="radio" name={`answer-${task.id}`} className="size-[18px] accent-[var(--brand)]" disabled />
                 {s}
               </label>
             ))}
-            <label className="flex min-h-[52px] cursor-not-allowed items-center gap-3 rounded-[10px] border border-line-strong bg-surface px-3.5 py-3 text-body text-ink-3 lg:min-h-[46px]">
+            <label className="flex min-h-[52px] cursor-not-allowed items-center gap-3 rounded-tile border border-line-strong bg-surface px-3.5 py-3 text-body text-ink-3 lg:min-h-[46px]">
               <input type="radio" name={`answer-${task.id}`} className="size-[18px]" disabled />
               {suggestions.length ? 'Something else: type the answer' : 'Type the answer'}
             </label>
           </fieldset>
-          <Banner tone="neutral" icon="spark">
+          <Banner tone="neutral" icon="clock">
             <span id={`answer-soon-${task.id}`} data-testid="answer-soon">
               <b>{ANSWER_SOON}</b> This question stays open until the agent can resolve it.
             </span>
@@ -230,7 +230,7 @@ function ReconnectTask({ task, remaining }: { task: Task; remaining: number }) {
   const allowed = can('marketplace:connect')
   return (
     <>
-      <Banner tone="attention" icon="refresh">
+      <Banner tone="attention" icon="link">
         <span data-testid="reconnect-how">
           <b>Reconnect the account to close this.</b> Publishing to this marketplace waits until you do. The task closes on its
           own once the same seller account is connected again.
@@ -240,7 +240,7 @@ function ReconnectTask({ task, remaining }: { task: Task; remaining: number }) {
         {allowed ? (
           <Button asChild size="lg" className="max-sm:h-[52px] max-sm:w-full" data-testid="task-reconnect">
             <Link to="/marketplaces">
-              <Icon name="refresh" size={16} />
+              <Icon name="link" size={16} />
               Reconnect on Marketplaces
             </Link>
           </Button>
@@ -274,7 +274,7 @@ function TaskLinks({ task }: { task: Task }) {
       {task.kind === 'reconnect_account' || task.marketplace_account_id ? (
         <Button asChild variant="secondary" data-testid="task-open-marketplaces">
           <Link to="/marketplaces">
-            <Icon name="refresh" size={16} />
+            <Icon name={task.kind === 'reconnect_account' ? 'link' : 'store'} size={16} />
             {task.kind === 'reconnect_account' ? 'Reconnect on Marketplaces' : 'Open Marketplaces'}
           </Link>
         </Button>
@@ -353,8 +353,8 @@ function DetailSkeleton() {
       <Skeleton className="h-3 w-24" />
       <Skeleton className="h-8 w-2/3" />
       <Skeleton className="h-28 w-full rounded-card" />
-      <Skeleton className="h-12 w-full rounded-[10px]" />
-      <Skeleton className="h-12 w-full rounded-[10px]" />
+      <Skeleton className="h-12 w-full rounded-tile" />
+      <Skeleton className="h-12 w-full rounded-tile" />
     </div>
   )
 }

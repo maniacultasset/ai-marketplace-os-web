@@ -10,7 +10,7 @@
  */
 import { Pause, Play, RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
-import { Icon, IconTile } from '@/components/la/icons'
+import { Icon, IconGlyph, IconTile } from '@/components/la/icons'
 import { MarketplaceTile } from '@/components/la/marketplace'
 import { SourceBadge } from '@/components/la/source-badge'
 import { CHIP_TONE, StatusChip, TagChip, type ChipStatus } from '@/components/la/status-chip'
@@ -104,7 +104,7 @@ function CheckGlyph({ state }: { state: CheckState }) {
           state === 'pass' ? 'scale-100 opacity-100' : 'scale-50 opacity-0',
         )}
       >
-        <Icon name="check" size={12} />
+        <Icon name="check" size={14} />
       </span>
       <span
         className={cn(
@@ -113,7 +113,7 @@ function CheckGlyph({ state }: { state: CheckState }) {
           state === 'fail' ? 'scale-100 opacity-100' : 'scale-50 opacity-0',
         )}
       >
-        <Icon name="x" size={12} />
+        <Icon name="x" size={14} />
       </span>
     </span>
   )
@@ -122,8 +122,8 @@ function CheckGlyph({ state }: { state: CheckState }) {
 /** A field of the product card. `scan` lays a brand wash over it and sweeps a line across. */
 function CardField({ label, value, filled, scan, d, className }: { label: string; value: ReactNode; filled: boolean; scan: boolean; d: number; className?: string }) {
   return (
-    <div className={cn('relative min-w-0 overflow-hidden rounded-[8px] px-2.5 py-1.5', className)}>
-      <span aria-hidden className={cn('absolute inset-0 rounded-[8px] bg-brand-bg transition-opacity duration-300', scan ? 'opacity-100' : 'opacity-0')} />
+    <div className={cn('relative min-w-0 overflow-hidden rounded-xs px-2.5 py-1.5', className)}>
+      <span aria-hidden className={cn('absolute inset-0 rounded-xs bg-brand-bg transition-opacity duration-300', scan ? 'opacity-100' : 'opacity-0')} />
       <span
         aria-hidden
         className={cn(
@@ -160,7 +160,7 @@ function TitleText({ head, tail, caret, markBanned, markOverflow }: { head: stri
   const middleChars = [...FIX_MIDDLE]
   const overInTail = Math.min(over, tailChars.length)
   const overInMiddle = over - overInTail
-  const markOver = 'rounded-[2px] text-danger-ink underline decoration-danger decoration-2 underline-offset-[3px] transition-colors duration-500'
+  const markOver = 'rounded-xs text-danger-ink underline decoration-danger decoration-2 underline-offset-[3px] transition-colors duration-500'
   const plainMiddle = middleChars.slice(0, middleChars.length - overInMiddle).join('')
   const overMiddle = middleChars.slice(middleChars.length - overInMiddle).join('')
   const plainTail = tailChars.slice(0, tailChars.length - overInTail).join('')
@@ -171,8 +171,8 @@ function TitleText({ head, tail, caret, markBanned, markOverflow }: { head: stri
       {word ? (
         <mark
           className={cn(
-            'rounded-[3px] bg-transparent text-ink transition-colors duration-500',
-            markBanned && 'bg-danger-bg text-danger-ink shadow-[0_0_0_2px_var(--danger-bg)]',
+            'rounded-xs bg-transparent text-ink transition-colors duration-500',
+            markBanned && 'bg-danger-bg text-danger-ink ring-2 ring-danger-bg',
           )}
         >
           {word}
@@ -199,7 +199,7 @@ function CountChip({ len, judged }: { len: number; judged: boolean }) {
         CHIP_TONE[ok ? 'success' : 'danger'],
       )}
     >
-      <Icon name={ok ? 'check' : 'x'} size={11} />
+      <Icon name={ok ? 'check' : 'x'} size={14} />
       {len} / {LIMIT}
     </span>
   )
@@ -299,7 +299,7 @@ function Stage({ pos }: { pos: Pos }) {
 
       <div className="flex flex-col gap-4 p-4 md:p-5">
         {/* Product card */}
-        <div className="rounded-[10px] border border-line bg-canvas p-2 shadow-inset-sm">
+        <div className="rounded-xl border border-line bg-canvas p-2 shadow-inset-sm">
           <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto] items-start gap-1">
             <CardField label="SKU" filled={filled} scan={scanField === 'sku'} d={0} value={<code className="font-mono text-[12.5px] font-medium text-ink">{DEMO.sku}</code>} />
             <CardField label="Price" filled={filled} scan={scanField === 'price'} d={90} value={<span className="text-small font-semibold text-ink tabular-nums">{DEMO.price}</span>} />
@@ -336,7 +336,7 @@ function Stage({ pos }: { pos: Pos }) {
         <div className="grid">
           <Panel on={scene === 'import'}>
             <PanelTitle aside={<SourceBadge source={{ kind: 'you', detail: 'CSV' }} />}>Imported from {DEMO.file}</PanelTitle>
-            <div className="overflow-hidden rounded-[10px] border border-line bg-sunken font-mono text-[12px] leading-5">
+            <div className="overflow-hidden rounded-tile border border-line bg-sunken font-mono text-[12px] leading-5">
               <div className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,2fr)_minmax(0,0.6fr)] gap-3 border-b border-line px-3 py-1.5 text-ink-2">
                 <span>sku</span>
                 <span>title</span>
@@ -374,7 +374,7 @@ function Stage({ pos }: { pos: Pos }) {
                 <PanelTitle aside={<SourceBadge source={{ kind: 'rule' }} />}>{scene === 'fix' && b >= FIX_BEATS.recheck ? 'Checks, run again' : 'Checks'}</PanelTitle>
                 <ul className="flex flex-col gap-1">
                   {checks.map((c) => (
-                    <li key={c.label} className="flex items-center gap-2.5 rounded-[8px] px-1 py-1">
+                    <li key={c.label} className="flex items-center gap-2.5 rounded-lg px-1 py-1">
                       <CheckGlyph state={c.state} />
                       <span className="min-w-0 flex-1 truncate text-small text-ink">{c.label}</span>
                       <span
@@ -407,10 +407,10 @@ function Stage({ pos }: { pos: Pos }) {
                     {findings.map((f, i) => (
                       <li
                         key={`${f.marketplace}:${f.code}`}
-                        className={cn('flex gap-2 rounded-[10px] border border-line bg-sunken p-2.5', arrive(showFindings, '-translate-y-3'))}
+                        className={cn('flex gap-2 rounded-tile border border-line bg-sunken p-2.5', arrive(showFindings, '-translate-y-3'))}
                         style={delay(showFindings ? i * 130 : 0)}
                       >
-                        <MarketplaceTile id={f.marketplace} size="sm" className="size-6 shrink-0 rounded-[7px] text-[11px] shadow-none" />
+                        <MarketplaceTile id={f.marketplace} size="xs" className="shadow-none" />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <span className="truncate text-caption font-bold text-danger" title={f.code}>
@@ -426,7 +426,7 @@ function Stage({ pos }: { pos: Pos }) {
                 </div>
                 <div className={cn('col-start-1 row-start-1 self-start', arrive(allPass, 'translate-y-3 scale-[0.98]'))}>
                   <PanelTitle>Findings</PanelTitle>
-                  <div className="flex items-start gap-3 rounded-[10px] border border-success-line bg-success-tint p-3.5">
+                  <div className="flex items-start gap-3 rounded-tile border border-success-line bg-success-tint p-3.5">
                     <IconTile icon="check" tone="ok" size="sm" />
                     <div>
                       <p className="text-small font-semibold text-success-ink">All 5 checks pass on Amazon and Flipkart</p>
@@ -441,7 +441,7 @@ function Stage({ pos }: { pos: Pos }) {
           <Panel on={scene === 'approve'}>
             <PanelTitle>Approval</PanelTitle>
             <ul className="flex flex-col gap-2">
-              <li className="flex items-center gap-3 rounded-[10px] border border-line bg-sunken p-3">
+              <li className="flex items-center gap-3 rounded-tile border border-line bg-sunken p-3">
                 <Avatar name={DEMO.editor} tone="neutral" />
                 <div className="min-w-0 flex-1">
                   <p className="text-small font-semibold text-ink">{DEMO.editor}</p>
@@ -449,7 +449,7 @@ function Stage({ pos }: { pos: Pos }) {
                 </div>
                 <TagChip tone="plain">Cannot approve</TagChip>
               </li>
-              <li className={cn('flex flex-wrap items-center gap-3 rounded-[10px] border border-line bg-surface p-3 shadow-raised-sm', arrive(scene === 'approve' && b >= 1, 'translate-x-4'))}>
+              <li className={cn('flex flex-wrap items-center gap-3 rounded-tile border border-line bg-surface p-3 shadow-raised-sm', arrive(scene === 'approve' && b >= 1, 'translate-x-4'))}>
                 <Avatar name={DEMO.approver} tone="brand" />
                 <div className="min-w-0 flex-1">
                   <p className="text-small font-semibold text-ink">{DEMO.approver}</p>
@@ -458,7 +458,7 @@ function Stage({ pos }: { pos: Pos }) {
                 <span className="grid">
                   <span
                     className={cn(
-                      'col-start-1 row-start-1 inline-flex h-[30px] items-center justify-self-end rounded-[7px] border border-brand bg-brand px-3 text-[13px] font-semibold text-white shadow-raised-brand',
+                      'col-start-1 row-start-1 inline-flex h-[30px] items-center justify-self-end rounded-md border border-brand bg-brand px-3 text-[13px] font-semibold text-white shadow-raised-brand',
                       'transition-[opacity,transform,box-shadow] duration-[var(--dur-press)] motion-reduce:transform-none',
                       scene === 'approve' && b === 2 && 'scale-[0.97] shadow-pressed-fill',
                       scene === 'approve' && b >= 3 ? 'opacity-0' : 'opacity-100',
@@ -479,7 +479,7 @@ function Stage({ pos }: { pos: Pos }) {
           </Panel>
 
           <Panel on={scene === 'publish'}>
-            <PanelTitle aside={<MarketplaceTile id="flipkart" size="sm" className="size-6 rounded-[7px] text-[11px] shadow-none" />}>Publishing to Flipkart</PanelTitle>
+            <PanelTitle aside={<MarketplaceTile id="flipkart" size="xs" className="shadow-none" />}>Publishing to Flipkart</PanelTitle>
             <ol className="relative flex flex-col gap-3 pl-1">
               <span aria-hidden className="absolute top-3 bottom-3 left-[13px] w-px bg-line" />
               <li className="relative flex items-center gap-3">
@@ -515,7 +515,7 @@ function Stage({ pos }: { pos: Pos }) {
             </ol>
             <div
               className={cn(
-                'mt-4 flex flex-wrap items-center gap-3 rounded-[10px] border border-success-line bg-success-tint p-3.5',
+                'mt-4 flex flex-wrap items-center gap-3 rounded-tile border border-success-line bg-success-tint p-3.5',
                 arrive(scene === 'publish' && b >= 3, 'translate-y-3 scale-[0.98]'),
               )}
             >
@@ -549,9 +549,18 @@ function Rail({ current, progress, onPick, playing }: { current: SceneId; progre
     // Slide only after the first placement, so the thumb never flies in from the corner.
     const id = requestAnimationFrame(() => setSettled(true))
     window.addEventListener('resize', measure)
+    // The cells reflow after the first measure (web fonts, the reveal, a scrollbar appearing), which
+    // left the thumb hanging past the strip's edge: re-measure whenever the list or a cell resizes.
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => measure())
+    if (ro && list.current) {
+      ro.observe(list.current)
+      for (const li of list.current.querySelectorAll('[data-rail]')) ro.observe(li)
+    }
+    void document.fonts?.ready.then(() => measure())
     return () => {
       cancelAnimationFrame(id)
       window.removeEventListener('resize', measure)
+      ro?.disconnect()
     }
   }, [measure])
 
@@ -559,13 +568,13 @@ function Rail({ current, progress, onPick, playing }: { current: SceneId; progre
     <ol
       ref={list}
       aria-label="Workflow steps"
-      className="relative grid grid-cols-3 auto-rows-fr gap-1 rounded-card border border-line bg-sunken p-1.5 shadow-inset-sm lg:grid-cols-6"
+      className="relative grid grid-cols-3 auto-rows-fr gap-1 rounded-card border border-line bg-sunken p-1 shadow-inset-sm lg:grid-cols-6"
     >
       {thumb ? (
         <span
           aria-hidden
           className={cn(
-            'pointer-events-none absolute top-0 left-0 overflow-hidden rounded-[9px] border border-line bg-surface shadow-[var(--shadow-thumb)]',
+            'pointer-events-none absolute top-0 left-0 overflow-hidden rounded-lg border border-line bg-surface shadow-thumb',
             settled && 'transition-transform duration-[var(--dur-spring)] ease-[var(--ease-spring)] motion-reduce:transition-none',
           )}
           style={{ width: thumb.w, height: thumb.h, transform: `translate3d(${thumb.x}px, ${thumb.y}px, 0)` }}
@@ -583,16 +592,16 @@ function Rail({ current, progress, onPick, playing }: { current: SceneId; progre
           <>
             <IconTile icon={s.icon} tone={s.inDevelopment ? 'neutral' : on ? 'brand' : 'neutral'} size="sm" flat={!on} className="transition-colors duration-300" />
             <span className="flex min-w-0 flex-col items-center gap-0.5 lg:items-start">
-              <span className={cn('text-[14px] leading-5 font-semibold transition-colors duration-300', on ? 'text-ink' : 'text-ink-2')}>{s.title}</span>
+              <span className={cn('text-[14px] leading-5 font-semibold transition-colors duration-300', on ? 'text-ink' : s.inDevelopment ? 'text-ink-3' : 'text-ink-2')}>{s.title}</span>
               {s.inDevelopment ? <span className="text-[11px] leading-4 font-semibold text-ink-3">In development</span> : null}
             </span>
           </>
         )
-        const cell = 'relative z-[1] flex h-full w-full flex-col items-center justify-center gap-1.5 rounded-[9px] px-2 py-2.5 text-center lg:flex-row lg:justify-start lg:gap-2.5 lg:px-3 lg:text-left'
+        const cell = 'relative z-[1] flex h-full w-full flex-col items-center justify-start gap-1.5 rounded-lg px-2 py-2.5 text-center lg:flex-row lg:justify-start lg:gap-2.5 lg:px-3 lg:text-left'
         return (
           <li key={s.id} data-rail={s.id} className="min-w-0">
             {s.inDevelopment ? (
-              <div className={cn(cell, 'opacity-60')} aria-label="Generate, in development, skipped in this example">
+              <div className={cell} aria-label="Generate, in development, skipped in this example">
                 {inner}
               </div>
             ) : (
@@ -708,11 +717,11 @@ export function HowItWorksDemo() {
                   onClick={() => setWantsPlay((w) => !w)}
                   data-testid="demo-play"
                 >
-                  {wantsPlay ? <Pause aria-hidden /> : <Play aria-hidden />}
+                  <IconGlyph icon={wantsPlay ? Pause : Play} size={16} />
                   {wantsPlay ? 'Pause' : 'Play'}
                 </Button>
                 <Button type="button" variant="ghost" className="max-sm:h-11" onClick={replay} data-testid="demo-replay">
-                  <RotateCcw aria-hidden />
+                  <IconGlyph icon={RotateCcw} size={16} />
                   Replay
                 </Button>
               </>

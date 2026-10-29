@@ -1,4 +1,4 @@
-import { Check, Copy } from 'lucide-react'
+import { Icon } from '@/components/la/icons'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
@@ -14,8 +14,8 @@ export function ReferenceId({ id, className }: { id: string | null | undefined; 
       </code>
       <button
         type="button"
-        className="inline-flex size-5 items-center justify-center rounded hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
-        aria-label="Copy reference"
+        className="-my-2 inline-flex size-10 items-center justify-center rounded-md hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none md:size-8"
+        aria-label="Copy reference ID"
         onClick={() => {
           void navigator.clipboard
             ?.writeText(id)
@@ -26,8 +26,11 @@ export function ReferenceId({ id, className }: { id: string | null | undefined; 
             .catch(() => undefined)
         }}
       >
-        {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+        <Icon name={copied ? 'check' : 'copy'} size={14} />
       </button>
+      <span aria-live="polite" className="sr-only">
+        {copied ? 'Copied' : ''}
+      </span>
     </span>
   )
 }

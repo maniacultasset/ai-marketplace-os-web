@@ -7,7 +7,8 @@
 import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
 import { PublicLayout } from '@/components/app/public-layout'
-import { Icon, IconTile } from '@/components/la/icons'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
+import { Icon, IconTile, type IconSource } from '@/components/la/icons'
 import { MarketplaceTile } from '@/components/la/marketplace'
 import { StatusChip, TagChip } from '@/components/la/status-chip'
 import { Button } from '@/components/ui/button'
@@ -19,28 +20,32 @@ import { COMPANY } from './company'
 import { MARKET_STATUS, STAGE_CHIP } from './model'
 import { useDocumentTitle } from './use-document-title'
 
-const PROBLEMS = [
+const PROBLEMS: readonly { icon: IconSource; title: string; body: string; cost: string }[] = [
   {
+    icon: CONCEPT_ICON.rulebook,
     title: 'Every marketplace has its own rulebook',
     body: 'Amazon and Flipkart use different category trees, required attributes and limits. For a kurta set the title can run to 200 characters on Amazon and 150 on Flipkart.',
     cost: 'Your team keeps two rulebooks in their heads and still guesses at the edges.',
   },
   {
+    icon: CONCEPT_ICON.fit,
     title: 'One title rarely fits both',
     body: 'A title that passes on Amazon can be too long for Flipkart. A word like “best” is a promotional claim that both refuse.',
     cost: 'So the same product gets written twice, by hand, from the same facts.',
   },
   {
+    icon: CONCEPT_ICON.variants,
     title: 'Variants multiply the rows',
     body: 'A shirt in four sizes and three colours is twelve SKUs, and each one needs its own price, stock and measurements.',
     cost: 'A modest catalog turns into a sheet far longer than anyone planned for.',
   },
   {
+    icon: CONCEPT_ICON.lateRejection,
     title: 'Rejections arrive late and explain little',
     body: 'The marketplace error names a field, not the fix. You change one value, resubmit and wait again.',
     cost: 'One listing, several round trips, and the hours vanish between them.',
   },
-] as const
+]
 
 /** The drafting agent is not built yet (analysis §gaps 1: only a deterministic stub), so this is its brief. */
 const AGENT_DOES = [
@@ -58,14 +63,15 @@ const AGENT_NEVER = [
   'Sees your marketplace passwords or access tokens',
 ]
 
-const BULK = [
-  { title: 'Upload', body: 'Your catalog as a CSV file.' },
-  { title: 'Map', body: 'Columns become products and variants.' },
-  { title: 'Generate', body: 'Drafts for every product in the background, once the agent is ready.', inDevelopment: true },
-  { title: 'Validate', body: 'Field-level results per row and per marketplace.' },
-  { title: 'Review', body: 'Approve row by row with the error beside the field.' },
-  { title: 'Retry', body: 'Rerun only the rows that failed. The rest stay as they are.' },
-] as const
+/** A real sequence, so the steps keep their numbers; the icons match the workflow strip above. */
+const BULK: readonly { title: string; body: string; icon: IconSource; inDevelopment?: true }[] = [
+  { title: 'Upload', icon: 'upload', body: 'Your catalog as a CSV file.' },
+  { title: 'Map', icon: CONCEPT_ICON.columns, body: 'Columns become products and variants.' },
+  { title: 'Generate', icon: CONCEPT_ICON.agent, body: 'Drafts for every product in the background, once the agent is ready.', inDevelopment: true },
+  { title: 'Validate', icon: CONCEPT_ICON.rules, body: 'Field-level results per row and per marketplace.' },
+  { title: 'Review', icon: CONCEPT_ICON.review, body: 'Approve row by row with the error beside the field.' },
+  { title: 'Retry', icon: CONCEPT_ICON.retry, body: 'Rerun only the rows that failed. The rest stay as they are.' },
+]
 
 function Section({ id, title, lede, children, className }: { id?: string; title: ReactNode; lede?: ReactNode; children: ReactNode; className?: string }) {
   return (
@@ -195,20 +201,26 @@ export function Landing() {
           lede="Four things that eat operator time on every SKU."
           className="bg-surface"
         >
-          <ol className="divide-y divide-line border-y border-line">
+          {/* Not a sequence, so no numbers: each problem gets its own icon tile. */}
+          <ul className="divide-y divide-line border-y border-line">
             {PROBLEMS.map((p, i) => (
-              <li key={p.title} data-reveal style={d(i)} className="grid gap-3 py-8 md:grid-cols-[56px_minmax(0,1.3fr)_minmax(0,1fr)] md:gap-8">
-                <span className="font-display text-h2 font-semibold text-ink-3 tabular-nums" aria-hidden>
-                  {String(i + 1).padStart(2, '0')}
-                </span>
-                <div>
+              <li
+                key={p.title}
+                data-reveal
+                style={d(i)}
+                className="grid grid-cols-[36px_minmax(0,1fr)] gap-x-4 gap-y-3 py-8 lg:grid-cols-[36px_minmax(0,1.3fr)_minmax(0,1fr)] lg:gap-x-8"
+              >
+                <IconTile icon={p.icon} tone="neutral" size="md" className="mt-[calc((1lh-36px)/2)] leading-[22px]" />
+                <div className="min-w-0">
                   <h3 className="text-h3 text-ink">{p.title}</h3>
                   <p className="mt-2 text-[15px] leading-[1.55] text-ink-2">{p.body}</p>
                 </div>
-                <p className="border-l border-line pl-5 text-[15px] leading-[1.55] font-medium text-ink">{p.cost}</p>
+                <p className="col-start-2 border-l border-line pl-5 text-[15px] leading-[1.55] font-medium text-ink max-sm:border-t max-sm:border-l-0 max-sm:pt-3 max-sm:pl-0 lg:col-start-3">
+                  {p.cost}
+                </p>
               </li>
             ))}
-          </ol>
+          </ul>
         </Section>
 
         {/* Workflow */}
@@ -225,12 +237,12 @@ export function Landing() {
           className="bg-surface"
         >
           <div className="grid gap-4 md:grid-cols-2">
-            <div data-reveal className="rounded-card border border-line bg-canvas p-6 shadow-inset-sm md:p-7">
+            <div data-reveal className="rounded-card border border-line bg-surface p-6 shadow-raised-md md:p-7">
               <div className="flex items-center gap-3">
                 <IconTile icon="spark" tone="brand" />
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
                   <h3 className="text-h3 text-ink">What the agent will do</h3>
-                  <TagChip tone="plain" className="sm:ml-auto">
+                  <TagChip tone="plain" className="whitespace-nowrap sm:ml-auto">
                     In development
                   </TagChip>
                 </div>
@@ -238,13 +250,13 @@ export function Landing() {
               <ul className="mt-4 flex flex-col gap-3">
                 {AGENT_DOES.map((t) => (
                   <li key={t} className="flex gap-3 text-[15px] leading-[1.5] text-ink">
-                    <Icon name="check" size={16} className="mt-[3px] shrink-0 text-success" />
+                    <Icon name="check" size={16} className="mt-[calc((1lh-16px)/2)] text-success" />
                     {t}
                   </li>
                 ))}
               </ul>
             </div>
-            <div data-reveal style={d(1, 110)} className="rounded-card border border-line bg-canvas p-6 shadow-inset-sm md:p-7">
+            <div data-reveal style={d(1, 110)} className="rounded-card border border-line bg-surface p-6 shadow-raised-md md:p-7">
               <div className="flex items-center gap-3">
                 <IconTile icon="shield" tone="brand" />
                 <h3 className="text-h3 text-ink">What the agent never does</h3>
@@ -252,7 +264,7 @@ export function Landing() {
               <ul className="mt-4 flex flex-col gap-3">
                 {AGENT_NEVER.map((t) => (
                   <li key={t} className="flex gap-3 text-[15px] leading-[1.5] text-ink">
-                    <Icon name="x" size={16} className="mt-[3px] shrink-0 text-danger" />
+                    <Icon name="x" size={16} className="mt-[calc((1lh-16px)/2)] text-danger" />
                     {t}
                   </li>
                 ))}
@@ -270,10 +282,16 @@ export function Landing() {
           <ol className="grid gap-px overflow-hidden rounded-card border border-line bg-line shadow-raised-md sm:grid-cols-2 lg:grid-cols-6">
             {BULK.map((s, i) => (
               <li key={s.title} data-reveal style={d(i, 90)} className="flex flex-col gap-1.5 bg-surface p-5">
-                <span className="font-display text-caption font-bold text-brand tabular-nums">{String(i + 1).padStart(2, '0')}</span>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="mb-1.5 flex items-center gap-2.5">
+                  <IconTile icon={s.icon} tone={s.icon === CONCEPT_ICON.agent ? 'brand' : 'neutral'} size="sm" />
+                  <span className="text-caption text-ink-3 tabular-nums">
+                    <span className="sr-only">Step </span>
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                   <h3 className="text-h3 text-ink">{s.title}</h3>
-                  {'inDevelopment' in s ? <TagChip tone="plain">In development</TagChip> : null}
+                  {s.inDevelopment ? <TagChip tone="plain" className="whitespace-nowrap">In development</TagChip> : null}
                 </div>
                 <p className="text-small text-ink-2">{s.body}</p>
               </li>
@@ -305,7 +323,7 @@ export function Landing() {
                   <div className="flex items-start justify-between gap-3">
                     <span className="flex -space-x-1.5">
                       {m.ids.map((id) => (
-                        <MarketplaceTile key={id} id={id} className={cn('ring-2 ring-surface', m.stage === 'later' && 'shadow-none')} />
+                        <MarketplaceTile key={id} id={id} className="ring-2 ring-surface" />
                       ))}
                     </span>
                     <StatusChip status={chip.status}>{chip.label}</StatusChip>
@@ -329,9 +347,12 @@ export function Landing() {
             className="grid overflow-hidden rounded-card border border-line bg-surface shadow-raised-md md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]"
           >
             <div className="flex flex-col gap-5 p-6 md:p-10">
-              <h3 className="font-display text-[clamp(1.5rem,2.4vw,2rem)] leading-[1.1] font-bold tracking-[-0.02em] text-ink">
-                Quoted per brand
-              </h3>
+              <div className="flex items-center gap-3">
+                <IconTile icon={CONCEPT_ICON.pricing} tone="brand" size="md" />
+                <h3 className="font-display text-[clamp(1.5rem,2.4vw,2rem)] leading-[1.1] font-bold tracking-[-0.02em] text-ink">
+                  Quoted per brand
+                </h3>
+              </div>
               <p className="max-w-[48ch] text-[15px] leading-[1.6] text-ink-2">
                 Your price depends on how many products you list and on which marketplaces. Tell us about your catalog and we
                 will send you a quote. You pay nothing to request access.
@@ -344,7 +365,7 @@ export function Landing() {
                   'A full history of every draft and approval',
                 ].map((t) => (
                   <li key={t} className="flex items-start gap-2.5">
-                    <Icon name="check" size={16} className="mt-[3px] shrink-0 text-success" aria-hidden />
+                    <Icon name="check" size={16} className="mt-[calc((1lh-16px)/2)] text-success" />
                     {t}
                   </li>
                 ))}
@@ -369,7 +390,7 @@ export function Landing() {
                   { icon: 'phone' as const, label: 'Phone', value: COMPANY.phone, href: COMPANY.phoneHref },
                 ].map((c) => (
                   <li key={c.label} className="flex items-start gap-3">
-                    <IconTile icon={c.icon} tone="brand" size="sm" />
+                    <IconTile icon={c.icon} tone="neutral" size="sm" />
                     <div className="min-w-0">
                       <p className="text-caption font-semibold text-ink-3">{c.label}</p>
                       <div>
@@ -403,7 +424,7 @@ export function Landing() {
         <section aria-labelledby="cta-h">
           <div className="mx-auto max-w-[1200px] px-4 py-20 md:px-8 md:py-28">
             <div data-reveal="pop" className="flex flex-col gap-6 rounded-card border border-brand-line bg-brand-bg p-6 shadow-raised-md md:flex-row md:items-center md:justify-between md:p-12">
-              <div className="flex max-w-[60ch] flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+              <div className="flex max-w-[60ch] flex-col items-start gap-4">
                 <IconTile icon="users" tone="brand" size="lg" />
                 <div>
                   <h2 id="cta-h" className="font-display text-[clamp(1.875rem,3.4vw,2.75rem)] leading-[1.05] font-bold tracking-[-0.03em] text-ink">

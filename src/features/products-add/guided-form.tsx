@@ -18,10 +18,13 @@ import { isApiError } from '@/api/errors'
 import {
   AttentionCard,
   Banner,
+  CONCEPT_ICON,
   ComingSoon,
   FooterBar,
   Glyph,
   Icon,
+  IconGlyph,
+  IconTile,
   LaCard,
   LaField,
   MarketplaceName,
@@ -411,7 +414,7 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
         return (
           <div className="flex flex-col gap-4">
             {section === 'care' ? (
-              <Banner tone="info" icon="spark">
+              <Banner tone="info">
                 Manufacturer, origin and consumer care come from your brand profile unless a product sets its own.{' '}
                 <SourceBadge source={{ kind: 'brand-profile' }} />
               </Banner>
@@ -434,7 +437,10 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
               ))}
             </div>
             {section === 'attributes' ? <ExtraAttributes values={values} setValues={setValues} errors={errors} touch={touch} submitCount={submitCount} /> : null}
-            <p className="text-caption text-ink-3">★ Critical facts can block a listing. The agent never fills them.</p>
+            <p className="flex items-start gap-1.5 text-caption text-ink-3">
+              <IconGlyph icon={CONCEPT_ICON.critical} size={14} className="mt-[calc((1lh-14px)/2)] text-attention" />
+              Critical facts can block a listing. The agent never fills them.
+            </p>
           </div>
         )
       case 'variants':
@@ -559,16 +565,22 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
             <p className="mt-1 text-caption text-ink-2">Classification by the agent is coming soon. Choose the category yourself for now.</p>
           </LaCard>
           {missing.length ? (
-            <AttentionCard pad="sm">
-              <b className="text-ink">
-                {missing.length} critical {missing.length === 1 ? 'fact' : 'facts'} missing
-              </b>
-              <p className="mt-0.5 text-small text-attention-ink">{missing.join(', ')}</p>
+            <AttentionCard pad="sm" className="flex items-start gap-3">
+              <IconTile icon="alert" tone="warn" size="sm" flat />
+              <div className="min-w-0">
+                <b className="text-ink">
+                  {missing.length} critical {missing.length === 1 ? 'fact' : 'facts'} missing
+                </b>
+                <p className="mt-0.5 text-small text-attention-ink">{missing.join(', ')}</p>
+              </div>
             </AttentionCard>
           ) : (
-            <LaCard pad="sm" emphasis="success">
-              <b className="text-ink">Critical facts filled</b>
-              <p className="mt-0.5 text-small text-success-ink">The agent will not guess any of them.</p>
+            <LaCard pad="sm" emphasis="success" className="flex items-start gap-3">
+              <IconTile icon="check" tone="ok" size="sm" flat />
+              <div className="min-w-0">
+                <b className="text-ink">Critical facts filled</b>
+                <p className="mt-0.5 text-small text-success-ink">The agent will not guess any of them.</p>
+              </div>
             </LaCard>
           )}
           <LaCard pad="sm">
@@ -610,9 +622,10 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
         <Button variant="secondary" disabled={isPending} onClick={() => void onNext()} data-testid="guided-next">
           {busy === 'next' ? <Spinner data-icon="inline-start" /> : null}
           Next: Variants
+          <Icon name="arrow" size={16} />
         </Button>
         <Button disabled={isPending} onClick={() => void onSend()} data-testid="guided-send">
-          {busy === 'send' ? <Spinner data-icon="inline-start" /> : null}
+          {busy === 'send' ? <Spinner data-icon="inline-start" /> : listOn.length ? <Icon name="spark" size={16} /> : null}
           {listOn.length ? 'Send to agent now' : 'Save product'}
         </Button>
       </FooterBar>
@@ -689,7 +702,7 @@ function ExtraAttributes({
       </datalist>
       <div>
         <Button variant="secondary" size="sm" onClick={() => setValues((v) => ({ ...v, extra: [...v.extra, { key: '', value: '' }] }))}>
-          <Icon name="plus" size={14} />
+          <Icon name="plus" size={16} />
           Add another attribute
         </Button>
       </div>

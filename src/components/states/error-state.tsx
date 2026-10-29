@@ -1,5 +1,6 @@
-import { AlertTriangle, RotateCw, WifiOff } from 'lucide-react'
 import { describeError, isApiError, isNetworkError, isNotImplemented } from '@/api/errors'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
+import { Icon, IconGlyph } from '@/components/la/icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { NotAvailableYet } from './not-available-yet'
@@ -24,7 +25,6 @@ export function ErrorState({
 }) {
   if (isNotImplemented(error)) return <NotAvailableYet compact={compact} />
   const offline = isNetworkError(error)
-  const Icon = offline ? WifiOff : AlertTriangle
   const ref = isApiError(error) ? error.correlationId : null
   return (
     <div
@@ -37,7 +37,7 @@ export function ErrorState({
       )}
     >
       <div className="flex size-10 items-center justify-center rounded-lg border border-destructive/20 bg-destructive/5 text-destructive">
-        <Icon className="size-5" aria-hidden />
+        <IconGlyph icon={offline ? CONCEPT_ICON.offline : 'alert'} size={20} />
       </div>
       <div className="max-w-md space-y-1">
         <h3 className="text-sm font-medium">{title ?? (offline ? "Can't reach the server" : 'Something went wrong')}</h3>
@@ -46,7 +46,7 @@ export function ErrorState({
       <ReferenceId id={ref} />
       {onRetry ? (
         <Button variant="outline" size="sm" onClick={onRetry}>
-          <RotateCw data-icon="inline-start" />
+          <Icon name="refresh" size={16} data-icon="inline-start" />
           Retry
         </Button>
       ) : null}

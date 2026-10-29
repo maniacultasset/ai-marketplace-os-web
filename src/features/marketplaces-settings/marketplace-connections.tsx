@@ -7,7 +7,8 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { Banner } from '@/components/la/banner'
 import { LaCard } from '@/components/la/cards'
-import { Icon } from '@/components/la/icons'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
+import { Icon, IconGlyph } from '@/components/la/icons'
 import { MarketplaceTile, marketplaceInfo } from '@/components/la/marketplace'
 import { StatusChip } from '@/components/la/status-chip'
 import { ComingSoon, NOT_YET, UnavailableButton, UnavailableHint } from '@/components/la/unavailable'
@@ -95,7 +96,7 @@ export function MarketplaceConnections({
               className="flex min-h-[68px] items-center justify-between gap-3 rounded-card border border-dashed border-line-strong px-4 py-3"
             >
               <span className="flex min-w-0 items-center gap-3">
-                <MarketplaceTile id={w.id} className="bg-canvas text-ink-2 shadow-none" />
+                <MarketplaceTile id={w.id} />
                 <span className="min-w-0">
                   <span className="block truncate font-bold text-ink">{marketplaceInfo(w.id).name}</span>
                   <span className="block text-caption text-ink-3">{w.note}</span>
@@ -205,10 +206,11 @@ function ConnectionDetail({ connection, canConnect, connector }: { connection: C
           onClick={connector.start}
           disabled={connector.redirecting}
         >
-          {connector.redirecting ? <Spinner data-icon="inline-start" /> : <Icon name="refresh" size={14} />}
+          {connector.redirecting ? <Spinner data-icon="inline-start" /> : <Icon name="link" size={16} />}
           {connector.redirecting ? `Redirecting to ${m.short}…` : 'Reconnect'}
         </Button>
         <Button variant="ghost" size="sm" onClick={() => setRevokeOpen(true)} disabled={connector.redirecting}>
+          <IconGlyph icon={CONCEPT_ICON.revoke} size={16} />
           Revoke
         </Button>
       </>
@@ -269,7 +271,7 @@ function ConnectionDetail({ connection, canConnect, connector }: { connection: C
 
       {account ? (
         <>
-          <dl className="grid grid-cols-[120px_minmax(0,1fr)] gap-x-3 gap-y-2 text-small sm:grid-cols-[150px_minmax(0,1fr)]">
+          <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-small sm:grid-cols-[150px_minmax(0,1fr)]">
             <Kv label="Status">
               <AccountStatusBadge status={account.status} />
             </Kv>
@@ -382,7 +384,7 @@ function TokenExpires({ account, now }: { account: MarketplaceAccount; now: numb
 function RowSkeleton() {
   return (
     <li aria-hidden className="flex min-h-[68px] items-center gap-3 rounded-card border border-line bg-surface px-4">
-      <Skeleton className="size-9 rounded-[9px]" />
+      <Skeleton className="size-9 rounded-tile" />
       <Skeleton className="h-4 w-24" />
       <Skeleton className="ml-auto h-[22px] w-24 rounded-full" />
     </li>
@@ -393,7 +395,7 @@ function DetailSkeleton() {
   return (
     <LaCard aria-hidden className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
-        <Skeleton className="size-11 rounded-[9px]" />
+        <Skeleton className="size-11 rounded-xl" />
         <div className="space-y-2">
           <Skeleton className="h-5 w-32" />
           <Skeleton className="h-3.5 w-48" />

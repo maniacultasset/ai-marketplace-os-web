@@ -96,7 +96,7 @@ export function TagInput({
               className="inline-flex size-4 items-center justify-center rounded-sm text-muted-foreground hover:bg-hover hover:text-foreground active:bg-pressed focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
               onClick={() => onChange(value.filter((_, j) => j !== i))}
             >
-              <Icon name="x" size={12} />
+              <Icon name="x" size={14} />
             </button>
           </span>
         ))}

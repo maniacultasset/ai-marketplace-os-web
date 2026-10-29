@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
-import { FlaskConical } from 'lucide-react'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
+import { IconGlyph } from '@/components/la/icons'
 import { z } from 'zod'
 import { Page, PageHeader } from '@/components/app/page-header'
 import { Button } from '@/components/ui/button'
@@ -55,7 +56,7 @@ function RulesPage() {
                 search={{ marketplace: search.marketplace, category: search.category }}
                 data-testid="check-draft"
               >
-                <FlaskConical data-icon="inline-start" />
+                <IconGlyph icon={CONCEPT_ICON.dryRun} size={16} />
                 Check a draft
               </Link>
             </Button>

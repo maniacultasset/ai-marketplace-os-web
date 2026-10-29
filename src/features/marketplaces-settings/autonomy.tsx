@@ -11,6 +11,7 @@
 import { useId } from 'react'
 import { Banner } from '@/components/la/banner'
 import { CardHead, LaCard } from '@/components/la/cards'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { Icon } from '@/components/la/icons'
 import { MarketplaceName } from '@/components/la/marketplace'
 import { ComingSoon, UnavailableHint } from '@/components/la/unavailable'
@@ -26,7 +27,7 @@ export function AutonomySettings() {
         <p className="mt-1 text-body text-ink-2">How the agent submits listings for this brand.</p>
       </div>
 
-      <Banner tone="info" icon="shield" title="Approval is always on" role="status">
+      <Banner tone="info" icon={CONCEPT_ICON.approval} title="Approval is always on" role="status">
         In this version a person approves every listing before it is sent to a marketplace. The agent proposes, the rules
         engine checks, and you decide.
       </Banner>
@@ -39,7 +40,7 @@ export function AutonomySettings() {
           aria-disabled
           aria-labelledby="autonomy-mode-approval"
           aria-describedby="autonomy-mode-approval-desc"
-          className="focus-ring flex items-start gap-3 rounded-[10px] border border-brand bg-brand-bg px-3.5 py-3 shadow-[var(--selected-ring),var(--shadow-raised-sm)]"
+          className="focus-ring flex items-start gap-3 rounded-tile border border-brand bg-brand-bg px-3.5 py-3 shadow-selected-inset"
         >
           <span aria-hidden className="mt-0.5 size-[18px] shrink-0 rounded-full border-[5px] border-brand bg-surface" />
           <div>
@@ -75,9 +76,9 @@ export function AutonomySettings() {
         <p className="mt-4 text-caption text-ink-3">{NEVER_GUESSED}</p>
       </LaCard>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <LaCard pad="sm">
-          <div className="flex items-center justify-between gap-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <LaCard>
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-[14px] font-bold text-ink">Retry limit</h4>
             <ComingSoon />
           </div>
@@ -85,14 +86,14 @@ export function AutonomySettings() {
             <UnavailableHint reason={AUTONOMY_REASON.retry}>
               <span className="inline-flex h-[34px] w-[72px] items-center justify-between rounded-control border border-line-strong bg-subtle px-2.5 text-small text-ink-3">
                 <span aria-label="Not set">—</span>
-                <Icon name="chev" size={14} />
+                <Icon name="chev" size={16} />
               </span>
             </UnavailableHint>
             <span className="text-small text-ink-2">attempts, then ask me</span>
           </div>
         </LaCard>
-        <LaCard pad="sm">
-          <div className="flex items-center justify-between gap-2">
+        <LaCard>
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-[14px] font-bold text-ink">Tell me about tasks by</h4>
             <ComingSoon />
           </div>
@@ -100,7 +101,7 @@ export function AutonomySettings() {
             {['Email', 'Push', 'WhatsApp'].map((c) => (
               <UnavailableHint key={c} reason={AUTONOMY_REASON.notify}>
                 <span className="inline-flex items-center gap-1.5 text-body text-ink-3">
-                  <span aria-hidden className="size-[18px] rounded-[5px] border-[1.5px] border-line-strong bg-subtle" />
+                  <span aria-hidden className="size-[18px] rounded-sm border-[1.5px] border-line-strong bg-subtle" />
                   {c}
                 </span>
               </UnavailableHint>
@@ -109,9 +110,9 @@ export function AutonomySettings() {
         </LaCard>
       </div>
 
-      <LaCard pad="sm">
+      <LaCard>
         <h4 className="text-[14px] font-bold text-ink">Per marketplace</h4>
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
           {SUPPORTED.map((m) => (
             <div key={m} className="flex items-center justify-between gap-3" data-testid={`autonomy-${m}`}>
               <MarketplaceName id={m} size="sm" />

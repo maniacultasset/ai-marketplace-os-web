@@ -1,4 +1,5 @@
-import { Unplug } from 'lucide-react'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
+import { IconGlyph } from '@/components/la/icons'
 import { useState } from 'react'
 import { columnHelper, DataTable } from '@/components/data-table'
 import { EmptyState } from '@/components/states/empty-state'
@@ -112,7 +113,7 @@ function RowActions({ account }: { account: MarketplaceAccount }) {
         onClick={() => setOpen(true)}
         aria-label={`Revoke ${MARKETPLACE_META[account.marketplace].name} seller ${account.seller_id}`}
       >
-        <Unplug data-icon="inline-start" />
+        <IconGlyph icon={CONCEPT_ICON.revoke} size={16} />
         Revoke
       </Button>
       <RevokeDialog account={account} open={open} onOpenChange={setOpen} />

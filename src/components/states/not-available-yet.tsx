@@ -1,4 +1,3 @@
-import { Clock } from 'lucide-react'
 import { EmptyState } from './empty-state'
 
 /** Neutral state for 501 NOT_IMPLEMENTED (never red). */
@@ -11,5 +10,5 @@ export function NotAvailableYet({
   description?: string
   compact?: boolean
 }) {
-  return <EmptyState icon={Clock} title={title} description={description} compact={compact} />
+  return <EmptyState icon="clock" title={title} description={description} compact={compact} />
 }

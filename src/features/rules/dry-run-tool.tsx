@@ -1,13 +1,14 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Braces, FlaskConical, ListChecks } from 'lucide-react'
+import { Braces } from 'lucide-react'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useForm, useWatch, type FieldPath } from 'react-hook-form'
 import { toast } from 'sonner'
 import { api, unwrap } from '@/api/client'
 import { describeError, isApiError, isNotFound } from '@/api/errors'
 import type { ErrorDetail } from '@/api/types'
-import { Icon, IconTile, type IconName } from '@/components/la/icons'
+import { Icon, IconGlyph, IconTile, type IconName } from '@/components/la/icons'
 import { EmptyState } from '@/components/states/empty-state'
 import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
@@ -339,11 +340,11 @@ export function DryRunTool({
             <div className="flex items-center justify-between gap-2">
               <TabsList className="h-9 [&_[data-slot=tabs-trigger]]:px-3">
                 <TabsTrigger value="form">
-                  <ListChecks />
+                  <IconGlyph icon={CONCEPT_ICON.rules} size={16} />
                   Form
                 </TabsTrigger>
                 <TabsTrigger value="json" data-testid="tab-json">
-                  <Braces />
+                  <IconGlyph icon={Braces} size={16} />
                   JSON
                 </TabsTrigger>
               </TabsList>
@@ -385,7 +386,7 @@ export function DryRunTool({
                         setJsonText(pretty(p.body))
                       }}
                     >
-                      <Icon name="spark" size={16} data-icon="inline-start" />
+                      <IconGlyph icon={Braces} size={16} />
                       Format
                     </Button>
                   </div>
@@ -419,7 +420,7 @@ export function DryRunTool({
               Reset
             </Button>
             <Button type="submit" disabled={run.isPending || overLimit} data-testid="run-dry-run">
-              {run.isPending ? <Spinner data-icon="inline-start" /> : <FlaskConical data-icon="inline-start" />}
+              {run.isPending ? <Spinner data-icon="inline-start" /> : <IconGlyph icon={CONCEPT_ICON.dryRun} size={16} />}
               {run.isPending ? 'Checking…' : 'Run check'}
             </Button>
           </div>
@@ -467,7 +468,7 @@ export function DryRunTool({
             <div className="rounded-card border border-dashed border-line-strong">
               <EmptyState
                 compact
-                icon={FlaskConical}
+                icon={CONCEPT_ICON.dryRun}
                 title="No check run yet"
                 description="Fill in the draft and run a check. Nothing is saved; the result shows every rule that fails."
               />

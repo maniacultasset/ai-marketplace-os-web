@@ -1,9 +1,9 @@
 import { Link } from '@tanstack/react-router'
 import { motion } from 'motion/react'
-import { ChevronRight, CircleDashed, CircleSlash, Lightbulb, MinusCircle, XCircle } from 'lucide-react'
+import { ChevronRight, CircleDashed, CircleSlash, Lightbulb, MinusCircle } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import type { ErrorItem } from '@/api/types'
-import { Icon, IconTile } from '@/components/la/icons'
+import { Icon, IconGlyph, IconTile } from '@/components/la/icons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -154,7 +154,7 @@ export function ValidationResultPanel({
 
       {stale ? (
         <p className="flex items-center gap-2 rounded-lg border border-attention-line bg-attention-bg px-3 py-2 text-[13px] text-ink">
-          <CircleDashed className="size-3.5 shrink-0 text-warning" aria-hidden />
+          <IconGlyph icon={CircleDashed} size={14} className="text-warning" />
           The draft changed since this check. Run it again to see the current result.
         </p>
       ) : null}
@@ -181,7 +181,7 @@ export function ValidationResultPanel({
                       onClick={() => onGoToField(field)}
                     >
                       Edit field
-                      <ChevronRight data-icon="inline-end" />
+                      <IconGlyph icon={ChevronRight} size={16} />
                     </Button>
                   ) : null}
                 </div>
@@ -243,7 +243,7 @@ function IssueRow({ item, rule }: { item: ErrorItem; rule: Rule | undefined }) {
       </div>
       {item.suggestion ? (
         <p className="flex gap-2 text-[13px] leading-relaxed text-muted-foreground">
-          <Lightbulb className="mt-0.5 size-3.5 shrink-0 text-warning" aria-hidden />
+          <IconGlyph icon={Lightbulb} size={14} className="mt-[calc((1lh-14px)/2)] text-warning" />
           <span>{item.suggestion}</span>
         </p>
       ) : null}
@@ -290,11 +290,11 @@ function IssueRow({ item, rule }: { item: ErrorItem; rule: Rule | undefined }) {
 }
 
 const STATUS_ICON: Record<CheckStatus, ReactNode> = {
-  disabled: <CircleSlash className="size-4 shrink-0 text-muted-foreground" aria-hidden />,
-  failed: <XCircle className="size-4 shrink-0 text-destructive" aria-hidden />,
+  disabled: <IconGlyph icon={CircleSlash} size={16} className="text-muted-foreground" />,
+  failed: <Icon name="x" size={16} className="text-destructive" />,
   warning: <Icon name="alert" size={16} className="text-warning" />,
-  'not-run': <MinusCircle className="size-4 shrink-0 text-muted-foreground" aria-hidden />,
-  replaced: <MinusCircle className="size-4 shrink-0 text-muted-foreground" aria-hidden />,
+  'not-run': <IconGlyph icon={MinusCircle} size={16} className="text-muted-foreground" />,
+  replaced: <IconGlyph icon={MinusCircle} size={16} className="text-muted-foreground" />,
   passed: <Icon name="check" size={16} className="text-success" />,
 }
 

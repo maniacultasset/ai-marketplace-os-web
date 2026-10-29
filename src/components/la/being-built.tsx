@@ -25,8 +25,8 @@ export function BeingBuilt({
     <Page>
       <PageHeader title={title} description={description} />
       <DashedCard className="flex flex-col items-start gap-3" data-testid="being-built">
-        <span className="inline-flex size-11 items-center justify-center rounded-[10px] bg-subtle text-ink-2" aria-hidden>
-          <Icon name="spark" size={20} />
+        <span className="inline-flex size-11 items-center justify-center rounded-tile bg-subtle text-ink-2" aria-hidden>
+          <Icon name="clock" size={22} />
         </span>
         <div>
           <h2 className="text-h3 text-ink">This screen is being built</h2>

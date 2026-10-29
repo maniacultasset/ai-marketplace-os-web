@@ -1,5 +1,4 @@
 import { useNavigate } from '@tanstack/react-router'
-import { Building2, LogOut } from 'lucide-react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   CommandDialog,
@@ -11,6 +10,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from '@/components/ui/command'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { logout, switchTenant, useMe } from '@/lib/auth'
 import { useNavItems } from '@/lib/nav'
 import { NavIcon } from './nav-icon'
@@ -87,7 +87,7 @@ function CommandPalette({ open, setOpen }: { open: boolean; setOpen: (v: boolean
                     run(() => void switchTenant(m.tenant_id).then(() => navigate({ to: '/home' }), () => undefined))
                   }
                 >
-                  <Building2 />
+                  <NavIcon icon="store" size={16} />
                   {m.tenant_name}
                   <CommandShortcut>{m.role}</CommandShortcut>
                 </CommandItem>
@@ -98,7 +98,7 @@ function CommandPalette({ open, setOpen }: { open: boolean; setOpen: (v: boolean
         <CommandSeparator />
         <CommandGroup heading="Session">
           <CommandItem value="sign out log out" onSelect={() => run(() => void logout())}>
-            <LogOut /> Sign out
+            <NavIcon icon={CONCEPT_ICON.logOut} size={16} /> Sign out
           </CommandItem>
         </CommandGroup>
       </CommandList>

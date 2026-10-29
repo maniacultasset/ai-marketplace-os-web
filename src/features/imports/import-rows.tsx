@@ -49,7 +49,7 @@ function ProductCell({ productId }: { productId: string | null | undefined }) {
       data-testid="row-product-link"
     >
       {short}
-      <Icon name="chev" size={12} className="-rotate-90" />
+      <Icon name="chev" size={14} className="-rotate-90" />
     </Link>
   )
 }

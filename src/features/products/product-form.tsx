@@ -1,6 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ArrowUpRight, Plus, Trash2 } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { Controller, useFieldArray, useForm, type UseFormSetError } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -31,6 +30,7 @@ import {
   type ProductFormInput,
   type ProductFormValues,
 } from './schema'
+import { Icon } from '@/components/la/icons'
 
 const SKU_CONFLICT_MESSAGE = 'This SKU already exists in this brand.'
 
@@ -272,7 +272,7 @@ export function ProductForm() {
                     disabled={lookingUp}
                     data-testid="open-existing"
                   >
-                    {lookingUp ? <Spinner data-icon="inline-start" /> : <ArrowUpRight data-icon="inline-start" />}
+                    {lookingUp ? <Spinner data-icon="inline-start" /> : <Icon name="external" size={16} data-icon="inline-start" />}
                     Open existing product
                   </Button>
                 ) : !errors.sku ? (
@@ -440,7 +440,7 @@ export function ProductForm() {
                         aria-label={`Remove attribute ${i + 1}`}
                         onClick={() => attributes.remove(i)}
                       >
-                        <Trash2 />
+                        <Icon name="trash" size={16} />
                       </Button>
                     </li>
                   )
@@ -461,7 +461,7 @@ export function ProductForm() {
                 onClick={() => attributes.append(emptyAttribute(), { shouldFocus: true })}
                 disabled={atMax}
               >
-                <Plus data-icon="inline-start" />
+                <Icon name="plus" size={16} data-icon="inline-start" />
                 Add attribute
               </Button>
             </div>

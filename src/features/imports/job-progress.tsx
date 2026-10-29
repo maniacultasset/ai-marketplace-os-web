@@ -4,9 +4,9 @@
  * The caller owns polling (`useJobPolling`) and passes the result in, so a page has exactly one
  * poller per job.
  */
-import { Icon } from '@/components/la/icons'
+import { Icon, IconGlyph } from '@/components/la/icons'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Check, CircleSlash, X } from 'lucide-react'
+import { CircleSlash } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { api, unwrap } from '@/api/client'
 import { isApiError, isNotFound } from '@/api/errors'
@@ -168,7 +168,7 @@ export function JobProgress({
               disabled={cancel.isPending}
               onClick={() => cancel.mutate(job.job_id)}
             >
-              {cancel.isPending ? <Spinner data-icon="inline-start" /> : <CircleSlash data-icon="inline-start" />}
+              {cancel.isPending ? <Spinner data-icon="inline-start" /> : <IconGlyph icon={CircleSlash} size={16} />}
               Cancel job
             </Button>
           ) : null}
@@ -205,7 +205,7 @@ export function JobProgress({
           {timing ? <span>{timing}</span> : null}
           {job.attempt > 1 ? (
             <span className="inline-flex items-center gap-1 text-warning">
-              <Icon name="clock" size={12} />
+              <Icon name="clock" size={14} />
               Attempt {job.attempt} of {job.max_attempts}
             </span>
           ) : null}
@@ -259,7 +259,10 @@ function JobStepper({ job, pct }: { job: JobEnvelope; pct: number }) {
       state: final ? 'done' : 'pending',
       at: job.finished_at,
       fill: final ? TONE_FILL[final.tone] : undefined,
-      icon: final && (final.tone === 'danger' || final.tone === 'muted') ? <X className="size-3" strokeWidth={3} aria-hidden /> : undefined,
+      icon: final && (final.tone === 'danger' || final.tone === 'muted') ? (
+        // Status-dot exception: a mark inside a filled circle of 20px or less takes 2.5.
+        <Icon name="x" size={14} strokeWidth={2.5} />
+      ) : undefined,
     },
   ]
   const firstLeg = job.status === 'queued' ? 0 : started ? 100 : 0
@@ -307,7 +310,8 @@ function StepDot({ state, fill, icon }: { state: StepState; fill?: string; icon?
   if (state === 'done') {
     return (
       <span aria-hidden className={cn('flex size-5 shrink-0 items-center justify-center rounded-full shadow-raised-sm', fill ?? 'bg-brand text-brand-foreground shadow-raised-brand')}>
-        {icon ?? <Check className="size-3" strokeWidth={3} />}
+        {/* Status-dot exception: a mark inside a small filled circle takes 2.5. */}
+        {icon ?? <Icon name="check" size={14} strokeWidth={2.5} />}
       </span>
     )
   }

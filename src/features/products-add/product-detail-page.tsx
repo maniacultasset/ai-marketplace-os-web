@@ -16,8 +16,10 @@ import { Page } from '@/components/app/page-header'
 import {
   AttentionCard,
   CardHead,
+  CONCEPT_ICON,
   DashedCard,
   Icon,
+  IconGlyph,
   LaCard,
   MARKETPLACES,
   MarketplaceName,
@@ -190,14 +192,17 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
         <div className="flex flex-wrap items-center gap-2">
           {data.isVariant ? null : data.listingsPending ? <Skeleton className="h-[22px] w-20 rounded-full" /> : <StatusChip status={overall.status}>{overall.label}</StatusChip>}
           <UnavailableButton variant="secondary" reason={NOT_YET.pauseArchive}>
-            <Icon name="pause" size={14} />
+            <Icon name="pause" size={16} />
             Pause
           </UnavailableButton>
           <UnavailableButton variant="secondary" reason="Resubmitting a whole product is not available yet. Open a listing to retry it.">
-            <Icon name="refresh" size={14} />
+            <Icon name="refresh" size={16} />
             Resubmit
           </UnavailableButton>
-          <UnavailableButton reason="Editing a product is not available yet. Upload its SKU again in a spreadsheet to update it.">Edit</UnavailableButton>
+          <UnavailableButton reason="Editing a product is not available yet. Upload its SKU again in a spreadsheet to update it.">
+            <IconGlyph icon={CONCEPT_ICON.edit} size={16} />
+            Edit
+          </UnavailableButton>
         </div>
       </header>
 
@@ -339,8 +344,10 @@ function MarketplaceCard({
           [
             'Link',
             live && l.live_url ? (
-              <a key="a" href={l.live_url} target="_blank" rel="noreferrer" className="font-semibold text-brand hover:underline">
+              <a key="a" href={l.live_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-brand hover:underline">
                 View live
+                <span className="sr-only"> (opens in a new tab)</span>
+                <Icon name="external" size={14} />
               </a>
             ) : (
               'Not yet'
@@ -631,7 +638,7 @@ function ValidationTab({ data }: { data: DetailData }) {
   return (
     <div className="flex flex-col gap-4">
       <Can action="listing:edit">
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-line bg-surface px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-tile border border-line bg-surface px-4 py-3">
           <p className="text-small text-ink-2">Run this product against the current marketplace rules without drafting anything.</p>
           <Button variant="secondary" size="sm" asChild>
             <Link to="/rules/check" search={{ product: data.product.id }} data-testid="check-rules">

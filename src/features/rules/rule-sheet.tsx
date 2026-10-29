@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
-import { FlaskConical } from 'lucide-react'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { useState, type ReactNode } from 'react'
-import { Icon } from '@/components/la/icons'
+import { Icon, IconGlyph } from '@/components/la/icons'
 import { EmptyState } from '@/components/states/empty-state'
 import { ErrorState } from '@/components/states/error-state'
 import { Button } from '@/components/ui/button'
@@ -182,7 +182,7 @@ function RuleDetail({ rule, onShowCategory }: { rule: Rule; onShowCategory: (rul
                 search={{ marketplace: rule.marketplace, category: rule.category ?? undefined }}
                 data-testid="rule-sheet-check"
               >
-                <FlaskConical data-icon="inline-start" />
+                <IconGlyph icon={CONCEPT_ICON.dryRun} size={16} />
                 Check a draft against {rule.category ? 'this category' : 'this marketplace'}
               </Link>
             </Button>

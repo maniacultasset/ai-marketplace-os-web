@@ -4,10 +4,12 @@
  */
 import { formatDistanceToNowStrict, format, isToday, isYesterday } from 'date-fns'
 import type { ReactNode } from 'react'
-import { IconTile, type IconName, type TileTone } from '@/components/la/icons'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
+import { IconTile, type IconSource, type TileTone } from '@/components/la/icons'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { Issue, Task } from '@/features/inbox/model'
 import { cn } from '@/lib/utils'
+import { issueIcon } from './issue-icon'
 import type { TimelineEntry } from './model'
 
 const DOT: Record<TimelineEntry['tone'], string> = {
@@ -78,21 +80,38 @@ export function KeyValues({ rows, className }: { rows: readonly [string, ReactNo
   )
 }
 
-const TASK_ICON: Record<Task['kind'], IconName> = {
-  missing_fact: 'file',
-  conflicting_facts: 'file',
-  unverified_declaration: 'shield',
-  approval_or_evidence: 'shield',
-  permission_decision: 'shield',
-  reconnect_account: 'link',
-  image_replacement: 'image',
+const TASK_ICON: Record<Task['kind'], IconSource> = {
+  missing_fact: CONCEPT_ICON.missingData,
+  conflicting_facts: CONCEPT_ICON.missingData,
+  unverified_declaration: CONCEPT_ICON.trust,
+  approval_or_evidence: CONCEPT_ICON.approval,
+  permission_decision: CONCEPT_ICON.trust,
+  reconnect_account: CONCEPT_ICON.reconnect,
+  image_replacement: CONCEPT_ICON.imageProblem,
   marketplace_error_review: 'store',
 }
 
-/** 40/44px leading tile (matte icon tile): brand tint for a question, attention or danger tint for an issue. */
-export function ItemTile({ item, size = 40 }: { item: { kind: 'task'; task: Pick<Task, 'kind'> } | { kind: 'issue'; issue: Pick<Issue, 'severity' | 'status'> }; size?: 40 | 44 }) {
-  const isTask = item.kind === 'task'
-  const tone: TileTone = isTask ? 'brand' : item.issue.status !== 'open' ? 'ok' : item.issue.severity === 'error' ? 'fail' : 'warn'
-  const name: IconName = isTask ? TASK_ICON[item.task.kind] : item.issue.status !== 'open' ? 'check' : 'alert'
-  return <IconTile icon={name} tone={tone} size="lg" className={size === 40 ? 'size-10 rounded-[11px]' : undefined} />
+type RowItem =
+  | { kind: 'task'; task: Pick<Task, 'kind'> }
+  | { kind: 'issue'; issue: Pick<Issue, 'severity' | 'status' | 'field_path' | 'error_code'> & Partial<Pick<Issue, 'error_class' | 'source'>> }
+
+/**
+ * 36px leading tile of a task or issue row. A question for the agent's work is brand; a reconnect
+ * needs the seller, so it is warn. Issues pick their glyph by field (issueIcon) and their tone by
+ * severity; a closed issue turns to an ok check.
+ */
+export function ItemTile({ item }: { item: RowItem }) {
+  let tone: TileTone
+  let icon: IconSource
+  if (item.kind === 'task') {
+    tone = item.task.kind === 'reconnect_account' ? 'warn' : 'brand'
+    icon = TASK_ICON[item.task.kind]
+  } else if (item.issue.status !== 'open') {
+    tone = 'ok'
+    icon = 'check'
+  } else {
+    tone = item.issue.severity === 'error' ? 'fail' : 'warn'
+    icon = issueIcon(item.issue)
+  }
+  return <IconTile icon={icon} tone={tone} size="md" />
 }

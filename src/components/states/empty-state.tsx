@@ -1,10 +1,9 @@
-import { Inbox } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { IconTile, type IconSource, type TileTone } from '@/components/la/icons'
 import { cn } from '@/lib/utils'
 
 export function EmptyState({
-  icon: Icon = Inbox,
+  icon = 'inbox',
   tone = 'neutral',
   title,
   description,
@@ -31,7 +30,7 @@ export function EmptyState({
         className,
       )}
     >
-      <IconTile icon={Icon} tone={tone} size={compact ? 'md' : 'lg'} />
+      <IconTile icon={icon} tone={tone} size={compact ? 'md' : 'lg'} />
       <div className="max-w-sm space-y-1">
         <h3 className="text-[0.9375rem] font-semibold tracking-tight text-balance">{title}</h3>
         {description ? <p className="text-sm text-pretty text-muted-foreground">{description}</p> : null}

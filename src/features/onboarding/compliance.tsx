@@ -46,7 +46,7 @@ export function ComplianceForm({ className }: { className?: string }) {
     <LaCard className={cn('flex flex-col gap-4', className)} data-testid="compliance-form">
       <SetupHeading title="Facts every garment listing needs" sub="We store what you tell us. We never fill these in from guesses." />
 
-      <Banner tone="neutral" icon="alert" title="Compliance defaults can’t be saved yet">
+      <Banner tone="attention" title="Compliance defaults can’t be saved yet">
         {NEEDS_BACKEND} Until then, give manufacturer, country of origin and HSN code per product: the bulk spreadsheet has a column for each.
       </Banner>
 
@@ -102,14 +102,14 @@ export function ComplianceAside() {
   return (
     <>
       <LaCard pad="sm">
-        <CardHead title="Where this appears" sub="Garment listings can require these declarations to be shown to customers." icon="eye" />
+        <CardHead title="Where this appears" sub="Garment listings can require these declarations to be shown to customers." icon="info" />
         <ul className="mt-4 flex flex-col gap-2 text-small text-ink">
           <Declared>Manufacturer, marketer or importer</Declared>
           <Declared>Consumer care contact</Declared>
           <Declared>Country of origin</Declared>
           <Declared perProduct>
             Size and MRP{' '}
-            <span className="ml-1 rounded-[5px] bg-subtle px-1.5 py-0.5 text-caption font-semibold text-ink-2">per product</span>
+            <span className="ml-1 rounded-sm bg-subtle px-1.5 py-0.5 text-caption font-semibold text-ink-2">per product</span>
           </Declared>
         </ul>
       </LaCard>
@@ -127,11 +127,11 @@ function Declared({ children, perProduct }: { children: ReactNode; perProduct?: 
       <span
         aria-hidden
         className={cn(
-          'inline-flex size-[18px] shrink-0 items-center justify-center rounded-[5px] border-[1.5px]',
+          'inline-flex size-[18px] shrink-0 items-center justify-center rounded-sm border-[1.5px]',
           perProduct ? 'border-line-strong bg-field shadow-inset-sm' : 'border-brand bg-brand text-white shadow-raised-brand',
         )}
       >
-        {perProduct ? null : <Icon name="check" size={12} strokeWidth={2.5} />}
+        {perProduct ? null : <Icon name="check" size={14} />}
       </span>
       <span>
         {children}

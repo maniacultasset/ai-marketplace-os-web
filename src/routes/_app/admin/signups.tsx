@@ -12,7 +12,7 @@ import { useKeys } from '@/lib/query-keys'
 
 const searchSchema = z.object({ status: z.enum(QUEUE_TABS).optional().catch(undefined) })
 
-export const Route = createFileRoute('/_app/_settings/admin/signups')({
+export const Route = createFileRoute('/_app/admin/signups')({
   staticData: { title: 'Sign-up requests' },
   validateSearch: searchSchema,
   component: SignupsPage,

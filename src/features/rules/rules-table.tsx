@@ -6,6 +6,7 @@ import { fieldLabel, ruleTypeLabel, type Rule } from './labels'
 import { CategoryText, EnabledDot, MarketplaceMark, ScopeBadge, SeverityBadge } from './rule-badges'
 import { RulesFiltersBar } from './rules-filters'
 import type { useRulesList } from './use-rules'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
 
 const col = columnHelper<Rule>()
 const columns = col.columns([
@@ -92,7 +93,7 @@ export function RulesTable({
         filtered ? (
           <EmptyState
             compact
-            icon="shield"
+            icon={CONCEPT_ICON.rules}
             title="No rules match these filters"
             description={
               filters.category
@@ -108,7 +109,7 @@ export function RulesTable({
         ) : (
           <EmptyState
             compact
-            icon="shield"
+            icon={CONCEPT_ICON.rules}
             title="No rules yet"
             description="Platform and brand rules appear here once they are set up."
           />

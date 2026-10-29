@@ -1,4 +1,5 @@
-import { WifiOff } from 'lucide-react'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
+import { IconGlyph } from '@/components/la/icons'
 import { useEffect, useSyncExternalStore } from 'react'
 import { getOffline, probe, setOffline, subscribeOffline } from '@/api/client'
 
@@ -26,7 +27,7 @@ export function NetworkBanner() {
       aria-live="polite"
       className="sticky top-0 z-50 flex items-center justify-center gap-2 border-b border-warning/30 bg-warning/10 px-4 py-2 text-sm text-foreground"
     >
-      <WifiOff className="size-4 text-warning" aria-hidden />
+      <IconGlyph icon={CONCEPT_ICON.offline} size={18} className="text-warning" />
       Can't reach the server. Retrying…
     </div>
   )

@@ -4,8 +4,8 @@
  * spring and folds away with its last message when fixed; a fixed error gets a brief tick when
  * `confirmFix` is set. All of it is off under prefers-reduced-motion (index.css).
  */
-import { CircleAlert, Check } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { Icon } from '@/components/la/icons'
 import { cn } from '@/lib/utils'
 
 /** Matches --dur-spring, like LaField. */
@@ -56,7 +56,7 @@ export function FieldError({
         <div className="grid pt-1">
           {fixed && !has ? (
             <span className="field-swap field-tick text-success" data-shown aria-hidden>
-              <Check className="size-3.5" strokeWidth={2.5} />
+              <Icon name="check" size={14} />
             </span>
           ) : null}
           {shown !== null ? (
@@ -69,7 +69,7 @@ export function FieldError({
               data-shown={has ? true : undefined}
               className="field-swap flex items-start gap-1 text-xs font-medium text-destructive"
             >
-              <CircleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
+              <Icon name="alert" size={14} className="mt-[calc((1lh-14px)/2)]" />
               <span className="min-w-0">{has ? message : shown}</span>
             </p>
           ) : null}

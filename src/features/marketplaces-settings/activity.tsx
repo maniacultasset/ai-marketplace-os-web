@@ -9,6 +9,8 @@ import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Banner } from '@/components/la/banner'
 import { LaCard } from '@/components/la/cards'
+import { Icon } from '@/components/la/icons'
+import { cn } from '@/lib/utils'
 import { MarketplaceName } from '@/components/la/marketplace'
 import { StatusChip } from '@/components/la/status-chip'
 import { NOT_YET } from '@/components/la/unavailable'
@@ -31,7 +33,7 @@ export function ActivityView() {
   return (
     <div className="flex flex-col gap-5">
       <div data-testid="activity-coming-soon">
-        <Banner tone="neutral" title="Activity across your brand is coming soon">
+        <Banner tone="neutral" icon="clock" title="Activity across your brand is coming soon">
           <span className="text-ink-2">{NOT_YET.activityFeed} Open a listing below to see what the agent and your team did.</span>
         </Banner>
       </div>
@@ -52,7 +54,7 @@ export function ActivityView() {
           <LaCard pad="none" aria-busy>
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="flex items-center gap-3 border-b border-line px-5 py-4 last:border-b-0">
-                <Skeleton className="size-7 rounded-[7px]" />
+                <Skeleton className="size-7 rounded-md" />
                 <Skeleton className="h-4 w-40" />
                 <Skeleton className="ml-auto h-[22px] w-24 rounded-full" />
               </div>
@@ -100,7 +102,7 @@ function ListingActivityRow({ listing }: { listing: Listing }) {
     <li className="border-b border-line last:border-b-0" data-testid="activity-listing">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5">
         <MarketplaceName id={listing.marketplace} size="sm" className="w-32" />
-        <div className="order-first min-w-0 basis-full sm:order-none sm:basis-0 sm:flex-1">
+        <div className="order-first min-w-0 basis-full sm:order-none sm:min-w-48 sm:basis-0 sm:flex-1">
           <ListingProductName productId={listing.product_id} />
           <p className="text-caption text-ink-3 sm:truncate">
             {listing.category ? `${sentence(listing.category)} · ` : ''}Status changed{' '}
@@ -113,10 +115,12 @@ function ListingActivityRow({ listing }: { listing: Listing }) {
         <div className="flex basis-full items-center gap-1 sm:basis-auto">
           <Button variant="ghost" size="sm" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen((o) => !o)}>
             {open ? 'Hide history' : 'Show history'}
+            <Icon name="chev" size={16} className={cn('transition-transform duration-150 motion-reduce:transition-none', open && 'rotate-180')} />
           </Button>
           <Button variant="link" size="sm" asChild>
             <Link to="/products/$productId" params={{ productId: listing.product_id }}>
               Open product
+              <Icon name="arrow" size={14} />
             </Link>
           </Button>
         </div>

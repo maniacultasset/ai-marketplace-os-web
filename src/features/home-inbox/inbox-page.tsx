@@ -205,7 +205,7 @@ function ItemCard({
       className={cn(
         'focus-ring tactile block rounded-card border p-4',
         selected
-          ? 'border-brand bg-brand-bg shadow-[var(--selected-ring),var(--shadow-inset-sm)]'
+          ? 'border-brand bg-brand-bg shadow-selected-inset'
           : 'lift border-line bg-surface shadow-raised-sm hover:border-line-strong active:shadow-pressed',
       )}
     >

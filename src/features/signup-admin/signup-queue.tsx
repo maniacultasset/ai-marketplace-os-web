@@ -1,4 +1,4 @@
-import { UserCheck } from 'lucide-react'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { Icon } from '@/components/la/icons'
 import { createContext, useContext, useState } from 'react'
 import { columnHelper, DataTable } from '@/components/data-table'
@@ -46,7 +46,8 @@ const brandColumn = col.accessor('brand_name', {
             onClick={(e) => e.stopPropagation()}
           >
             <span className="truncate">{displayWebsite(r.website)}</span>
-            <Icon name="external" size={12} />
+            <span className="sr-only"> (opens in a new tab)</span>
+            <Icon name="external" size={14} />
           </a>
         ) : null}
       </div>
@@ -209,7 +210,7 @@ export function SignupQueue({ tab, onTabChange }: { tab: QueueTab; onTabChange: 
         empty={
           <EmptyState
             compact
-            icon={tab === 'pending' ? UserCheck : 'inbox'}
+            icon={tab === 'pending' ? CONCEPT_ICON.signups : 'inbox'}
             title={empty.title}
             description={empty.description}
             actions={
