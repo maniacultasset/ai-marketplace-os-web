@@ -2,7 +2,7 @@
  * Starting a Google sign-in, and picking it up again on /auth/google.
  *
  * Before leaving for Google the browser makes a 32-byte random secret and keeps it in
- * sessionStorage (this tab only). `start` receives only its SHA-256; `complete`, `link` and
+ * sessionStorage (this tab only). `start` receives only the SHA-256 of its text; `complete`, `link` and
  * `/signup/google` must send the secret itself, so a handle that leaks (or is planted by another
  * site) is useless in any other browser. The secret never goes in a URL, and it is removed from
  * storage the moment /auth/google reads it; after that it lives in component memory only.
@@ -40,11 +40,18 @@ export function b64url(bytes: Uint8Array): string {
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-/** A fresh binding secret and its SHA-256 (over the 32 raw bytes), both base64url. */
+/**
+ * The `b` sent to `start` for a binding secret: base64url of SHA-256 over the secret's 43-character
+ * ASCII text (not the raw bytes), exactly as the API hashes the `binding` it is sent later.
+ */
+export async function bindingHash(secret: string): Promise<string> {
+  return b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret))))
+}
+
+/** A fresh binding secret (base64url of 32 random bytes) and its `bindingHash`. */
 export async function newBinding(): Promise<{ secret: string; hash: string }> {
-  const raw = crypto.getRandomValues(new Uint8Array(32))
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', raw))
-  return { secret: b64url(raw), hash: b64url(digest) }
+  const secret = b64url(crypto.getRandomValues(new Uint8Array(32)))
+  return { secret, hash: await bindingHash(secret) }
 }
 
 /** Thrown when this browser blocks sessionStorage: the sign-in could not be finished here. */

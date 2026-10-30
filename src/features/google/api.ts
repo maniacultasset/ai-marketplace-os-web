@@ -7,6 +7,8 @@
  *   POST /auth/google/complete  { handle, binding } -> GoogleCompleteOut
  *   POST /auth/google/link      { link_handle, binding, password } -> LoginResult
  *   POST /signup/google         { details_handle, binding, brand_name, owner_name, phone?, website? } -> 202 SignupStatusOut
+ *   POST /auth/google/unlink    signed in, step-up `any`: remove the linked Google account (204;
+ *                               422 while the account has no password)
  *
  * Plain async functions, not mutations: the binding secret and the password must not sit in the
  * MutationCache after the screen is gone.
@@ -63,3 +65,6 @@ export const linkGoogle = (link_handle: string, binding: string, password: strin
 
 export const signupGoogle = (details_handle: string, binding: string, fields: GoogleSignupFields) =>
   unwrap(api.POST('/signup/google', { body: { details_handle, binding, ...fields } }))
+
+/** Settings > Security: remove the linked Google account. The client answers the step-up. */
+export const unlinkGoogle = (): Promise<void> => unwrap(api.POST('/auth/google/unlink')).then(() => undefined)

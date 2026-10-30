@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { b64url, GOOGLE_START_PATH, startGoogle, StorageBlockedError, takeTicket } from './start'
+import { bindingHash, GOOGLE_START_PATH, startGoogle, StorageBlockedError, takeTicket } from './start'
 
 const fromB64url = (s: string) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (s.length % 4)) % 4)), (c) => c.charCodeAt(0))
 
@@ -21,8 +21,14 @@ describe('startGoogle / takeTicket', () => {
     const b = url.split('?b=')[1]!
     expect(b).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(url).not.toContain(ticket.bind)
-    const expected = b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', fromB64url(ticket.bind))))
-    expect(b).toBe(expected)
+    expect(fromB64url(ticket.bind)).toHaveLength(32)
+    expect(b).toBe(await bindingHash(ticket.bind))
+  })
+
+  it('hashes the secret text the way the API does (sha256 of its ASCII, base64url)', async () => {
+    // Vectors computed with the API's own helper: base64url(sha256(secret.encode("ascii"))).
+    expect(await bindingHash('A'.repeat(43))).toBe('DwBzhbb51LfusnSGBa_hqYSgo7-j8BTQnip4TOnlzRo')
+    expect(await bindingHash('0123456789abcdefghijklmnopqrstuvwxyzABCDEFG')).toBe('g0tuZ6q412zO9IRkeAUs8HN6MQeXPsGce37J3Rsc8wQ')
   })
 
   it('a fresh secret every time', async () => {

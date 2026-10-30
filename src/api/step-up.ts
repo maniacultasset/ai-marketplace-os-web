@@ -36,6 +36,7 @@ export const STEP_UP_OPS: Readonly<Record<string, StepUpMode>> = {
   'POST /auth/mfa/recovery-codes': 'any',
   'POST /auth/mfa/totp/enroll': 'any',
   'POST /auth/mfa/totp/confirm': 'any',
+  'POST /auth/google/unlink': 'any',
   'POST /marketplaces/accounts/{account_id}/revoke': 'otp',
   'POST /admin/signup-requests/{request_id}/approve': 'otp',
   'POST /admin/signup-requests/{request_id}/reject': 'otp',

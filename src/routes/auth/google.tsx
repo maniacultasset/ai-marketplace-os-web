@@ -5,7 +5,7 @@ import { GoogleReturnPage } from '@/features/google/google-return-page'
 
 /**
  * Where the backend's Google callback lands: `?handle=` (single use, 60 s, bound to this tab) or
- * `?error=cancelled|failed`. The page strips both from the address bar as soon as it reads them.
+ * `?error=cancelled|failed|unavailable`. The page strips both from the address bar as soon as it reads them.
  */
 const searchSchema = z.object({
   handle: z.string().min(1).max(128).optional().catch(undefined),

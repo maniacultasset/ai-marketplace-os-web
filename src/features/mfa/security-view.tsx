@@ -7,6 +7,8 @@
  *   without a password; the API asks for a step-up, which the step-up dialog answers), and new
  *   recovery codes (POST /auth/mfa/recovery-codes, also behind a step-up).
  * - Change password (POST /auth/password): the live rules, the once-a-day limit as the API says it.
+ * - Google (ADR-0020): shown while a Google account is linked; Remove (POST /auth/google/unlink,
+ *   behind a step-up) unless Google is the account's only way in (no password).
  *
  * Under `enforcement: "off"` the MFA routes answer 501, so the login-codes card only explains.
  */
@@ -37,6 +39,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
+import { unlinkGoogle } from '@/features/google/api'
 import { FormAlert } from '@/features/public/auth-frame'
 import { PasswordInput } from '@/features/signup-admin/password-input'
 import { useMe } from '@/lib/auth'
@@ -761,6 +764,86 @@ function PasswordCard({ security, email, displayName }: { security: SecurityOut;
   )
 }
 
+function GoogleCard({ security, email }: { security: SecurityOut; email: string }) {
+  const qc = useQueryClient()
+  const keys = useKeys()
+  const [confirm, setConfirm] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<{ message: string; ref: string | null } | null>(null)
+  const onlyWayIn = security.has_password === false
+  const remove = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await unlinkGoogle()
+      setConfirm(false)
+      toast.success('Google removed', { description: 'Sign in with your email and password from now on.' })
+      void qc.invalidateQueries({ queryKey: keys.security() })
+    } catch (e) {
+      setConfirm(false)
+      setError({ message: mfaErrorMessage(e), ref: isApiError(e) ? e.correlationId : null })
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Card className="@container gap-0 py-0" data-testid="google-card">
+      <CardTop
+        icon="link"
+        tone="neutral"
+        title="Google"
+        status={<Badge variant="success">Linked</Badge>}
+        action={
+          onlyWayIn ? null : (
+            <Button variant="secondary" className="w-full @xl:w-auto" onClick={() => setConfirm(true)} disabled={busy} data-testid="google-unlink">
+              Remove
+            </Button>
+          )
+        }
+      >
+        {onlyWayIn
+          ? 'You sign in with Continue with Google, then your login code. It is this account’s only way in, so it can’t be removed.'
+          : 'Continue with Google signs you in to this account, and you still enter your login code.'}
+      </CardTop>
+      <Facts>
+        <Fact label="Google account" valueClassName="truncate">
+          {email}
+        </Fact>
+      </Facts>
+      {error ? (
+        <div className="border-t border-line px-5 py-4 sm:px-6">
+          <FormAlert message={error.message} reference={error.ref} testId="google-unlink-error" />
+        </div>
+      ) : null}
+      <AlertDialog open={confirm} onOpenChange={(o) => (busy ? null : setConfirm(o))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Google from this account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Continue with Google will stop signing you in. You can still sign in with your email and password, and link Google
+              again later by using Continue with Google.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault()
+                void remove()
+              }}
+              data-testid="google-unlink-confirm"
+            >
+              {busy ? 'Removing…' : 'Remove Google'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  )
+}
+
 // ---------------------------------------------------------------------------------------------
 
 /** /settings/security. `setup` opens the authenticator setup at once (from MFA_ENROLLMENT_REQUIRED). */
@@ -797,6 +880,7 @@ export function SecurityView({ setup = false, onSetupShown }: { setup?: boolean;
       {security.data.has_password === false ? null : (
         <PasswordCard security={security.data} email={me.data.email} displayName={me.data.display_name} />
       )}
+      {security.data.google_linked === true ? <GoogleCard security={security.data} email={me.data.email} /> : null}
       <LaCard emphasis="tint" pad="md" className="flex items-start gap-3">
         <IconTile icon="info" size="md" />
         <p className="text-small text-ink-2">

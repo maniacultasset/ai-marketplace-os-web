@@ -25,11 +25,18 @@ export function captureReturn(search: { handle?: string; error?: string }): Capt
   const ticket = takeTicket()
   const intent = ticket?.intent ?? 'login'
   let value: Captured
-  if (search.error) value = { kind: 'error', reason: search.error === 'cancelled' ? 'cancelled' : 'failed', intent }
+  if (search.error) value = { kind: 'error', reason: errorReason(search.error), intent }
   else if (!search.handle || !ticket) value = { kind: 'error', reason: 'failed', intent }
   else value = { kind: 'go', handle: search.handle, ticket }
   captured = { key, value }
   return value
+}
+
+/** The callback's `?error=`: `cancelled` at Google, `unavailable` (switched off mid-flow), else a failure. */
+function errorReason(error: string): GoogleErrorReason {
+  if (error === 'cancelled') return 'cancelled'
+  if (error === 'unavailable') return 'unavailable'
+  return 'failed'
 }
 
 /** One `complete` per handle, however often the effect runs. */
