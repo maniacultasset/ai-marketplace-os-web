@@ -1403,6 +1403,289 @@
         "title": "GenerateListingRequest",
         "type": "object"
       },
+      "GoogleCompleteOut": {
+        "description": "Exactly one of `login`, `signup`, `details` or `link` is set, matching `outcome`.",
+        "properties": {
+          "details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoogleDetailsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoogleLinkOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "login": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LoginResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outcome": {
+            "enum": [
+              "sign_in",
+              "pending",
+              "needs_details",
+              "link_required"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "signup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignupStatusOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "outcome"
+        ],
+        "title": "GoogleCompleteOut",
+        "type": "object"
+      },
+      "GoogleCompleteRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "binding": {
+            "maxLength": 43,
+            "minLength": 43,
+            "pattern": "^[A-Za-z0-9_-]{43}$",
+            "title": "Binding",
+            "type": "string"
+          },
+          "handle": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Handle",
+            "type": "string"
+          }
+        },
+        "required": [
+          "handle",
+          "binding"
+        ],
+        "title": "GoogleCompleteRequest",
+        "type": "object"
+      },
+      "GoogleConfigOut": {
+        "description": "Whether Sign in with Google is switched on (GOOGLE_OAUTH_ENABLED).",
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "GoogleConfigOut",
+        "type": "object"
+      },
+      "GoogleDetailsOut": {
+        "properties": {
+          "details_expires_in": {
+            "title": "Details Expires In",
+            "type": "integer"
+          },
+          "details_handle": {
+            "title": "Details Handle",
+            "type": "string"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "family_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family Name"
+          },
+          "given_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Given Name"
+          }
+        },
+        "required": [
+          "email",
+          "details_handle",
+          "details_expires_in"
+        ],
+        "title": "GoogleDetailsOut",
+        "type": "object"
+      },
+      "GoogleLinkOut": {
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "link_expires_in": {
+            "title": "Link Expires In",
+            "type": "integer"
+          },
+          "link_handle": {
+            "title": "Link Handle",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "link_handle",
+          "link_expires_in"
+        ],
+        "title": "GoogleLinkOut",
+        "type": "object"
+      },
+      "GoogleLinkRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "binding": {
+            "maxLength": 43,
+            "minLength": 43,
+            "pattern": "^[A-Za-z0-9_-]{43}$",
+            "title": "Binding",
+            "type": "string"
+          },
+          "link_handle": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Link Handle",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "link_handle",
+          "binding",
+          "password"
+        ],
+        "title": "GoogleLinkRequest",
+        "type": "object"
+      },
+      "GoogleSignupRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "binding": {
+            "maxLength": 43,
+            "minLength": 43,
+            "pattern": "^[A-Za-z0-9_-]{43}$",
+            "title": "Binding",
+            "type": "string"
+          },
+          "brand_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Brand Name",
+            "type": "string"
+          },
+          "details_handle": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Details Handle",
+            "type": "string"
+          },
+          "owner_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Owner Name",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "pattern": "^\\+?[0-9][0-9 ()-]{5,30}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "pattern": "^https?://[^\\s/?#\\x00-\\x1f\\x7f]+\\.[^\\s\\x00-\\x1f\\x7f]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          }
+        },
+        "required": [
+          "details_handle",
+          "binding",
+          "brand_name",
+          "owner_name"
+        ],
+        "title": "GoogleSignupRequest",
+        "type": "object"
+      },
       "ImageAccepted": {
         "properties": {
           "image_id": {
@@ -4085,6 +4368,17 @@
             ],
             "title": "Enforcement",
             "type": "string"
+          },
+          "has_password": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Has Password"
           },
           "mfa_enrolled": {
             "title": "Mfa Enrolled",
@@ -7484,6 +7778,172 @@
           "analytics"
         ],
         "x-mkos-action": "analytics:read"
+      }
+    },
+    "/api/v1/auth/google/complete": {
+      "post": {
+        "description": "Public. Consumes the callback handle bound to this browser.",
+        "operationId": "auth_google_complete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleCompleteOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Codes: `OAUTH_STATE_INVALID`, `UNAUTHENTICATED`."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation failed. Codes: `VALIDATION_FAILED`."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Rate limited. Codes: `RATE_LIMITED`."
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Sign in with Google is off. Codes: `NOT_IMPLEMENTED`."
+          }
+        },
+        "summary": "Finish a Google sign-in",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/google/config": {
+      "get": {
+        "description": "Public. Whether the Google button should be shown.",
+        "operationId": "auth_google_config",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Google sign-in availability",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/google/link": {
+      "post": {
+        "description": "Public. The Kuinn password first, then the usual sign-in steps; the link is stored after they pass.",
+        "operationId": "auth_google_link",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Codes: `OAUTH_STATE_INVALID`, `UNAUTHENTICATED`."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation failed. Codes: `VALIDATION_FAILED`."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Rate limited. Codes: `RATE_LIMITED`."
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Sign in with Google is off. Codes: `NOT_IMPLEMENTED`."
+          }
+        },
+        "summary": "Link Google to an existing account",
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/api/v1/auth/login": {
@@ -28099,6 +28559,78 @@
           "signup"
         ],
         "x-mkos-action": "public"
+      }
+    },
+    "/api/v1/signup/google": {
+      "post": {
+        "description": "Public. A pending request, verified by Google; an admin still approves it.",
+        "operationId": "signup_google",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleSignupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignupStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Codes: `OAUTH_STATE_INVALID`, `UNAUTHENTICATED`."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation failed. Codes: `VALIDATION_FAILED`."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Rate limited. Codes: `RATE_LIMITED`."
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Sign in with Google is off. Codes: `NOT_IMPLEMENTED`."
+          }
+        },
+        "summary": "Request access with a Google identity",
+        "tags": [
+          "signup"
+        ]
       }
     },
     "/api/v1/signup/status": {

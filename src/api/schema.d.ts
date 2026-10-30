@@ -109,6 +109,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/google/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finish a Google sign-in
+         * @description Public. Consumes the callback handle bound to this browser.
+         */
+        post: operations["auth_google_complete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/google/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Google sign-in availability
+         * @description Public. Whether the Google button should be shown.
+         */
+        get: operations["auth_google_config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/google/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Link Google to an existing account
+         * @description Public. The Kuinn password first, then the usual sign-in steps; the link is stored after they pass.
+         */
+        post: operations["auth_google_link"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -1275,6 +1335,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/signup/google": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request access with a Google identity
+         * @description Public. A pending request, verified by Google; an admin still approves it.
+         */
+        post: operations["signup_google"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/signup/status": {
         parameters: {
             query?: never;
@@ -1856,6 +1936,86 @@ export interface components {
             product_id: string;
             /** User Instructions */
             user_instructions?: string | null;
+        };
+        /**
+         * GoogleCompleteOut
+         * @description Exactly one of `login`, `signup`, `details` or `link` is set, matching `outcome`.
+         */
+        GoogleCompleteOut: {
+            details?: components["schemas"]["GoogleDetailsOut"] | null;
+            /** Email */
+            email?: string | null;
+            link?: components["schemas"]["GoogleLinkOut"] | null;
+            login?: components["schemas"]["LoginResult"] | null;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "sign_in" | "pending" | "needs_details" | "link_required";
+            signup?: components["schemas"]["SignupStatusOut"] | null;
+        };
+        /** GoogleCompleteRequest */
+        GoogleCompleteRequest: {
+            /** Binding */
+            binding: string;
+            /** Handle */
+            handle: string;
+        };
+        /**
+         * GoogleConfigOut
+         * @description Whether Sign in with Google is switched on (GOOGLE_OAUTH_ENABLED).
+         */
+        GoogleConfigOut: {
+            /** Enabled */
+            enabled: boolean;
+        };
+        /** GoogleDetailsOut */
+        GoogleDetailsOut: {
+            /** Details Expires In */
+            details_expires_in: number;
+            /** Details Handle */
+            details_handle: string;
+            /** Display Name */
+            display_name?: string | null;
+            /** Email */
+            email: string;
+            /** Family Name */
+            family_name?: string | null;
+            /** Given Name */
+            given_name?: string | null;
+        };
+        /** GoogleLinkOut */
+        GoogleLinkOut: {
+            /** Email */
+            email: string;
+            /** Link Expires In */
+            link_expires_in: number;
+            /** Link Handle */
+            link_handle: string;
+        };
+        /** GoogleLinkRequest */
+        GoogleLinkRequest: {
+            /** Binding */
+            binding: string;
+            /** Link Handle */
+            link_handle: string;
+            /** Password */
+            password: string;
+        };
+        /** GoogleSignupRequest */
+        GoogleSignupRequest: {
+            /** Binding */
+            binding: string;
+            /** Brand Name */
+            brand_name: string;
+            /** Details Handle */
+            details_handle: string;
+            /** Owner Name */
+            owner_name: string;
+            /** Phone */
+            phone?: string | null;
+            /** Website */
+            website?: string | null;
         };
         /** ImageAccepted */
         ImageAccepted: {
@@ -2836,6 +2996,8 @@ export interface components {
              * @enum {string}
              */
             enforcement: "off" | "all";
+            /** Has Password */
+            has_password?: boolean | null;
             /** Mfa Enrolled */
             mfa_enrolled: boolean;
             /** Mfa Grace Until */
@@ -5153,6 +5315,146 @@ export interface operations {
                      *       }
                      *     }
                      */
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    auth_google_complete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoogleCompleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoogleCompleteOut"];
+                };
+            };
+            /** @description Codes: `OAUTH_STATE_INVALID`, `UNAUTHENTICATED`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation failed. Codes: `VALIDATION_FAILED`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Rate limited. Codes: `RATE_LIMITED`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Sign in with Google is off. Codes: `NOT_IMPLEMENTED`. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    auth_google_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoogleConfigOut"];
+                };
+            };
+        };
+    };
+    auth_google_link: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoogleLinkRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResult"];
+                };
+            };
+            /** @description Codes: `OAUTH_STATE_INVALID`, `UNAUTHENTICATED`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation failed. Codes: `VALIDATION_FAILED`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Rate limited. Codes: `RATE_LIMITED`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Sign in with Google is off. Codes: `NOT_IMPLEMENTED`. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
@@ -24571,6 +24873,66 @@ export interface operations {
                      *       }
                      *     }
                      */
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    signup_google: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoogleSignupRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignupStatusOut"];
+                };
+            };
+            /** @description Codes: `OAUTH_STATE_INVALID`, `UNAUTHENTICATED`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation failed. Codes: `VALIDATION_FAILED`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Rate limited. Codes: `RATE_LIMITED`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Sign in with Google is off. Codes: `NOT_IMPLEMENTED`. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
