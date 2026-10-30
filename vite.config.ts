@@ -22,6 +22,8 @@ export default defineConfig(({ mode }) => {
     test: {
       include: ['src/**/*.test.{ts,tsx}'],
       environment: 'jsdom',
+      // Dates render in the viewer's zone; pin the zone so CI and laptops agree.
+      env: { TZ: 'Asia/Kolkata' },
     },
     server: {
       port: 5173,

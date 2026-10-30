@@ -113,7 +113,7 @@ describe('SecurityView', () => {
 
   it('sets up the authenticator under StrictMode: current password → QR → code → recovery codes → done', async () => {
     const { user, calls } = setup(
-      { mfa_grace_until: '2999-11-20T00:00:00+05:30' },
+      { mfa_grace_until: '2999-11-20T12:00:00+05:30' },
       {
         'POST /auth/mfa/totp/enroll': [
           () => envelope(422, 'VALIDATION_FAILED', 'The current password is not correct.'),
