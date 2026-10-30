@@ -37,7 +37,9 @@ import {
 } from '@/features/signup-admin/schema'
 import { TimeAgo } from '@/features/signup-admin/time'
 import { useCountdown } from '@/features/signup-admin/use-countdown'
+import { useGoogleEnabled } from '@/features/google/api'
 import { GoogleEntry } from '@/features/google/google-button'
+import { isCoarsePointer } from '@/lib/pointer'
 import { filterInput, FORM_VALIDATION_MODE, phoneChars } from '@/lib/validation'
 import { AsideLink, AuthColumn, AuthFrame, FormAlert } from './auth-frame'
 import { signupChip } from './model'
@@ -52,6 +54,8 @@ export function SignupPage({ initialEmail }: { initialEmail?: string }) {
   const [formError, setFormError] = useState<{ message: string; ref: string | null } | null>(null)
   /** Sent credentials, in memory only, so the status card can ask POST /signup/status. */
   const [sent, setSent] = useState<(SignupStatusBody & { brand: string }) | null>(null)
+  // With Google on, its button comes first: no autofocus on Brand name (or on any touch device).
+  const googleShown = useGoogleEnabled()
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupFormSchema),
@@ -113,7 +117,7 @@ export function SignupPage({ initialEmail }: { initialEmail?: string }) {
                     <Input
                       id="brand_name"
                       autoComplete="organization"
-                      autoFocus
+                      autoFocus={!googleShown && !isCoarsePointer()}
                       maxLength={NAME_MAX}
                       aria-invalid={!!errors.brand_name}
                       aria-describedby={fieldHintId('brand_name')}

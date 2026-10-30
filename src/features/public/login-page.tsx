@@ -18,10 +18,12 @@ import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/features/signup-admin/password-input'
 import { LOGIN_EMAIL_MAX, statusFormSchema, type StatusFormValues } from '@/features/signup-admin/schema'
 import { useCountdown } from '@/features/signup-admin/use-countdown'
+import { useGoogleEnabled } from '@/features/google/api'
 import { GoogleEntry } from '@/features/google/google-button'
 import { SubmitButton, TOUCH_TEXT } from '@/features/mfa/components'
 import { RESTART_MESSAGES, TOO_MANY, type RestartReason } from '@/features/mfa/login-flow'
 import { signIn, useSession } from '@/lib/auth'
+import { isCoarsePointer } from '@/lib/pointer'
 import { FORM_VALIDATION_MODE } from '@/lib/validation'
 import { AsideLink, AuthCard, AuthFrame, FormAlert } from './auth-frame'
 import { SignInSteps } from './sign-in-steps'
@@ -64,6 +66,10 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
   /** The email of this sign-in, for the password rules' name check. Never the password. */
   const [email, setEmail] = useState('')
   const countdown = useCountdown()
+  // With Google on, the Google button is the first control: no autofocus on Email, which would
+  // show "Enter your email." to a keyboard user tabbing back to Google, or open the phone keyboard.
+  const googleOn = useGoogleEnabled()
+  const googleShown = googleOn && notice !== 'google_unavailable'
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -139,7 +145,9 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
         <div>
           <IconTile icon="lock" tone="brand" size="lg" className="mb-4" />
           <h1 className="text-[24px] leading-[30px] font-bold tracking-[-0.02em] text-ink sm:text-h1">Sign in</h1>
-          <p className="mt-2 text-body text-pretty text-ink-2">Use the email and password for your brand account.</p>
+          <p className="mt-2 text-body text-pretty text-ink-2">
+            {googleShown ? 'Sign in to your brand account.' : 'Use the email and password for your brand account.'}
+          </p>
         </div>
         {notice === 'google_unavailable' && !formError ? (
           <Banner tone="info" role="status">
@@ -165,7 +173,7 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
             message={formError.message}
           />
         ) : null}
-        {notice === 'google_unavailable' ? null : <GoogleEntry intent="login" returnTo={target} />}
+        {googleShown ? <GoogleEntry intent="login" returnTo={target} /> : null}
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
           <LaField label="Email" htmlFor="email" error={errors.email?.message} submitCount={form.formState.submitCount}>
             <Input
@@ -174,7 +182,7 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
               inputMode="email"
               autoComplete="username"
               autoCapitalize="none"
-              autoFocus
+              autoFocus={!googleShown && !isCoarsePointer()}
               spellCheck={false}
               className={TOUCH_TEXT}
               maxLength={LOGIN_EMAIL_MAX}

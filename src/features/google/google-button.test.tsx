@@ -8,6 +8,7 @@ import { LoginPage } from '@/features/public/login-page'
 import { SignupPage } from '@/features/public/signup-page'
 import { queryClient } from '@/lib/query-client'
 import { envelope, installFetch, json } from '@/test/fake-api'
+import { prefetchGoogleConfig } from './api'
 import { GoogleEntry } from './google-button'
 
 vi.hoisted(() => {
@@ -45,6 +46,9 @@ describe('Google button', () => {
     await waitFor(() => expect(calls.some((c) => c.path === '/auth/google/config')).toBe(true))
     expect(screen.queryByTestId('google-entry')).toBeNull()
     expect(screen.queryByText(/google/i)).toBeNull()
+    // Email only: the email subtitle, and Email has focus.
+    expect(screen.getByText('Use the email and password for your brand account.')).toBeTruthy()
+    expect(document.activeElement).toBe(screen.getByLabelText('Email'))
   })
 
   it('is hidden when Google sign-in is switched off, or the probe fails', async () => {
@@ -63,6 +67,7 @@ describe('Google button', () => {
   it('/login: "Continue with Google" above an "or" divider, and a click starts the login intent', async () => {
     const { calls } = installFetch({ 'GET /auth/google/config': () => json(200, { enabled: true }) })
     const user = userEvent.setup()
+    await prefetchGoogleConfig() // as the /login route loader does
     wrap(<LoginPage target="/products/p1" />)
     const button = await screen.findByRole('button', { name: 'Continue with Google' })
     expect(button.getAttribute('type')).toBe('button')
@@ -75,6 +80,12 @@ describe('Google button', () => {
     expect(button.compareDocumentPosition(screen.getByLabelText('Email')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // The probe is public: no bearer token.
     expect(calls.find((c) => c.path === '/auth/google/config')?.auth).toBeNull()
+    // The subtitle no longer says "email and password", and Email does not grab focus.
+    expect(screen.getByText('Sign in to your brand account.')).toBeTruthy()
+    expect(document.activeElement).not.toBe(screen.getByLabelText('Email'))
+    // Google's branding: the #747775 outline and a medium-weight label.
+    expect(button.className).toContain('border-[#747775]')
+    expect(button.className).toContain('font-medium')
 
     await user.click(button)
     expect(start.startGoogle).toHaveBeenCalledWith({ intent: 'login', returnTo: '/products/p1' })

@@ -14,7 +14,7 @@
  */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link, useRouter } from '@tanstack/react-router'
-import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { applyFieldErrors, describeError, isApiError } from '@/api/errors'
 import { LaCard } from '@/components/la/cards'
@@ -39,7 +39,8 @@ import { useCountdown } from '@/features/signup-admin/use-countdown'
 import { collapseSpaces, filterInput, FORM_VALIDATION_MODE, normalizeWebsite, phoneChars } from '@/lib/validation'
 import { linkGoogle, signupGoogle, type GoogleDetails, type GoogleLink, type GoogleSignupFields } from './api'
 import { GoogleButton } from './google-button'
-import { domainHint, ownerNameFrom, suggestBrandName } from './prefill'
+import { isCoarsePointer } from '@/lib/pointer'
+import { brandNameFrom, ownerNameFrom } from './prefill'
 import { captureReturn, completeOnce, reasonFor, type GoogleErrorReason } from './return-state'
 import type { GoogleIntent } from './start'
 
@@ -118,7 +119,7 @@ export function GoogleReturnPage({ search }: { search: { handle?: string; error?
   switch (view.kind) {
     case 'loading':
     case 'steps':
-      return <Loading />
+      return <Loading intent={intent} />
     case 'error':
       return <ErrorView reason={view.reason} message={view.message} reference={view.ref} intent={intent} />
     case 'link':
@@ -143,13 +144,13 @@ export function GoogleReturnPage({ search }: { search: { handle?: string; error?
 // ---------------------------------------------------------------------------------------------
 // Views
 
-function Loading() {
+function Loading({ intent }: { intent: GoogleIntent }) {
   return (
     <AuthFrame tone="canvas">
       <AuthCard size="sm" testId="google-loading">
         <div role="status" className="flex flex-col items-center gap-4 py-8 text-center">
           <Spinner className="size-6 text-brand" role="presentation" aria-hidden />
-          <p className="text-body font-semibold text-ink">Signing you in with Google…</p>
+          <p className="text-body font-semibold text-ink">{intent === 'signup' ? 'Checking your Google account…' : 'Signing you in with Google…'}</p>
         </div>
       </AuthCard>
     </AuthFrame>
@@ -159,7 +160,7 @@ function Loading() {
 const ERROR_COPY: Record<GoogleErrorReason, { title: string; body: string; icon: IconSource; tone: TileTone }> = {
   failed: {
     title: 'Couldn’t sign you in with Google',
-    body: 'If you already have an account, sign in with your email and password.',
+    body: 'Try again, or sign in with your email and password.',
     icon: 'alert',
     tone: 'fail',
   },
@@ -171,7 +172,7 @@ const ERROR_COPY: Record<GoogleErrorReason, { title: string; body: string; icon:
   },
   expired: {
     title: 'That Google sign-in timed out',
-    body: 'Each Google sign-in works once, for a few minutes, in the browser tab that started it. Start again.',
+    body: 'Google sign-in only works for a few minutes. Start again.',
     icon: 'clock',
     tone: 'brand',
   },
@@ -197,27 +198,36 @@ const ERROR_COPY: Record<GoogleErrorReason, { title: string; body: string; icon:
 
 function ErrorView({ reason, message, reference, intent }: { reason: GoogleErrorReason; message?: string; reference: string | null; intent: GoogleIntent }) {
   const copy = ERROR_COPY[reason]
-  const retry = reason !== 'failed' && reason !== 'unavailable'
+  const retry = reason !== 'unavailable'
   const introId = useId()
+  const signup = intent === 'signup'
   return (
     <AuthFrame
       tone="canvas"
       aside={
         <>
-          New brand? <AsideLink to="/signup">Request access</AsideLink>
+          {signup ? (
+            <>
+              Have an account? <AsideLink to="/login">Log in</AsideLink>
+            </>
+          ) : (
+            <>
+              New brand? <AsideLink to="/signup">Request access</AsideLink>
+            </>
+          )}
         </>
       }
     >
       <AuthCard size="sm" testId="google-error">
         <StepHeader title={copy.title} introId={introId} focus icon={<IconTile icon={copy.icon} tone={copy.tone} size="lg" />}>
-          {message ?? copy.body}
+          {message ?? (signup && reason === 'failed' ? 'Try again, or sign up with your email.' : copy.body)}
         </StepHeader>
         {reference ? <FormAlert tone="info" message="If this keeps happening, contact support with this reference." reference={reference} /> : null}
         <div className="flex flex-col gap-3">
           {retry ? <GoogleButton intent={intent} returnTo={null} /> : null}
           <Button asChild size="lg" variant={retry ? 'secondary' : 'primary'} className="w-full">
-            <Link to="/login" data-testid="google-error-login">
-              Sign in with email
+            <Link to={signup ? '/signup' : '/login'} data-testid="google-error-login">
+              {signup ? 'Sign up with email' : 'Sign in with email'}
             </Link>
           </Button>
         </div>
@@ -240,8 +250,8 @@ function NoAccount({ email, onContinue }: { email: string; onContinue: () => voi
     >
       <AuthCard size="sm" testId="google-no-account">
         <StepHeader title="No Kuinn account yet" introId={introId} focus icon={<IconTile icon="user" tone="brand" size="lg" />}>
-          There’s no Kuinn account for <span className="font-semibold [overflow-wrap:anywhere] text-ink">{email}</span> yet. Request access
-          in a minute: Google has already filled in your name and email.
+          There’s no Kuinn account for <span className="font-semibold [overflow-wrap:anywhere] text-ink">{email}</span> yet. You can request
+          access now. Your name and email from Google are already filled in.
         </StepHeader>
         <div className="flex flex-col gap-3">
           <Button size="lg" className="w-full" onClick={onContinue} data-testid="google-no-account-continue">
@@ -378,14 +388,23 @@ function DetailsForm({
 }) {
   const countdown = useCountdown()
   const [formError, setFormError] = useState<{ message: string; ref: string | null } | null>(null)
-  const [suggested] = useState(() => suggestBrandName(details.email))
+  const [suggested] = useState(() => brandNameFrom(details))
   const [owner] = useState(() => ownerNameFrom(details))
+  // Brand name is the field most likely to need a change: focus it with its text selected. Never
+  // on a touch device, where autofocus opens the keyboard over the form.
+  const brandRef = useRef<HTMLInputElement | null>(null)
+  useEffect(() => {
+    if (isCoarsePointer()) return
+    brandRef.current?.focus()
+    brandRef.current?.select()
+  }, [])
   const form = useForm<DetailsValues>({
     resolver: zodResolver(detailsSchema),
     defaultValues: { brand_name: suggested, owner_name: owner, phone: '', website: '', agree: false },
     ...FORM_VALIDATION_MODE,
   })
   const { errors, submitCount, isSubmitting } = form.formState
+  const brandField = form.register('brand_name')
   const brandEdited = useWatch({ control: form.control, name: 'brand_name' }) !== suggested
 
   const onSubmit = form.handleSubmit(async (values) => {
@@ -406,7 +425,6 @@ function DetailsForm({
     }
   })
 
-  const hintDomain = domainHint(details.email)
   return (
     <AuthFrame
       aside={
@@ -444,12 +462,15 @@ function DetailsForm({
                 <Input
                   id="brand_name"
                   autoComplete="organization"
-                  autoFocus={!suggested}
                   maxLength={NAME_MAX}
                   className={TOUCH_TEXT}
                   aria-invalid={!!errors.brand_name}
                   aria-describedby={fieldHintId('brand_name')}
-                  {...form.register('brand_name')}
+                  {...brandField}
+                  ref={(el) => {
+                    brandField.ref(el)
+                    brandRef.current = el
+                  }}
                 />
               </LaField>
               <LaField
@@ -479,7 +500,6 @@ function DetailsForm({
                   type="tel"
                   inputMode="tel"
                   autoComplete="tel"
-                  autoFocus={!!suggested}
                   maxLength={PHONE_MAX}
                   className={TOUCH_TEXT}
                   placeholder="+91 98765 43210"
@@ -498,7 +518,7 @@ function DetailsForm({
                   spellCheck={false}
                   maxLength={WEBSITE_MAX}
                   className={TOUCH_TEXT}
-                  placeholder={hintDomain ?? 'yourbrand.com'}
+                  placeholder="yourbrand.com"
                   aria-invalid={!!errors.website}
                   aria-describedby={fieldHintId('website')}
                   {...form.register('website')}
@@ -564,31 +584,29 @@ function Optional({ children }: { children: ReactNode }) {
   )
 }
 
-/** The email, read-only: Google verified it, so there is no email code step. */
+/**
+ * The email, read-only: Google verified it, so there is no email code step. Plain text, not a
+ * field, so it never looks editable; the badge sits on the label row so it never wraps into it.
+ */
 function VerifiedEmail({ email }: { email: string }) {
   return (
     <div>
-      <label htmlFor="google-email" className="mb-1.5 block text-small font-bold text-ink">
-        Email
-      </label>
-      <div className="flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1.5 rounded-control border border-line bg-sunken px-3 py-2">
-        <input
-          id="google-email"
-          type="email"
-          value={email}
-          readOnly
-          aria-describedby="google-email-verified"
-          className={`min-w-0 flex-1 basis-48 bg-transparent text-[14px] leading-5 text-ink outline-none ${TOUCH_TEXT}`}
-          data-testid="google-email"
-        />
-        <span
-          id="google-email-verified"
-          className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-success-line bg-success-bg px-2 text-caption font-semibold text-success-ink"
+      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <span className="text-small font-bold text-ink">
+          Email
+        </span>
+        <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-success-line bg-success-bg px-2 text-caption font-semibold text-success-ink"
         >
           <Icon name="check" size={12} />
           Verified by Google
         </span>
       </div>
+      <p
+        className="text-body font-semibold [overflow-wrap:anywhere] text-ink"
+        data-testid="google-email"
+      >
+        {email}
+      </p>
     </div>
   )
 }

@@ -99,21 +99,24 @@ Settings: `/settings`, `/settings/compliance`, `/settings/imports`, `/brand`, `/
 ### Sign in with Google
 
 "Continue with Google" on `/login` and "Sign up with Google" on `/signup` show only when
-`GET /auth/google/config` answers `enabled: true` (the backend's `GOOGLE_OAUTH_ENABLED`). Both start
+`GET /auth/google/config` answers `enabled: true` (the backend's `GOOGLE_OAUTH_ENABLED`; any other
+answer hides them). Both start
 the same full-page flow; the intent only picks the copy on the way back.
 
 - Before leaving, the page keeps a random secret in `sessionStorage` (this tab only) and sends only
-  its SHA-256 to `/api/v1/auth/google/start`. Google returns to `/auth/google?handle=…`, which strips
+  the SHA-256 of its base64url text to `/api/v1/auth/google/start`. Google returns to `/auth/google?handle=…`, which strips
   the handle from the address bar, takes the secret out of storage and sends both to
   `POST /auth/google/complete`. No cookies, no Google script, no CSP change.
 - Google is a first factor only. A sign-in then runs the same login-code, enrolment, recovery-code and
   password steps as a password sign-in (`SignInSteps`).
 - An existing account links Google once, after its Kuinn password and then its login code.
-- A Google account with no Kuinn account gets a short sign-up form, prefilled from Google (name,
-  verified email, a brand name suggested from a company email domain). An admin still approves it.
+- A Google account with no Kuinn account gets a short sign-up form, prefilled from what the API sends
+  (name, verified email, `suggested_brand_name` from a company email domain). An admin still approves it.
+- Settings > Security shows a linked Google account; Remove calls `POST /auth/google/unlink` behind a
+  step-up, and is not offered while Google is the account's only way in.
 - Every refusal reads the same, so the page never says which accounts exist.
 - The button follows Google's sign-in branding: the standard multicolour mark on white, Google's
-  wording, never recoloured.
+  wording, never recoloured, the 1px `#747775` outline and a medium-weight label.
 
 ### Shown but not in the API yet (honest disabled)
 

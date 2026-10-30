@@ -40,7 +40,16 @@ const SIGNED_IN = { status: 'signed_in', access_token: access, refresh_token: 'r
 const ME = { user_id: 'u1', email: EMAIL, display_name: 'Meera Iyer', tenant_id: 't1', role: 'owner', memberships, is_platform_admin: false }
 const challenge = (status: string, ttl = 300) => ({ status, challenge_token: `ch-${status}`, challenge_expires_in: ttl })
 const PENDING = { request_id: 'r1', brand_name: 'Acme Naturals', status: 'pending', created_at: '2026-10-30T09:00:00Z' }
-const DETAILS = { email: EMAIL, display_name: 'Meera I', given_name: 'Meera', family_name: 'Iyer', details_handle: 'dh-1', details_expires_in: 900 }
+const DETAILS = {
+  email: EMAIL,
+  email_verified: true,
+  owner_name: 'Meera Iyer',
+  given_name: 'Meera',
+  family_name: 'Iyer',
+  suggested_brand_name: 'Acmenaturals',
+  details_handle: 'dh-1',
+  details_expires_in: 900,
+}
 
 const out = (o: Record<string, unknown>) => () => json(200, { email: EMAIL, login: null, signup: null, details: null, link: null, ...o })
 
@@ -92,8 +101,10 @@ describe('/auth/google', () => {
   it('no stored secret (another tab or browser): the one generic failure, and no call', async () => {
     const { calls } = setup({})
     expect(await screen.findByRole('heading', { name: 'Couldn’t sign you in with Google' })).toBeTruthy()
-    expect(screen.getByText('If you already have an account, sign in with your email and password.')).toBeTruthy()
+    expect(screen.getByText('Try again, or sign in with your email and password.')).toBeTruthy()
     expect(calls.some((c) => c.path === '/auth/google/complete')).toBe(false)
+    // Not a dead end for a Google-only account: Google again, or email.
+    expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeTruthy()
     expect(screen.getByTestId('google-error-login').getAttribute('href')).toBe('/login')
   })
 
@@ -109,6 +120,22 @@ describe('/auth/google', () => {
   it('?error=failed: the generic failure', async () => {
     setup({}, { error: 'failed' })
     expect(await screen.findByRole('heading', { name: 'Couldn’t sign you in with Google' })).toBeTruthy()
+  })
+
+  it('?error=unavailable (switched off mid-flow): "not available", no Google button', async () => {
+    setup({}, { error: 'unavailable' })
+    expect(await screen.findByRole('heading', { name: 'Google sign-in isn’t available right now' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Google/ })).toBeNull()
+  })
+
+  it('an error after "Sign up with Google" points back to sign-up', async () => {
+    ticket('signup')
+    setup({}, { error: 'failed' })
+    expect(await screen.findByRole('heading', { name: 'Couldn’t sign you in with Google' })).toBeTruthy()
+    expect(screen.getByText('Try again, or sign up with your email.')).toBeTruthy()
+    const email = screen.getByTestId('google-error-login')
+    expect(email.textContent).toBe('Sign up with email')
+    expect(email.getAttribute('href')).toBe('/signup')
   })
 
   it.each([
@@ -175,6 +202,7 @@ describe('/auth/google', () => {
     expect(await screen.findByTestId('google-pending')).toBeTruthy()
     expect(screen.getByTestId('signup-status-badge').textContent).toBe('Waiting for review')
     expect(screen.getByText('Acme Naturals')).toBeTruthy()
+    expect(screen.getByText(EMAIL)).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Continue with Google' }))
     expect(start.startGoogle).toHaveBeenCalledWith({ intent: 'login', returnTo: null })
   })
@@ -197,14 +225,18 @@ describe('/auth/google', () => {
     })
     await screen.findByTestId('google-details')
     expect(screen.getByRole('heading', { name: 'Create your account' })).toBeTruthy()
-    const email = screen.getByLabelText('Email') as HTMLInputElement
-    expect(email.value).toBe(EMAIL)
-    expect(email.readOnly).toBe(true)
+    // The email is shown as text, not a field: Google verified it and it cannot change.
+    expect(screen.getByTestId('google-email').textContent).toBe(EMAIL)
+    expect(screen.queryByLabelText('Email')).toBeNull()
     expect(screen.getByText('Verified by Google')).toBeTruthy()
-    expect((screen.getByLabelText('Brand name') as HTMLInputElement).value).toBe('Acmenaturals')
+    const brandInput = screen.getByLabelText('Brand name') as HTMLInputElement
+    expect(brandInput.value).toBe('Acmenaturals')
+    // Focus on the guessed brand name, text selected, ready to retype.
+    expect(document.activeElement).toBe(brandInput)
+    expect([brandInput.selectionStart, brandInput.selectionEnd]).toEqual([0, 'Acmenaturals'.length])
     expect(screen.getByText('Suggested from your email domain. Change it if needed.')).toBeTruthy()
     expect((screen.getByLabelText('Your name') as HTMLInputElement).value).toBe('Meera Iyer')
-    expect(screen.getByLabelText(/Website/).getAttribute('placeholder')).toBe('acmenaturals.com')
+    expect(screen.getByLabelText(/Website/).getAttribute('placeholder')).toBe('yourbrand.com')
     expect(screen.queryByLabelText('Password')).toBeNull()
 
     // Consent is required.
@@ -226,12 +258,19 @@ describe('/auth/google', () => {
     expect(screen.getByText(/Request sent\./)).toBeTruthy()
   })
 
-  it('a personal mailbox gets no brand suggestion', async () => {
+  it('no brand suggestion from the API (a personal mailbox): empty brand name; name from given + family', async () => {
     ticket('signup')
-    setup({ 'POST /auth/google/complete': out({ email: 'meera@gmail.com', outcome: 'needs_details', details: { ...DETAILS, email: 'meera@gmail.com' } }) })
+    setup({
+      'POST /auth/google/complete': out({
+        email: 'meera@gmail.com',
+        outcome: 'needs_details',
+        details: { ...DETAILS, email: 'meera@gmail.com', suggested_brand_name: null, owner_name: null },
+      }),
+    })
     await screen.findByTestId('google-details')
     expect((screen.getByLabelText('Brand name') as HTMLInputElement).value).toBe('')
     expect(screen.queryByText(/Suggested from your email domain/)).toBeNull()
+    expect((screen.getByLabelText('Your name') as HTMLInputElement).value).toBe('Meera Iyer')
   })
 
   it('a details form that timed out (401 OAUTH_STATE_INVALID) says so', async () => {

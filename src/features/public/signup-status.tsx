@@ -217,9 +217,11 @@ export function StatusResult({
               <TimeAgo iso={result.decided_at} />
             </Row>
           ) : null}
-          <Row label="Sign-in email">
-            <span className="truncate">{email}</span>
-          </Row>
+          {email ? (
+            <Row label="Sign-in email">
+              <span className="truncate">{email}</span>
+            </Row>
+          ) : null}
         </dl>
       </div>
       {actions ?? (

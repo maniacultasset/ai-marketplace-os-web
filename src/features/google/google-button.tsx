@@ -1,8 +1,8 @@
 /**
  * The "Continue with Google" button, drawn to Google's sign-in branding rules: the standard
  * multicolour "G" (never recoloured, always on white), Google's own wording ("Continue with
- * Google", "Sign up with Google"), a neutral white button with a light outline, 12px padding to the
- * left of the mark and a 10px gap to the text. It is as tall as our large buttons (44px), so it is
+ * Google", "Sign up with Google"), a neutral white button with Google's 1px #747775 outline, 12px
+ * padding to the left of the mark and a 10px gap to the text, label in medium weight. It is as tall as our large buttons (44px), so it is
  * never smaller than the email button below it.
  */
 import { useEffect, useState } from 'react'
@@ -39,8 +39,11 @@ export function GoogleMark({ size = 18, className }: { size?: number; className?
 }
 
 /**
- * The button itself. White in every state (the mark must sit on white); hover deepens the outline
- * and shadow only, press insets it, focus adds our brand ring outside the outline.
+ * The button itself. The mark always sits on white or Google's neutral #f2f2f2 hover fill; hover
+ * also raises the shadow, press insets it, focus adds our brand ring outside the outline.
+ *
+ * The raw colours (#747775 outline, #f2f2f2 hover, #1f1f1f text) are Google's required branding
+ * values, not our design tokens: keep them as they are.
  */
 export function GoogleButton({
   intent,
@@ -88,9 +91,9 @@ export function GoogleButton({
       disabled={busy}
       data-testid={`google-${intent}`}
       className={cn(
-        'group/google focus-ring relative inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2.5 rounded-control border border-[#c6c9cc] bg-white pr-4 pl-3 font-sans text-[15px] leading-5 font-semibold text-[#1f1f1f] shadow-raised-sm select-none',
-        'transition-[border-color,box-shadow,transform] duration-200 ease-(--ease-tactile) [--focus-rest:var(--shadow-raised-sm)]',
-        'hover:border-[#9aa0a6] hover:shadow-raised-md active:translate-y-px active:shadow-pressed',
+        'group/google focus-ring relative inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2.5 rounded-control border border-[#747775] bg-white pr-4 pl-3 font-sans text-[15px] leading-5 font-medium text-[#1f1f1f] shadow-raised-sm select-none',
+        'transition-[background-color,box-shadow,transform] duration-200 ease-(--ease-tactile) [--focus-rest:var(--shadow-raised-sm)]',
+        'hover:bg-[#f2f2f2] hover:shadow-raised-md active:translate-y-px active:shadow-pressed',
         'disabled:cursor-progress disabled:shadow-none',
         className,
       )}
