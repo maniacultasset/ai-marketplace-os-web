@@ -1,6 +1,6 @@
 /**
  * Settings > Security > Trusted browsers (contract 2.1.0, ADR-0023): the list, Remove (another
- * browser, or this one, which signs out here), Sign out all devices, the states around them, and
+ * browser, or this one, which signs out here), Sign out other devices, the states around them, and
  * the token this browser forgets when the trust ends on the server.
  */
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -69,24 +69,26 @@ describe('SecurityView: trusted browsers', () => {
     expect(within(rows[0]!).getByTestId('this-browser').textContent).toBe('This browser')
     expect(within(rows[0]!).getByText(/Last used .* ago/)).toBeTruthy()
     expect(within(rows[1]!).queryByTestId('this-browser')).toBeNull()
-    expect(within(rows[1]!).getByText(/Not used since/)).toBeTruthy()
+    expect(within(rows[1]!).getByText('Not used yet')).toBeTruthy()
     expect(within(rows[1]!).getByText(/Trusted until/)).toBeTruthy()
-    expect(screen.getByTestId('trusted-count').textContent).toBe('2 of 10')
-    expect(screen.getByText(/skips the login code there for 30 days/)).toBeTruthy()
+    expect(screen.getByTestId('trusted-count').textContent).toBe('2')
+    expect(screen.getByText('Skip the login code for 30 days on browsers you trust.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Remove Chrome on macOS (this browser)' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Remove Safari on iOS' })).toBeTruthy()
   })
 
   it('says 7 days to a platform admin', async () => {
     setup({}, { admin: true })
-    expect(await screen.findByText(/skips the login code there for 7 days/)).toBeTruthy()
+    expect(await screen.findByText('Skip the login code for 7 days on browsers you trust.')).toBeTruthy()
   })
 
   it('an empty list explains how a browser gets here', async () => {
     setup({ 'GET /auth/devices': () => json(200, { devices: [] }) })
     expect(await screen.findByTestId('trusted-empty')).toBeTruthy()
-    expect(screen.getByTestId('trusted-count').textContent).toBe('0 of 10')
-    expect(screen.getByRole('button', { name: 'Sign out all devices' })).toBeTruthy()
+    expect(screen.getByTestId('trusted-empty').textContent).toMatch(/No trusted browsers yet.*on a device you own/)
+    // The empty line already says it: no "0" badge as well.
+    expect(screen.queryByTestId('trusted-count')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Sign out other devices' })).toBeTruthy()
   })
 
   it('is hidden while login codes are off or not set up (nothing can be trusted)', async () => {
@@ -144,7 +146,10 @@ describe('SecurityView: trusted browsers', () => {
     await writeDeviceToken(EMAIL, TOKEN, iso(27))
     const ended = vi.fn()
     const off = onSessionEnd(ended)
-    const { user } = setup({ 'DELETE /auth/devices/d-this': () => new Response(null, { status: 204 }) })
+    const { user, calls } = setup({
+      'DELETE /auth/devices/d-this': () => new Response(null, { status: 204 }),
+      'POST /auth/logout': () => new Response(null, { status: 204 }),
+    })
     await user.click(await screen.findByRole('button', { name: 'Remove Chrome on macOS (this browser)' }))
     const dialog = await screen.findByRole('alertdialog')
     expect(within(dialog).getByText('Remove this browser?')).toBeTruthy()
@@ -153,7 +158,22 @@ describe('SecurityView: trusted browsers', () => {
     await waitFor(() => expect(ended).toHaveBeenCalledWith('logout'))
     expect(getSession().status).toBe('anonymous')
     expect(await readDeviceToken(EMAIL)).toBeNull()
+    expect(calls.find((c) => c.path === '/auth/logout')!.body).toEqual({ refresh_token: 'rt-1' })
     off()
+  })
+
+  it('this browser already gone (404) still ends this session on the server', async () => {
+    await writeDeviceToken(EMAIL, TOKEN, iso(27))
+    const { user, calls } = setup({
+      'DELETE /auth/devices/d-this': () => envelope(404, 'NOT_FOUND'),
+      'POST /auth/logout': () => new Response(null, { status: 204 }),
+    })
+    await user.click(await screen.findByRole('button', { name: 'Remove Chrome on macOS (this browser)' }))
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove and sign out' }))
+    await waitFor(() => expect(getSession().status).toBe('anonymous'))
+    expect(calls.find((c) => c.path === '/auth/logout')!.body).toEqual({ refresh_token: 'rt-1' })
+    expect(await readDeviceToken(EMAIL)).toBeNull()
+    expect(screen.queryByTestId('trusted-error')).toBeNull()
   })
 
   it('a browser already gone (404) just refreshes the list', async () => {
@@ -177,17 +197,18 @@ describe('SecurityView: trusted browsers', () => {
     expect(await readDeviceToken(EMAIL)).toBe(TOKEN)
   })
 
-  it('Sign out all devices forgets every trusted browser, this one too, and keeps this session', async () => {
+  it('Sign out other devices forgets every trusted browser, this one too, and keeps this session', async () => {
     await writeDeviceToken(EMAIL, TOKEN, iso(27))
     await writeDeviceToken('ravi@acme.test', TOKEN, iso(27))
     const { user, calls } = setup({
       'POST /auth/devices/sign-out-all': () => new Response(null, { status: 204 }),
       'GET /auth/devices': [() => json(200, { devices: [THIS, PHONE] }), () => json(200, { devices: [] })],
     })
-    await user.click(await screen.findByRole('button', { name: 'Sign out all devices' }))
+    await user.click(await screen.findByRole('button', { name: 'Sign out other devices' }))
     const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText('Sign out everywhere else?')).toBeTruthy()
     expect(within(dialog).getByText(/You stay signed in here/)).toBeTruthy()
-    await user.click(within(dialog).getByRole('button', { name: 'Sign out all' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Sign out everywhere else' }))
     expect(await screen.findByTestId('trusted-empty')).toBeTruthy()
     expect(calls.filter((c) => c.path === '/auth/devices/sign-out-all')).toHaveLength(1)
     expect(getSession().status).toBe('authenticated')

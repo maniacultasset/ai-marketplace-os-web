@@ -253,7 +253,7 @@ test.describe('login codes under MFA_ENFORCEMENT=all', () => {
     await expect(page.getByTestId('mfa-step')).toHaveCount(0)
     expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toBe(before)
 
-    // Settings > Security lists this browser; "Sign out all devices" forgets it and keeps this session.
+    // Settings > Security lists this browser; "Sign out other devices" forgets it and keeps this session.
     await page.goto('/settings/security')
     const card = page.getByTestId('trusted-browsers-card')
     await expect(card.getByTestId('this-browser')).toBeVisible()

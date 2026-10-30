@@ -9,7 +9,7 @@
  * - Change password (POST /auth/password): the live rules, the once-a-day limit as the API says it.
  * - Google (ADR-0020): shown while a Google account is linked; Remove (POST /auth/google/unlink,
  *   behind a step-up) unless Google is the account's only way in (no password).
- * - Trusted browsers (ADR-0023): GET /auth/devices, Remove each, Sign out all devices. A password
+ * - Trusted browsers (ADR-0023): GET /auth/devices, Remove each, Sign out other devices. A password
  *   change or a new authenticator forgets them all on the server, so this browser forgets its
  *   token too and the list reloads.
  *
@@ -45,7 +45,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { unlinkGoogle } from '@/features/google/api'
 import { FormAlert } from '@/features/public/auth-frame'
 import { PasswordInput } from '@/features/signup-admin/password-input'
-import { useMe } from '@/lib/auth'
+import { logout, useMe } from '@/lib/auth'
 import { useKeys } from '@/lib/query-keys'
 import { cn } from '@/lib/utils'
 import { toast } from '@/lib/toast'
@@ -67,9 +67,6 @@ import { isTotp } from './login-flow'
 import { PasswordForm } from './password-form'
 import { forgetDeviceToken, TRUST_DAYS } from './trusted-device'
 import type { TrustedDevice } from './types'
-
-/** Trusted browsers kept per user (backend `TRUST_MAX_DEVICES`; the oldest is evicted). */
-const TRUST_MAX = 10
 
 /** Warn when this many recovery codes or fewer are left (HANDOFF-FE §6.3). */
 export const LOW_CODES = 3
@@ -884,9 +881,10 @@ type DeviceConfirm = { kind: 'remove'; device: TrustedDevice } | { kind: 'all' }
 
 /**
  * Trusted browsers (contract 2.1.0, ADR-0023): the browsers where this user ticked "Trust this
- * browser" at sign-in, each with Remove, and "Sign out all devices". Removing a browser ends the
- * sessions it signed in (this one too, if it is `current`, so this tab signs out). Signing out all
- * devices forgets every trusted browser, this one too, and ends every other session; this one stays.
+ * browser" at sign-in, each with Remove, and "Sign out other devices". Removing a browser ends the
+ * sessions it signed in (this one too, if it is `current`, so this tab signs out through
+ * POST /auth/logout). Signing out other devices forgets every trusted browser, this one too, and ends
+ * every other session; this one stays.
  * Shown only while login codes are on and set up: there is nothing to trust otherwise. An API older
  * than 2.1.0 has no such route (404/405), and the card stays hidden.
  */
@@ -928,10 +926,12 @@ function TrustedBrowsersCard({ email, isAdmin }: { email: string; isAdmin: boole
       }
       setConfirm(null)
       if (device.current) {
-        // The API ended this session with the browser: leave now rather than at the next refresh.
+        // Leave now rather than at the next refresh. The normal sign-out also ends this session on
+        // the server, which matters after a 404: the trust was already gone, so the removal ended
+        // nothing here.
         await forgetDeviceToken(email)
         toast.success('This browser was removed', { description: 'Sign in again. You will be asked for a code.' })
-        clearSession('logout', { broadcast: true })
+        await logout()
         return
       }
       toast.success(`${device.label} removed`, { description: 'Its sessions ended. The next sign-in there asks for a code.' })
@@ -953,14 +953,14 @@ function TrustedBrowsersCard({ email, isAdmin }: { email: string; isAdmin: boole
         tone="neutral"
         title="Trusted browsers"
         status={
-          devices.data ? (
+          list.length > 0 ? (
             <Badge variant="muted" data-testid="trusted-count">
-              {list.length} of {TRUST_MAX}
+              {list.length}
             </Badge>
           ) : null
         }
       >
-        {`A browser you trust at sign-in skips the login code there for ${days} days. Sensitive changes still ask for a code. Remove any browser you don’t recognise.`}
+        {`Skip the login code for ${days} days on browsers you trust.`}
       </CardTop>
 
       {devices.isPending ? (
@@ -987,14 +987,14 @@ function TrustedBrowsersCard({ email, isAdmin }: { email: string; isAdmin: boole
         </div>
       ) : list.length === 0 ? (
         <p className="border-t border-line px-5 py-4 text-small text-ink-2 sm:px-6" data-testid="trusted-empty">
-          No trusted browsers. Tick “Trust this browser” on the code step when you sign in on a computer you own.
+          No trusted browsers yet. Tick “Trust this browser” when you enter your login code on a device you own.
         </p>
       ) : (
         <ul className="border-t border-line" aria-label="Trusted browsers">
           {list.map((d) => (
             <li
               key={d.id}
-              className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-5 py-3.5 last:border-b-0 sm:px-6"
+              className="flex flex-wrap items-start gap-x-3 gap-y-2 border-b border-line px-5 py-3.5 last:border-b-0 sm:px-6"
               data-testid="trusted-device"
             >
               <IconTile icon={deviceGlyph(d.label)} tone={d.current ? 'brand' : 'neutral'} size="md" />
@@ -1007,12 +1007,16 @@ function TrustedBrowsersCard({ email, isAdmin }: { email: string; isAdmin: boole
                     </Badge>
                   ) : null}
                 </p>
-                {/* Each fact keeps one line; a narrow row wraps between facts, never inside one. */}
-                <p className="mt-0.5 flex flex-wrap gap-x-1.5 text-caption text-ink-3 tabular-nums">
+                {/* One fact per line in a narrow card; one dotted line from @xl up. */}
+                <p className="mt-0.5 flex flex-col text-caption text-ink-3 tabular-nums @xl:flex-row @xl:flex-wrap @xl:gap-x-1.5">
                   <span className="whitespace-nowrap">Added {day(d.created_at) ?? '—'}</span>
-                  <span aria-hidden>·</span>
-                  <span className="whitespace-nowrap">{d.last_used_at ? `Last used ${ago(d.last_used_at)}` : 'Not used since'}</span>
-                  <span aria-hidden>·</span>
+                  <span aria-hidden className="hidden @xl:inline">
+                    ·
+                  </span>
+                  <span className="whitespace-nowrap">{d.last_used_at ? `Last used ${ago(d.last_used_at)}` : 'Not used yet'}</span>
+                  <span aria-hidden className="hidden @xl:inline">
+                    ·
+                  </span>
                   <span className={cn('whitespace-nowrap', within(d.expires_at, 2) && 'text-attention-ink')}>
                     Trusted until {day(d.expires_at) ?? '—'}
                   </span>
@@ -1021,7 +1025,7 @@ function TrustedBrowsersCard({ email, isAdmin }: { email: string; isAdmin: boole
               <Button
                 variant="ghost"
                 size="sm"
-                className="ml-auto min-h-9 shrink-0 text-danger-ink hover:text-danger-ink"
+                className="ml-auto min-h-11 shrink-0 text-danger-ink @xl:min-h-9 hover:text-danger-ink"
                 onClick={() => setConfirm({ kind: 'remove', device: d })}
                 disabled={busy}
                 aria-label={`Remove ${d.label}${d.current ? ' (this browser)' : ''}`}
@@ -1052,7 +1056,7 @@ function TrustedBrowsersCard({ email, isAdmin }: { email: string; isAdmin: boole
           data-testid="sign-out-all"
         >
           <LogOut data-icon="inline-start" />
-          Sign out all devices
+          Sign out other devices
         </Button>
       </div>
 
@@ -1060,11 +1064,11 @@ function TrustedBrowsersCard({ email, isAdmin }: { email: string; isAdmin: boole
         <AlertDialogContent data-testid="trusted-confirm">
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {confirm?.kind === 'all' ? 'Sign out all devices?' : removing?.current ? 'Remove this browser?' : `Remove ${removing?.label ?? 'this browser'}?`}
+              {confirm?.kind === 'all' ? 'Sign out everywhere else?' : removing?.current ? 'Remove this browser?' : `Remove ${removing?.label ?? 'this browser'}?`}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirm?.kind === 'all'
-                ? 'Every other session ends now, and every trusted browser is forgotten, this one too. You stay signed in here. Your next sign-in on any browser asks for a code.'
+                ? 'You stay signed in here. Every other device is signed out now. Your next sign-in on any browser, including this one, asks for a code.'
                 : removing?.current
                   ? 'You will be signed out here, and your next sign-in on this browser asks for a code.'
                   : 'Anyone signed in on it is signed out now, and the next sign-in there asks for a code.'}
@@ -1081,7 +1085,7 @@ function TrustedBrowsersCard({ email, isAdmin }: { email: string; isAdmin: boole
               }}
               data-testid="trusted-confirm-action"
             >
-              {busy ? (confirm?.kind === 'all' ? 'Signing out…' : 'Removing…') : confirm?.kind === 'all' ? 'Sign out all' : removing?.current ? 'Remove and sign out' : 'Remove'}
+              {busy ? (confirm?.kind === 'all' ? 'Signing out…' : 'Removing…') : confirm?.kind === 'all' ? 'Sign out everywhere else' : removing?.current ? 'Remove and sign out' : 'Remove'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
