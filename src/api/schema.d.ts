@@ -117,8 +117,9 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Trusted browsers of the signed-in user
-         * @description At most 10, newest first. `current` marks the browser this session signed in with.
+         * The caller's trusted browsers (the code is skipped there at sign-in)
+         * @description The caller's trusted browsers (ADR-0023), newest first: where the next sign-in skips the
+         *     code. `current` marks this session's browser. Works with MFA on or off.
          */
         get: operations["auth_devices_list"];
         put?: never;
@@ -139,8 +140,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Forget every trusted browser and sign out every other session
-         * @description This session stays signed in; the next sign-in on any browser asks for a code.
+         * Forget every trusted browser and end every other session
+         * @description Forget every trusted browser of the caller, this one included, and end every other
+         *     session in every tenant. This session stays signed in (at most 7 days after its own
+         *     sign-in); every next sign-in asks for the code.
          */
         post: operations["auth_devices_sign_out_all"];
         delete?: never;
@@ -160,8 +163,10 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Remove one trusted browser
-         * @description Forgets the browser and ends the sessions it signed in. Another user's id answers 404.
+         * Forget one trusted browser and end the sessions it began
+         * @description Forget one of the caller's trusted browsers: its next sign-in asks for the code, and the
+         *     sessions it began end now (this one too, when it is this browser). 404 for an unknown id or
+         *     another user's browser.
          */
         delete: operations["auth_devices_remove"];
         options?: never;
@@ -207,7 +212,8 @@ export interface paths {
          *     usual code, enrolment or password step), `pending` (show the request status),
          *     `needs_details` (the prefilled sign-up form, then `/signup/google`) or `link_required` (ask
          *     the existing account's password, then `/auth/google/link`). A Google sign-in always asks for
-         *     the Kuinn code when MFA is enforced. Every refusal is the same 401 with a generic message.
+         *     the Kuinn code when MFA is enforced, unless one of `device_tokens` names a trusted browser of
+         *     that account (ADR-0023). Every refusal is the same 401 with a generic message.
          */
         post: operations["auth_google_complete"];
         delete?: never;
@@ -297,7 +303,7 @@ export interface paths {
         put?: never;
         /**
          * Remove the linked Google account (after a step-up; needs a password)
-         * @description Remove the Google account linked to the caller (needs a step-up code from the last 10
+         * @description Remove the Google account linked to the caller (needs a step-up code from the last 30
          *     minutes when MFA is enforced). Refused with 422 while the account has no password, since
          *     Google is then its only way in. 204 also when nothing is linked.
          */
@@ -323,7 +329,9 @@ export interface paths {
          *     and refresh tokens and the user's memberships (the active tenant is the most recently used
          *     one); `mfa_required`, `mfa_enrollment_required` and `password_change_required` carry a
          *     `challenge_token` for the next step and no token. Every refusal is the same 401, a locked
-         *     account included (10 failed passwords or codes lock it for 15 minutes).
+         *     account included (10 failed passwords or codes lock it for 15 minutes). With MFA enforced, a
+         *     live `device_token` (a trusted browser, ADR-0023) skips the code step: the answer is
+         *     `signed_in` with the token's next value; a stale one answers `device_token_invalid`.
          */
         post: operations["auth_login"];
         delete?: never;
@@ -345,7 +353,8 @@ export interface paths {
          * Sign-in code step: a TOTP code or a recovery code for the login challenge
          * @description The code step: the `challenge_token` of `mfa_required` and exactly one of `code` (6
          *     digits from the authenticator) or `recovery_code`. A wrong code, a used code, an expired or
-         *     burned challenge (5 attempts) and a locked account are all 401.
+         *     burned challenge (5 attempts) and a locked account are all 401. `trust_device` with a TOTP
+         *     code trusts this browser (ADR-0023): `device_token` comes back with the tokens.
          */
         post: operations["auth_login_mfa"];
         delete?: never;
@@ -366,7 +375,8 @@ export interface paths {
         /**
          * Forced enrolment at sign-in: confirm with a code; recovery codes and the sign-in result
          * @description Forced enrolment: a code from the new authenticator. Answers the 10 recovery codes (shown
-         *     once) and `result`, the sign-in to continue with. Every other session of the user ends.
+         *     once) and `result`, the sign-in to continue with. Every other session and trusted browser
+         *     of the user ends; `trust_device` trusts this browser (ADR-0023).
          */
         post: operations["auth_login_mfa_confirm"];
         delete?: never;
@@ -452,7 +462,7 @@ export interface paths {
         /**
          * Regenerate the recovery codes (after a step-up)
          * @description A new set of 10 recovery codes (shown once); the old ones stop working. Needs a step-up
-         *     in the last 10 minutes (TOTP or recovery code).
+         *     in the last 30 minutes (TOTP or recovery code).
          */
         post: operations["auth_mfa_recovery_codes"];
         delete?: never;
@@ -495,7 +505,7 @@ export interface paths {
         /**
          * Confirm the new authenticator with a code; recovery codes
          * @description Confirm the new authenticator with a code: the 10 recovery codes (shown once). The
-         *     user's other sessions end; this one records the fresh code.
+         *     user's other sessions and every trusted browser end; this one records the fresh code.
          */
         post: operations["auth_mfa_totp_confirm"];
         delete?: never;
@@ -516,7 +526,7 @@ export interface paths {
         /**
          * Set up or replace the authenticator from account settings
          * @description Set up the authenticator from account settings (`current_password` required while there
-         *     is no factor), or replace it (needs a step-up in the last 10 minutes, done with a TOTP code
+         *     is no factor), or replace it (needs a step-up in the last 30 minutes, done with a TOTP code
          *     or a recovery code: 403 `MFA_STEP_UP_REQUIRED` otherwise).
          */
         post: operations["auth_mfa_totp_enroll"];
@@ -538,7 +548,8 @@ export interface paths {
         /**
          * Change the password (current password, DPP rules, not one of the last 10)
          * @description Change the password: the current one, then a new one that meets the rules (422 names
-         *     each broken rule), is none of the last 10, at most once a day. The other sessions end.
+         *     each broken rule), is none of the last 10, at most once a day. The other sessions and every
+         *     trusted browser end (this session stays).
          */
         post: operations["auth_password_change"];
         delete?: never;
@@ -559,7 +570,8 @@ export interface paths {
         /**
          * Forced password change at sign-in
          * @description The forced password change (`password_change_required`): a new password that meets the
-         *     rules (422 names each broken rule) and is none of the last 10. Every other session ends.
+         *     rules (422 names each broken rule) and is none of the last 10. Every other session and every
+         *     trusted browser ends; a "trust this browser" chosen at the code step is honoured here.
          */
         post: operations["auth_password_expired"];
         delete?: never;
@@ -2117,7 +2129,7 @@ export interface components {
             binding: string;
             /**
              * Device Tokens
-             * @description Every trusted-browser token this browser holds (at most 5). Only one bound to the Google account's user can match.
+             * @description ADR-0023: every trusted-browser token this browser holds (at most 5, no repeats; the account is not known yet). Only the signed-in account's own can match; it skips the Kuinn code step, never Google.
              */
             device_tokens?: string[] | null;
             /**
@@ -2760,7 +2772,7 @@ export interface components {
             code: string;
             /**
              * Trust Device
-             * @description Remember this browser after a correct code: the next sign-in here skips the code (30 days, 7 for platform admins). Ignored with a recovery code.
+             * @description ADR-0023: trust this browser after this code (30 days, 7 for a platform admin): the next sign-in here skips the code. Ignored with a recovery code.
              * @default false
              */
             trust_device: boolean;
@@ -2788,7 +2800,7 @@ export interface components {
             recovery_code?: string | null;
             /**
              * Trust Device
-             * @description Remember this browser after a correct code: the next sign-in here skips the code (30 days, 7 for platform admins). Ignored with a recovery code.
+             * @description ADR-0023: trust this browser after this code (30 days, 7 for a platform admin): the next sign-in here skips the code. Ignored with a recovery code.
              * @default false
              */
             trust_device: boolean;
@@ -2797,7 +2809,7 @@ export interface components {
         LoginRequest: {
             /**
              * Device Token
-             * @description This browser's trusted-browser token for this email, if it holds one. Checked only after the password passes.
+             * @description ADR-0023: this browser's trusted-browser token for this email, if any. Read only after the password is correct; when it is live the code step is skipped.
              */
             device_token?: string | null;
             /** Email */
@@ -2828,22 +2840,22 @@ export interface components {
             challenge_token?: string | null;
             /**
              * Device Expires At
-             * @description When the trust ends (fixed; rotation never moves it).
+             * @description With `device_token`: when this browser stops being trusted (fixed; a use never moves it).
              */
             device_expires_at?: string | null;
             /**
              * Device Token
-             * @description A new or rotated trusted-browser token; store it for this email and send it at the next sign-in. Only with `signed_in`.
+             * @description ADR-0023, `signed_in` only: a new trusted-browser token for this email (after `trust_device`, or the next value of the one sent). Replace the stored one; the old value stops working.
              */
             device_token?: string | null;
             /**
              * Device Token Invalid
-             * @description True when a token was sent, the first factor passed, and it no longer counts: forget it.
+             * @description ADR-0023: true when a device token was sent, the first factor passed, and it names no trusted browser of this account: forget the stored token. On `/auth/google/complete` it means none of the sent tokens matched the signed-in account: forget only the entry stored for this `email`, and say nothing when there was none.
              */
             device_token_invalid?: boolean | null;
             /**
              * Device Trust Days
-             * @description How long a trusted browser lasts for this user (30, or 7 for platform admins). Present when the code step offers trust.
+             * @description ADR-0023: on the code steps, how many days the "Trust this browser" choice lasts (30, or 7 for a platform admin). Absent: do not offer the choice.
              */
             device_trust_days?: number | null;
             /** Expires In */
@@ -3695,7 +3707,7 @@ export interface components {
         /**
          * TotpEnrollRequest
          * @description `current_password` is required while the account has no factor; replacing a factor
-         *     needs a step-up in the last 10 minutes instead.
+         *     needs a step-up in the last 30 minutes instead.
          */
         TotpEnrollRequest: {
             /** Current Password */
@@ -3703,7 +3715,7 @@ export interface components {
         };
         /**
          * TrustedDeviceOut
-         * @description One trusted browser of the signed-in user.
+         * @description One trusted browser (ADR-0023). `label` is a coarse summary of its browser and system.
          */
         TrustedDeviceOut: {
             /**
@@ -3713,7 +3725,7 @@ export interface components {
             created_at: string;
             /**
              * Current
-             * @description True for the browser this session signed in with.
+             * @description True for the browser this session signed in on.
              */
             current: boolean;
             /**
@@ -3728,15 +3740,21 @@ export interface components {
             id: string;
             /**
              * Label
-             * @description A coarse summary such as "Chrome on macOS".
+             * @description E.g. "Chrome on macOS".
              */
             label: string;
-            /** Last Used At */
-            last_used_at: string | null;
+            /**
+             * Last Used At
+             * @description The last sign-in that skipped the code here.
+             */
+            last_used_at?: string | null;
         };
         /** TrustedDevicesOut */
         TrustedDevicesOut: {
-            /** Devices */
+            /**
+             * Devices
+             * @description The live trusted browsers, newest first (at most 10).
+             */
             devices: components["schemas"]["TrustedDeviceOut"][];
         };
         /** UploadUrlOut */
@@ -5646,6 +5664,20 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example {
+                     *       "devices": [
+                     *         {
+                     *           "created_at": "2026-10-05T09:30:00Z",
+                     *           "current": true,
+                     *           "expires_at": "2026-11-04T09:30:00Z",
+                     *           "id": "7b0c5f8e-2d1a-4c3b-9e8f-0a1b2c3d4e5f",
+                     *           "label": "Chrome on macOS",
+                     *           "last_used_at": "2026-10-12T08:15:00Z"
+                     *         }
+                     *       ]
+                     *     }
+                     */
                     "application/json": components["schemas"]["TrustedDevicesOut"];
                 };
             };
@@ -5721,6 +5753,45 @@ export interface operations {
                      *         "message": "Authentication required.",
                      *         "status": 401,
                      *         "type": "UNAUTHENTICATED"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request body too large. Codes: `PAYLOAD_TOO_LARGE`. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "correlation_id": "req-example-0001",
+                     *         "error_report": {
+                     *           "attempts_used": 0,
+                     *           "error_code": "PAYLOAD_TOO_LARGE",
+                     *           "errors": [
+                     *             {
+                     *               "auto_fixable": false,
+                     *               "error_code": "PAYLOAD_TOO_LARGE",
+                     *               "field": "request",
+                     *               "message": "Request body too large.",
+                     *               "retryable": false,
+                     *               "severity": "error",
+                     *               "source": "system"
+                     *             }
+                     *           ],
+                     *           "max_attempts": 3,
+                     *           "request_id": "req-example-0001",
+                     *           "retryable": false,
+                     *           "schema_version": "2.1.0",
+                     *           "status": "failed"
+                     *         },
+                     *         "message": "Request body too large.",
+                     *         "status": 413,
+                     *         "type": "PAYLOAD_TOO_LARGE"
                      *       }
                      *     }
                      */
@@ -5821,7 +5892,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description Done; no body. */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -5900,6 +5971,45 @@ export interface operations {
                      *         "message": "Authentication required.",
                      *         "status": 401,
                      *         "type": "UNAUTHENTICATED"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request body too large. Codes: `PAYLOAD_TOO_LARGE`. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "correlation_id": "req-example-0001",
+                     *         "error_report": {
+                     *           "attempts_used": 0,
+                     *           "error_code": "PAYLOAD_TOO_LARGE",
+                     *           "errors": [
+                     *             {
+                     *               "auto_fixable": false,
+                     *               "error_code": "PAYLOAD_TOO_LARGE",
+                     *               "field": "request",
+                     *               "message": "Request body too large.",
+                     *               "retryable": false,
+                     *               "severity": "error",
+                     *               "source": "system"
+                     *             }
+                     *           ],
+                     *           "max_attempts": 3,
+                     *           "request_id": "req-example-0001",
+                     *           "retryable": false,
+                     *           "schema_version": "2.1.0",
+                     *           "status": "failed"
+                     *         },
+                     *         "message": "Request body too large.",
+                     *         "status": 413,
+                     *         "type": "PAYLOAD_TOO_LARGE"
                      *       }
                      *     }
                      */
@@ -6002,7 +6112,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description Done; no body. */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -6120,6 +6230,93 @@ export interface operations {
                      *         "message": "Not found.",
                      *         "status": 404,
                      *         "type": "NOT_FOUND"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request body too large. Codes: `PAYLOAD_TOO_LARGE`. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "correlation_id": "req-example-0001",
+                     *         "error_report": {
+                     *           "attempts_used": 0,
+                     *           "error_code": "PAYLOAD_TOO_LARGE",
+                     *           "errors": [
+                     *             {
+                     *               "auto_fixable": false,
+                     *               "error_code": "PAYLOAD_TOO_LARGE",
+                     *               "field": "request",
+                     *               "message": "Request body too large.",
+                     *               "retryable": false,
+                     *               "severity": "error",
+                     *               "source": "system"
+                     *             }
+                     *           ],
+                     *           "max_attempts": 3,
+                     *           "request_id": "req-example-0001",
+                     *           "retryable": false,
+                     *           "schema_version": "2.1.0",
+                     *           "status": "failed"
+                     *         },
+                     *         "message": "Request body too large.",
+                     *         "status": 413,
+                     *         "type": "PAYLOAD_TOO_LARGE"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Request validation failed. Codes: `VALIDATION_FAILED`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "correlation_id": "req-example-0001",
+                     *         "details": [
+                     *           {
+                     *             "loc": [
+                     *               "body",
+                     *               "field"
+                     *             ],
+                     *             "msg": "Field required"
+                     *           }
+                     *         ],
+                     *         "error_report": {
+                     *           "attempts_used": 0,
+                     *           "error_code": "VALIDATION_FAILED",
+                     *           "errors": [
+                     *             {
+                     *               "auto_fixable": false,
+                     *               "error_code": "VALIDATION_FAILED",
+                     *               "field": "request",
+                     *               "message": "Request validation failed.",
+                     *               "retryable": false,
+                     *               "severity": "error",
+                     *               "source": "system"
+                     *             }
+                     *           ],
+                     *           "max_attempts": 3,
+                     *           "request_id": "req-example-0001",
+                     *           "retryable": false,
+                     *           "schema_version": "2.1.0",
+                     *           "status": "failed"
+                     *         },
+                     *         "message": "Request validation failed.",
+                     *         "status": 422,
+                     *         "type": "VALIDATION_FAILED"
                      *       }
                      *     }
                      */
@@ -7840,6 +8037,7 @@ export interface operations {
                      * @example {
                      *       "challenge_expires_in": 300,
                      *       "challenge_token": "ch_example_opaque_value",
+                     *       "device_trust_days": 30,
                      *       "status": "mfa_required"
                      *     }
                      */
@@ -8118,6 +8316,8 @@ export interface operations {
                     /**
                      * @example {
                      *       "access_token": "eyJhbGciOiJIUzI1NiJ9.example.signature",
+                     *       "device_expires_at": "2026-11-04T09:30:00Z",
+                     *       "device_token": "example_device_token_43_base64url_chars_000",
                      *       "expires_in": 1800,
                      *       "memberships": [
                      *         {
