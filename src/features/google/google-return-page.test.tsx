@@ -381,4 +381,17 @@ describe('/auth/google: trusted browsers (contract 2.1.0)', () => {
     expect(calls.find((c) => c.path === '/auth/login/mfa')!.body).toEqual({ challenge_token: 'ch-mfa_required', code: '123456', trust_device: true })
     expect(await readDeviceToken(EMAIL)).toBe(ROTATED)
   })
+  it('never tells another account on a shared browser that its trust ended', async () => {
+    // Only Ravi trusted this browser; this Google sign-in is for EMAIL, which had no token here.
+    await writeDeviceToken('ravi@acme.test', A, until())
+    ticket()
+    setup({
+      'POST /auth/google/complete': out({ outcome: 'sign_in', login: { ...challenge('mfa_required'), device_token_invalid: true, device_trust_days: 30 } }),
+    })
+    expect(await screen.findByLabelText('6-digit code')).toBeTruthy()
+    expect(screen.queryByText('This browser is no longer trusted, so enter a code this time.')).toBeNull()
+    expect(screen.getByRole('checkbox', { name: /Trust this browser for 30 days/ })).toBeTruthy()
+    // Ravi's trust is untouched.
+    expect(await readDeviceToken('ravi@acme.test')).toBe(A)
+  })
 })

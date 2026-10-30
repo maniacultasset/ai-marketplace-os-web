@@ -75,6 +75,13 @@ describe('trusted-browser storage', () => {
     expect(keys()).toEqual([])
   })
 
+  it('never lists the same token twice (a repeat would fail the whole Google sign-in)', async () => {
+    await writeDeviceToken('meera@acme.test', T('a'), LATER, NOW)
+    await writeDeviceToken('ravi@acme.test', T('a'), LATER, NOW + 1)
+    await writeDeviceToken('asha@acme.test', T('b'), LATER, NOW + 2)
+    expect(liveDeviceTokens(NOW + 10)).toEqual([T('b'), T('a')])
+  })
+
   it('forgets one account and leaves the others', async () => {
     await writeDeviceToken('meera@acme.test', T('a'), LATER, NOW)
     await writeDeviceToken('ravi@acme.test', T('b'), LATER, NOW)

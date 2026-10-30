@@ -27,7 +27,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { SubmitButton, TOUCH_TEXT } from '@/features/mfa/components'
 import { advance, TOO_MANY, ttlLabel, type RestartReason } from '@/features/mfa/login-flow'
 import { StepHeader } from '@/features/mfa/login-steps'
-import { rememberDevice } from '@/features/mfa/trusted-device'
+import { readDeviceToken, rememberDevice } from '@/features/mfa/trusted-device'
 import { AccountChip, AsideLink, AuthCard, AuthColumn, AuthFrame, FormAlert } from '@/features/public/auth-frame'
 import { SignInSteps } from '@/features/public/sign-in-steps'
 import { useSignInFlow } from '@/features/public/use-sign-in-flow'
@@ -91,9 +91,18 @@ export function GoogleReturnPage({ search }: { search: { handle?: string; error?
         if (!live) return
         if (out.email) setEmail(out.email)
         if (out.outcome === 'sign_in' && out.login) {
-          // The account is known only now: keep (or forget) this browser's trust for it first.
-          const login = out.login
-          return void rememberDevice(out.email, login).then(() => (live ? flow.apply(advance(login)) : undefined))
+          // The account is known only now: keep (or forget) this browser's trust for it first. The
+          // browser sends every token it holds here, so "no longer trusted" only means none of them
+          // matched. Say it only to an account that had a token in this browser, never to another
+          // person on a shared browser where someone else trusted it.
+          const raw = out.login
+          const email = out.email
+          return void (async () => {
+            const held = email ? await readDeviceToken(email) : null
+            const login = held ? raw : { ...raw, device_token_invalid: false }
+            await rememberDevice(email, login)
+            if (live) flow.apply(advance(login))
+          })()
         }
         if (out.outcome === 'link_required' && out.link) {
           setEmail(out.link.email)

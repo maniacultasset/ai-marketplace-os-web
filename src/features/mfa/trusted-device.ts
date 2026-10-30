@@ -135,9 +135,8 @@ export async function forgetDeviceToken(email: string): Promise<void> {
  * to that Google account's user, so the others are inert there.
  */
 export function liveDeviceTokens(now = Date.now()): string[] {
-  return entries(now)
-    .slice(0, MAX_ACCOUNTS)
-    .map((e) => e.entry.token)
+  // A repeated token would make the API refuse the whole Google sign-in (422), so never send one.
+  return [...new Set(entries(now).map((e) => e.entry.token))].slice(0, MAX_ACCOUNTS)
 }
 
 /**
