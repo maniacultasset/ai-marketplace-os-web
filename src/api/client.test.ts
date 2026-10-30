@@ -36,7 +36,7 @@ describe('authFetch', () => {
 
   it('sends no bearer and never refreshes on a 401 from a challenge route', async () => {
     const { calls } = installFetch({ 'POST /auth/login/mfa': () => envelope(401, 'UNAUTHENTICATED') })
-    await expect(unwrap(api.POST('/auth/login/mfa', { body: { challenge_token: 'c', code: '123456' } }))).rejects.toMatchObject({ status: 401 })
+    await expect(unwrap(api.POST('/auth/login/mfa', { body: { challenge_token: 'c', code: '123456', trust_device: false } }))).rejects.toMatchObject({ status: 401 })
     expect(calls.map((c) => c.path)).toEqual(['/auth/login/mfa'])
     expect(calls[0]!.auth).toBeNull()
     expect(getAccessToken()).not.toBeNull()
