@@ -74,7 +74,7 @@ design source is `docs/design-reference/listing-agent-hifi-handoff.html` (18 scr
 
 | Area | Screens | Backed by |
 |---|---|---|
-| Public | Landing, sign in (with the login-code, forced enrolment, recovery codes and forced password steps), request access, request status, privacy policy | `/auth/login`, `/auth/login/mfa*`, `/auth/password/expired`, `/signup`, `/signup/status` |
+| Public | Landing, sign in (with the login-code, forced enrolment, recovery codes and forced password steps), request access, request status, privacy policy; Continue with Google and its return page `/auth/google` | `/auth/login`, `/auth/login/mfa*`, `/auth/password/expired`, `/signup`, `/signup/status`, `/auth/google/*`, `/signup/google` |
 | Security (DPP-1) | Settings > Security: login codes status, set up or replace the authenticator, new recovery codes, change password; the step-up dialog on every sensitive action | `/auth/security`, `/auth/mfa/*`, `/auth/password` |
 | Setup (02-04) | Brand and business, compliance defaults, connect marketplaces | `PATCH /tenants/me` (If-Match), `/marketplaces/*` |
 | Home and Inbox (05, 06, 11, 16) | Home (first run + working), Inbox, issue detail | `/listings`, `/tasks`, `/issues`, `/issues/{id}/dismiss`, submissions |
@@ -96,13 +96,35 @@ App: `/home`, `/inbox`, `/issues/$issueId`, `/products`, `/products/$productId`,
 Settings: `/settings`, `/settings/compliance`, `/settings/imports`, `/brand`, `/team`, `/rules`,
 `/rules/check`, `/account`, `/settings/security`, `/admin/signups`.
 
+### Sign in with Google
+
+"Continue with Google" on `/login` and "Sign up with Google" on `/signup` show only when
+`GET /auth/google/config` answers `enabled: true` (the backend's `GOOGLE_OAUTH_ENABLED`; any other
+answer hides them). Both start
+the same full-page flow; the intent only picks the copy on the way back.
+
+- Before leaving, the page keeps a random secret in `sessionStorage` (this tab only) and sends only
+  the SHA-256 of its base64url text to `/api/v1/auth/google/start`. Google returns to `/auth/google?handle=…`, which strips
+  the handle from the address bar, takes the secret out of storage and sends both to
+  `POST /auth/google/complete`. No cookies, no Google script, no CSP change.
+- Google is a first factor only. A sign-in then runs the same login-code, enrolment, recovery-code and
+  password steps as a password sign-in (`SignInSteps`).
+- An existing account links Google once, after its Kuinn password and then its login code.
+- A Google account with no Kuinn account gets a short sign-up form, prefilled from what the API sends
+  (name, verified email, `suggested_brand_name` from a company email domain). An admin still approves it.
+- Settings > Security shows a linked Google account; Remove calls `POST /auth/google/unlink` behind a
+  step-up, and is not offered while Google is the account's only way in.
+- Every refusal reads the same, so the page never says which accounts exist.
+- The button follows Google's sign-in branding: the standard multicolour mark on white, Google's
+  wording, never recoloured, the 1px `#747775` outline and a medium-weight label.
+
 ### Shown but not in the API yet (honest disabled)
 
 These appear where the design puts them, as a disabled control with a reason tooltip
 (`UnavailableButton`, reasons in `NOT_YET` in `src/components/la/unavailable.tsx`), a "Coming soon"
 tag, or a "Join waitlist" button that does nothing:
 
-- Google sign-in; email verification codes; "What best describes you?" on sign-up
+- Email verification codes; "What best describes you?" on sign-up
 - "Read my site" (website prefill); legal name, business type, logo, description; compliance defaults (can't be saved yet)
 - Myntra, AJIO, Meesho, Nykaa Fashion (Join waitlist); pickup locations, default shipping; brand authorisation upload; category/brand approvals
 - Add from photos, product page URL, catalog export; PIM/ERP (Later); agent category classification
@@ -140,6 +162,10 @@ because the seed users have no authenticator. Run it twice, once per mode:
 pnpm e2e tests/e2e/mfa.spec.ts   # backend started with MFA_ENFORCEMENT=all, MFA_GRACE_UNTIL=<future, with offset>
 pnpm e2e tests/e2e/mfa.spec.ts   # backend restarted with MFA_ENFORCEMENT=off
 ```
+
+Sign in with Google has unit tests for every state (`src/features/google/*.test.ts*`). A Playwright
+spec needs the backend's fake Google provider (served next to the fake marketplace) and is not
+added yet.
 
 ## Docs
 

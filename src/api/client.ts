@@ -8,7 +8,8 @@ import type { V1Paths } from './types'
  * Ops that never carry a bearer token and whose 401 never triggers a refresh, matched exactly
  * against the path under /api/v1. `/signup/status` answers 401 for a wrong email/password, and the
  * four sign-in challenge routes (DPP-1) answer 401 for a wrong code or a dead challenge: neither may
- * end (or refresh) a session. The bearer MFA routes (`/auth/mfa/*`, `/auth/password`) are not here.
+ * end (or refresh) a session. The Google sign-in ops answer 401 for a used or unbound handle.
+ * The bearer MFA routes (`/auth/mfa/*`, `/auth/password`) are not here.
  */
 const PUBLIC_PATHS: ReadonlySet<string> = new Set([
   '/auth/login',
@@ -20,6 +21,10 @@ const PUBLIC_PATHS: ReadonlySet<string> = new Set([
   '/auth/login/mfa/enroll',
   '/auth/login/mfa/confirm',
   '/auth/password/expired',
+  '/auth/google/config',
+  '/auth/google/complete',
+  '/auth/google/link',
+  '/signup/google',
 ])
 
 const V1_PREFIX = new URL(API_BASE, 'http://x').pathname.replace(/\/+$/, '')

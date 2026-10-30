@@ -69,6 +69,7 @@ export const OP_ACTION = {
   'POST /auth/mfa/totp/enroll': 'tenant:read',
   'POST /auth/mfa/totp/confirm': 'tenant:read',
   'GET /auth/security': 'tenant:read',
+  'POST /auth/google/unlink': 'tenant:read',
   'POST /auth/mfa/recovery-codes': 'tenant:read',
   'POST /auth/mfa/step-up': 'tenant:read',
   'POST /auth/password': 'tenant:read',

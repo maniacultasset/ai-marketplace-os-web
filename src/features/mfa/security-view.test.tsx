@@ -66,9 +66,54 @@ describe('SecurityView', () => {
     expect(screen.getByText('1 Oct 2027')).toBeTruthy()
   })
 
+  it('a Google-only account (has_password false) has no password card', async () => {
+    setup({ mfa_enrolled: true, recovery_codes_left: 10, has_password: false })
+    expect(await screen.findByTestId('login-codes-card')).toBeTruthy()
+    expect(screen.queryByTestId('password-card')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Change password' })).toBeNull()
+  })
+
+  it('no Google card while no Google account is linked', async () => {
+    setup({ mfa_enrolled: true, recovery_codes_left: 10, google_linked: false })
+    expect(await screen.findByTestId('login-codes-card')).toBeTruthy()
+    expect(screen.queryByTestId('google-card')).toBeNull()
+  })
+
+  it('a linked Google account can be removed after a confirm (POST /auth/google/unlink)', async () => {
+    const { user, calls } = setup(
+      { mfa_enrolled: true, recovery_codes_left: 10, has_password: true, google_linked: true },
+      { 'POST /auth/google/unlink': () => new Response(null, { status: 204 }) },
+    )
+    const card = await screen.findByTestId('google-card')
+    expect(within(card).getByText('Linked')).toBeTruthy()
+    expect(within(card).getByText('meera@acme.test')).toBeTruthy()
+    await user.click(within(card).getByTestId('google-unlink'))
+    expect(await screen.findByRole('alertdialog', { name: 'Remove Google from this account?' })).toBeTruthy()
+    await user.click(screen.getByTestId('google-unlink-confirm'))
+    await waitFor(() => expect(calls.filter((c) => c.path === '/auth/google/unlink')).toHaveLength(1))
+    await waitFor(() => expect(calls.filter((c) => c.path === '/auth/security').length).toBeGreaterThan(1))
+  })
+
+  it('a Google-only account sees Google linked, with no Remove (it is the only way in)', async () => {
+    setup({ mfa_enrolled: true, recovery_codes_left: 10, has_password: false, google_linked: true })
+    const card = await screen.findByTestId('google-card')
+    expect(within(card).queryByTestId('google-unlink')).toBeNull()
+    expect(within(card).getByText(/only way in/)).toBeTruthy()
+  })
+
+  it('an unlink the API refuses shows its message in the card', async () => {
+    const { user } = setup(
+      { mfa_enrolled: true, recovery_codes_left: 10, has_password: true, google_linked: true },
+      { 'POST /auth/google/unlink': () => envelope(422, 'VALIDATION_FAILED', 'Set a password before you remove Google.') },
+    )
+    await user.click(await screen.findByTestId('google-unlink'))
+    await user.click(await screen.findByTestId('google-unlink-confirm'))
+    expect(await screen.findByText('Set a password before you remove Google.')).toBeTruthy()
+  })
+
   it('sets up the authenticator under StrictMode: current password → QR → code → recovery codes → done', async () => {
     const { user, calls } = setup(
-      { mfa_grace_until: '2999-11-20T00:00:00+05:30' },
+      { mfa_grace_until: '2999-11-20T12:00:00+05:30' },
       {
         'POST /auth/mfa/totp/enroll': [
           () => envelope(422, 'VALIDATION_FAILED', 'The current password is not correct.'),

@@ -4,7 +4,8 @@
  * as an honest disabled group (SignupCreate is strict and has no such field) and, in place of the
  * 6-digit email code (there is no email provider), the pending-approval state read from
  * POST /signup/status (routers/signup.py signup_status) with the credentials just typed, kept in
- * memory only.
+ * memory only. "Sign up with Google" sits above the form when the backend has it switched on; that
+ * path finishes on /auth/google with a prefilled form.
  */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link } from '@tanstack/react-router'
@@ -36,6 +37,9 @@ import {
 } from '@/features/signup-admin/schema'
 import { TimeAgo } from '@/features/signup-admin/time'
 import { useCountdown } from '@/features/signup-admin/use-countdown'
+import { useGoogleEnabled } from '@/features/google/api'
+import { GoogleEntry } from '@/features/google/google-button'
+import { isCoarsePointer } from '@/lib/pointer'
 import { filterInput, FORM_VALIDATION_MODE, phoneChars } from '@/lib/validation'
 import { AsideLink, AuthColumn, AuthFrame, FormAlert } from './auth-frame'
 import { signupChip } from './model'
@@ -50,6 +54,8 @@ export function SignupPage({ initialEmail }: { initialEmail?: string }) {
   const [formError, setFormError] = useState<{ message: string; ref: string | null } | null>(null)
   /** Sent credentials, in memory only, so the status card can ask POST /signup/status. */
   const [sent, setSent] = useState<(SignupStatusBody & { brand: string }) | null>(null)
+  // With Google on, its button comes first: no autofocus on Brand name (or on any touch device).
+  const googleShown = useGoogleEnabled()
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupFormSchema),
@@ -104,13 +110,14 @@ export function SignupPage({ initialEmail }: { initialEmail?: string }) {
                   message={`${formError.message}${locked ? ` Try again in ${countdown.left} s.` : ''}`}
                 />
               ) : null}
+              <GoogleEntry intent="signup" returnTo="/home" divider="or sign up with email" />
               <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4" data-testid="signup-card">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <LaField label="Brand name" htmlFor="brand_name" error={errors.brand_name?.message} submitCount={submitCount} confirmFix>
                     <Input
                       id="brand_name"
                       autoComplete="organization"
-                      autoFocus
+                      autoFocus={!googleShown && !isCoarsePointer()}
                       maxLength={NAME_MAX}
                       aria-invalid={!!errors.brand_name}
                       aria-describedby={fieldHintId('brand_name')}

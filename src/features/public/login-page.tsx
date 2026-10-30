@@ -3,7 +3,8 @@
  * column 1b, per the 01 redlines. POST /auth/login (routers/auth.py) via `signIn()` in lib/auth.
  * 401 wrong credentials (a locked account answers the same 401), 429 with Retry-After, 422 field
  * errors. The answer's `status` picks the next step (features/mfa/login-flow.ts): tokens, the code
- * step, forced enrolment, or a forced password change.
+ * step, forced enrolment, or a forced password change. Those steps are `SignInSteps`, shared with
+ * /auth/google. "Continue with Google" sits above the form when the backend has it switched on.
  */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link, useRouter } from '@tanstack/react-router'
@@ -17,14 +18,16 @@ import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/features/signup-admin/password-input'
 import { LOGIN_EMAIL_MAX, statusFormSchema, type StatusFormValues } from '@/features/signup-admin/schema'
 import { useCountdown } from '@/features/signup-admin/use-countdown'
-import type { LoginResult } from '@/api/types'
+import { useGoogleEnabled } from '@/features/google/api'
+import { GoogleEntry } from '@/features/google/google-button'
 import { SubmitButton, TOUCH_TEXT } from '@/features/mfa/components'
-import { advance, RESTART_MESSAGES, TOO_MANY, type Advance, type FlowStep, type RestartReason } from '@/features/mfa/login-flow'
-import { EnrollStep, MfaCodeStep, PasswordChangeStep, RecoveryCodesStep } from '@/features/mfa/login-steps'
-import { finishSignIn, signIn, useSession } from '@/lib/auth'
-import { toast } from '@/lib/toast'
+import { RESTART_MESSAGES, TOO_MANY, type RestartReason } from '@/features/mfa/login-flow'
+import { signIn, useSession } from '@/lib/auth'
+import { isCoarsePointer } from '@/lib/pointer'
 import { FORM_VALIDATION_MODE } from '@/lib/validation'
-import { AccountChip, AsideLink, AuthCard, AuthFrame, FormAlert } from './auth-frame'
+import { AsideLink, AuthCard, AuthFrame, FormAlert } from './auth-frame'
+import { SignInSteps } from './sign-in-steps'
+import { useSignInFlow } from './use-sign-in-flow'
 import { useDocumentTitle } from './use-document-title'
 
 /**
@@ -33,12 +36,6 @@ import { useDocumentTitle } from './use-document-title'
  */
 const loginSchema = statusFormSchema
 type LoginValues = StatusFormValues
-
-/** "20 Nov 2026" for the grace notice. */
-function graceDate(iso: string): string {
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
-}
 
 type Tone = 'danger' | 'attention' | 'info'
 interface FormError {
@@ -56,15 +53,23 @@ const RESTART_TONE: Record<RestartReason, { tone: Tone; icon?: IconName }> = {
   invalid: { tone: 'danger' },
 }
 
-export function LoginPage({ target }: { target: string }) {
+/** Why the page opened with a notice: a restart sent back from /auth/google, or Google switched off. */
+export type LoginNotice = RestartReason | 'google_unavailable'
+
+const restartError = (reason: RestartReason): FormError => ({ message: RESTART_MESSAGES[reason], ref: null, ...RESTART_TONE[reason] })
+
+export function LoginPage({ target, notice }: { target: string; notice?: LoginNotice }) {
   useDocumentTitle('Sign in')
   const router = useRouter()
   const session = useSession()
-  const [formError, setFormError] = useState<FormError | null>(null)
-  const [step, setStep] = useState<FlowStep>({ kind: 'credentials' })
+  const [formError, setFormError] = useState<FormError | null>(() => (notice && notice !== 'google_unavailable' ? restartError(notice) : null))
   /** The email of this sign-in, for the password rules' name check. Never the password. */
   const [email, setEmail] = useState('')
   const countdown = useCountdown()
+  // With Google on, the Google button is the first control: no autofocus on Email, which would
+  // show "Enter your email." to a keyboard user tabbing back to Google, or open the phone keyboard.
+  const googleOn = useGoogleEnabled()
+  const googleShown = googleOn && notice !== 'google_unavailable'
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -77,45 +82,15 @@ export function LoginPage({ target }: { target: string }) {
     if (session.status === 'authenticated') void router.history.push(target)
   }, [session.status, router, target])
 
-  const restart = useCallback(
+  const onRestart = useCallback(
     (reason: RestartReason) => {
-      setStep({ kind: 'credentials' })
-      setFormError({ message: RESTART_MESSAGES[reason], ref: null, ...RESTART_TONE[reason] })
+      setFormError(restartError(reason))
       requestAnimationFrame(() => form.setFocus(reason === 'invalid' ? 'email' : 'password'))
     },
     [form],
   )
-
-  /** Apply a decided next step: store tokens and leave, or show the step. */
-  const apply = useCallback(
-    async (next: Advance) => {
-      if (next.kind === 'invalid') return restart('invalid')
-      if (next.kind === 'step') {
-        setFormError(null)
-        setStep(next.step)
-        return
-      }
-      setStep({ kind: 'credentials' })
-      try {
-        await finishSignIn(next.tokens)
-      } catch (e) {
-        setFormError({ message: describeError(e), ref: isApiError(e) ? e.correlationId : null })
-        return
-      }
-      if (next.graceUntil) {
-        toast.info('Set up login codes', {
-          description: `Your account needs login codes from ${graceDate(next.graceUntil)}. Set them up in Settings > Security.`,
-          action: { label: 'Set up', onClick: () => void router.navigate({ to: '/settings/security' }) },
-          duration: 12_000,
-        })
-      }
-      await router.invalidate()
-      router.history.push(target)
-    },
-    [restart, router, target],
-  )
-  /** Apply one `LoginResult` now (its challenge clock starts when it arrives). */
-  const onResult = useCallback((result: LoginResult) => apply(advance(result)), [apply])
+  const flow = useSignInFlow({ target, onRestart, onError: setFormError, onStep: () => setFormError(null) })
+  const { step, setStep, onResult } = flow
 
   const onSubmit = form.handleSubmit(async (values) => {
     setFormError(null)
@@ -151,28 +126,7 @@ export function LoginPage({ target }: { target: string }) {
       setStep({ kind: 'credentials' })
       setFormError(null)
     }
-    return (
-      <AuthFrame tone="canvas">
-        <AuthCard size={step.kind === 'mfa' ? 'sm' : 'lg'}>
-          <AccountChip email={email} onSwitch={step.kind === 'recovery-codes' ? undefined : startOver} />
-          {step.kind === 'mfa' ? (
-            <MfaCodeStep key={step.challenge.token} challenge={step.challenge} onResult={(r) => void onResult(r)} onRestart={restart} />
-          ) : step.kind === 'enroll' ? (
-            <EnrollStep
-              key={step.challenge.token}
-              challenge={step.challenge}
-              // Decide the next step (and start its challenge clock) as the answer arrives, not on Continue.
-              onConfirmed={(out) => setStep({ kind: 'recovery-codes', codes: out.recovery_codes, next: advance(out.result) })}
-              onRestart={restart}
-            />
-          ) : step.kind === 'recovery-codes' ? (
-            <RecoveryCodesStep codes={step.codes} email={email} onContinue={() => void apply(step.next)} />
-          ) : (
-            <PasswordChangeStep key={step.challenge.token} challenge={step.challenge} email={email} onResult={(r) => void onResult(r)} onRestart={restart} />
-          )}
-        </AuthCard>
-      </AuthFrame>
-    )
+    return <SignInSteps flow={flow} email={email} onSwitch={startOver} />
   }
 
   const submitting = form.formState.isSubmitting
@@ -191,8 +145,15 @@ export function LoginPage({ target }: { target: string }) {
         <div>
           <IconTile icon="lock" tone="brand" size="lg" className="mb-4" />
           <h1 className="text-[24px] leading-[30px] font-bold tracking-[-0.02em] text-ink sm:text-h1">Sign in</h1>
-          <p className="mt-2 text-body text-pretty text-ink-2">Use the email and password for your brand account.</p>
+          <p className="mt-2 text-body text-pretty text-ink-2">
+            {googleShown ? 'Sign in to your brand account.' : 'Use the email and password for your brand account.'}
+          </p>
         </div>
+        {notice === 'google_unavailable' && !formError ? (
+          <Banner tone="info" role="status">
+            Google sign-in isn’t available right now. Sign in with your email and password.
+          </Banner>
+        ) : null}
         {session.endReason === 'expired' && !formError ? (
           <Banner tone="info" role="status">
             Your session ended. Sign in again.
@@ -212,6 +173,7 @@ export function LoginPage({ target }: { target: string }) {
             message={formError.message}
           />
         ) : null}
+        {googleShown ? <GoogleEntry intent="login" returnTo={target} /> : null}
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
           <LaField label="Email" htmlFor="email" error={errors.email?.message} submitCount={form.formState.submitCount}>
             <Input
@@ -220,7 +182,7 @@ export function LoginPage({ target }: { target: string }) {
               inputMode="email"
               autoComplete="username"
               autoCapitalize="none"
-              autoFocus
+              autoFocus={!googleShown && !isCoarsePointer()}
               spellCheck={false}
               className={TOUCH_TEXT}
               maxLength={LOGIN_EMAIL_MAX}
