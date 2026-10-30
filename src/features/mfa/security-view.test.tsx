@@ -66,6 +66,13 @@ describe('SecurityView', () => {
     expect(screen.getByText('1 Oct 2027')).toBeTruthy()
   })
 
+  it('a Google-only account (has_password false) has no password card', async () => {
+    setup({ mfa_enrolled: true, recovery_codes_left: 10, has_password: false })
+    expect(await screen.findByTestId('login-codes-card')).toBeTruthy()
+    expect(screen.queryByTestId('password-card')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Change password' })).toBeNull()
+  })
+
   it('sets up the authenticator under StrictMode: current password → QR → code → recovery codes → done', async () => {
     const { user, calls } = setup(
       { mfa_grace_until: '2999-11-20T00:00:00+05:30' },

@@ -793,7 +793,10 @@ export function SecurityView({ setup = false, onSetupShown }: { setup?: boolean;
   return (
     <div className="flex flex-col gap-5">
       <LoginCodesCard security={security.data} email={me.data.email} autoSetup={setup} onSetupShown={onSetupShown} />
-      <PasswordCard security={security.data} email={me.data.email} displayName={me.data.display_name} />
+      {/* A Google-only account has no password to change (`has_password` false; absent on older APIs). */}
+      {security.data.has_password === false ? null : (
+        <PasswordCard security={security.data} email={me.data.email} displayName={me.data.display_name} />
+      )}
       <LaCard emphasis="tint" pad="md" className="flex items-start gap-3">
         <IconTile icon="info" size="md" />
         <p className="text-small text-ink-2">
