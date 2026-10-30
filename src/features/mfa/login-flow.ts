@@ -18,6 +18,14 @@ export interface Challenge {
   expiresAt: number
   /** The TTL the server gave, in seconds (for the "expires after N minutes" hint). */
   ttl: number
+  /**
+   * Days a trusted browser lasts for this user (30, or 7 for platform admins), when the code step
+   * may offer "Don't ask for a code on this browser". Null: the API does not offer it (MFA off, or
+   * an API older than contract 2.1.0, which would refuse the `trust_device` field).
+   */
+  trustDays: number | null
+  /** This browser sent a trusted-browser token and the API no longer accepts it. */
+  trustLapsed: boolean
 }
 
 export type FlowStep =
@@ -49,10 +57,20 @@ export function advance(result: LoginResult, now = Date.now()): Advance {
   }
   if (!result.challenge_token) return { kind: 'invalid' }
   const ttl = result.challenge_expires_in ?? (status === 'mfa_enrollment_required' ? ENROLL_TTL_S : CHALLENGE_TTL_S)
-  const challenge: Challenge = { token: result.challenge_token, expiresAt: now + ttl * 1000, ttl }
+  const trustDays = typeof result.device_trust_days === 'number' && result.device_trust_days > 0 ? result.device_trust_days : null
+  const challenge: Challenge = {
+    token: result.challenge_token,
+    expiresAt: now + ttl * 1000,
+    ttl,
+    trustDays,
+    trustLapsed: result.device_token_invalid === true,
+  }
   const kind = status === 'mfa_required' ? 'mfa' : status === 'mfa_enrollment_required' ? 'enroll' : 'password'
   return { kind: 'step', step: { kind, challenge }, graceUntil }
 }
+
+/** "30 days" / "1 day". */
+export const daysLabel = (n: number) => `${n} day${n === 1 ? '' : 's'}`
 
 /** "5 minutes" / "15 minutes" for a TTL in seconds. */
 export function ttlLabel(ttl: number): string {

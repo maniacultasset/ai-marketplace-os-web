@@ -5,14 +5,14 @@
  * /auth/mfa/step-up, swaps in the new access token (never the refresh token) and resolves true,
  * so the original request is replayed once. Cancel resolves false and the request fails as it was.
  *
- * Admin actions (account revoke, sign-up approve/reject) take a TOTP code only; the rest also take a
- * recovery code (a lost phone).
+ * Only high-risk actions ask (api/step-up.ts STEP_UP_OPS), and one code covers them for 30 minutes.
+ * The account revoke takes a TOTP code only; the rest also take a recovery code (a lost phone).
  */
 import { KeyRound, Smartphone } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { isApiError } from '@/api/errors'
 import { adoptStepUpToken } from '@/api/session'
-import { setStepUpHandler, type StepUpMode } from '@/api/step-up'
+import { setStepUpHandler, STEP_UP_WINDOW_MINUTES, type StepUpMode } from '@/api/step-up'
 import { Banner } from '@/components/la/banner'
 import { IconTile } from '@/components/la/icons'
 import { Button } from '@/components/ui/button'
@@ -166,7 +166,7 @@ export function StepUpDialog({ open, mode, onDone }: { open: boolean; mode: Step
           <DialogTitle className="font-heading text-h2 font-bold text-ink">Confirm it's you</DialogTitle>
           <DialogDescription id={descId} className="text-small text-pretty text-ink-2">
             {kind === 'totp'
-              ? 'This change needs a fresh code. Enter the 6-digit code from your authenticator app.'
+              ? `This change needs a fresh code. Enter the 6-digit code from your authenticator app. We won’t ask again for ${STEP_UP_WINDOW_MINUTES} minutes.`
               : 'Enter one of your saved recovery codes. It will stop working after this.'}
           </DialogDescription>
         </DialogHeader>

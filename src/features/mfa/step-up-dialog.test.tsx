@@ -39,6 +39,8 @@ describe('StepUpHost: a sensitive request answered 403 MFA_STEP_UP_REQUIRED', ()
     const result = patchMember()
     const input = await screen.findByLabelText('6-digit code')
     expect(screen.getByRole('dialog', { name: "Confirm it's you" })).toBeTruthy()
+    // One code covers the high-risk actions for the backend's 1800 s window.
+    expect(screen.getByText(/We won’t ask again for 30 minutes\./)).toBeTruthy()
     await waitFor(() => expect(document.activeElement).toBe(input))
     expect(input.getAttribute('autocomplete')).toBe('one-time-code')
     expect(input.getAttribute('inputmode')).toBe('numeric')

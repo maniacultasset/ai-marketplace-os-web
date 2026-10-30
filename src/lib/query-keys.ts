@@ -56,6 +56,8 @@ export function keysFor(tid: string) {
     me: () => [...T, 'me'] as const,
     /** GET /auth/security (per user; the tenant prefix keeps it inside the tenant clear). */
     security: () => [...T, 'security'] as const,
+    /** GET /auth/devices: this user's trusted browsers (per user, inside the tenant clear too). */
+    devices: () => [...T, 'devices'] as const,
     capabilities: () => [...T, 'capabilities'] as const,
     products: {
       all: () => [...T, 'products'] as const,

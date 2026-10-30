@@ -9,21 +9,33 @@
 import { queryOptions } from '@tanstack/react-query'
 import { api, unwrap } from '@/api/client'
 import { describeError, isApiError } from '@/api/errors'
-import type { LoginConfirmOut, LoginResult, RecoveryCodesOut, SecurityOut, StepUpOut, TotpEnrollOut } from './types'
+import type { Schema } from '@/api/types'
+import type { LoginConfirmOut, LoginResult, RecoveryCodesOut, SecurityOut, StepUpOut, TotpEnrollOut, TrustedDevicesOut } from './types'
+
+// The generator marks `trust_device` required (it has a default); on the wire it is optional.
+type LoginMfaBody = Schema<'LoginMfaRequest'>
+type LoginConfirmBody = Schema<'LoginConfirmRequest'>
 
 /** Exactly one of a 6-digit TOTP code or a recovery code (LoginMfaRequest / StepUpRequest). */
 export type SecondFactor = { code: string } | { recovery_code: string }
 
 // ---- sign-in challenge steps (public, never refresh on 401) ----
 
-export const loginMfa = (challenge_token: string, factor: SecondFactor): Promise<LoginResult> =>
-  unwrap(api.POST('/auth/login/mfa', { body: { challenge_token, ...factor } }))
+/**
+ * `trust_device` only when the step offered it (`Challenge.trustDays`): an API older than 2.1.0
+ * refuses unknown fields with 422, so the field is left out rather than sent as false. The API
+ * ignores it with a recovery code, and the code step never sends it then.
+ */
+const trustField = (trust: boolean | undefined) => (trust === undefined ? {} : { trust_device: trust })
+
+export const loginMfa = (challenge_token: string, factor: SecondFactor, trust?: boolean): Promise<LoginResult> =>
+  unwrap(api.POST('/auth/login/mfa', { body: { challenge_token, ...factor, ...trustField(trust) } as LoginMfaBody }))
 
 export const loginEnroll = (challenge_token: string): Promise<TotpEnrollOut> =>
   unwrap(api.POST('/auth/login/mfa/enroll', { body: { challenge_token } }))
 
-export const loginConfirm = (challenge_token: string, code: string): Promise<LoginConfirmOut> =>
-  unwrap(api.POST('/auth/login/mfa/confirm', { body: { challenge_token, code } }))
+export const loginConfirm = (challenge_token: string, code: string, trust?: boolean): Promise<LoginConfirmOut> =>
+  unwrap(api.POST('/auth/login/mfa/confirm', { body: { challenge_token, code, ...trustField(trust) } as LoginConfirmBody }))
 
 export const passwordExpired = (challenge_token: string, new_password: string): Promise<LoginResult> =>
   unwrap(api.POST('/auth/password/expired', { body: { challenge_token, new_password } }))
@@ -52,6 +64,24 @@ export const stepUp = (factor: SecondFactor): Promise<StepUpOut> =>
 
 export const changePassword = (current_password: string, new_password: string): Promise<void> =>
   unwrap(api.POST('/auth/password', { body: { current_password, new_password } })).then(() => undefined)
+
+// ---- trusted browsers (contract 2.1.0; own account only, no step-up) ----
+
+export const devicesQueryOptions = (queryKey: readonly unknown[]) =>
+  queryOptions({
+    queryKey,
+    queryFn: (): Promise<TrustedDevicesOut> => unwrap(api.GET('/auth/devices')),
+    staleTime: 30_000,
+    // An API older than 2.1.0 answers 404/405 and the card hides: never retry a 4xx; a 5xx once.
+    retry: (n, e) => !(isApiError(e) && e.status < 500) && n < 1,
+  })
+
+/** Forget one trusted browser; the sessions it signed in end too (this one, if it is `current`). */
+export const removeDevice = (device_id: string): Promise<void> =>
+  unwrap(api.DELETE('/auth/devices/{device_id}', { params: { path: { device_id } } })).then(() => undefined)
+
+/** Forget every trusted browser and sign out every other session. This session stays. */
+export const signOutAllDevices = (): Promise<void> => unwrap(api.POST('/auth/devices/sign-out-all')).then(() => undefined)
 
 // ---- errors ----
 

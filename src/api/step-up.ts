@@ -1,6 +1,8 @@
 /**
- * Step-up (DPP-1, ADR-0021 §5). Under `MFA_ENFORCEMENT=all` a sensitive op answers 403
- * `MFA_STEP_UP_REQUIRED` unless the access token carries a code entered in the last 10 minutes.
+ * Step-up (DPP-1, ADR-0021 §5 as amended by ADR-0023). Under `MFA_ENFORCEMENT=all` a high-risk op
+ * answers 403 `MFA_STEP_UP_REQUIRED` unless the access token carries a code entered in the last 30
+ * minutes. A trusted-browser sign-in skips the code at sign-in only: its token keeps the time of
+ * the code that created the trust, so a high-risk op soon asks for a real code again.
  * `authFetch` (client.ts) catches that 403, asks the registered handler (the step-up dialog) for a
  * code, and replays the request once with the new access token. A 403 `MFA_ENROLLMENT_REQUIRED`
  * (no factor yet) calls the enrolment handler instead, which routes to Settings > Security.
@@ -26,9 +28,11 @@ export interface StepUpPrompt {
 export type StepUpHandler = (prompt: StepUpPrompt) => Promise<boolean>
 
 /**
- * Ops that need a TOTP code only (surface.py `step_up="otp"`): the account revoke and the sign-up
- * approve/reject. Every other step-up op also takes a recovery code. The contract does not mark the
- * mode, so step-up.test.ts pins this table against every op whose 403 lists the step-up code.
+ * The high-risk ops (contract 2.1.0): marketplace connect and revoke, member changes (removal,
+ * role, owner), authenticator replace, new recovery codes and Google unlink. The account revoke
+ * needs a TOTP code only (surface.py `step_up="otp"`); the others also take a recovery code. The
+ * sign-up approve/reject no longer ask (platform admin only). The contract does not mark the mode,
+ * so step-up.test.ts pins this table against every op whose 403 lists the step-up code.
  */
 export const STEP_UP_OPS: Readonly<Record<string, StepUpMode>> = {
   'PATCH /members/{user_id}': 'any',
@@ -38,9 +42,10 @@ export const STEP_UP_OPS: Readonly<Record<string, StepUpMode>> = {
   'POST /auth/mfa/totp/confirm': 'any',
   'POST /auth/google/unlink': 'any',
   'POST /marketplaces/accounts/{account_id}/revoke': 'otp',
-  'POST /admin/signup-requests/{request_id}/approve': 'otp',
-  'POST /admin/signup-requests/{request_id}/reject': 'otp',
 }
+
+/** How long a fresh code covers high-risk ops (backend `STEP_UP_MAX_AGE_SECONDS`, 1800 s). */
+export const STEP_UP_WINDOW_MINUTES = 30
 
 /** Never intercepted: the step-up route itself (a wrong code there is 422, not a new dialog). */
 const STEP_UP_ROUTE = '/auth/mfa/step-up'

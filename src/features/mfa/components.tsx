@@ -15,7 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import { stepBarClass, TOGGLE, type StepBarVariant } from './enrol-steps'
-import { groupSecret, totpInput } from './login-flow'
+import { daysLabel, groupSecret, totpInput } from './login-flow'
 import { checkPassword, RULE_LABELS, RULE_ORDER, SERVER_RULES } from './password-rules'
 
 export type FactorKind = 'totp' | 'recovery'
@@ -731,5 +731,51 @@ export function SubmitButton({
       {wait ? <Icon name="clock" size={16} /> : busy ? <Spinner data-icon="inline-start" /> : null}
       {wait ? `Try again in ${waiting} s` : busy ? busyLabel : label}
     </Button>
+  )
+}
+
+/**
+ * "Trust this browser for N days" on a sign-in code step (contract 2.1.0, ADR-0023). Checked by
+ * default; the whole row is the label, so it is a 44px target. The days come from the API (30, or
+ * 7 for platform admins). The hint says when to untick, since the next sign-in here skips the code.
+ */
+export function TrustBrowserField({
+  id,
+  days,
+  checked,
+  onChange,
+  disabled,
+}: {
+  id: string
+  days: number
+  checked: boolean
+  onChange: (checked: boolean) => void
+  disabled?: boolean
+}) {
+  const hintId = `${id}-hint`
+  return (
+    <label
+      htmlFor={id}
+      className={cn(
+        'flex min-h-11 cursor-pointer items-start gap-3 rounded-tile border border-line bg-canvas/60 px-3.5 py-3 tactile hover:border-edge-hover',
+        disabled && 'cursor-not-allowed opacity-60',
+      )}
+      data-testid="trust-browser"
+    >
+      <Checkbox
+        id={id}
+        checked={checked}
+        onCheckedChange={(v) => onChange(v === true)}
+        disabled={disabled}
+        aria-describedby={hintId}
+        data-testid="trust-browser-checkbox"
+      />
+      <span className="min-w-0">
+        <span className="block text-small font-semibold text-ink">Trust this browser for {daysLabel(days)}</span>
+        <span id={hintId} className="mt-0.5 block text-caption text-pretty text-ink-3">
+          Skip the login code here next time. Untick on a shared or public computer.
+        </span>
+      </span>
+    </label>
   )
 }

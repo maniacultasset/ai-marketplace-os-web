@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { describeError, isApiError } from '@/api/errors'
 import type { LoginResult } from '@/api/types'
 import { advance, type Advance, type FlowStep, type RestartReason } from '@/features/mfa/login-flow'
+import { rememberDevice } from '@/features/mfa/trusted-device'
 import { finishSignIn } from '@/lib/auth'
 import { toast } from '@/lib/toast'
 
@@ -22,18 +23,26 @@ export interface SignInFlow {
   setStep: (step: FlowStep) => void
   /** Apply a decided next step: store the tokens and leave, or show the step. */
   apply: (next: Advance) => Promise<void>
-  /** Apply one `LoginResult` now (its challenge clock starts when it arrives). */
+  /**
+   * Apply one `LoginResult` now (its challenge clock starts when it arrives). A trusted-browser
+   * token in it is kept for this account first (features/mfa/trusted-device.ts).
+   */
   onResult: (result: LoginResult) => Promise<void>
+  /** Keep (or forget) this browser's trust from an answer that is applied later. */
+  remember: (result: LoginResult) => Promise<void>
   /** Back to the start, with the reason. */
   restart: (reason: RestartReason) => void
 }
 
 export function useSignInFlow({
+  email,
   target,
   onRestart,
   onError,
   onStep,
 }: {
+  /** The account signing in, once known: where a trusted-browser token is kept. */
+  email: string
   /** Where to go once signed in. */
   target: string
   onRestart: (reason: RestartReason) => void
@@ -45,9 +54,9 @@ export function useSignInFlow({
   const router = useRouter()
   const [step, setStep] = useState<FlowStep>({ kind: 'credentials' })
   // The callbacks change identity on every render of the page; the flow reads the latest ones.
-  const cb = useRef({ onRestart, onError, onStep, target })
+  const cb = useRef({ onRestart, onError, onStep, target, email })
   useEffect(() => {
-    cb.current = { onRestart, onError, onStep, target }
+    cb.current = { onRestart, onError, onStep, target, email }
   })
 
   const restart = useCallback((reason: RestartReason) => {
@@ -82,7 +91,14 @@ export function useSignInFlow({
     },
     [restart, router],
   )
-  const onResult = useCallback((result: LoginResult) => apply(advance(result)), [apply])
+  const remember = useCallback((result: LoginResult) => rememberDevice(cb.current.email, result), [])
+  const onResult = useCallback(
+    async (result: LoginResult) => {
+      await remember(result)
+      return apply(advance(result))
+    },
+    [apply, remember],
+  )
 
-  return { step, setStep, apply, onResult, restart }
+  return { step, setStep, apply, onResult, remember, restart }
 }

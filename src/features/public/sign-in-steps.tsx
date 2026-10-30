@@ -14,7 +14,7 @@ import type { SignInFlow } from './use-sign-in-flow'
  * out on the recovery codes, which must be saved first).
  */
 export function SignInSteps({ flow, email, onSwitch }: { flow: SignInFlow; email: string; onSwitch: () => void }) {
-  const { step, setStep, apply, onResult, restart } = flow
+  const { step, setStep, apply, onResult, remember, restart } = flow
   if (step.kind === 'credentials') return null
   return (
     <AuthFrame tone="canvas">
@@ -27,7 +27,11 @@ export function SignInSteps({ flow, email, onSwitch }: { flow: SignInFlow; email
             key={step.challenge.token}
             challenge={step.challenge}
             // Decide the next step (and start its challenge clock) as the answer arrives, not on Continue.
-            onConfirmed={(out) => setStep({ kind: 'recovery-codes', codes: out.recovery_codes, next: advance(out.result) })}
+            onConfirmed={(out) => {
+              // A trusted-browser token in the answer is kept now; the tokens wait for Continue.
+              void remember(out.result)
+              setStep({ kind: 'recovery-codes', codes: out.recovery_codes, next: advance(out.result) })
+            }}
             onRestart={restart}
           />
         ) : step.kind === 'recovery-codes' ? (

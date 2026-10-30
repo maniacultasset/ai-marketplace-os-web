@@ -89,7 +89,7 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
     },
     [form],
   )
-  const flow = useSignInFlow({ target, onRestart, onError: setFormError, onStep: () => setFormError(null) })
+  const flow = useSignInFlow({ email, target, onRestart, onError: setFormError, onStep: () => setFormError(null) })
   const { step, setStep, onResult } = flow
 
   const onSubmit = form.handleSubmit(async (values) => {

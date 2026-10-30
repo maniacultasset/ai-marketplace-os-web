@@ -7,6 +7,7 @@ import { clearSession, currentRefreshToken, getAccessToken } from '@/api/session
 import { queryClient } from '@/lib/query-client'
 import { envelope, installFetch, json, jwt, type Handler } from '@/test/fake-api'
 import { GoogleReturnPage } from './google-return-page'
+import { readDeviceToken, writeDeviceToken } from '@/features/mfa/trusted-device'
 import { resetGoogleReturn } from './return-state'
 
 vi.hoisted(() => {
@@ -318,5 +319,79 @@ describe('/auth/google', () => {
     const link = calls.filter((c) => c.path === '/auth/google/link')
     expect(link[1]).toMatchObject({ auth: null, body: { link_handle: 'lh-1', binding: BIND, password: 'right-password' } })
     expect(getAccessToken()).toBeNull()
+  })
+})
+
+describe('/auth/google: trusted browsers (contract 2.1.0)', () => {
+  const A = 'a'.repeat(43)
+  const B = 'c'.repeat(43)
+  const ROTATED = 'r'.repeat(43)
+  const until = () => new Date(Date.now() + 30 * 86_400_000).toISOString()
+
+  beforeEach(() => {
+    router.history.push.mockClear()
+    resetGoogleReturn()
+    localStorage.clear()
+    vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
+  })
+  afterEach(() => {
+    cleanup()
+    clearSession('logout')
+    queryClient.clear()
+    sessionStorage.clear()
+    localStorage.clear()
+    vi.unstubAllGlobals()
+  })
+
+  it('sends no device_tokens when this browser trusts no account', async () => {
+    ticket()
+    const { calls } = setup({ 'POST /auth/google/complete': out({ outcome: 'sign_in', login: SIGNED_IN }) })
+    await waitFor(() => expect(router.history.push).toHaveBeenCalled())
+    expect(calls.find((c) => c.path === '/auth/google/complete')!.body).toEqual({ handle: HANDLE, binding: BIND })
+  })
+
+  it('sends every live token (the account is unknown yet), skips the code and keeps the rotated one for the answer’s email', async () => {
+    await writeDeviceToken('ravi@acme.test', A, until())
+    await writeDeviceToken(EMAIL, B, until())
+    ticket()
+    const { calls } = setup({
+      'POST /auth/google/complete': out({ outcome: 'sign_in', login: { ...SIGNED_IN, device_token: ROTATED, device_expires_at: until() } }),
+    })
+    await waitFor(() => expect(router.history.push).toHaveBeenCalledWith('/products'))
+    const body = calls.find((c) => c.path === '/auth/google/complete')!.body as { device_tokens: string[] }
+    expect([...body.device_tokens].sort()).toEqual([A, B])
+    expect(await readDeviceToken(EMAIL)).toBe(ROTATED)
+    // The other account's trust is untouched.
+    expect(await readDeviceToken('ravi@acme.test')).toBe(A)
+  })
+
+  it('forgets a token the API no longer accepts, then the code step offers trust again', async () => {
+    await writeDeviceToken(EMAIL, B, until())
+    ticket()
+    const { calls, user } = setup({
+      'POST /auth/google/complete': out({ outcome: 'sign_in', login: { ...challenge('mfa_required'), device_token_invalid: true, device_trust_days: 30 } }),
+      'POST /auth/login/mfa': () => json(200, { ...SIGNED_IN, device_token: ROTATED, device_expires_at: until() }),
+    })
+    expect(await screen.findByText('This browser is no longer trusted, so enter a code this time.')).toBeTruthy()
+    expect(await readDeviceToken(EMAIL)).toBeNull()
+    expect(screen.getByRole('checkbox', { name: /Trust this browser for 30 days/ }).getAttribute('aria-checked')).toBe('true')
+    await user.type(screen.getByLabelText('6-digit code'), '123456')
+    await user.click(screen.getByRole('button', { name: 'Verify' }))
+    await waitFor(() => expect(router.history.push).toHaveBeenCalledWith('/products'))
+    expect(calls.find((c) => c.path === '/auth/login/mfa')!.body).toEqual({ challenge_token: 'ch-mfa_required', code: '123456', trust_device: true })
+    expect(await readDeviceToken(EMAIL)).toBe(ROTATED)
+  })
+  it('never tells another account on a shared browser that its trust ended', async () => {
+    // Only Ravi trusted this browser; this Google sign-in is for EMAIL, which had no token here.
+    await writeDeviceToken('ravi@acme.test', A, until())
+    ticket()
+    setup({
+      'POST /auth/google/complete': out({ outcome: 'sign_in', login: { ...challenge('mfa_required'), device_token_invalid: true, device_trust_days: 30 } }),
+    })
+    expect(await screen.findByLabelText('6-digit code')).toBeTruthy()
+    expect(screen.queryByText('This browser is no longer trusted, so enter a code this time.')).toBeNull()
+    expect(screen.getByRole('checkbox', { name: /Trust this browser for 30 days/ })).toBeTruthy()
+    // Ravi's trust is untouched.
+    expect(await readDeviceToken('ravi@acme.test')).toBe(A)
   })
 })

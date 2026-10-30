@@ -3,7 +3,7 @@
  *
  * Which half runs depends on the API's `MFA_ENFORCEMENT`, probed at the start:
  * - `all` (with `MFA_GRACE_UNTIL` in the future): forced enrolment, the code step, recovery codes,
- *   step-up, the grace notice, forced password changes and the lockout;
+ *   trusted browsers, step-up, the grace notice, forced password changes and the lockout;
  * - `off`: the plain password login still works (regression).
  *
  * Every run creates its own tenant and users through the backend's staff CLI, so it needs
@@ -58,6 +58,11 @@ test.beforeEach(() => {
 async function expectSignedIn(page: Page) {
   await expect(page.getByTestId('user-menu')).toBeVisible({ timeout: 15_000 })
   await expect(page).not.toHaveURL(/\/login/)
+}
+
+/** Trusted-browser entries this browser holds (features/mfa/trusted-device.ts). */
+function trustedEntries(page: Page): Promise<number> {
+  return page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('kuinn.dt.')).length)
 }
 
 /** Fill the new-password form of a forced change and check the live rules as it goes. */
@@ -168,7 +173,7 @@ test.describe('login codes under MFA_ENFORCEMENT=all', () => {
     expect(await page.evaluate(() => localStorage.getItem('mkos.rt'))).toBeNull()
   })
 
-  test('c+d: a recovery code signs in; an admin approval then asks for a fresh TOTP code (step-up) and succeeds', async ({ page }) => {
+  test('c+d: a recovery code signs in (and never trusts the browser); an admin approval needs no step-up any more', async ({ page }) => {
     // A pending sign-up to approve.
     const brand = `MFA Brand ${RUN}`
     const signup = await page.request.post('/api/v1/signup', {
@@ -179,41 +184,24 @@ test.describe('login codes under MFA_ENFORCEMENT=all', () => {
     await page.goto('/login')
     await loginViaUi(page, EMAIL.admin, adminPassword)
     const step = page.getByTestId('mfa-step')
+    await expect(step.getByTestId('trust-browser')).toBeVisible()
     await step.getByTestId('toggle-recovery').click()
+    // The lost-phone path: no "Trust this browser" here.
+    await expect(step.getByTestId('trust-browser')).toHaveCount(0)
     await step.getByTestId('recovery-input').fill(recovery[0]!)
     await step.getByRole('button', { name: 'Verify' }).click()
     await expectSignedIn(page)
+    expect(await trustedEntries(page)).toBe(0)
 
-    // A session proven by a recovery code: sign-up approval takes a TOTP code only, so it asks.
+    // Sign-up approval is platform-admin only and no longer asks for a fresh code (ADR-0023).
     await page.goto('/admin/signups')
     await expect(page.getByRole('heading', { name: 'Sign-up requests' })).toBeVisible()
     await page.getByRole('button', { name: `Approve ${brand}` }).click()
     const dialog = page.getByTestId('approve-dialog')
-    const refused = page.waitForResponse((r) => /\/admin\/signup-requests\/[^/]+\/approve$/.test(r.url()))
+    const approved = page.waitForResponse((r) => /\/admin\/signup-requests\/[^/]+\/approve$/.test(r.url()))
     await dialog.getByTestId('approve-confirm').click()
-    const first = await refused
-    expect(first.status()).toBe(403)
-    expect((await first.json()).error.type).toBe('MFA_STEP_UP_REQUIRED')
-
-    const stepUp = page.getByTestId('step-up-dialog')
-    await expect(stepUp).toBeVisible()
-    await expect(stepUp.getByRole('heading', { name: "Confirm it's you" })).toBeVisible()
-    // TOTP only: no recovery-code toggle here.
-    await expect(stepUp.getByTestId('step-up-toggle')).toHaveCount(0)
-    await expect(stepUp).toContainText("recovery codes don't work here")
-
-    // A wrong code keeps the dialog open with an error.
-    await stepUp.getByTestId('totp-input').fill(auth.wrongCode())
-    await stepUp.getByTestId('step-up-submit').click()
-    await expect(stepUp.locator('[aria-invalid="true"]')).toBeVisible()
-
-    const replay = page.waitForResponse(
-      (r) => /\/admin\/signup-requests\/[^/]+\/approve$/.test(r.url()) && r.status() !== 403,
-    )
-    await stepUp.getByTestId('totp-input').fill(await auth.code())
-    await stepUp.getByTestId('step-up-submit').click()
-    expect((await replay).status()).toBe(200)
-    await expect(stepUp).toHaveCount(0)
+    expect((await approved).status()).toBe(200)
+    await expect(page.getByTestId('step-up-dialog')).toHaveCount(0)
     await expect(dialog.getByTestId('approve-result')).toBeVisible()
     await dialog.getByTestId('approve-done').click()
 
@@ -234,6 +222,70 @@ test.describe('login codes under MFA_ENFORCEMENT=all', () => {
     expect((await res).status()).toBe(401)
     await expect(step).toContainText(CODE_REJECTED)
     await expect(page).toHaveURL(/\/login/)
+  })
+
+  test('t: "Trust this browser" skips the code next time; Settings lists it; sign out all and Remove forget it', async ({ page }) => {
+    await page.goto('/login')
+    await loginViaUi(page, EMAIL.admin, adminPassword)
+    const step = page.getByTestId('mfa-step')
+    // A platform admin is offered 7 days (brand users 30), ticked by default.
+    await expect(step.getByTestId('trust-browser')).toContainText('Trust this browser for 7 days')
+    await expect(step.getByTestId('trust-browser-checkbox')).toHaveAttribute('aria-checked', 'true')
+    const verify = page.waitForResponse((r) => r.url().endsWith('/api/v1/auth/login/mfa'))
+    await step.getByTestId('totp-input').fill(await auth.code())
+    await step.getByRole('button', { name: 'Verify' }).click()
+    expect((await (await verify).json()).device_token).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    await expectSignedIn(page)
+    expect(await trustedEntries(page)).toBe(1)
+    // Keyed by a hash: the email is nowhere in storage.
+    expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain(`admin-${RUN}`)
+    await signOut(page)
+    // Signing out keeps the trust.
+    expect(await trustedEntries(page)).toBe(1)
+
+    // Password only: no code step, and the token is swapped for a new one.
+    const before = await page.evaluate(() => JSON.stringify(localStorage))
+    const login = page.waitForResponse((r) => r.url().endsWith('/api/v1/auth/login'))
+    await loginViaUi(page, EMAIL.admin, adminPassword)
+    const body = await (await login).json()
+    expect(body.status).toBe('signed_in')
+    await expectSignedIn(page)
+    await expect(page.getByTestId('mfa-step')).toHaveCount(0)
+    expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toBe(before)
+
+    // Settings > Security lists this browser; "Sign out other devices" forgets it and keeps this session.
+    await page.goto('/settings/security')
+    const card = page.getByTestId('trusted-browsers-card')
+    await expect(card.getByTestId('this-browser')).toBeVisible()
+    await card.getByTestId('sign-out-all').click()
+    const all = page.waitForResponse((r) => r.url().endsWith('/api/v1/auth/devices/sign-out-all'))
+    await page.getByTestId('trusted-confirm-action').click()
+    expect((await all).status()).toBe(204)
+    await expect(card.getByTestId('trusted-empty')).toBeVisible()
+    expect(await trustedEntries(page)).toBe(0)
+    await expect(page.getByTestId('user-menu')).toBeVisible()
+    await signOut(page)
+
+    // The code is asked again. Trust once more, then Remove this browser: it signs out here.
+    await loginViaUi(page, EMAIL.admin, adminPassword)
+    await step.getByTestId('totp-input').fill(await auth.code())
+    await step.getByRole('button', { name: 'Verify' }).click()
+    await expectSignedIn(page)
+    await page.goto('/settings/security')
+    await card.getByTestId('trusted-remove').first().click()
+    await page.getByTestId('trusted-confirm-action').click()
+    await expect(page).toHaveURL(/\/login/)
+    expect(await trustedEntries(page)).toBe(0)
+
+    // Unticked: the next sign-in asks for a code and nothing is stored.
+    await loginViaUi(page, EMAIL.admin, adminPassword)
+    await expect(step.getByTestId('step-title')).toHaveText('Enter your login code')
+    await step.getByTestId('trust-browser-checkbox').click()
+    await step.getByTestId('totp-input').fill(await auth.code())
+    await step.getByRole('button', { name: 'Verify' }).click()
+    await expectSignedIn(page)
+    expect(await trustedEntries(page)).toBe(0)
+    await signOut(page)
   })
 
   test('e: a returning tenant user in grace signs in without a code, sees the notice, and enrols from Settings > Security', async ({ page }) => {
@@ -346,9 +398,9 @@ test.describe('login codes under MFA_ENFORCEMENT=all', () => {
     await loginViaUi(page, EMAIL.locked, STAFF_PASSWORD)
     await expectSignedIn(page)
   })
-  test('d (slow, E2E_MFA_SLOW=1): a member change more than 10 minutes after the code asks for a step-up, and a recovery code is offered', async ({ page }) => {
-    test.skip(process.env.E2E_MFA_SLOW !== '1', 'waits 10 minutes for the code to age; set E2E_MFA_SLOW=1')
-    test.setTimeout(15 * 60_000)
+  test('d (slow, E2E_MFA_SLOW=1): a member change more than 30 minutes after the code asks for a step-up, and a recovery code is offered', async ({ page }) => {
+    test.skip(process.env.E2E_MFA_SLOW !== '1', 'waits 30 minutes for the code to age; set E2E_MFA_SLOW=1')
+    test.setTimeout(40 * 60_000)
     await page.goto('/login')
     await loginViaUi(page, EMAIL.admin, adminPassword)
     const step = page.getByTestId('mfa-step')
@@ -359,8 +411,9 @@ test.describe('login codes under MFA_ENFORCEMENT=all', () => {
     const row = page.getByRole('row').filter({ hasText: EMAIL.member })
     await expect(row).toBeVisible()
 
-    // STEP_UP_MAX_AGE_SECONDS is 600; the access token (30 min) outlives it.
-    await page.waitForTimeout(605_000)
+    // STEP_UP_MAX_AGE_SECONDS is 1800 (ADR-0023). The access token lives 30 minutes too, so the
+    // app refreshes once on the way; the refreshed token keeps the old code time.
+    await page.waitForTimeout(1_805_000)
     await row.getByTestId('role-select').click()
     const refused = page.waitForResponse((r) => r.url().includes('/api/v1/members/') && r.request().method() === 'PATCH')
     await page.getByRole('option', { name: /^Reviewer/ }).click()

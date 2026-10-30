@@ -5,6 +5,10 @@
  * codes and secrets in component state only, which React drops when the step unmounts (no
  * setState-on-unmount cleanups: StrictMode replays effects on a live component).
  *
+ * A code step may offer "Trust this browser" (contract 2.1.0) when the API sends
+ * `device_trust_days`: checked by default, hidden for a recovery code. The token it earns is kept by
+ * the sign-in flow (features/mfa/trusted-device.ts), never here.
+ *
  * Every refusal on the challenge routes is the same 401 (wrong code, used code, expired or burned
  * challenge, locked account), so the copy never says which: no account enumeration.
  */
@@ -12,13 +16,14 @@ import { ArrowRight, KeyRound, RotateCw, Smartphone } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { isApiError } from '@/api/errors'
 import type { LoginConfirmOut, LoginResult, TotpEnrollOut } from '@/api/types'
+import { Banner } from '@/components/la/banner'
 import { Icon, IconTile } from '@/components/la/icons'
 import { Button } from '@/components/ui/button'
 import { FormAlert } from '@/features/public/auth-frame'
 import { useCountdown } from '@/features/signup-admin/use-countdown'
 import { cn } from '@/lib/utils'
 import { loginConfirm, loginEnroll, loginMfa, mfaErrorMessage, passwordExpired } from './api'
-import { CodeField, QrPanel, RecoveryCodes, SubmitButton, type FactorKind } from './components'
+import { CodeField, QrPanel, RecoveryCodes, SubmitButton, TrustBrowserField, type FactorKind } from './components'
 import { BackButton, EnrolWizard, GetAppBody, QrAgain } from './enrol-wizard'
 import { PRIMARY } from './enrol-steps'
 import { CHALLENGE_ATTEMPTS, CODE_REJECTED, TOO_MANY, isRecoveryCode, isTotp, ttlLabel, type Challenge, type RestartReason } from './login-flow'
@@ -163,10 +168,13 @@ export function MfaCodeStep({
   const [kind, setKind] = useState<FactorKind>('totp')
   const [value, setValue] = useState('')
   const [localError, setLocalError] = useState<string | null>(null)
+  const [trust, setTrust] = useState(true)
   const inputRef = useRef<HTMLInputElement>(null)
   const introId = useId()
   const sub = useCodeSubmit(onRestart)
   useChallengeExpiry(challenge, () => onRestart('expired'))
+  // A recovery code is the lost-phone path: the browser is not remembered on it (the API agrees).
+  const offerTrust = challenge.trustDays !== null && kind === 'totp'
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -178,7 +186,8 @@ export function MfaCodeStep({
     }
     setLocalError(null)
     void sub.run(
-      async () => onResult(await loginMfa(challenge.token, kind === 'totp' ? { code: v } : { recovery_code: v })),
+      async () =>
+        onResult(await loginMfa(challenge.token, kind === 'totp' ? { code: v } : { recovery_code: v }, offerTrust ? trust : undefined)),
       () => {
         setValue('')
         inputRef.current?.focus()
@@ -205,6 +214,11 @@ export function MfaCodeStep({
           ? 'Open your authenticator app and type the 6-digit code for Kuinn.'
           : 'Type one of the recovery codes you saved when you set up login codes. Each code works once.'}
       </StepHeader>
+      {challenge.trustLapsed && !sub.formError ? (
+        <Banner tone="info" role="status" className="text-small">
+          This browser is no longer trusted, so enter a code this time.
+        </Banner>
+      ) : null}
       {sub.formError ? (
         <FormAlert testId="mfa-error" reference={sub.formError.ref} message={sub.formError.message} />
       ) : null}
@@ -224,6 +238,9 @@ export function MfaCodeStep({
           canAutoSubmit={!sub.busy && sub.waiting === 0}
           busy={sub.busy}
         />
+        {offerTrust ? (
+          <TrustBrowserField id="mfa-trust" days={challenge.trustDays!} checked={trust} onChange={setTrust} disabled={sub.busy} />
+        ) : null}
         <SubmitButton busy={sub.busy} waiting={sub.waiting} label="Verify" busyLabel="Checking…" />
       </form>
       <div className="flex flex-col items-center gap-2 border-t border-line pt-5">
@@ -260,6 +277,7 @@ export function EnrollStep({
   const [loadError, setLoadError] = useState<{ message: string; ref: string | null } | null>(null)
   const [value, setValue] = useState('')
   const [localError, setLocalError] = useState<string | null>(null)
+  const [trust, setTrust] = useState(true)
   const inputRef = useRef<HTMLInputElement>(null)
   const started = useRef<string | null>(null)
   const sub = useCodeSubmit(onRestart)
@@ -292,7 +310,7 @@ export function EnrollStep({
     }
     setLocalError(null)
     void sub.run(
-      async () => onConfirmed(await loginConfirm(challenge.token, value)),
+      async () => onConfirmed(await loginConfirm(challenge.token, value, challenge.trustDays !== null ? trust : undefined)),
       () => {
         setValue('')
         inputRef.current?.focus()
@@ -384,6 +402,9 @@ export function EnrollStep({
             canAutoSubmit={!sub.busy && sub.waiting === 0}
             busy={sub.busy}
           />
+          {challenge.trustDays !== null ? (
+            <TrustBrowserField id="enroll-trust" days={challenge.trustDays} checked={trust} onChange={setTrust} disabled={sub.busy || !secret} />
+          ) : null}
           <QrAgain uri={secret?.otpauth_uri ?? null} />
         </div>
       )}
