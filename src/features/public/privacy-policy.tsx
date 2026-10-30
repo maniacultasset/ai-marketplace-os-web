@@ -6,7 +6,9 @@
  * (Sentry with send_default_pii=False and scrubbing), routers/auth.py (IP and user agent on
  * sign-in and refresh, IP only on sign-out), services/embeddings.py (the only model call today:
  * embeddings of the brand profile and documents; drafting is not built), LISTING-AGENT-ANALYSIS §2.8 (no credentials in prompts, signed image URLs
- * ≤10 min), src/api/session.ts (refresh token in localStorage, access token in memory).
+ * ≤10 min), src/api/session.ts (refresh token in localStorage, access token in memory),
+ * ADR-0023 and features/mfa/trusted-device.ts (trusted-browser token: localStorage here, a hash on
+ * the server, 30 days or 7 for platform admins, removed with any password or authenticator change).
  * Company facts come from ./company (Certificate of Incorporation and Terms, 26 Oct 2026). `Ph` stays for any
  * future fact that is still to be supplied, so it is impossible to miss on the page.
  */
@@ -25,7 +27,7 @@ export function Ph({ children }: { children: ReactNode }) {
   )
 }
 
-export const POLICY_UPDATED = '26 October 2026'
+export const POLICY_UPDATED = '30 October 2026'
 /** Named by the company: its director, who is also the legal and support contact in the Terms. */
 export const GRIEVANCE_OFFICER = 'Mukul Jasoria, Director'
 
@@ -103,6 +105,10 @@ export const POLICY_SECTIONS: PolicySection[] = [
             them, when and from which IP address.
           </li>
           <li>Server logs and error reports for each request, tied to a request reference.</li>
+          <li>
+            If you choose to trust a browser when you sign in: a short description of it (for example “Chrome on macOS”), when
+            you trusted it, when it was last used and when the trust ends.
+          </li>
         </ul>
         <p>
           We do not collect payment card details in this version, and we do not knowingly collect sensitive data about you
@@ -241,6 +247,12 @@ export const POLICY_SECTIONS: PolicySection[] = [
           </li>
           <li>Passwords are stored only as argon2id hashes.</li>
           <li>
+            Every account signs in with a code from an authenticator app. A browser you choose to trust skips that code for up
+            to 30 days (7 for platform administrators); we keep only a one-way hash of its token, tied to your account, and
+            change the token each time it is used. Sensitive changes, such as connecting a marketplace or changing your team,
+            still ask for a fresh code.
+          </li>
+          <li>
             Each brand’s data is separated at the database level, so one brand’s users cannot read another brand’s rows.
           </li>
           <li>The audit log is append-only: the application cannot change or delete its entries.</li>
@@ -276,6 +288,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
                 ['Closed issues and finished tasks', '13 months'],
                 ['Audit log', '24 months after the brand’s data is deleted (never less than 12 months)'],
                 ['Server logs', '30 days'],
+                ['Trusted browsers', 'Until the trust ends (30 days, 7 for platform administrators) or you remove it; deleted daily after that'],
                 ['Database backups', 'Expire within 35 days'],
                 ['Sign-up requests that are not approved', 'Until you ask us to delete them'],
               ].map(([what, how], i) => (
@@ -335,6 +348,13 @@ export const POLICY_SECTIONS: PolicySection[] = [
           <li>
             A refresh token, valid for about 14 days, is kept in your browser’s local storage so you stay signed in. Signing out
             removes it from your browser and revokes it on our side.
+          </li>
+          <li>
+            If you tick “Trust this browser” when you sign in, a trusted-browser token is kept in local storage, under a key made
+            from a one-way hash of your email, so this browser can skip the login code for up to 30 days (7 for platform
+            administrators). It stops working when the trust ends, when you remove the browser or sign out all devices in
+            Settings &gt; Security, and when you change your password or authenticator, and this browser then deletes it.
+            Signing out alone keeps it, so your next sign-in here still skips the code.
           </li>
           <li>
             Local and session storage also keep small conveniences on your device, such as whether the sidebar is collapsed,
