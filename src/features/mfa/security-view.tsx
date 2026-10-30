@@ -9,12 +9,15 @@
  * - Change password (POST /auth/password): the live rules, the once-a-day limit as the API says it.
  * - Google (ADR-0020): shown while a Google account is linked; Remove (POST /auth/google/unlink,
  *   behind a step-up) unless Google is the account's only way in (no password).
+ * - Trusted browsers (ADR-0023): GET /auth/devices, Remove each, Sign out all devices. A password
+ *   change or a new authenticator forgets them all on the server, so this browser forgets its
+ *   token too and the list reloads.
  *
  * Under `enforcement: "off"` the MFA routes answer 501, so the login-codes card only explains.
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { format } from 'date-fns'
-import { ArrowRight, KeyRound, RefreshCw, RotateCw, Smartphone } from 'lucide-react'
+import { format, formatDistanceToNowStrict } from 'date-fns'
+import { ArrowRight, KeyRound, LogOut, Monitor, MonitorSmartphone, RefreshCw, RotateCw, Smartphone, Trash2 } from 'lucide-react'
 import { Children, useEffect, useId, useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from 'react'
 import { isApiError } from '@/api/errors'
 import { clearSession, getAccessToken, refreshOnce, sessionHasFamily } from '@/api/session'
@@ -46,12 +49,27 @@ import { useMe } from '@/lib/auth'
 import { useKeys } from '@/lib/query-keys'
 import { cn } from '@/lib/utils'
 import { toast } from '@/lib/toast'
-import { changePassword, mfaErrorMessage, regenerateRecoveryCodes, securityQueryOptions, totpConfirm, totpEnroll } from './api'
+import {
+  changePassword,
+  devicesQueryOptions,
+  mfaErrorMessage,
+  regenerateRecoveryCodes,
+  removeDevice,
+  securityQueryOptions,
+  signOutAllDevices,
+  totpConfirm,
+  totpEnroll,
+} from './api'
 import { CodeField, QrPanel, RecoveryCodes, SubmitButton, TOUCH_TEXT } from './components'
 import { BackButton, EnrolWizard, GetAppBody, PasswordConfirmed, QrAgain } from './enrol-wizard'
 import { PRIMARY } from './enrol-steps'
 import { isTotp } from './login-flow'
 import { PasswordForm } from './password-form'
+import { forgetDeviceToken, TRUST_DAYS } from './trusted-device'
+import type { TrustedDevice } from './types'
+
+/** Trusted browsers kept per user (backend `TRUST_MAX_DEVICES`; the oldest is evicted). */
+const TRUST_MAX = 10
 
 /** Warn when this many recovery codes or fewer are left (HANDOFF-FE §6.3). */
 export const LOW_CODES = 3
@@ -555,6 +573,9 @@ function LoginCodesCard({ security, email, autoSetup, onSetupShown }: { security
     // The session's refresh family now records the fresh code: rotate once so this tab's access
     // token carries it too (a sensitive action right after then needs no second code).
     void refreshOnce(getAccessToken()).catch(() => undefined)
+    // A new authenticator forgets every trusted browser on the server: this one forgets its token.
+    void forgetDeviceToken(email)
+    void qc.invalidateQueries({ queryKey: keys.devices() })
     toast.success(panel === 'replace' ? 'Authenticator replaced' : 'Login codes are on')
     close()
   }
@@ -598,7 +619,7 @@ function LoginCodesCard({ security, email, autoSetup, onSetupShown }: { security
         {stepping
           ? null
           : on
-          ? 'Each sign-in asks for a 6-digit code from an authenticator app on your phone, after your password.'
+          ? 'Each sign-in asks for a 6-digit code from an authenticator app on your phone, after your password, except on a browser you chose to trust.'
           : 'Two-step sign-in with an authenticator app is coming to Kuinn. When it is switched on you can set it up here, or at your next sign-in.'}
       </CardTop>
 
@@ -716,7 +737,7 @@ function PasswordCard({ security, email, displayName }: { security: SecurityOut;
         }
       >
         {keepsSession
-          ? 'You can change it once a day. Changing it signs you out on your other devices.'
+          ? 'You can change it once a day. Changing it signs you out on your other devices and forgets trusted browsers.'
           : 'You can change it once a day. Changing it signs you out everywhere, here too: sign in again with the new password.'}
       </CardTop>
       <Facts>
@@ -746,15 +767,18 @@ function PasswordCard({ security, email, displayName }: { security: SecurityOut;
               }
               onSubmit={async ({ current_password, new_password }) => {
                 await changePassword(current_password, new_password)
+                // A password change forgets every trusted browser on the server: this one too.
+                await forgetDeviceToken(email)
                 if (!keepsSession) {
                   // This family is revoked server side: using its refresh token would look like
                   // token theft. End the session now; the login page explains why.
                   clearSession('password-changed', { broadcast: true })
                   return
                 }
-                toast.success('Password changed', { description: 'Your other devices were signed out.' })
+                toast.success('Password changed', { description: 'Your other devices were signed out and trusted browsers forgotten.' })
                 setOpen(false)
                 void qc.invalidateQueries({ queryKey: keys.security() })
+                void qc.invalidateQueries({ queryKey: keys.devices() })
               }}
             />
           </div>
@@ -846,6 +870,228 @@ function GoogleCard({ security, email }: { security: SecurityOut; email: string 
 
 // ---------------------------------------------------------------------------------------------
 
+/** "Chrome on iOS" → a phone glyph; anything else is a computer. The label is the API's summary. */
+const deviceGlyph = (label: string): IconSource => (/\b(iOS|iPadOS|Android)\b/i.test(label) ? Smartphone : Monitor)
+
+/** "3 Oct 2026"; "2 hours ago" for the last use (recent is what matters there). */
+function ago(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? null : formatDistanceToNowStrict(d, { addSuffix: true })
+}
+
+type DeviceConfirm = { kind: 'remove'; device: TrustedDevice } | { kind: 'all' } | null
+
+/**
+ * Trusted browsers (contract 2.1.0, ADR-0023): the browsers where this user ticked "Trust this
+ * browser" at sign-in, each with Remove, and "Sign out all devices". Removing a browser ends the
+ * sessions it signed in (this one too, if it is `current`, so this tab signs out). Signing out all
+ * devices forgets every trusted browser, this one too, and ends every other session; this one stays.
+ * Shown only while login codes are on and set up: there is nothing to trust otherwise. An API older
+ * than 2.1.0 has no such route (404/405), and the card stays hidden.
+ */
+function TrustedBrowsersCard({ email, isAdmin }: { email: string; isAdmin: boolean }) {
+  const qc = useQueryClient()
+  const keys = useKeys()
+  const devices = useQuery(devicesQueryOptions(keys.devices()))
+  const [confirm, setConfirm] = useState<DeviceConfirm>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<Problem>(null)
+  const allRef = useRef<HTMLButtonElement>(null)
+  const days = isAdmin ? TRUST_DAYS.admin : TRUST_DAYS.brand
+
+  if (devices.error && isApiError(devices.error) && [404, 405, 501].includes(devices.error.status)) return null
+
+  const list = devices.data?.devices ?? []
+  const refresh = () => void qc.invalidateQueries({ queryKey: keys.devices() })
+
+  const run = async () => {
+    if (!confirm) return
+    setBusy(true)
+    setError(null)
+    try {
+      if (confirm.kind === 'all') {
+        await signOutAllDevices()
+        await forgetDeviceToken(email)
+        toast.success('Signed out everywhere else', { description: 'Every trusted browser is forgotten. Your next sign-in asks for a code.' })
+        setConfirm(null)
+        refresh()
+        requestAnimationFrame(() => allRef.current?.focus())
+        return
+      }
+      const { device } = confirm
+      try {
+        await removeDevice(device.id)
+      } catch (e) {
+        // Already gone (removed in another tab, or expired): the list was stale, nothing to undo.
+        if (!(isApiError(e) && e.status === 404)) throw e
+      }
+      setConfirm(null)
+      if (device.current) {
+        // The API ended this session with the browser: leave now rather than at the next refresh.
+        await forgetDeviceToken(email)
+        toast.success('This browser was removed', { description: 'Sign in again. You will be asked for a code.' })
+        clearSession('logout', { broadcast: true })
+        return
+      }
+      toast.success(`${device.label} removed`, { description: 'Its sessions ended. The next sign-in there asks for a code.' })
+      refresh()
+      requestAnimationFrame(() => allRef.current?.focus())
+    } catch (e) {
+      setConfirm(null)
+      setError(problem(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const removing = confirm?.kind === 'remove' ? confirm.device : null
+  return (
+    <Card className="@container gap-0 py-0" data-testid="trusted-browsers-card">
+      <CardTop
+        icon={MonitorSmartphone}
+        tone="neutral"
+        title="Trusted browsers"
+        status={
+          devices.data ? (
+            <Badge variant="muted" data-testid="trusted-count">
+              {list.length} of {TRUST_MAX}
+            </Badge>
+          ) : null
+        }
+      >
+        {`A browser you trust at sign-in skips the login code there for ${days} days. Sensitive changes still ask for a code. Remove any browser you don’t recognise.`}
+      </CardTop>
+
+      {devices.isPending ? (
+        <div className="flex flex-col gap-3 border-t border-line px-5 py-4 sm:px-6" aria-busy="true" aria-label="Loading trusted browsers">
+          {[0, 1].map((i) => (
+            <div key={i} className="flex items-center gap-3">
+              <Skeleton className="size-9 rounded-tile" />
+              <div className="flex flex-1 flex-col gap-1.5">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-3 w-64 max-w-full" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : devices.error ? (
+        <div className="flex flex-col gap-3 border-t border-line px-5 py-4 sm:px-6 @xl:flex-row @xl:items-center">
+          <div className="min-w-0 flex-1">
+            <FormAlert message={problem(devices.error)!.message} reference={problem(devices.error)!.ref} testId="trusted-load-error" />
+          </div>
+          <Button variant="secondary" className="w-full @xl:w-auto" onClick={() => void devices.refetch()}>
+            <RotateCw data-icon="inline-start" />
+            Try again
+          </Button>
+        </div>
+      ) : list.length === 0 ? (
+        <p className="border-t border-line px-5 py-4 text-small text-ink-2 sm:px-6" data-testid="trusted-empty">
+          No trusted browsers. Tick “Trust this browser” on the code step when you sign in on a computer you own.
+        </p>
+      ) : (
+        <ul className="border-t border-line" aria-label="Trusted browsers">
+          {list.map((d) => (
+            <li
+              key={d.id}
+              className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-5 py-3.5 last:border-b-0 sm:px-6"
+              data-testid="trusted-device"
+            >
+              <IconTile icon={deviceGlyph(d.label)} tone={d.current ? 'brand' : 'neutral'} size="md" />
+              <div className="min-w-0 flex-1 basis-40">
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body font-semibold text-ink">
+                  <span className="[overflow-wrap:anywhere]">{d.label}</span>
+                  {d.current ? (
+                    <Badge variant="brand" data-testid="this-browser">
+                      This browser
+                    </Badge>
+                  ) : null}
+                </p>
+                {/* Each fact keeps one line; a narrow row wraps between facts, never inside one. */}
+                <p className="mt-0.5 flex flex-wrap gap-x-1.5 text-caption text-ink-3 tabular-nums">
+                  <span className="whitespace-nowrap">Added {day(d.created_at) ?? '—'}</span>
+                  <span aria-hidden>·</span>
+                  <span className="whitespace-nowrap">{d.last_used_at ? `Last used ${ago(d.last_used_at)}` : 'Not used since'}</span>
+                  <span aria-hidden>·</span>
+                  <span className={cn('whitespace-nowrap', within(d.expires_at, 2) && 'text-attention-ink')}>
+                    Trusted until {day(d.expires_at) ?? '—'}
+                  </span>
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto min-h-9 shrink-0 text-danger-ink hover:text-danger-ink"
+                onClick={() => setConfirm({ kind: 'remove', device: d })}
+                disabled={busy}
+                aria-label={`Remove ${d.label}${d.current ? ' (this browser)' : ''}`}
+                data-testid="trusted-remove"
+              >
+                <Trash2 data-icon="inline-start" />
+                Remove
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {error ? (
+        <div className="border-t border-line px-5 py-4 sm:px-6">
+          <FormAlert message={error.message} reference={error.ref} testId="trusted-error" />
+        </div>
+      ) : null}
+
+      <div className="flex flex-col gap-3 border-t border-line px-5 py-4 sm:px-6 @xl:flex-row @xl:items-center @xl:justify-between">
+        <p className="text-caption text-ink-3">Lost a device or used a shared computer? Sign out everywhere else in one step.</p>
+        <Button
+          ref={allRef}
+          variant="secondary"
+          className="w-full @xl:w-auto @xl:shrink-0"
+          onClick={() => setConfirm({ kind: 'all' })}
+          disabled={busy}
+          data-testid="sign-out-all"
+        >
+          <LogOut data-icon="inline-start" />
+          Sign out all devices
+        </Button>
+      </div>
+
+      <AlertDialog open={confirm !== null} onOpenChange={(o) => (busy || o ? null : setConfirm(null))}>
+        <AlertDialogContent data-testid="trusted-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirm?.kind === 'all' ? 'Sign out all devices?' : removing?.current ? 'Remove this browser?' : `Remove ${removing?.label ?? 'this browser'}?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirm?.kind === 'all'
+                ? 'Every other session ends now, and every trusted browser is forgotten, this one too. You stay signed in here. Your next sign-in on any browser asks for a code.'
+                : removing?.current
+                  ? 'You will be signed out here, and your next sign-in on this browser asks for a code.'
+                  : 'Anyone signed in on it is signed out now, and the next sign-in there asks for a code.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault()
+                void run()
+              }}
+              data-testid="trusted-confirm-action"
+            >
+              {busy ? (confirm?.kind === 'all' ? 'Signing out…' : 'Removing…') : confirm?.kind === 'all' ? 'Sign out all' : removing?.current ? 'Remove and sign out' : 'Remove'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------------------------
+
 /** /settings/security. `setup` opens the authenticator setup at once (from MFA_ENROLLMENT_REQUIRED). */
 export function SecurityView({ setup = false, onSetupShown }: { setup?: boolean; onSetupShown: () => void }) {
   const keys = useKeys()
@@ -881,6 +1127,9 @@ export function SecurityView({ setup = false, onSetupShown }: { setup?: boolean;
         <PasswordCard security={security.data} email={me.data.email} displayName={me.data.display_name} />
       )}
       {security.data.google_linked === true ? <GoogleCard security={security.data} email={me.data.email} /> : null}
+      {security.data.enforcement === 'all' && security.data.mfa_enrolled ? (
+        <TrustedBrowsersCard email={me.data.email} isAdmin={me.data.is_platform_admin === true} />
+      ) : null}
       <LaCard emphasis="tint" pad="md" className="flex items-start gap-3">
         <IconTile icon="info" size="md" />
         <p className="text-small text-ink-2">
