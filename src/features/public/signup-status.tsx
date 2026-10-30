@@ -155,18 +155,28 @@ function SignupStatusCheck({ initialEmail }: { initialEmail?: string }) {
   )
 }
 
-function StatusResult({
+/**
+ * A request's status card. Also shown by /auth/google for a Google sign-up, which passes its own
+ * `actions` (checking again there means another Google round trip, not a password).
+ */
+export function StatusResult({
   result,
   email,
-  refreshing,
+  refreshing = false,
   onRefresh,
   onReset,
+  actions,
+  description,
 }: {
   result: SignupStatusOut
   email: string
-  refreshing: boolean
-  onRefresh: () => void
-  onReset: () => void
+  refreshing?: boolean
+  onRefresh?: () => void
+  onReset?: () => void
+  /** Replaces the default buttons under the card. */
+  actions?: ReactNode
+  /** Replaces the status's default sentence under the title. */
+  description?: string
 }) {
   const meta = SIGNUP_STATUS_META[result.status]
   const chip = signupChip(result.status)
@@ -179,7 +189,7 @@ function StatusResult({
             {meta.title}
           </h1>
         </div>
-        <p className="mt-2 text-body text-ink-2">{meta.description}</p>
+        <p className="mt-2 text-body text-ink-2">{description ?? meta.description}</p>
       </div>
       <div aria-live="polite" className="flex flex-col gap-4">
         {result.status === 'rejected' && result.reason ? (
@@ -212,6 +222,7 @@ function StatusResult({
           </Row>
         </dl>
       </div>
+      {actions ?? (
       <div className="flex flex-col gap-2 sm:flex-row">
         {result.status === 'approved' ? (
           <Button asChild size="lg" className="flex-1">
@@ -237,6 +248,7 @@ function StatusResult({
           Use another email
         </Button>
       </div>
+      )}
     </div>
   )
 }

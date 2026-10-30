@@ -124,7 +124,7 @@ export function StepTag({ children }: { children: ReactNode }) {
   )
 }
 
-/** "or use email" divider. */
+/** "or use email" divider, under the Google button. */
 export function OrDivider({ children = 'or use email' }: { children?: ReactNode }) {
   return (
     <div className="flex items-center gap-3" role="separator">
@@ -132,16 +132,6 @@ export function OrDivider({ children = 'or use email' }: { children?: ReactNode 
       <span className="text-caption text-ink-3">{children}</span>
       <span aria-hidden className="h-px flex-1 bg-line" />
     </div>
-  )
-}
-
-/** The hi-fi Google glyph (a neutral placeholder mark, as in the design). */
-export function GoogleGlyph() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
-      <circle cx="9" cy="9" r="7.5" fill="none" stroke="var(--ink-3)" strokeWidth="1.5" />
-      <path d="M9 5.2v3.9h3.4" fill="none" stroke="var(--ink)" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
   )
 }
 

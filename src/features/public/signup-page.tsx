@@ -4,7 +4,8 @@
  * as an honest disabled group (SignupCreate is strict and has no such field) and, in place of the
  * 6-digit email code (there is no email provider), the pending-approval state read from
  * POST /signup/status (routers/signup.py signup_status) with the credentials just typed, kept in
- * memory only.
+ * memory only. "Sign up with Google" sits above the form when the backend has it switched on; that
+ * path finishes on /auth/google with a prefilled form.
  */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link } from '@tanstack/react-router'
@@ -36,6 +37,7 @@ import {
 } from '@/features/signup-admin/schema'
 import { TimeAgo } from '@/features/signup-admin/time'
 import { useCountdown } from '@/features/signup-admin/use-countdown'
+import { GoogleEntry } from '@/features/google/google-button'
 import { filterInput, FORM_VALIDATION_MODE, phoneChars } from '@/lib/validation'
 import { AsideLink, AuthColumn, AuthFrame, FormAlert } from './auth-frame'
 import { signupChip } from './model'
@@ -104,6 +106,7 @@ export function SignupPage({ initialEmail }: { initialEmail?: string }) {
                   message={`${formError.message}${locked ? ` Try again in ${countdown.left} s.` : ''}`}
                 />
               ) : null}
+              <GoogleEntry intent="signup" returnTo="/home" divider="or sign up with email" />
               <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4" data-testid="signup-card">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <LaField label="Brand name" htmlFor="brand_name" error={errors.brand_name?.message} submitCount={submitCount} confirmFix>

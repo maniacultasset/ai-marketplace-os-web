@@ -23,6 +23,7 @@ import { Route as AppActivityRouteImport } from './routes/_app/activity'
 import { Route as AppAnalyticsRouteImport } from './routes/_app/analytics'
 import { Route as AppHomeRouteImport } from './routes/_app/home'
 import { Route as AppInboxRouteImport } from './routes/_app/inbox'
+import { Route as AuthGoogleRouteImport } from './routes/auth/google'
 import { Route as SignupIndexRouteImport } from './routes/signup/index'
 import { Route as SignupStatusRouteImport } from './routes/signup/status'
 import { Route as AppSettingsAccountRouteImport } from './routes/_app/_settings/account'
@@ -124,6 +125,11 @@ const AppInboxRoute = AppInboxRouteImport.update({
   id: '/inbox',
   path: '/inbox',
   getParentRoute: () => AppRoute,
+} as any)
+const AuthGoogleRoute = AuthGoogleRouteImport.update({
+  id: '/auth/google',
+  path: '/auth/google',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const SignupIndexRoute = SignupIndexRouteImport.update({
   id: '/',
@@ -312,6 +318,7 @@ export interface FileRoutesByFullPath {
   '/analytics': typeof AppAnalyticsRoute
   '/home': typeof AppHomeRoute
   '/inbox': typeof AppInboxRoute
+  '/auth/google': typeof AuthGoogleRoute
   '/signup/status': typeof SignupStatusRoute
   '/signup/': typeof SignupIndexRoute
   '/account': typeof AppSettingsAccountRoute
@@ -358,6 +365,7 @@ export interface FileRoutesByTo {
   '/analytics': typeof AppAnalyticsRoute
   '/home': typeof AppHomeRoute
   '/inbox': typeof AppInboxRoute
+  '/auth/google': typeof AuthGoogleRoute
   '/signup/status': typeof SignupStatusRoute
   '/signup': typeof SignupIndexRoute
   '/account': typeof AppSettingsAccountRoute
@@ -408,6 +416,7 @@ export interface FileRoutesById {
   '/_app/analytics': typeof AppAnalyticsRoute
   '/_app/home': typeof AppHomeRoute
   '/_app/inbox': typeof AppInboxRoute
+  '/auth/google': typeof AuthGoogleRoute
   '/signup/status': typeof SignupStatusRoute
   '/signup/': typeof SignupIndexRoute
   '/_app/_settings/account': typeof AppSettingsAccountRoute
@@ -457,6 +466,7 @@ export interface FileRouteTypes {
     | '/analytics'
     | '/home'
     | '/inbox'
+    | '/auth/google'
     | '/signup/status'
     | '/signup/'
     | '/account'
@@ -503,6 +513,7 @@ export interface FileRouteTypes {
     | '/analytics'
     | '/home'
     | '/inbox'
+    | '/auth/google'
     | '/signup/status'
     | '/signup'
     | '/account'
@@ -552,6 +563,7 @@ export interface FileRouteTypes {
     | '/_app/analytics'
     | '/_app/home'
     | '/_app/inbox'
+    | '/auth/google'
     | '/signup/status'
     | '/signup/'
     | '/_app/_settings/account'
@@ -595,6 +607,7 @@ export interface RootRouteChildren {
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   SignupRoute: typeof SignupRouteWithChildren
   TermsRoute: typeof TermsRoute
+  AuthGoogleRoute: typeof AuthGoogleRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -696,6 +709,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/inbox'
       preLoaderRoute: typeof AppInboxRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/auth/google': {
+      id: '/auth/google'
+      path: '/auth/google'
+      fullPath: '/auth/google'
+      preLoaderRoute: typeof AuthGoogleRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/signup/': {
       id: '/signup/'
@@ -1046,6 +1066,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   SignupRoute: SignupRouteWithChildren,
   TermsRoute: TermsRoute,
+  AuthGoogleRoute: AuthGoogleRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
