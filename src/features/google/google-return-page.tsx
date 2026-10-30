@@ -27,6 +27,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { SubmitButton, TOUCH_TEXT } from '@/features/mfa/components'
 import { advance, TOO_MANY, ttlLabel, type RestartReason } from '@/features/mfa/login-flow'
 import { StepHeader } from '@/features/mfa/login-steps'
+import { rememberDevice } from '@/features/mfa/trusted-device'
 import { AccountChip, AsideLink, AuthCard, AuthColumn, AuthFrame, FormAlert } from '@/features/public/auth-frame'
 import { SignInSteps } from '@/features/public/sign-in-steps'
 import { useSignInFlow } from '@/features/public/use-sign-in-flow'
@@ -69,6 +70,7 @@ export function GoogleReturnPage({ search }: { search: { handle?: string; error?
   useDocumentTitle(view.kind === 'details' && view.showForm ? 'Request access' : 'Sign in with Google')
 
   const flow = useSignInFlow({
+    email,
     target: ticket?.returnTo ?? '/home',
     // A sign-in step ran out or failed: start again from the sign-in page, which says why.
     onRestart: (reason: RestartReason) => void router.navigate({ to: '/login', search: { restart: reason }, replace: true }),
@@ -88,7 +90,11 @@ export function GoogleReturnPage({ search }: { search: { handle?: string; error?
       (out) => {
         if (!live) return
         if (out.email) setEmail(out.email)
-        if (out.outcome === 'sign_in' && out.login) return void flow.apply(advance(out.login))
+        if (out.outcome === 'sign_in' && out.login) {
+          // The account is known only now: keep (or forget) this browser's trust for it first.
+          const login = out.login
+          return void rememberDevice(out.email, login).then(() => (live ? flow.apply(advance(login)) : undefined))
+        }
         if (out.outcome === 'link_required' && out.link) {
           setEmail(out.link.email)
           return setView({ kind: 'link', link: out.link })

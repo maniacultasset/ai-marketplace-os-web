@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { LoginResult } from '@/api/types'
-import { advance, groupSecret, isRecoveryCode, isTotp, totpInput, ttlLabel } from './login-flow'
+import { advance, daysLabel, groupSecret, isRecoveryCode, isTotp, totpInput, ttlLabel } from './login-flow'
 
 const memberships = [{ tenant_id: 't1', tenant_name: 'Acme', role: 'owner' as const }]
 const signedIn: LoginResult = {
@@ -41,19 +41,33 @@ describe('advance (LoginResult → next step)', () => {
     const next = advance(challenge('mfa_required', 300), 1_000)
     expect(next).toEqual({
       kind: 'step',
-      step: { kind: 'mfa', challenge: { token: 'ch-1', expiresAt: 301_000, ttl: 300 } },
+      step: { kind: 'mfa', challenge: { token: 'ch-1', expiresAt: 301_000, ttl: 300, trustDays: null, trustLapsed: false } },
       graceUntil: null,
     })
   })
 
   it('mfa_enrollment_required → enrolment, 15 minutes when the server omits the TTL', () => {
     const next = advance(challenge('mfa_enrollment_required'), 0)
-    expect(next.kind === 'step' && next.step).toEqual({ kind: 'enroll', challenge: { token: 'ch-1', expiresAt: 900_000, ttl: 900 } })
+    expect(next.kind === 'step' && next.step).toEqual({ kind: 'enroll', challenge: { token: 'ch-1', expiresAt: 900_000, ttl: 900, trustDays: null, trustLapsed: false } })
   })
 
   it('password_change_required → the new password step', () => {
     const next = advance(challenge('password_change_required', 300), 0)
     expect(next.kind === 'step' && next.step.kind).toBe('password')
+  })
+
+  it('carries the trust offer (days) and a lapsed browser trust into the challenge', () => {
+    const next = advance({ ...challenge('mfa_required', 300), device_trust_days: 7, device_token_invalid: true }, 0)
+    expect(next.kind === 'step' && next.step.kind === 'mfa' && next.step.challenge).toMatchObject({ trustDays: 7, trustLapsed: true })
+    const enrol = advance({ ...challenge('mfa_enrollment_required'), device_trust_days: 30 }, 0)
+    expect(enrol.kind === 'step' && enrol.step.kind === 'enroll' && enrol.step.challenge).toMatchObject({ trustDays: 30, trustLapsed: false })
+  })
+
+  it('offers no trust when the API leaves the days out, or sends nonsense', () => {
+    for (const days of [undefined, null, 0, -3]) {
+      const next = advance({ ...challenge('mfa_required', 300), device_trust_days: days }, 0)
+      expect(next.kind === 'step' && next.step.kind === 'mfa' && next.step.challenge.trustDays).toBeNull()
+    }
   })
 
   it('a malformed answer is invalid (no tokens, or no challenge)', () => {
@@ -85,5 +99,7 @@ describe('code helpers', () => {
     expect(ttlLabel(300)).toBe('5 minutes')
     expect(ttlLabel(900)).toBe('15 minutes')
     expect(ttlLabel(30)).toBe('1 minute')
+    expect(daysLabel(30)).toBe('30 days')
+    expect(daysLabel(1)).toBe('1 day')
   })
 })

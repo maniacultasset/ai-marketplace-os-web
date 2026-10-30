@@ -4,7 +4,7 @@
  *
  *   GET  /auth/google/config    { enabled }: whether the button is shown at all
  *   GET  /auth/google/start     a full-page navigation, see start.ts
- *   POST /auth/google/complete  { handle, binding } -> GoogleCompleteOut
+ *   POST /auth/google/complete  { handle, binding, device_tokens? } -> GoogleCompleteOut
  *   POST /auth/google/link      { link_handle, binding, password } -> LoginResult
  *   POST /signup/google         { details_handle, binding, brand_name, owner_name, phone?, website? } -> 202 SignupStatusOut
  *   POST /auth/google/unlink    signed in, step-up `any`: remove the linked Google account (204;
@@ -57,8 +57,12 @@ export function prefetchGoogleConfig(ms = 1200): Promise<void> {
   ])
 }
 
-export const completeGoogle = (handle: string, binding: string): Promise<GoogleCompleteOut> =>
-  unwrap(api.POST('/auth/google/complete', { body: { handle, binding } }))
+/**
+ * `device_tokens`: every trusted-browser token this browser holds (contract 2.1.0, at most 5). The
+ * account is not known until Google answers, and the API matches only the one bound to it.
+ */
+export const completeGoogle = (handle: string, binding: string, device_tokens: string[] = []): Promise<GoogleCompleteOut> =>
+  unwrap(api.POST('/auth/google/complete', { body: device_tokens.length ? { handle, binding, device_tokens } : { handle, binding } }))
 
 export const linkGoogle = (link_handle: string, binding: string, password: string): Promise<LoginResult> =>
   unwrap(api.POST('/auth/google/link', { body: { link_handle, binding, password } }))

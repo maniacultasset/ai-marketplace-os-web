@@ -4,6 +4,7 @@
  * the same ticket; `complete` is called once per handle for the same reason.
  */
 import { describeError, isApiError } from '@/api/errors'
+import { liveDeviceTokens } from '@/features/mfa/trusted-device'
 import { completeGoogle, type GoogleCompleteOut } from './api'
 import { takeTicket, type GoogleIntent, type GoogleTicket } from './start'
 
@@ -43,7 +44,7 @@ function errorReason(error: string): GoogleErrorReason {
 export function completeOnce(handle: string, bind: string) {
   let p = inflight.get(handle)
   if (!p) {
-    p = completeGoogle(handle, bind)
+    p = completeGoogle(handle, bind, liveDeviceTokens())
     inflight.set(handle, p)
   }
   return p

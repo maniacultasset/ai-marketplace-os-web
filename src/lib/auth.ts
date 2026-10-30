@@ -14,6 +14,7 @@ import {
   subscribeSession,
 } from '@/api/session'
 import type { LoginResult, Me, TokenResponse } from '@/api/types'
+import { readDeviceToken, rememberDevice } from '@/features/mfa/trusted-device'
 import { queryClient } from '@/lib/query-client'
 import { toast } from '@/lib/toast'
 
@@ -46,9 +47,16 @@ export function tenantName(me: Me | undefined) {
 /**
  * POST /auth/login. Returns the `LoginResult` as is: the caller reads `status` before anything is
  * stored (contract 2.0.0; only `signed_in` carries tokens). See features/mfa/login-flow.ts.
+ *
+ * When this browser is trusted for the account (contract 2.1.0), its token goes in the body; the
+ * API checks it only after the password passes. The answer's rotated token (or "no longer
+ * trusted") is applied before returning, so it is never lost between here and the next step.
  */
-export function signIn(email: string, password: string): Promise<LoginResult> {
-  return unwrap(api.POST('/auth/login', { body: { email, password } }))
+export async function signIn(email: string, password: string): Promise<LoginResult> {
+  const device_token = await readDeviceToken(email)
+  const result = await unwrap(api.POST('/auth/login', { body: device_token ? { email, password, device_token } : { email, password } }))
+  await rememberDevice(email, result)
+  return result
 }
 
 /** Store a signed-in token pair, tell other tabs, and load `me` for the new session. */
