@@ -1,9 +1,10 @@
 /**
  * Marketplace identity and cells (hi-fi Components → Variant cell and marketplace cell).
- * - MarketplaceTile: 36px (44 "big") tile with the marketplace initial, display font, each in its
- *   own letter colour (`--mp-*`) so A/A and M/M read apart. The hi-fi says to use marketplace-provided
- *   logos in production; until we hold licensed assets we keep the designed initial tile.
- *   Unsupported marketplaces get a flat tile with a grey letter (the card around it is dashed).
+ * - MarketplaceTile: 36px (44 "big") raised tile holding the marketplace's own square icon, as the
+ *   hi-fi asks for production. The icons come from each marketplace's site (src/assets/marketplaces,
+ *   128px, bundled: no remote image loads). The image is decorative; the name beside it is the
+ *   label. Unsupported marketplaces get a flat tile with a softened icon (the card around it is
+ *   dashed), so they never out-shout the ones you can connect.
  * - MarketplaceCell: icon-only status chip, then the listing id in 12px ink-3 (Products table).
  * - VariantCell: 34px matrix cell; unavailable combinations are dashed and stay in the data.
  *
@@ -15,6 +16,12 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import type { Schema } from '@/api/types'
 import { CHIP_META, CHIP_TONE, Glyph, StatusChip, type ChipStatus } from './status-chip'
+import ajioLogo from '@/assets/marketplaces/ajio.png'
+import amazonLogo from '@/assets/marketplaces/amazon.png'
+import flipkartLogo from '@/assets/marketplaces/flipkart.png'
+import meeshoLogo from '@/assets/marketplaces/meesho.png'
+import myntraLogo from '@/assets/marketplaces/myntra.png'
+import nykaaLogo from '@/assets/marketplaces/nykaa.png'
 
 export type ApiMarketplace = Schema<'Marketplace'>
 export type MarketplaceId = ApiMarketplace | 'myntra' | 'ajio' | 'meesho' | 'nykaa'
@@ -26,17 +33,19 @@ export interface MarketplaceInfo {
   initial: string
   /** Monogram letter colour (a `--mp-*` token), so A/A and M/M tiles read apart. */
   color: string
+  /** The marketplace's square icon (bundled asset URL). */
+  logo: string
   /** In the API contract (connect, listings, rules). */
   supported: boolean
 }
 
 export const MARKETPLACES: readonly MarketplaceInfo[] = [
-  { id: 'amazon', name: 'Amazon', short: 'Amazon', initial: 'A', color: 'var(--mp-amazon)', supported: true },
-  { id: 'flipkart', name: 'Flipkart', short: 'Flipkart', initial: 'F', color: 'var(--mp-flipkart)', supported: true },
-  { id: 'myntra', name: 'Myntra', short: 'Myntra', initial: 'M', color: 'var(--mp-myntra)', supported: false },
-  { id: 'ajio', name: 'AJIO', short: 'AJIO', initial: 'A', color: 'var(--mp-ajio)', supported: false },
-  { id: 'meesho', name: 'Meesho', short: 'Meesho', initial: 'M', color: 'var(--mp-meesho)', supported: false },
-  { id: 'nykaa', name: 'Nykaa Fashion', short: 'Nykaa', initial: 'N', color: 'var(--mp-nykaa)', supported: false },
+  { id: 'amazon', name: 'Amazon', short: 'Amazon', initial: 'A', color: 'var(--mp-amazon)', logo: amazonLogo, supported: true },
+  { id: 'flipkart', name: 'Flipkart', short: 'Flipkart', initial: 'F', color: 'var(--mp-flipkart)', logo: flipkartLogo, supported: true },
+  { id: 'myntra', name: 'Myntra', short: 'Myntra', initial: 'M', color: 'var(--mp-myntra)', logo: myntraLogo, supported: false },
+  { id: 'ajio', name: 'AJIO', short: 'AJIO', initial: 'A', color: 'var(--mp-ajio)', logo: ajioLogo, supported: false },
+  { id: 'meesho', name: 'Meesho', short: 'Meesho', initial: 'M', color: 'var(--mp-meesho)', logo: meeshoLogo, supported: false },
+  { id: 'nykaa', name: 'Nykaa Fashion', short: 'Nykaa', initial: 'N', color: 'var(--mp-nykaa)', logo: nykaaLogo, supported: false },
 ]
 
 export const SUPPORTED_MARKETPLACES = MARKETPLACES.filter((m) => m.supported)
@@ -54,31 +63,39 @@ export function MarketplaceTile({
   id: MarketplaceId
   /** xs 24 (inline in dense example rows), sm 28, md 36, big 44. */
   size?: 'xs' | 'sm' | 'md' | 'big'
-  /** Not available to connect: flat, solid hairline, grey letter. The card or chip around it
+  /** Not available to connect: flat, solid hairline, softened icon. The card or chip around it
    *  carries the dashed edge, so the tile never doubles it. Defaults to "not in the API". */
   unavailable?: boolean
   className?: string
 }) {
   const m = marketplaceInfo(id)
-  // A marketplace you cannot pick keeps a grey letter, so it never out-colours the ones you can.
+  // A marketplace you cannot pick sits flat and softened, so it never out-colours the ones you can.
   const muted = unavailable ?? !m.supported
   return (
     <span
       aria-hidden
-      data-slot="monogram-tile"
+      data-slot="marketplace-tile"
       data-marketplace={m.id}
-      style={muted ? undefined : { color: m.color }}
+      data-muted={muted || undefined}
       className={cn(
-        'inline-flex shrink-0 items-center justify-center border border-line bg-surface font-display font-bold shadow-raised-sm',
-        muted && 'bg-subtle text-ink-3 shadow-none',
-        size === 'xs' && 'size-6 rounded-md text-[11px]',
-        size === 'sm' && 'size-7 rounded-lg text-[13px]',
-        size === 'md' && 'size-9 rounded-tile text-[15px]',
-        size === 'big' && 'size-11 rounded-xl text-[18px]',
+        'inline-flex shrink-0 items-center justify-center overflow-hidden border border-line bg-surface shadow-raised-sm',
+        muted && 'shadow-none',
+        size === 'xs' && 'size-6 rounded-md',
+        size === 'sm' && 'size-7 rounded-lg',
+        size === 'md' && 'size-9 rounded-tile',
+        size === 'big' && 'size-11 rounded-xl',
         className,
       )}
     >
-      {m.initial}
+      <img
+        src={m.logo}
+        alt=""
+        width={128}
+        height={128}
+        decoding="async"
+        draggable={false}
+        className={cn('size-full object-cover', muted && 'opacity-60 saturate-50')}
+      />
     </span>
   )
 }
