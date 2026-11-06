@@ -9,7 +9,7 @@
  */
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { BUILT } from '@/api/capabilities'
 import { isApiError, isNotFound } from '@/api/errors'
 import { useIntentKey } from '@/api/idempotency'
@@ -58,6 +58,7 @@ import {
   type ListingActions,
   type ListingDetail,
 } from '@/features/listings/model'
+import { formatDuration } from '@/features/imports/format'
 import { useProduct } from '@/features/products/api'
 import { useJobPolling } from '@/hooks/use-job-polling'
 import { useMe } from '@/lib/auth'
@@ -170,6 +171,7 @@ function RunBody({
   }
   const steps = runSteps(runInput)
   const active = runIsActive(runInput)
+  const jobActive = job.status === 'queued' || job.status === 'running'
 
   if (listingQ.isPending)
     return (
@@ -189,6 +191,7 @@ function RunBody({
   const p = product.data
   const chip = active ? { status: 'working' as const, label: 'Working' } : listingChip(listing)
   const jobFailed = job.status === 'failed' || job.status === 'dead_letter'
+  const ready = !active && (listing.status === 'validated' || listing.status === 'needs_review')
   const sub = [
     p?.sku,
     mpName(listing.marketplace),
@@ -199,16 +202,22 @@ function RunBody({
     .filter(Boolean)
     .join(' · ')
 
+  const pause = (
+    <UnavailableButton variant="secondary" reason={NOT_YET.pauseArchive} data-testid="run-pause">
+      <Icon name="pause" size={14} />
+      Pause
+    </UnavailableButton>
+  )
+
   return (
     <Page>
       <ScreenHead
-        title={p ? p.title : <Skeleton className="h-7 w-64" />}
+        // null renders a title-shaped skeleton in place of the heading until the product arrives.
+        title={p ? p.title : product.isPending ? null : 'Untitled product'}
         sub={sub}
         right={
           <>
-            <StatusChip status={chip.status}>
-              {chip.label}
-            </StatusChip>
+            <StatusChip status={chip.status}>{chip.label}</StatusChip>
             {job.status === 'queued' && can('listing:generate') ? (
               <Button
                 variant="ghost"
@@ -229,50 +238,40 @@ function RunBody({
                 {cancel.isPending ? 'Cancelling…' : 'Cancel'}
               </Button>
             ) : null}
-            <UnavailableButton variant="secondary" reason={NOT_YET.pauseArchive} data-testid="run-pause">
-              <Icon name="pause" size={14} />
-              Pause
-            </UnavailableButton>
+            {pause}
+            {ready ? (
+              <Button asChild data-testid="run-review">
+                <Link to="/listings/$listingId/review" params={{ listingId }}>
+                  Review and approve
+                </Link>
+              </Button>
+            ) : jobFailed ? (
+              <FailedJobAction job={job} listing={listing} size="md" variant="primary" />
+            ) : null}
           </>
         }
       />
 
       <div className="mb-4 flex flex-col gap-3 empty:hidden">
         {waiting ? (
-          <Banner tone="neutral" role="status" title="Waiting for a worker…">
-            The job is queued. It starts as soon as a worker is free.
+          <Banner tone="neutral" role="status" className="animate-page-in" title="Still waiting for a worker">
+            It starts on its own when one is free. You can leave this page.
           </Banner>
         ) : null}
         {rateLimitedFor != null ? (
-          <Banner tone="attention" role="status">
-            Too many requests. Checking again in {rateLimitedFor} s.
+          <Banner tone="attention" role="status" className="animate-page-in">
+            Too many requests. Checking again in {rateLimitedFor}&nbsp;s.
           </Banner>
         ) : null}
         {jobFailed ? (
-          <Banner
-            tone="danger"
-            role="alert"
-            title={`${JOB_KIND_LABEL[job.kind] ?? 'The job'} failed.`}
-            action={<FailedJobAction job={job} listing={listing} />}
-          >
+          <Banner tone="danger" role="alert" className="animate-page-in" title={`${JOB_KIND_LABEL[job.kind] ?? 'The job'} failed.`}>
             <span className="block">{job.error?.errors?.[0]?.message ?? 'The agent stopped before it finished.'}</span>
             <ReferenceId id={job.error?.request_id ?? job.request_id} className="mt-1" />
           </Banner>
         ) : null}
-        {!active && (listing.status === 'validated' || listing.status === 'needs_review') ? (
-          <Banner
-            tone="info"
-            icon="eye"
-            title="Ready for review."
-            action={
-              <Button size="sm" asChild>
-                <Link to="/listings/$listingId/review" params={{ listingId }}>
-                  Review and approve
-                </Link>
-              </Button>
-            }
-          >
-            Nothing is sent until a person approves it.
+        {ready ? (
+          <Banner tone="info" icon="eye" role="status" className="animate-page-in">
+            <b>Ready for review.</b> Nothing is sent until a person approves it.
           </Banner>
         ) : null}
       </div>
@@ -282,7 +281,12 @@ function RunBody({
           <h3 className="text-h3 text-ink">Progress</h3>
           <Timeline className="mt-4" label="Progress">
             {steps.map((s) => (
-              <TimelineItem key={s.id} tone={stepTone(s.state)} meta={s.sub} className={s.state === 'todo' ? 'text-ink-3' : undefined}>
+              <TimelineItem
+                key={s.id}
+                tone={stepTone(s.state)}
+                meta={s.state === 'now' && jobActive ? <NowMeta sub={s.sub} since={job.started_at ?? job.queued_at} /> : s.sub}
+                className={s.state === 'todo' ? 'text-ink-3' : undefined}
+              >
                 <span data-step={s.id} data-state={s.state} className={s.state === 'todo' ? '' : 'font-bold text-ink'}>
                   {s.label}
                 </span>
@@ -295,10 +299,18 @@ function RunBody({
           <LaCard data-testid="run-marketplaces">
             <h3 className="text-h3 text-ink">Marketplaces</h3>
             {siblings.isPending ? (
-              <div className="mt-4 flex flex-col gap-4" aria-hidden>
-                <Skeleton className="h-12" />
-                <Skeleton className="h-12" />
-              </div>
+              <ul className="m-0 mt-4 flex list-none flex-col p-0" aria-hidden>
+                {[0, 1].map((i) => (
+                  <li key={i} className={LANE_ROW}>
+                    <Skeleton className="size-9 rounded-tile" />
+                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-3 w-40" />
+                    </div>
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                  </li>
+                ))}
+              </ul>
             ) : siblings.error ? (
               <ErrorState error={siblings.error} compact title="Couldn’t load the marketplaces" onRetry={() => void siblings.refetch()} />
             ) : (
@@ -315,6 +327,26 @@ function RunBody({
         </div>
       </div>
     </Page>
+  )
+}
+
+/* ---------------------------------------------------------------------------------------------- */
+
+/**
+ * The step sub plus the job's real elapsed time ("Writing the title… · 42s"). It ticks once a
+ * second only while it is mounted, which is only while the job is queued or running.
+ */
+function NowMeta({ sub, since }: { sub?: string; since: string | null | undefined }) {
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const elapsed = formatDuration(since)
+  return (
+    <span className="tabular-nums">
+      {[sub, elapsed].filter(Boolean).join(' · ')}
+    </span>
   )
 }
 
@@ -340,7 +372,17 @@ export function failedJobRemedy(
   return null
 }
 
-function FailedJobAction({ job, listing }: { job: JobEnvelope; listing: ListingDetail }) {
+function FailedJobAction({
+  job,
+  listing,
+  size = 'sm',
+  variant = 'secondary',
+}: {
+  job: JobEnvelope
+  listing: ListingDetail
+  size?: 'sm' | 'md'
+  variant?: 'primary' | 'secondary'
+}) {
   const can = useCan()
   const navigate = useNavigate()
   const regenerate = useRegenerateListing(listing.id)
@@ -367,8 +409,8 @@ function FailedJobAction({ job, listing }: { job: JobEnvelope; listing: ListingD
       return (
         <ActionButton
           state={actions.regenerate}
-          size="sm"
-          variant="secondary"
+          size={size}
+          variant={variant}
           disabled={regenerate.isPending}
           onClick={() =>
             regenerate.mutate(
@@ -393,8 +435,8 @@ function FailedJobAction({ job, listing }: { job: JobEnvelope; listing: ListingD
       return (
         <ActionButton
           state={actions.retryFields}
-          size="sm"
-          variant="secondary"
+          size={size}
+          variant={variant}
           disabled={retry.isPending}
           onClick={() =>
             retry.mutate(retryKey.get(), {
@@ -413,8 +455,8 @@ function FailedJobAction({ job, listing }: { job: JobEnvelope; listing: ListingD
       return (
         <ActionButton
           state={actions.publish}
-          size="sm"
-          variant="secondary"
+          size={size}
+          variant={variant}
           disabled={publish.isPending}
           onClick={() =>
             publish.mutate(
@@ -443,7 +485,7 @@ function FailedJobAction({ job, listing }: { job: JobEnvelope; listing: ListingD
       )
     case 'status':
       return (
-        <Button size="sm" variant="secondary" asChild>
+        <Button size={size} variant="secondary" asChild>
           <Link to="/listings/$listingId/live" params={{ listingId: listing.id }}>
             Open the status
           </Link>
@@ -492,6 +534,14 @@ function LaneAction({ l }: { l: Listing }) {
   return null
 }
 
+/** One row shape for every lane, listed or not, so the edges and the first row's top line up. */
+const LANE_ROW = 'flex min-h-[72px] flex-wrap items-center gap-3 border-b border-line py-3.5 sm:flex-nowrap first:pt-0 last:border-b-0 last:pb-0'
+/**
+ * Chip and action in a fixed grid: chips end on the same line across lanes and an empty action
+ * cell keeps its width. The action column fits the longest label, "List on Flipkart".
+ */
+const LANE_TRAIL = 'ml-auto grid shrink-0 grid-cols-[auto_9rem] items-center justify-items-end gap-3'
+
 function Lanes({
   productId,
   listings,
@@ -512,7 +562,7 @@ function Lanes({
         const run = l.id === runListingId
         const chip = run && active ? { status: 'working' as const, label: 'Working' } : listingChip(l)
         return (
-          <li key={l.id} data-lane={l.marketplace} className="flex min-h-[72px] flex-wrap items-center gap-3 border-b border-line py-3.5 sm:flex-nowrap first:pt-0 last:border-b-0 last:pb-0">
+          <li key={l.id} data-lane={l.marketplace} className={LANE_ROW}>
             <MarketplaceTile id={l.marketplace} />
             <div className="min-w-0 flex-1 basis-[calc(100%-60px)] sm:basis-0">
               <b className="font-semibold text-ink">{mpName(l.marketplace)}</b>
@@ -521,20 +571,24 @@ function Lanes({
                 <ProgressBar className="mt-2" value={job.progress_pct / 100} label={`${mpName(l.marketplace)} progress`} />
               ) : null}
             </div>
-            <StatusChip status={chip.status}>{chip.label}</StatusChip>
-            <LaneAction l={l} />
+            <div className={LANE_TRAIL}>
+              <StatusChip status={chip.status}>{chip.label}</StatusChip>
+              <LaneAction l={l} />
+            </div>
           </li>
         )
       })}
       {missing.map((m) => (
-        <li key={m.id} data-lane={m.id} className="flex min-h-[72px] flex-wrap items-center gap-3 border-b border-line py-3.5 sm:flex-nowrap last:border-b-0 last:pb-0">
+        <li key={m.id} data-lane={m.id} className={LANE_ROW}>
           <MarketplaceTile id={m.id} />
           <div className="min-w-0 flex-1 basis-[calc(100%-60px)] sm:basis-0">
             <b className="font-semibold text-ink">{m.name}</b>
             <div className="text-caption text-ink-3">Not listed yet. Uses the same product record.</div>
           </div>
-          <StatusChip status="not-listed" />
-          <ListOnButton productId={productId} marketplace={m.id as 'amazon' | 'flipkart'} size="sm" variant="secondary" />
+          <div className={LANE_TRAIL}>
+            <StatusChip status="not-listed" />
+            <ListOnButton productId={productId} marketplace={m.id as 'amazon' | 'flipkart'} size="sm" variant="secondary" />
+          </div>
         </li>
       ))}
     </ul>

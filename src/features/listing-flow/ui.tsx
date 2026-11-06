@@ -34,26 +34,38 @@ export function ProductTile({ size = 56, className }: { size?: number; className
   )
 }
 
-/** hi-fi `.phd`: tile + H1 + one muted line on the left, chips and actions on the right. */
+/**
+ * hi-fi `.phd`: tile + H1 + one muted line on the left, chips and actions on the right. With a tile
+ * the right slot centres on the tile + title block; `align="start"` keeps it on the first line for
+ * long titles that wrap.
+ */
 export function ScreenHead({
   title,
   sub,
   right,
   tile = true,
+  align,
 }: {
   title: ReactNode
   sub?: ReactNode
   right?: ReactNode
   tile?: boolean
+  align?: 'center' | 'start'
 }) {
+  const centred = (align ?? (tile ? 'center' : 'start')) === 'center'
   return (
-    <header className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+    <header className={cn('mb-5 flex flex-col gap-3 sm:flex-row sm:justify-between sm:gap-4', centred ? 'sm:items-center' : 'sm:items-start')}>
       <div className="flex min-w-0 items-center gap-3.5">
         {tile ? <ProductTile /> : null}
         <div className="min-w-0">
-          <h1 className="font-display text-h1 break-words text-ink sm:truncate" data-testid="screen-title">
-            {title}
-          </h1>
+          {/* A Skeleton is a div: render it in place of the heading, never inside it. */}
+          {title == null ? (
+            <Skeleton className="h-8 w-72 max-w-[60vw]" data-testid="screen-title-loading" />
+          ) : (
+            <h1 className="font-display text-h1 break-words text-ink sm:truncate" data-testid="screen-title">
+              {title}
+            </h1>
+          )}
           {sub ? <p className="mt-1 text-body text-ink-2">{sub}</p> : null}
         </div>
       </div>
@@ -68,7 +80,8 @@ export type DotTone = 'ok' | 'now' | 'need' | 'bad' | 'todo'
 
 const DOT: Record<DotTone, string> = {
   ok: 'border-success bg-success',
-  now: 'border-brand bg-brand shadow-selected',
+  // One calm ring on the step in progress: opacity and transform only, stopped under reduced motion.
+  now: 'border-brand bg-brand shadow-selected after:absolute after:inset-[-4px] after:rounded-full after:border-2 after:border-brand/30 motion-safe:after:animate-ping',
   need: 'border-attention bg-attention',
   bad: 'border-danger bg-danger',
   todo: 'border-ink-3 bg-field shadow-inset-sm',
@@ -199,9 +212,9 @@ export function KeyValues({ rows, className }: { rows: readonly { term: string; 
 export function HeadSkeleton() {
   return (
     <div className="mb-5 flex items-center gap-3.5" aria-hidden>
-      <Skeleton className="size-14 rounded-[10px]" />
+      <Skeleton className="size-14 rounded-2xl" />
       <div className="flex flex-col gap-2">
-        <Skeleton className="h-7 w-72 max-w-[60vw]" />
+        <Skeleton className="h-8 w-72 max-w-[60vw]" />
         <Skeleton className="h-4 w-48" />
       </div>
     </div>

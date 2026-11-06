@@ -13,10 +13,11 @@ import { ErrorState } from '@/components/states/error-state'
 import { NotFound } from '@/components/states/not-found'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { recallJob } from '@/features/listings/job-memory'
 import type { ListingDetail } from '@/features/listings/model'
 import { listingChip } from '@/lib/listing-chip'
 import { cn } from '@/lib/utils'
-import { categoryLabel, clock, mpName } from './format'
+import { categoryLabel, clock, fieldLabel, mpName } from './format'
 import { plural, type ErrorItem } from './gates'
 import { attrLabel, mappingRows, otherFindings, type MappingRow, type RowState } from './mapping'
 import { CardSkeleton, GATE_CHIP, GateLegend, GateList, HeadSkeleton, ScreenHead } from './ui'
@@ -29,9 +30,9 @@ export function MappingScreen({ listingId }: { listingId: string }) {
       <Page>
         <div aria-busy="true" aria-label="Loading the mapping">
           <HeadSkeleton />
-          <Skeleton className="h-12 w-full rounded-[10px]" />
-          <div className="mt-4 grid gap-4 lg:grid-cols-[1.7fr_1fr]">
-            <CardSkeleton lines={7} />
+          <Skeleton className="mb-4 h-[50px] w-full rounded-banner" />
+          <div className="grid items-start gap-4 lg:grid-cols-[1.7fr_1fr]">
+            <TableSkeleton />
             <CardSkeleton lines={9} />
           </div>
         </div>
@@ -71,13 +72,15 @@ function MappingBody({ checks, listing }: { checks: ReturnType<typeof useListing
   // publish results). The preview writes nothing, so its errors are listed apart and not counted.
   const needs = findings.filter(needsYou)
   const previewNeeds = previewErrors.filter(needsYou)
-  const fieldName = (f: (typeof all)[number]) => (f.field.startsWith('attributes.') ? attrLabel(f.field.slice('attributes.'.length)) : f.field)
+  const fieldName = (f: (typeof all)[number]) => fieldLabel(f.field)
   const chip = listingChip(listing)
+  const busy = listing.status === 'generating' || listing.status === 'publishing'
+  const runJob = busy ? recallJob(listing.id) : null
 
   return (
     <Page>
       <ScreenHead
-        title={checks.product.data ? `${checks.product.data.title} on ${mp}` : <Skeleton className="h-7 w-72" />}
+        title={checks.product.data ? `${checks.product.data.title} on ${mp}` : checks.product.isPending ? null : `Product on ${mp}`}
         sub={`Category: ${categoryLabel(category)}`}
         right={
           needs.length ? (
@@ -87,6 +90,26 @@ function MappingBody({ checks, listing }: { checks: ReturnType<typeof useListing
           )
         }
       />
+
+      {busy ? (
+        <Banner
+          tone="neutral"
+          role="status"
+          className="mb-3 animate-page-in"
+          title={listing.status === 'generating' ? 'The agent is rewriting this listing…' : `Sending to ${mp}…`}
+          action={
+            runJob ? (
+              <Button size="sm" variant="secondary" asChild>
+                <Link to="/runs/$runId" params={{ runId: runJob }}>
+                  Watch the run
+                </Link>
+              </Button>
+            ) : undefined
+          }
+        >
+          This page updates on its own.
+        </Banner>
+      ) : null}
 
       <Banner
         tone="info"
@@ -109,7 +132,10 @@ function MappingBody({ checks, listing }: { checks: ReturnType<typeof useListing
         {checks.rules ? ` · ${plural(checks.rules.length, 'rule')} apply` : ''}
       </Banner>
 
-      <div className="grid items-start gap-4 lg:grid-cols-[1.7fr_1fr]">
+      <div
+        aria-busy={busy}
+        className={cn('grid items-start gap-4 transition-opacity duration-200 lg:grid-cols-[1.7fr_1fr]', busy && 'opacity-60')}
+      >
         <div className="flex min-w-0 flex-col gap-4">
           <MappingTable rows={rows} mp={mp} loading={!checks.rules && checks.rulesQ.isPending} />
           {others.length ? <OtherFindings items={others} /> : null}
@@ -181,15 +207,32 @@ function FieldCell({ row }: { row: MappingRow }) {
   )
 }
 
+const COLS = 'grid grid-cols-[1.1fr_1.2fr_120px_56px] items-center gap-3'
+
+/** Shaped like the table: the sunken header row, then four rows on the same column template. */
+function TableSkeleton() {
+  return (
+    <LaCard pad="none" className="overflow-hidden" aria-hidden>
+      <div className={cn(COLS, 'border-b border-line bg-sunken px-4 py-2.5')}>
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-4 w-12" />
+        <Skeleton className="h-4 w-10" />
+      </div>
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className={cn(COLS, 'min-h-12 border-b border-line px-4 py-3 last:border-b-0')}>
+          <Skeleton className="h-4" style={{ width: `${80 - i * 10}%` }} />
+          <Skeleton className="h-4" style={{ width: `${70 - i * 8}%` }} />
+          <Skeleton className="h-5 w-20 rounded-full" />
+          <Skeleton className="size-6 rounded-full" />
+        </div>
+      ))}
+    </LaCard>
+  )
+}
+
 function MappingTable({ rows, mp, loading }: { rows: readonly MappingRow[]; mp: string; loading: boolean }) {
-  if (loading)
-    return (
-      <LaCard pad="none" className="p-4" aria-hidden>
-        {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="my-3 h-6" />
-        ))}
-      </LaCard>
-    )
+  if (loading) return <TableSkeleton />
   if (!rows.length)
     return (
       <LaCard data-testid="mapping-empty">
@@ -200,7 +243,7 @@ function MappingTable({ rows, mp, loading }: { rows: readonly MappingRow[]; mp: 
   return (
     <LaCard pad="none" className="overflow-hidden" data-testid="mapping-table">
       <div className="hidden lg:block" role="table" aria-label={`Your product mapped to ${mp}`}>
-        <div role="row" className="grid grid-cols-[1.1fr_1.2fr_120px_56px] items-center gap-3 border-b border-line bg-sunken px-4 py-2.5 text-caption font-bold text-ink-2">
+        <div role="row" className={cn(COLS, 'border-b border-line bg-sunken px-4 py-2.5 text-caption font-bold text-ink-2')}>
           <span role="columnheader">Your product</span>
           <span role="columnheader">{mp} field</span>
           <span role="columnheader">Rule</span>
@@ -213,7 +256,8 @@ function MappingTable({ rows, mp, loading }: { rows: readonly MappingRow[]; mp: 
             data-row={r.key}
             data-state={r.state}
             className={cn(
-              'grid min-h-12 grid-cols-[1.1fr_1.2fr_120px_56px] items-center gap-3 border-b border-line px-4 py-3 text-body last:border-b-0',
+              COLS,
+              'min-h-12 border-b border-line px-4 py-3 text-body last:border-b-0',
               (r.state === 'blocked' || r.state === 'warning') && 'bg-attention-tint',
             )}
           >
@@ -261,9 +305,11 @@ function OtherFindings({ items }: { items: readonly ErrorItem[] }) {
             <StatusChip status={f.severity === 'error' ? 'blocked' : 'needs-you'} iconOnly label={f.severity === 'error' ? 'Blocking' : 'Warning'} />
             <div className="min-w-0">
               <p className="text-body text-ink">{f.message}</p>
-              <p className="text-caption text-ink-3">
-                <code className="font-mono">{f.field}</code>
-              </p>
+              {f.field ? (
+                <p className="text-caption text-ink-3" title={f.field}>
+                  {fieldLabel(f.field)}
+                </p>
+              ) : null}
             </div>
           </li>
         ))}

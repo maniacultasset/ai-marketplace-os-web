@@ -12,6 +12,7 @@
  *   - Send back with a note: POST /listings/approve `decision: reject` (+ `regenerate`);
  *   - once approved: Publish (POST /listings/publish) opens the publish run.
  */
+import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { BUILT } from '@/api/capabilities'
@@ -32,7 +33,7 @@ import { ErrorState } from '@/components/states/error-state'
 import { NotFound } from '@/components/states/not-found'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useListingHistory, usePublishListings, useReviewListings, useValidateListing } from '@/features/listings/api'
+import { invalidateListingWork, useListingHistory, usePublishListings, useReviewListings, useValidateListing } from '@/features/listings/api'
 import { recallJob, rememberJob } from '@/features/listings/job-memory'
 import {
   approveItems,
@@ -46,19 +47,22 @@ import {
   type Listing,
   type ListingDetail,
 } from '@/features/listings/model'
+import { useJobPolling } from '@/hooks/use-job-polling'
 import { useMe } from '@/lib/auth'
 import { listingChip } from '@/lib/listing-chip'
 import { useCan } from '@/lib/permissions'
+import { useKeys } from '@/lib/query-keys'
 import { toast, toastError } from '@/lib/toast'
 import { cn } from '@/lib/utils'
+import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { EditDialog, SendBackDialog } from './dialogs'
-import { clock, mpName } from './format'
+import { clock, fieldLabel, mpName } from './format'
 import { claimFindings, gateCounts, plural, type ErrorItem, type GateResult } from './gates'
 import { ListOnButton } from './list-on'
 import { approveAllTargets } from './review-model'
+import { STAGE_SUB } from './run-steps'
 import { ActionButton, CardSkeleton, GateLegend, GateList } from './ui'
 import { useListingChecks } from './use-listing-checks'
-import { CONCEPT_ICON } from '@/components/la/concept-icons'
 
 function itemsSummary(okCount: number, failed: { message: string }[], verb: string): string {
   const parts = [okCount ? `${okCount} ${verb}` : null, failed.length ? `${failed.length} refused: ${failed[0]!.message}` : null]
@@ -88,18 +92,27 @@ export function ReviewScreen({ listingId }: { listingId: string }) {
   return <ReviewBody checks={c} listing={listing} />
 }
 
+/** Shaped like the screen: product line, approval banner, marketplace tabs, the two columns, the footer. */
 function ReviewSkeleton() {
+  const can = useCan()
   return (
-    <Page>
-      <div aria-busy="true" aria-label="Loading the review">
-        <Skeleton className="h-12 w-full rounded-tile" />
-        <Skeleton className="mt-4 h-[42px] w-80" />
-        <div className="mt-5 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-          <CardSkeleton lines={6} />
-          <CardSkeleton lines={5} />
+    <div className="flex min-h-[calc(100svh-56px)] flex-col">
+      <Page className="flex-1">
+        <div aria-busy="true" aria-label="Loading the review">
+          <Skeleton className="mb-3 h-4 w-56" />
+          <Skeleton className="mb-4 h-[50px] w-full rounded-banner" />
+          <div className="mb-5 flex h-[42px] items-center gap-4 border-b border-line">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-4 w-20" />
+          </div>
+          <div className="grid items-start gap-4 lg:grid-cols-[1.6fr_1fr]">
+            <CardSkeleton lines={6} />
+            <CardSkeleton lines={5} />
+          </div>
         </div>
-      </div>
-    </Page>
+      </Page>
+      {can('listing:approve') ? <div aria-hidden className="h-[68px] border-t border-line bg-surface" /> : null}
+    </div>
   )
 }
 
@@ -107,6 +120,8 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   const can = useCan()
   const me = useMe()
   const navigate = useNavigate()
+  const qc = useQueryClient()
+  const keys = useKeys()
   const history = useListingHistory(listing.id)
   const validate = useValidateListing(listing.id)
   const review = useReviewListings()
@@ -115,6 +130,9 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   const publishKey = useIntentKey()
   const [sendBack, setSendBack] = useState(false)
   const [edit, setEdit] = useState(false)
+  // Approve / publish stay "…ing" until the listing refetch shows the new status, so the buttons
+  // never snap back to their resting label for a moment before the page changes.
+  const [settling, setSettling] = useState<'approve' | 'publish' | null>(null)
 
   const mp = mpName(listing.marketplace)
   const product = checks.product.data
@@ -137,55 +155,64 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   const counts = gateCounts(checks.gates)
   const findings = checks.current.findings
   const claims = claimFindings(findings)
+  const otherFindings = findings.filter((f) => f.error_code !== 'UNSUPPORTED_CLAIM')
   const busy = listing.status === 'generating' || listing.status === 'publishing'
   const runJob = recallJob(listing.id)
+  // Follow the run while the agent works, so the page turns over within seconds of the job ending.
+  const run = useJobPolling(busy ? runJob : null, {
+    onTerminal: () => invalidateListingWork(qc, keys, [listing.id]),
+  })
+  // A remembered job that already ended belongs to an earlier run: its stage would be stale.
+  const liveJob = run.job && !run.isTerminal ? run.job : null
+  const approving = review.isPending || settling === 'approve'
+  const publishing = publish.isPending || settling === 'publish'
+  const refetchListing = () => qc.invalidateQueries({ queryKey: keys.listings.detail(listing.id) })
 
-  function approve(rows: readonly Pick<Listing, 'id' | 'status' | 'status_reason' | 'current_version_id' | 'approved_version_id'>[]) {
-    review.mutate(
-      { items: approveItems(rows), key: approveKey.get() },
-      {
-        onSuccess: (res) => {
-          approveKey.reset()
-          const out = summarizeBatch(res)
-          if (out.failed.length && !out.ok.length) {
-            const f = out.failed[0]!
-            toast.error(rows.length > 1 ? 'Nothing was approved' : `Couldn’t approve ${mp}`, {
-              description: `${f.message}${f.requestId ? ` Reference: ${f.requestId}` : ''}`,
-            })
-          } else toast.success(rows.length > 1 ? itemsSummary(out.ok.length, out.failed, 'approved') : `${mp} approved`, {
-            description: 'Nothing is sent until it is published.',
-          })
-        },
-        onError: (e) => {
-          if (isApiError(e) && !e.isNetwork) approveKey.reset()
-          toastError(e, 'Couldn’t approve')
-        },
-      },
-    )
+  async function approve(rows: readonly Pick<Listing, 'id' | 'status' | 'status_reason' | 'current_version_id' | 'approved_version_id'>[]) {
+    setSettling('approve')
+    try {
+      const res = await review.mutateAsync({ items: approveItems(rows), key: approveKey.get() })
+      approveKey.reset()
+      await refetchListing()
+      const out = summarizeBatch(res)
+      if (out.failed.length && !out.ok.length) {
+        const f = out.failed[0]!
+        toast.error(rows.length > 1 ? 'Nothing was approved' : `Couldn’t approve ${mp}`, {
+          description: `${f.message}${f.requestId ? ` Reference: ${f.requestId}` : ''}`,
+        })
+      } else
+        toast.success(rows.length > 1 ? itemsSummary(out.ok.length, out.failed, 'approved') : `${mp} approved`, {
+          description: 'Nothing is sent until it is published.',
+        })
+    } catch (e) {
+      if (isApiError(e) && !e.isNetwork) approveKey.reset()
+      toastError(e, 'Couldn’t approve')
+    } finally {
+      setSettling(null)
+    }
   }
 
-  function doPublish() {
-    publish.mutate(
-      { items: publishItems([listing]), key: publishKey.get() },
-      {
-        onSuccess: (res) => {
-          publishKey.reset()
-          const out = summarizeBatch(res)
-          const ok: BatchItemResult | undefined = out.ok[0]
-          if (ok?.job_id) {
-            rememberJob(listing.id, ok.job_id)
-            void navigate({ to: '/runs/$runId', params: { runId: ok.job_id } })
-          } else if (out.failed[0]) {
-            const f = out.failed[0]
-            toast.error(`Couldn’t publish to ${mp}`, { description: `${f.message}${f.requestId ? ` Reference: ${f.requestId}` : ''}` })
-          }
-        },
-        onError: (e) => {
-          if (isApiError(e) && !e.isNetwork) publishKey.reset()
-          toastError(e, 'Couldn’t publish')
-        },
-      },
-    )
+  async function doPublish() {
+    setSettling('publish')
+    try {
+      const res = await publish.mutateAsync({ items: publishItems([listing]), key: publishKey.get() })
+      publishKey.reset()
+      await refetchListing()
+      const out = summarizeBatch(res)
+      const ok: BatchItemResult | undefined = out.ok[0]
+      if (ok?.job_id) {
+        rememberJob(listing.id, ok.job_id)
+        void navigate({ to: '/runs/$runId', params: { runId: ok.job_id } })
+      } else if (out.failed[0]) {
+        const f = out.failed[0]
+        toast.error(`Couldn’t publish to ${mp}`, { description: `${f.message}${f.requestId ? ` Reference: ${f.requestId}` : ''}` })
+      }
+    } catch (e) {
+      if (isApiError(e) && !e.isNetwork) publishKey.reset()
+      toastError(e, 'Couldn’t publish')
+    } finally {
+      setSettling(null)
+    }
   }
 
   return (
@@ -212,7 +239,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
           <Banner
             tone="neutral"
             role="status"
-            className="mb-4"
+            className="mb-4 animate-page-in"
             title={listing.status === 'generating' ? 'The agent is writing this listing…' : `Sending to ${mp}…`}
             action={
               runJob ? (
@@ -224,7 +251,11 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
               ) : undefined
             }
           >
-            This page updates when it finishes.
+            {runJob && listing.status === 'generating'
+              ? liveJob?.stage
+                ? STAGE_SUB[liveJob.stage]
+                : 'Starting…'
+              : 'This page updates on its own.'}
           </Banner>
         ) : null}
         {listing.status === 'approved' ? (
@@ -234,8 +265,8 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
             title={`Approved for ${mp}.`}
             action={
               actions.publish.show ? (
-                <ActionButton state={actions.publish} size="sm" disabled={publish.isPending} onClick={doPublish} data-testid="publish">
-                  {publish.isPending ? 'Publishing…' : actions.publish.label}
+                <ActionButton state={actions.publish} size="sm" disabled={publishing} onClick={() => void doPublish()} data-testid="publish">
+                  {publishing ? 'Publishing…' : actions.publish.label}
                 </ActionButton>
               ) : undefined
             }
@@ -267,7 +298,10 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
             {listing.status === 'created' ? <ListOnButton productId={listing.product_id} marketplace={listing.marketplace} /> : null}
           </LaCard>
         ) : (
-          <div className="grid items-start gap-4 lg:grid-cols-[1.6fr_1fr]">
+          <div
+            aria-busy={busy}
+            className={cn('grid items-start gap-4 transition-opacity duration-200 lg:grid-cols-[1.6fr_1fr]', busy && 'pointer-events-none opacity-60')}
+          >
             <div className="flex min-w-0 flex-col gap-4">
               <ReadsAs
                 checks={checks}
@@ -277,7 +311,8 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
                 onEdit={() => setEdit(true)}
                 editState={actions.edit}
               />
-              {findings.length ? <FindingsCard findings={findings} /> : null}
+              {/* Unsupported claims already show on the bullet and in the claim card. */}
+              {otherFindings.length ? <FindingsCard findings={otherFindings} /> : null}
             </div>
             <div className="flex min-w-0 flex-col gap-4">
               <GatesCard
@@ -312,7 +347,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
         )}
       </Page>
 
-      {listing.content && (actions.approve.show || actions.reject.show) ? (
+      {listing.content && !busy && (actions.approve.show || actions.reject.show) ? (
         <FooterBar status={allTargets.length > 1 ? 'Each marketplace is approved as its own listing.' : 'Approving does not send anything. Publishing sends this marketplace only.'}>
           <ActionButton state={actions.reject} variant="ghost" onClick={() => setSendBack(true)} data-testid="send-back">
             Send back with a note
@@ -320,14 +355,14 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
           <ActionButton
             state={approveState}
             variant={allTargets.length > 1 ? 'secondary' : 'primary'}
-            disabled={review.isPending}
-            onClick={() => approve([listing])}
+            disabled={approving}
+            onClick={() => void approve([listing])}
             data-testid="approve"
           >
-            {review.isPending ? 'Approving…' : `Approve ${mp}`}
+            {approving ? 'Approving…' : `Approve ${mp}`}
           </ActionButton>
           {allTargets.length > 1 ? (
-            <ActionButton state={approveAllState} disabled={review.isPending} onClick={() => approve(allTargets)} data-testid="approve-all">
+            <ActionButton state={approveAllState} disabled={approving} onClick={() => void approve(allTargets)} data-testid="approve-all">
               Approve all {allTargets.length}
             </ActionButton>
           ) : null}
@@ -448,6 +483,9 @@ function ReadsAs({
   const children = items.filter((i) => i.item_role === 'child').length
   const parents = items.filter((i) => i.item_role === 'parent').length
   const mappingErrors = preview.data?.report.errors ?? []
+  // Claims the agent dropped because the product facts did not back them (real data on the version).
+  const removed = canonical.claims?.filter((c) => c.status === 'removed') ?? []
+  const removedWhere = [...new Set(removed.map((c) => fieldLabel(c.text_path)))]
   return (
     <LaCard data-testid="reads-as">
       <CardHead
@@ -488,13 +526,19 @@ function ReadsAs({
           <ul className="m-0 mt-3 list-disc pl-[18px] text-body leading-6 text-ink">
             {content.bullets.map((b, i) => {
               const flag = bulletFinding(claims, i, b)
+              // Every bullet keeps its outside marker; a flagged one highlights its text only.
               return (
-                <li key={i} className={cn(flag && '-ml-1.5 list-inside rounded-sm bg-attention-bg pl-1.5')}>
-                  {b} {flag ? (
-                    <span className="ml-1 inline-flex h-[18px] items-center rounded-sm border border-attention-line bg-attention-bg px-1.5 align-middle text-[11px] leading-none font-semibold text-attention">
-                      No evidence
-                    </span>
-                  ) : null}
+                <li key={i}>
+                  {flag ? (
+                    <>
+                      <span className="-mx-1 box-decoration-clone rounded-sm bg-attention-bg px-1">{b}</span>{' '}
+                      <StatusChip status="needs-you" className="align-middle">
+                        No evidence
+                      </StatusChip>
+                    </>
+                  ) : (
+                    b
+                  )}
                 </li>
               )
             })}
@@ -525,6 +569,11 @@ function ReadsAs({
               <span className="mt-1 block font-semibold text-attention-ink">{plural(mappingErrors.length, 'mapping problem')}: {mappingErrors[0]!.message}</span>
             ) : null}
           </>
+        ) : null}
+        {removed.length ? (
+          <span className="mt-1 block" data-testid="removed-claims">
+            The agent left out {plural(removed.length, 'claim')} your product facts did not support ({removedWhere.join(', ')}).
+          </span>
         ) : null}
       </div>
     </LaCard>
@@ -588,7 +637,7 @@ function FindingsCard({ findings }: { findings: readonly ErrorItem[] }) {
             <div className="min-w-0 flex-1">
               <p className="text-body text-ink">{f.message}</p>
               <p className="text-caption text-ink-3">
-                <code className="font-mono">{f.field}</code>
+                <span title={f.field}>{fieldLabel(f.field)}</span>
                 {f.value_submitted ? ` · sent “${f.value_submitted}”` : ''}
               </p>
               {f.suggestion ? <p className="mt-0.5 text-small text-ink-2">{f.suggestion}</p> : null}

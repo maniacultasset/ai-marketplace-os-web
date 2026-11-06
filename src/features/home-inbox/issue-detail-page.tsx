@@ -18,15 +18,17 @@ import type { ReactNode } from 'react'
 import { Page } from '@/components/app/page-header'
 import { Banner } from '@/components/la/banner'
 import { CardHead, LaCard } from '@/components/la/cards'
-import { Icon, IconTile } from '@/components/la/icons'
+import { Icon } from '@/components/la/icons'
 import { StatusChip } from '@/components/la/status-chip'
 import { ErrorState, NotFound } from '@/components/states'
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Skeleton } from '@/components/ui/skeleton'
 import { NOT_YET, UnavailableButton } from '@/components/la/unavailable'
 import { DismissIssueButton } from '@/features/inbox/dismiss-issue'
 import { canDismiss, issueHeadline, MARKETPLACE_LABEL, RESOLUTION_LABEL, SOURCE_LABEL, type Issue } from '@/features/inbox/model'
 import { useListing, useListingSubmissions } from '@/features/listings/api'
+import { ScreenHead } from '@/features/listing-flow/ui'
 import { useProduct } from '@/features/products/api'
 import { listingChip } from '@/lib/listing-chip'
 import { useCan } from '@/lib/permissions'
@@ -92,24 +94,18 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
   return (
     <Page>
       <BackLink />
-      <header className="flex flex-col gap-3 pb-5 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3.5">
-          <IconTile icon="box" size="lg" className="size-14 rounded-card [&_svg]:size-6" />
-          <div className="min-w-0">
-            <h1 className="truncate font-display text-h1 text-ink" data-testid="issue-product-title">
-              {product.data?.title ?? (product.isPending && l ? <Skeleton className="h-8 w-56" /> : `${marketplace} listing`)}
-            </h1>
-            <p className="text-body text-ink-2">
-              {[product.data?.sku, marketplace, `${openCount} open ${plural(openCount, 'issue')}`].filter(Boolean).join(' · ')}
-            </p>
-          </div>
-        </div>
-        {chip ? (
-          <StatusChip status={chip.status} className="self-start">
-            {chip.label}
-          </StatusChip>
-        ) : null}
-      </header>
+      {/* Same head as the run, review and mapping screens; null shows the title skeleton. */}
+      <ScreenHead
+        title={
+          product.data?.title ? (
+            <span data-testid="issue-product-title">{product.data.title}</span>
+          ) : product.isPending && l ? null : (
+            <span data-testid="issue-product-title">{`${marketplace} listing`}</span>
+          )
+        }
+        sub={[product.data?.sku, marketplace, `${openCount} open ${plural(openCount, 'issue')}`].filter(Boolean).join(' · ')}
+        right={chip ? <StatusChip status={chip.status}>{chip.label}</StatusChip> : null}
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <LaCard className="flex flex-col gap-3" data-testid="issue-card" data-issue-id={issue.id}>
@@ -230,18 +226,7 @@ function IssueBody({ issue }: { issue: Issue }) {
         <h2 className="font-display text-h3 text-ink">{issueTitle(issue)}</h2>
         <StatusChip status={chip.status}>{chip.label}</StatusChip>
       </div>
-      <div>
-        <div className="text-caption text-ink-3">
-          {fromMarketplace ? `What ${marketplace} said (unchanged)` : `What the ${SOURCE_LABEL[issue.source].toLowerCase()} said`}
-        </div>
-        <CodeBlock>
-          <span data-testid="issue-raw">
-            {[issue.marketplace_code ? `code ${issue.marketplace_code}` : null, `field: ${issue.field_path}`, issue.raw_message ?? issue.message]
-              .filter(Boolean)
-              .join(' · ')}
-          </span>
-        </CodeBlock>
-      </div>
+      {/* What it means first; the marketplace's own words stay one click away. */}
       {plain ? (
         <div>
           <div className="text-caption text-ink-3">In plain language</div>
@@ -249,7 +234,9 @@ function IssueBody({ issue }: { issue: Issue }) {
             {plain}
           </p>
         </div>
-      ) : null}
+      ) : (
+        <p className="text-body text-ink">{issue.message}</p>
+      )}
       {issue.suggestion ? (
         <div>
           <div className="text-caption text-ink-3">Suggested fix</div>
@@ -261,9 +248,25 @@ function IssueBody({ issue }: { issue: Issue }) {
           ['Affects', issueAffects(issue)],
           ['Class', issueClassLine(issue)],
           ['Next step', RETRY_CLASS_TEXT[issue.retry_class]],
-          ...(issue.value_submitted ? ([['Value sent', <code key="v" className="font-mono text-[12px]">{issue.value_submitted}</code>]] as [string, ReactNode][]) : []),
+          ...(issue.value_submitted ? ([['Value sent', <code key="v" className="font-mono text-caption">{issue.value_submitted}</code>]] as [string, ReactNode][]) : []),
         ]}
       />
+      <Collapsible className="rounded-control border border-line">
+        <CollapsibleTrigger className="group focus-ring flex min-h-10 w-full items-center justify-between gap-2 rounded-control px-3 text-left text-small font-semibold text-ink-2 transition-colors duration-150 hover:bg-hover hover:text-ink">
+          {fromMarketplace ? `What ${marketplace} said (unchanged)` : `What the ${SOURCE_LABEL[issue.source].toLowerCase()} said`}
+          <Icon name="chev" size={16} className="shrink-0 transition-transform duration-150 group-data-[state=open]:rotate-180 motion-reduce:transition-none" />
+        </CollapsibleTrigger>
+        {/* Kept in the DOM while closed (hidden), so the raw text stays findable and testable. */}
+        <CollapsibleContent forceMount className="px-3 pb-3 data-[state=closed]:hidden">
+          <CodeBlock>
+            <span data-testid="issue-raw">
+              {[issue.marketplace_code ? `code ${issue.marketplace_code}` : null, `field: ${issue.field_path}`, issue.raw_message ?? issue.message]
+                .filter(Boolean)
+                .join(' · ')}
+            </span>
+          </CodeBlock>
+        </CollapsibleContent>
+      </Collapsible>
       <Timeline label="History of this issue" className="mt-1" entries={issueTimeline(issue, (r) => RESOLUTION_LABEL[r])} />
     </>
   )
@@ -296,10 +299,10 @@ function DetailSkeleton() {
   return (
     <Page>
       <Skeleton className="mb-3 h-5 w-16" />
-      <div className="flex items-center gap-3.5 pb-5">
-        <Skeleton className="size-14 rounded-card" />
+      <div className="mb-5 flex items-center gap-3.5">
+        <Skeleton className="size-14 rounded-2xl" />
         <div className="space-y-2">
-          <Skeleton className="h-7 w-64" />
+          <Skeleton className="h-8 w-64" />
           <Skeleton className="h-4 w-48" />
         </div>
       </div>
