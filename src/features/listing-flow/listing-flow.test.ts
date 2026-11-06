@@ -102,14 +102,52 @@ describe('gates', () => {
     expect(by).toMatchObject({
       attributes: 'blocked',
       content: 'warning',
-      media: 'passed',
+      // image_requirement is stored but never evaluated by the backend, so it is no evidence.
+      media: 'unchecked',
       classification: 'passed',
       identity: 'unchecked',
       compliance: 'unchecked',
       commercial: 'unchecked',
       submission: 'unchecked',
     })
-    expect(gateCounts(gates)).toMatchObject({ passed: 2, blocked: 1, warning: 1, total: 9 })
+    expect(gateCounts(gates)).toMatchObject({ passed: 1, blocked: 1, warning: 1, total: 9 })
+  })
+
+  const media = (input: Partial<Parameters<typeof rollUpGates>[0]>) =>
+    rollUpGates({ listing: baseListing, validation: validation([]), rules: null, preview: null, ...input }).find((g) => g.id === 'media')!
+
+  it('blocks media when the listing has no image, naming the marketplace', () => {
+    for (const name of ['Amazon', 'Flipkart']) {
+      const g = media({ imageCount: 0, marketplaceName: name, rules: [{ rule_type: 'image_requirement', field: 'images' }] })
+      expect(g.state).toBe('blocked')
+      expect(g.findings).toEqual([])
+      expect(g.note).toBe(`Add at least one image. ${name} needs a main image.`)
+    }
+    expect(media({ imageCount: 0 }).note).toBe('Add at least one image. The marketplace needs a main image.')
+  })
+
+  it('passes media only on a vision check of the current version', () => {
+    const withVision = (version = V1): ValidationSummary => {
+      const v = validation([])
+      return { ...v, stages: [...v.stages!, { ...v.stages![0]!, listing_version_id: version, source: 'vision_model' }] }
+    }
+    expect(media({ imageCount: 2, validation: withVision() })).toMatchObject({ state: 'passed', note: 'Passed the image checks.' })
+    expect(media({ imageCount: 2, validation: withVision(V0) }).state).toBe('unchecked')
+    expect(media({ imageCount: 2 })).toMatchObject({ state: 'unchecked', note: 'Not checked yet.' })
+    expect(media({ imageCount: null, validation: withVision() }).state).toBe('unchecked')
+    expect(media({ imageCount: 2, rules: [{ rule_type: 'image_requirement', field: 'images' }] }).state).toBe('unchecked')
+  })
+
+  it('still blocks media on an image finding', () => {
+    const v = validation([item({ error_code: 'IMAGE_NON_COMPLIANT', field: 'images[0]' })])
+    expect(media({ imageCount: 2, validation: v }).state).toBe('blocked')
+  })
+
+  it('never passes a gate from a rule type the backend does not evaluate', () => {
+    for (const rule_type of ['fact_source', 'fact_backed_attribute'] as const) {
+      const gates = rollUpGates({ listing: baseListing, validation: validation([]), rules: [{ rule_type, field: 'attributes.x' }], preview: null })
+      expect(gates.find((g) => g.id === 'attributes')!.state).toBe('unchecked')
+    }
   })
 
   it('decides submission from the marketplace', () => {
