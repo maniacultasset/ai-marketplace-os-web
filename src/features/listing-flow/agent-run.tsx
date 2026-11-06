@@ -271,7 +271,7 @@ function RunBody({
         ) : null}
         {ready ? (
           <Banner tone="info" icon="eye" role="status" className="animate-page-in">
-            <b>Ready for review.</b> Nothing is sent until a person approves it.
+            Nothing is sent until a person approves it.
           </Banner>
         ) : null}
       </div>
@@ -316,8 +316,11 @@ function RunBody({
             ) : (
               <Lanes
                 productId={listing.product_id}
-                listings={siblings.rows.length ? siblings.rows : [listing]}
+                // The run's own listing is the fresher read (it re-reads while busy), so the lane
+                // always agrees with the header.
+                listings={(siblings.rows.length ? siblings.rows : [listing]).map((l) => (l.id === listing.id ? listing : l))}
                 runListingId={listingId}
+                headerReview={ready}
                 job={job}
                 active={active}
               />
@@ -505,11 +508,12 @@ function laneSub(l: Listing, run: boolean, job: JobEnvelope): string {
   return `${STATUS_META[l.status].label} · ${at}`
 }
 
-function LaneAction({ l }: { l: Listing }) {
+/** `quiet`: the header already shows "Review and approve" for this listing, so one primary only. */
+function LaneAction({ l, quiet = false }: { l: Listing; quiet?: boolean }) {
   const params = { listingId: l.id }
   if (l.status === 'validated' || l.status === 'needs_review')
     return (
-      <Button size="sm" asChild>
+      <Button size="sm" variant={quiet ? 'secondary' : 'primary'} asChild>
         <Link to="/listings/$listingId/review" params={params}>
           Review
         </Link>
@@ -527,7 +531,7 @@ function LaneAction({ l }: { l: Listing }) {
     return (
       <Button size="sm" variant="warn" asChild>
         <Link to="/listings/$listingId/mapping" params={params}>
-          See checks
+          See field mapping
         </Link>
       </Button>
     )
@@ -548,12 +552,15 @@ function Lanes({
   runListingId,
   job,
   active,
+  headerReview,
 }: {
   productId: string
   listings: readonly Listing[]
   runListingId: string
   job: JobEnvelope
   active: boolean
+  /** The page header shows "Review and approve" for the run's listing. */
+  headerReview: boolean
 }) {
   const missing = SUPPORTED_MARKETPLACES.filter((m) => !listings.some((l) => l.marketplace === m.id))
   return (
@@ -573,7 +580,7 @@ function Lanes({
             </div>
             <div className={LANE_TRAIL}>
               <StatusChip status={chip.status}>{chip.label}</StatusChip>
-              <LaneAction l={l} />
+              <LaneAction l={l} quiet={run && headerReview} />
             </div>
           </li>
         )
@@ -646,12 +653,17 @@ export function logEntries(events: readonly AuditEvent[], job: Pick<JobEnvelope,
   return out.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
 }
 
+const LOG_SHOWN = 5
+
 function AgentLog({ listingId, job }: { listingId: string; job: JobEnvelope }) {
   const me = useMe()
   const history = useListingHistory(listingId)
   const [filter, setFilter] = useState<LogFilter>('all')
   const entries = useMemo(() => logEntries(history.rows, job, me.data?.user_id), [history.rows, job, me.data?.user_id])
-  const shown = entries.filter((e) => filter === 'all' || (filter === 'changes' ? e.kind === 'change' || e.kind === 'job' : e.kind === 'review'))
+  const [showAll, setShowAll] = useState(false)
+  const filtered = entries.filter((e) => filter === 'all' || (filter === 'changes' ? e.kind === 'change' || e.kind === 'job' : e.kind === 'review'))
+  // Newest first: the latest few stay in view, the rest are one click away (sliced here, no new read).
+  const shown = showAll ? filtered : filtered.slice(0, LOG_SHOWN)
   return (
     <LaCard data-testid="agent-log">
       <CardHead
@@ -688,7 +700,12 @@ function AgentLog({ listingId, job }: { listingId: string; job: JobEnvelope }) {
           ))}
         </Timeline>
       )}
-      {history.hasNextPage ? (
+      {filtered.length > LOG_SHOWN && !history.isPending && !history.error ? (
+        <Button variant="ghost" size="sm" className="mt-2 mr-2" aria-expanded={showAll} onClick={() => setShowAll((o) => !o)}>
+          {showAll ? 'Show the latest 5' : `Show all ${filtered.length}`}
+        </Button>
+      ) : null}
+      {history.hasNextPage && (showAll || filtered.length <= LOG_SHOWN) ? (
         <Button variant="ghost" size="sm" className="mt-2" disabled={history.isFetchingNextPage} onClick={() => void history.fetchNextPage()}>
           {history.isFetchingNextPage ? 'Loading…' : 'Load older entries'}
         </Button>

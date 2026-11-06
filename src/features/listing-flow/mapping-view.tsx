@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils'
 import { categoryLabel, clock, fieldLabel, mpName } from './format'
 import { plural, type ErrorItem } from './gates'
 import { attrLabel, mappingRows, otherFindings, type MappingRow, type RowState } from './mapping'
-import { CardSkeleton, GATE_CHIP, GateLegend, GateList, HeadSkeleton, ScreenHead } from './ui'
+import { CardSkeleton, GATE_CHIP, GateLegend, GateList, GateListSkeleton, HeadSkeleton, ScreenHead } from './ui'
 import { useListingChecks } from './use-listing-checks'
 
 export function MappingScreen({ listingId }: { listingId: string }) {
@@ -146,7 +146,21 @@ function MappingBody({ checks, listing }: { checks: ReturnType<typeof useListing
         <div className="flex min-w-0 flex-col gap-4">
           <LaCard data-testid="gates-card">
             <h3 className="text-h3 text-ink">Quality gates</h3>
-            <GateList gates={checks.gates} layout="list" />
+            {checks.gatesReady ? (
+              <>
+                <GateList gates={checks.gates} layout="list" />
+                {/* A gate blocked without a finding (no image) has no row in the table: say why here. */}
+                {checks.gates
+                  .filter((g) => g.state === 'blocked' && g.findings.length === 0 && g.id !== 'submission')
+                  .map((g) => (
+                    <p key={g.id} className="mt-2 text-small text-attention-ink" data-testid={`gate-note-${g.id}`}>
+                      {g.label}: {g.note}
+                    </p>
+                  ))}
+              </>
+            ) : (
+              <GateListSkeleton layout="list" />
+            )}
             <GateLegend className="mt-3" />
           </LaCard>
           {needs.length || previewNeeds.length ? (

@@ -216,10 +216,14 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
       <div className="mt-4 grid items-start gap-4 lg:grid-cols-2">
         <LaCard data-testid="proof">
           <h3 className="text-h3 text-ink">{proof.state === 'live' ? 'Proof we hold' : 'What we hold so far'}</h3>
-          {subs.isPending ? (
-            <div className="mt-4 flex flex-col gap-2" aria-hidden>
-              {[0, 1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-4" />
+          {subs.isPending || product.isPending ? (
+            // One row per proof line (7), term and value, so the list lands without a jump.
+            <div className="mt-4 grid grid-cols-[130px_minmax(0,1fr)] gap-x-3 gap-y-2" aria-hidden>
+              {Array.from({ length: 7 }, (_, i) => (
+                <div key={i} className="contents">
+                  <Skeleton className="my-0.5 h-4 w-24" />
+                  <Skeleton className="my-0.5 h-4" style={{ width: `${70 - (i % 3) * 15}%` }} />
+                </div>
               ))}
             </div>
           ) : subs.error ? (
@@ -278,6 +282,8 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
             <h3 className="text-h3 text-ink">Next</h3>
             <div className="mt-3 flex flex-wrap gap-2">
               {others.map((m) => {
+                // Until the product's listings are read, hold each button's place so the row lands whole.
+                if (siblings.isPending) return <Skeleton key={m.id} className="h-9 w-32 rounded-control" />
                 const existing = siblings.rows.find((l) => l.marketplace === m.id)
                 if (existing)
                   return (
@@ -287,7 +293,7 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
                       </Link>
                     </Button>
                   )
-                return siblings.isPending ? null : <ListOnButton key={m.id} productId={listing.product_id} marketplace={m.id as 'amazon' | 'flipkart'} />
+                return <ListOnButton key={m.id} productId={listing.product_id} marketplace={m.id as 'amazon' | 'flipkart'} />
               })}
               {can('product:import') ? (
                 <Button variant="secondary" asChild>
@@ -311,7 +317,7 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
                 </Button>
               ) : null}
             </div>
-            {others.some((m) => !siblings.rows.some((l) => l.marketplace === m.id)) && can('listing:generate') ? (
+            {!siblings.isPending && others.some((m) => !siblings.rows.some((l) => l.marketplace === m.id)) && can('listing:generate') ? (
               <p className="mt-3 text-small text-ink-2">The other marketplace is prepared from the same product record.</p>
             ) : null}
           </LaCard>

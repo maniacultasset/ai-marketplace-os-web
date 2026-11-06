@@ -169,6 +169,24 @@ export function GateList({ gates, layout = 'grid' }: { gates: readonly GateResul
   )
 }
 
+/** The gate list's shape while its reads settle, so the gates paint once (same grid or list). */
+export function GateListSkeleton({ layout = 'grid', className }: { layout?: 'grid' | 'list'; className?: string }) {
+  return (
+    <ul
+      aria-hidden
+      data-testid="quality-gates-loading"
+      className={cn('m-0 list-none p-0', layout === 'grid' ? 'mt-3 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2' : 'mt-3 flex flex-col gap-2', className)}
+    >
+      {Array.from({ length: 9 }, (_, i) => (
+        <li key={i} className={cn('flex items-center gap-1.5', layout === 'list' && 'min-h-7 flex-row-reverse justify-between')}>
+          <Skeleton className="size-4 rounded-full" />
+          <Skeleton className="h-4 w-24" />
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 /** The glyph legend under a gate list, so the states never rely on colour or hover alone. */
 export function GateLegend({ className }: { className?: string }) {
   const items: [ChipStatus, string][] = [
@@ -229,6 +247,45 @@ export function CardSkeleton({ lines = 4, className }: { lines?: number; classNa
         {Array.from({ length: lines }, (_, i) => (
           <Skeleton key={i} className="h-4" style={{ width: `${85 - i * 9}%` }} />
         ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * p13 product line and marketplace tabs, until the product and its listings are read. `children`
+ * (the approval banner) sits between them, exactly where it sits once they land.
+ */
+export function ReviewTopSkeleton({ children }: { children?: ReactNode }) {
+  return (
+    <div data-testid="review-top-loading">
+      <Skeleton className="mb-3 h-4 w-56" />
+      {children}
+      <div aria-hidden className="mb-5 flex h-[42px] items-center gap-4 border-b border-line">
+        <Skeleton className="h-4 w-20" />
+        <Skeleton className="h-4 w-20" />
+      </div>
+    </div>
+  )
+}
+
+/** p13 "How it will read": head, image box, title and bullets, then the preview note. */
+export function ReadsAsSkeleton({ className }: { className?: string }) {
+  return (
+    <div className={cn('rounded-card border border-line bg-surface p-5 shadow-raised-md', className)} aria-hidden>
+      <Skeleton className="h-5 w-56" />
+      <Skeleton className="mt-1.5 h-4 w-44" />
+      <div className="mt-4 flex flex-col items-start gap-4 sm:flex-row">
+        <Skeleton className="size-[130px] shrink-0 rounded-xl" />
+        <div className="flex w-full min-w-0 flex-1 flex-col gap-3">
+          <Skeleton className="h-6 w-3/4" />
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-4" style={{ width: `${92 - i * 8}%` }} />
+          ))}
+        </div>
+      </div>
+      <div className="mt-4 border-t border-line pt-3">
+        <Skeleton className="h-3 w-72 max-w-full" />
       </div>
     </div>
   )

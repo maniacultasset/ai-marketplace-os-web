@@ -87,6 +87,7 @@ export function useListingHistory(listingId: string, enabled = true) {
   return useCursorList<AuditEvent>({
     queryKey: keys.listings.history(listingId),
     enabled,
+    keepPrevious: false,
     fetchPage: (cursor) =>
       unwrap(
         api.GET('/listings/{listing_id}/history', {
@@ -101,6 +102,7 @@ export function useListingSubmissions(listingId: string, enabled = true) {
   return useCursorList<Submission>({
     queryKey: keys.listings.submissions(listingId),
     enabled,
+    keepPrevious: false,
     fetchPage: (cursor) =>
       unwrap(
         api.GET('/listings/{listing_id}/submissions', {
