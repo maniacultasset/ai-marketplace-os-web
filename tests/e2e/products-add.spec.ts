@@ -58,7 +58,9 @@ test.describe('products table (p07)', () => {
   test('marketplaces outside the API are shown as not supported, never as listed', async ({ page }) => {
     await loginAs(page, USERS.acme.reviewer, '/products')
     const table = page.getByRole('table', { name: 'Products' })
-    await expect(table.getByRole('img', { name: 'Myntra: not supported yet' }).first()).toBeVisible()
+    // One caption names them; the table has no column for them, so nothing can read as listed.
+    await expect(page.getByText(/Myntra, AJIO, Meesho, Nykaa Fashion: not available yet/)).toBeVisible()
+    await expect(table.getByRole('columnheader', { name: /Myntra/ })).toHaveCount(0)
     await expect(table.getByRole('img', { name: /Myntra: Live/ })).toHaveCount(0)
   })
 

@@ -39,6 +39,8 @@ export interface DataTableColumnMeta {
   className?: string
   headerClassName?: string
   cellClassName?: string
+  /** Placeholder for this column's cells while the table loads, shaped like the real cell. */
+  skeleton?: ReactNode
 }
 
 export const dataTableFeatures = tableFeatures({
@@ -115,6 +117,8 @@ export interface DataTableProps<T extends RowData> {
    * is then hidden below lg and each row renders as this card (a link or button inside it).
    */
   renderCard?: (row: T, state: { selected: boolean; toggle: (v: boolean) => void; canSelect: boolean }) => ReactNode
+  /** Loading placeholder for one phone card, shaped like renderCard's card. Default: generic bars. */
+  renderCardSkeleton?: () => ReactNode
   /** Sticky bulk action bar while rows are selected (hi-fi p07). Receives the selected rows. */
   bulkBar?: (selected: T[], clear: () => void) => ReactNode
 }
@@ -163,11 +167,14 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
   if (isLoading) {
     body = Array.from({ length: props.skeletonRows ?? 6 }, (_, i) => (
       <TableRow key={`sk-${i}`} className={cn(rowH, 'hover:bg-transparent')}>
-        {table.getAllLeafColumns().map((c) => (
-          <TableCell key={c.id}>
-            <Skeleton className={cn('h-4', c.id === '__select' ? 'w-4' : i % 2 ? 'w-3/4' : 'w-1/2')} />
-          </TableCell>
-        ))}
+        {table.getAllLeafColumns().map((c) => {
+          const meta = c.columnDef.meta
+          return (
+            <TableCell key={c.id} className={meta?.skeleton ? cn(meta.className, meta.cellClassName) : undefined}>
+              {meta?.skeleton ?? <Skeleton className={cn('h-4', c.id === '__select' ? 'w-4' : i % 2 ? 'w-3/4' : 'w-1/2')} />}
+            </TableCell>
+          )
+        })}
       </TableRow>
     ))
   } else if (error) {
@@ -247,13 +254,19 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
       {props.renderCard ? (
         <div className="flex flex-col gap-3 lg:hidden" aria-label={props.label} role="list" aria-busy={isLoading || isStale || undefined}>
           {isLoading ? (
-            Array.from({ length: Math.min(props.skeletonRows ?? 4, 4) }, (_, i) => (
-              <div key={i} role="listitem" className="flex flex-col gap-2 rounded-card border border-line bg-surface p-4 shadow-raised-md">
-                <Skeleton className="h-4 w-2/3" />
-                <Skeleton className="h-3 w-1/3" />
-                <Skeleton className="h-6 w-full" />
-              </div>
-            ))
+            Array.from({ length: Math.min(props.skeletonRows ?? 4, 4) }, (_, i) =>
+              props.renderCardSkeleton ? (
+                <div key={i} role="listitem">
+                  {props.renderCardSkeleton()}
+                </div>
+              ) : (
+                <div key={i} role="listitem" className="flex flex-col gap-2 rounded-card border border-line bg-surface p-4 shadow-raised-md">
+                  <Skeleton className="h-4 w-2/3" />
+                  <Skeleton className="h-3 w-1/3" />
+                  <Skeleton className="h-6 w-full" />
+                </div>
+              ),
+            )
           ) : error ? (
             <div className="rounded-card border border-line bg-surface">
               <ErrorState error={error} onRetry={onRetry} compact />
