@@ -276,10 +276,10 @@ test.describe('products', () => {
     })
     await page.getByRole('link', { name: 'Products' }).first().click()
     const alert = page.getByRole('table', { name: 'Products' }).getByRole('alert')
-    await expect(alert).toContainText('Something went wrong', { timeout: 20_000 })
+    await expect(alert).toContainText("We couldn't load this", { timeout: 20_000 })
     await expect(alert.getByTestId('error-reference')).toHaveText('pw-ref-500')
     fail = false
-    await alert.getByRole('button', { name: 'Retry' }).click()
+    await alert.getByRole('button', { name: 'Try again' }).click()
     await expectFirstPage(page, access_token)
   })
 

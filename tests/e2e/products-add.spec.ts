@@ -140,6 +140,7 @@ test.describe('add products (p08-p11)', () => {
     await page.getByLabel('Category', { exact: true }).fill('kurtas')
     await page.getByRole('button', { name: /^Attributes/ }).click()
     await page.getByLabel(/Fabric type/).fill('organic cotton')
+    await page.getByRole('button', { name: /^Price/ }).click()
     const created = page.waitForResponse((r) => r.url().endsWith('/api/v1/products') && r.request().method() === 'POST' && r.status() !== 401)
     await page.getByTestId('guided-next').click()
     const res = await created
@@ -158,6 +159,7 @@ test.describe('add products (p08-p11)', () => {
     await page.getByLabel('Product name').fill('Duplicate')
     await page.getByRole('button', { name: /^Category/ }).click()
     await page.getByLabel('Category', { exact: true }).fill('kurtas')
+    await page.getByRole('button', { name: /^Price/ }).click()
     await page.getByTestId('guided-next').click()
     await expect(page.getByText('This SKU already exists in this brand.')).toBeVisible()
   })

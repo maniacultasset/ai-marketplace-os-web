@@ -10,7 +10,7 @@
  * Writes: POST /listings/generate ("List on …", AddMarketplaceDialog); image upload in the Media tab.
  */
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { isNotFound } from '@/api/errors'
 import { Page } from '@/components/app/page-header'
 import {
@@ -36,10 +36,12 @@ import { ErrorState } from '@/components/states/error-state'
 import { NotFound } from '@/components/states/not-found'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ProductImagesCard } from '@/features/analytics-images/images/images-card'
 import { useListing, useListingHistory } from '@/features/listings/api'
-import { historyLabel } from '@/features/listings/model'
+import { recallJob } from '@/features/listings/job-memory'
+import { historyLabel, isBusy } from '@/features/listings/model'
 import { useProduct, type ProductDetail } from '@/features/products/api'
 import { formatAttributeValue, RelativeTime } from '@/features/products/format'
 import { Can, useCan } from '@/lib/permissions'
@@ -60,9 +62,9 @@ import {
   type Product,
 } from './catalog-model'
 import { ATTR_FIELDS } from './guided-model'
+import { DETAIL_TABS, type DetailTab } from './detail-tabs'
 import { ProductThumb } from './products-page'
 
-import { DETAIL_TABS, type DetailTab } from './detail-tabs'
 const TAB_LABEL: Record<DetailTab, string> = {
   overview: 'Overview',
   variants: 'Variants',
@@ -73,23 +75,61 @@ const TAB_LABEL: Record<DetailTab, string> = {
   activity: 'Activity',
 }
 
+/** Same frame as the loaded page (header, tabs, marketplace grid, two cards) so nothing jumps. */
 function DetailSkeleton() {
   return (
     <Page>
-      <div className="flex items-center gap-3.5 pb-6" aria-busy="true" aria-label="Loading product">
-        <Skeleton className="size-16 rounded-card" />
-        <div className="flex flex-col gap-2">
-          <Skeleton className="h-7 w-72 max-w-full" />
-          <Skeleton className="h-4 w-56" />
+      <div aria-busy="true" aria-label="Loading product">
+        <div className="flex flex-col gap-4 pb-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-3.5">
+            <Skeleton className="size-16 shrink-0 rounded-card" />
+            <div className="flex min-w-0 flex-col gap-2">
+              <Skeleton className="h-7 w-72 max-w-full" />
+              <Skeleton className="h-4 w-56 max-w-full" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-9 w-24 rounded-control" />
+            <Skeleton className="h-9 w-24 rounded-control" />
+          </div>
+        </div>
+        <div className="mb-5 flex h-[42px] items-center gap-6 border-b border-line">
+          {Array.from({ length: 5 }, (_, i) => (
+            <Skeleton key={i} className="h-4 w-16" />
+          ))}
+        </div>
+        <div className="flex flex-col gap-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {MARKETPLACES.map((m) =>
+              m.supported ? <PendingMarketplaceCard key={m.id} m={m} /> : <UnsupportedCard key={m.id} m={m} static />,
+            )}
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Skeleton className="h-56 rounded-card" />
+            <Skeleton className="h-56 rounded-card" />
+          </div>
         </div>
       </div>
-      <Skeleton className="mb-5 h-[42px] w-full" />
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 6 }, (_, i) => (
-          <Skeleton key={i} className="h-40 rounded-card" />
-        ))}
-      </div>
     </Page>
+  )
+}
+
+/** A tab's cards while its listings load: two card-shaped placeholders. */
+function TabCardsSkeleton() {
+  return (
+    <div className="grid gap-4 md:grid-cols-2" aria-busy="true" aria-label="Loading">
+      {[0, 1].map((i) => (
+        <LaCard key={i} className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <Skeleton className="h-6 w-28" />
+            <Skeleton className="h-[22px] w-20 rounded-full" />
+          </div>
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-2/3" />
+          <Skeleton className="mt-1 h-[30px] w-28 rounded-control" />
+        </LaCard>
+      ))}
+    </div>
   )
 }
 
@@ -109,6 +149,12 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
   const all = useAllProducts()
   const listingsQ = useAllListings({ productId })
   const issuesQ = useOpenIssues()
+  const tabsRef = useRef<HTMLDivElement>(null)
+
+  // Keep the active tab in view when the row scrolls sideways (phones). 'nearest' never moves the page.
+  useEffect(() => {
+    tabsRef.current?.querySelector<HTMLElement>('[data-state="active"]')?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' })
+  }, [tab])
 
   const data = useMemo<DetailData | null>(() => {
     if (!q.data) return null
@@ -156,13 +202,22 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
 
   return (
     <Page>
-      <header className="flex flex-col gap-4 pb-6 lg:flex-row lg:items-start lg:justify-between">
+      <header className="flex flex-col gap-4 pb-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-3.5">
-          <ProductThumb size={64} className="rounded-card" />
+          <ProductThumb size={64} className="shrink-0 rounded-card" />
           <div className="min-w-0">
-            <h1 className="truncate font-display text-h1 text-ink" data-testid="product-title">
-              {p.title}
-            </h1>
+            <div className="flex min-w-0 items-center gap-2">
+              <h1 className="truncate font-display text-h1 text-ink" data-testid="product-title">
+                {p.title}
+              </h1>
+              {data.isVariant ? null : data.listingsPending ? (
+                <Skeleton className="h-[22px] w-20 shrink-0 rounded-full" />
+              ) : (
+                <StatusChip status={overall.status} className="shrink-0">
+                  {overall.label}
+                </StatusChip>
+              )}
+            </div>
             <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-body text-ink-2">
               <span data-testid="product-sku">{p.sku}</span>
               <span aria-hidden>·</span>
@@ -190,7 +245,6 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {data.isVariant ? null : data.listingsPending ? <Skeleton className="h-[22px] w-20 rounded-full" /> : <StatusChip status={overall.status}>{overall.label}</StatusChip>}
           <UnavailableButton variant="secondary" reason={NOT_YET.pauseArchive}>
             <Icon name="pause" size={16} />
             Pause
@@ -199,15 +253,16 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
             <Icon name="refresh" size={16} />
             Resubmit
           </UnavailableButton>
-          <UnavailableButton reason="Editing a product is not available yet. Upload its SKU again in a spreadsheet to update it.">
+          <UnavailableButton variant="secondary" reason="Editing a product is not available yet. Upload its SKU again in a spreadsheet to update it.">
             <IconGlyph icon={CONCEPT_ICON.edit} size={16} />
             Edit
           </UnavailableButton>
+          <HeaderListOn data={data} />
         </div>
       </header>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList variant="line" aria-label="Product sections">
+        <TabsList ref={tabsRef} variant="line" aria-label="Product sections">
           {DETAIL_TABS.map((t) => (
             <TabsTrigger key={t} value={t} data-testid={`tab-${t}`}>
               {TAB_LABEL[t]}
@@ -244,16 +299,54 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
 
 /* ---------------------------------------------------------------------------------------------- */
 
+/** One key column for every key-value list on this page, so values line up across cards. */
+const KV_GRID = 'grid grid-cols-[minmax(96px,max-content)_minmax(0,1fr)] items-baseline gap-x-3 gap-y-2'
+
 function KV({ rows }: { rows: [string, ReactNode][] }) {
   return (
-    <dl className="mt-3 grid grid-cols-[70px_minmax(0,1fr)] gap-x-3 gap-y-2 text-small">
+    <dl className={cn('mt-3 text-small', KV_GRID)}>
       {rows.map(([k, v]) => (
         <div key={k} className="contents">
-          <dt className="text-ink-2">{k}</dt>
+          <dt className="whitespace-nowrap text-ink-2">{k}</dt>
           <dd className="min-w-0 truncate text-ink">{v}</dd>
         </div>
       ))}
     </dl>
+  )
+}
+
+/** Card action row: pinned to the card's bottom so buttons line up across a grid row. */
+const CARD_ACTIONS = 'mt-auto flex flex-wrap gap-2 pt-3'
+const CARD_FRAME = 'flex h-full flex-col'
+
+/** The first supported marketplace this product has no listing on, if the user may start one. */
+function useFirstUnlisted(data: DetailData): MarketplaceInfo | 'pending' | null {
+  const can = useCan()
+  if (!can('listing:generate') || data.isVariant) return null
+  if (data.listingsPending) return 'pending'
+  return MARKETPLACES.find((m) => m.supported && !data.listings[m.id as Marketplace]) ?? null
+}
+
+function HeaderListOn({ data }: { data: DetailData }) {
+  const first = useFirstUnlisted(data)
+  const [open, setOpen] = useState(false)
+  if (first === 'pending') return <Skeleton className="h-9 w-32 rounded-control" />
+  if (!first) return null
+  return (
+    <>
+      <Button onClick={() => setOpen(true)} data-testid="header-list-on">
+        List on {first.name}
+      </Button>
+      {open ? (
+        <AddMarketplaceDialog
+          open
+          onOpenChange={setOpen}
+          products={[data.product]}
+          listingsOf={() => data.listings}
+          initial={[first.id as Marketplace]}
+        />
+      ) : null}
+    </>
   )
 }
 
@@ -282,6 +375,48 @@ function MarketplaceCards({ data, detailed }: { data: DetailData; detailed?: boo
   )
 }
 
+/** Not supported yet: no data needed, so the loading frame shows the same card. */
+function UnsupportedCard({ m, static: isStatic }: { m: MarketplaceInfo; static?: boolean }) {
+  return (
+    <DashedCard pad="sm" className={CARD_FRAME}>
+      <div className="flex items-center justify-between gap-2">
+        <MarketplaceName id={m.id} />
+        <StatusChip status="not-listed" />
+      </div>
+      <p className="mt-3 text-small text-ink-2">Not supported yet.</p>
+      <div className={CARD_ACTIONS}>
+        {isStatic ? (
+          <Skeleton className="h-[30px] w-28 rounded-control" />
+        ) : (
+          <UnavailableButton variant="secondary" size="sm" reason={NOT_YET.waitlist}>
+            Join waitlist
+          </UnavailableButton>
+        )}
+      </div>
+    </DashedCard>
+  )
+}
+
+/** A supported marketplace while its listing loads: the real header, then placeholders at card height. */
+function PendingMarketplaceCard({ m }: { m: MarketplaceInfo }) {
+  return (
+    <LaCard pad="sm" className={CARD_FRAME} aria-busy="true">
+      <div className="flex items-center justify-between gap-2">
+        <MarketplaceName id={m.id} />
+        <Skeleton className="h-[22px] w-20 rounded-full" />
+      </div>
+      <div className="mt-3 flex flex-col gap-2">
+        {[0, 1, 2, 3].map((i) => (
+          <Skeleton key={i} className={cn('h-4', i % 2 ? 'w-3/4' : 'w-full')} />
+        ))}
+      </div>
+      <div className={CARD_ACTIONS}>
+        <Skeleton className="h-[30px] w-28 rounded-control" />
+      </div>
+    </LaCard>
+  )
+}
+
 function MarketplaceCard({
   m,
   data,
@@ -293,26 +428,13 @@ function MarketplaceCard({
   detailed?: boolean
   onList: ((m: Marketplace) => void) | null
 }) {
-  if (!m.supported) {
-    return (
-      <DashedCard pad="sm">
-        <div className="flex items-center justify-between gap-2">
-          <MarketplaceName id={m.id} />
-          <StatusChip status="not-listed" />
-        </div>
-        <p className="mt-3 text-small text-ink-2">Not supported yet.</p>
-        <UnavailableButton variant="secondary" size="sm" className="mt-3" reason={NOT_YET.waitlist}>
-          Join waitlist
-        </UnavailableButton>
-      </DashedCard>
-    )
-  }
+  if (!m.supported) return <UnsupportedCard m={m} />
   const id = m.id as Marketplace
-  if (data.listingsPending) return <Skeleton className="h-40 rounded-card" />
+  if (data.listingsPending) return <PendingMarketplaceCard m={m} />
   const l = data.listings[id]
   if (!l) {
     return (
-      <DashedCard pad="sm">
+      <DashedCard pad="sm" className={CARD_FRAME}>
         <div className="flex items-center justify-between gap-2">
           <MarketplaceName id={m.id} />
           <StatusChip status="not-listed" />
@@ -321,9 +443,11 @@ function MarketplaceCard({
           {data.isVariant ? 'Variants are listed through their style.' : 'No listing drafted for this product yet.'}
         </p>
         {onList ? (
-          <Button variant="secondary" size="sm" className="mt-3" onClick={() => onList(id)} data-testid={`list-on-${id}`}>
-            List on {m.name}
-          </Button>
+          <div className={CARD_ACTIONS}>
+            <Button variant="secondary" size="sm" onClick={() => onList(id)} data-testid={`list-on-${id}`}>
+              List on {m.name}
+            </Button>
+          </div>
         ) : null}
       </DashedCard>
     )
@@ -331,9 +455,11 @@ function MarketplaceCard({
   const chip = cellChip(l)
   const issues = data.issuesByListing.get(l.id) ?? 0
   const live = l.marketplace_state === 'live' || l.marketplace_state === 'partially_live'
+  const busy = isBusy(l.status)
+  const runJob = busy ? recallJob(l.id) : null
   const Card = chip.status === 'needs-you' || chip.status === 'blocked' ? AttentionCard : LaCard
   return (
-    <Card pad="sm" data-testid={`marketplace-card-${id}`}>
+    <Card pad="sm" className={CARD_FRAME} data-testid={`marketplace-card-${id}`}>
       <div className="flex items-center justify-between gap-2">
         <MarketplaceName id={m.id} />
         <StatusChip status={chip.status}>{chip.label}</StatusChip>
@@ -341,25 +467,49 @@ function MarketplaceCard({
       <KV
         rows={[
           ['Listing', <span key="l" title={l.id}>{shortId(l.id)}</span>],
-          [
-            'Link',
-            live && l.live_url ? (
-              <a key="a" href={l.live_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-brand hover:underline">
-                View live
-                <span className="sr-only"> (opens in a new tab)</span>
-                <Icon name="external" size={14} />
-              </a>
-            ) : (
-              'Not yet'
-            ),
-          ],
-          ['Status changed', <RelativeTime key="s" iso={l.status_changed_at} />],
+          ...(busy
+            ? []
+            : ([
+                [
+                  'Link',
+                  live && l.live_url ? (
+                    <a key="a" href={l.live_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-brand hover:underline">
+                      View live
+                      <span className="sr-only"> (opens in a new tab)</span>
+                      <Icon name="external" size={14} />
+                    </a>
+                  ) : (
+                    'Not yet'
+                  ),
+                ],
+              ] as [string, ReactNode][])),
+          ['Updated', <RelativeTime key="s" iso={l.status_changed_at} />],
           ['Issues', `${issues} open`],
           ...(detailed && l.status_reason ? ([['Reason', l.status_reason]] as [string, ReactNode][]) : []),
         ]}
       />
-      <div className="mt-3 flex flex-wrap gap-2">
-        {chip.status === 'needs-you' ? (
+      {busy ? (
+        <p className="mt-3 flex items-center gap-2 text-small text-ink-2">
+          <Spinner className="size-3.5 shrink-0 text-brand" aria-hidden />
+          {l.status === 'publishing' ? `Sending to ${m.name}…` : 'The agent is drafting this listing.'}
+        </p>
+      ) : null}
+      <div className={CARD_ACTIONS}>
+        {busy ? (
+          runJob ? (
+            <Button variant="secondary" size="sm" asChild>
+              <Link to="/runs/$runId" params={{ runId: runJob }}>
+                See progress
+              </Link>
+            </Button>
+          ) : (
+            <Button variant="secondary" size="sm" asChild>
+              <Link to="/listings/$listingId/review" params={{ listingId: l.id }}>
+                See progress
+              </Link>
+            </Button>
+          )
+        ) : chip.status === 'needs-you' ? (
           <Button variant="warn" size="sm" asChild>
             <Link to="/listings/$listingId/review" params={{ listingId: l.id }}>
               Review
@@ -413,16 +563,16 @@ function FactsCard({ product }: { product: ProductDetail }) {
   return (
     <LaCard>
       <CardHead title="Facts we hold about this product" sub="Every value here came from you, through the form or a spreadsheet." />
-      <dl className="mt-4 grid grid-cols-[minmax(90px,auto)_minmax(0,1fr)] gap-x-4 gap-y-3 text-small" data-testid="product-attributes">
+      <dl className={cn('mt-4 text-small', KV_GRID)} data-testid="product-attributes">
         <div className="contents">
-          <dt className="text-ink-2">Category</dt>
+          <dt className="whitespace-nowrap text-ink-2">Category</dt>
           <dd className="flex flex-wrap items-center gap-2 text-ink">
             {humanizeSlug(product.category)} <SourceBadge source={{ kind: 'you' }} />
           </dd>
         </div>
         {entries.map(([k, v]) => (
           <div key={k} className="contents" data-attr-key={k}>
-            <dt className="text-ink-2">{ATTR_FIELDS.find((f) => f.key === k)?.label ?? humanizeSlug(k)}</dt>
+            <dt className="whitespace-nowrap text-ink-2">{ATTR_FIELDS.find((f) => f.key === k)?.label ?? humanizeSlug(k)}</dt>
             <dd className="flex min-w-0 flex-wrap items-center gap-2 break-words text-ink">
               <span className="min-w-0 tabular-nums">{typeof v === 'string' ? v || '—' : formatAttributeValue(v, product.attribute_literals[k])}</span>
               <SourceBadge source={{ kind: 'you' }} />
@@ -457,26 +607,43 @@ function VariantStatusCard({ data }: { data: DetailData }) {
         <>
           {matrix.cells.size ? (
             <div
+              role="grid"
+              aria-label="Variants by colour and size"
               className="mt-4 grid items-center gap-1.5 overflow-x-auto"
-              style={{ gridTemplateColumns: `80px repeat(${matrix.sizes.length}, minmax(44px, 1fr))` }}
+              style={{ gridTemplateColumns: `minmax(64px, max-content) repeat(${matrix.sizes.length}, minmax(44px, 1fr))` }}
             >
-              <span />
-              {matrix.sizes.map((s) => (
-                <b key={s} className="text-center text-small text-ink">
-                  {s}
-                </b>
-              ))}
+              <div role="row" className="contents">
+                <span role="columnheader">
+                  <span className="sr-only">Colour</span>
+                </span>
+                {matrix.sizes.map((s) => (
+                  <b key={s} role="columnheader" className="text-center text-small text-ink">
+                    {s}
+                  </b>
+                ))}
+              </div>
               {matrix.colours.map((c) => (
-                <div key={c ?? ''} className="contents">
-                  <b className="truncate text-small text-ink">{c ?? 'Size'}</b>
+                <div key={c ?? ''} role="row" className="contents">
+                  <b role="rowheader" className="truncate text-small text-ink" title={c ?? undefined}>
+                    {c ?? 'Size'}
+                  </b>
                   {matrix.sizes.map((s) => {
                     const v = matrix.cells.get(matrixKey(c, s))
-                    return v ? (
-                      <Link key={s} to="/products/$productId" params={{ productId: v.id }} className="min-w-0 rounded-lg" aria-label={`${c ? `${c} ` : ''}${s}: ${v.sku}`}>
-                        <VariantCell className="hover:bg-subtle">{v.sku.startsWith(`${data.product.sku}-`) ? v.sku.slice(data.product.sku.length + 1) : v.sku}</VariantCell>
-                      </Link>
-                    ) : (
-                      <VariantCell key={s} unavailable label={`${c ? `${c} ` : ''}${s}: not made`} />
+                    return (
+                      <div key={s} role="gridcell" className="min-w-0">
+                        {v ? (
+                          <Link
+                            to="/products/$productId"
+                            params={{ productId: v.id }}
+                            className="focus-ring block min-w-0 rounded-lg"
+                            aria-label={`${c ? `${c} ` : ''}${s}: ${v.sku}`}
+                          >
+                            <VariantCell className="hover:bg-subtle">{v.sku.startsWith(`${data.product.sku}-`) ? v.sku.slice(data.product.sku.length + 1) : v.sku}</VariantCell>
+                          </Link>
+                        ) : (
+                          <VariantCell unavailable label={`${c ? `${c} ` : ''}${s}: not made`} />
+                        )}
+                      </div>
                     )
                   })}
                 </div>
@@ -571,24 +738,26 @@ function NoListings({ data }: { data: DetailData }) {
 
 function ContentTab({ data }: { data: DetailData }) {
   const ls = listingsIn(data)
-  if (data.listingsPending) return <Skeleton className="h-32 rounded-card" />
+  if (data.listingsPending) return <TabCardsSkeleton />
   if (!ls.length) return <NoListings data={data} />
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {ls.map((l) => {
         const chip = cellChip(l)
         return (
-          <LaCard key={l.id}>
+          <LaCard key={l.id} className={CARD_FRAME}>
             <div className="flex items-center justify-between gap-2">
               <MarketplaceName id={l.marketplace} />
               <StatusChip status={chip.status}>{chip.label}</StatusChip>
             </div>
             <p className="mt-3 text-small text-ink-2">Title, bullets and description are written per marketplace and reviewed before anything is sent.</p>
-            <Button variant="secondary" size="sm" className="mt-3" asChild>
-              <Link to="/listings/$listingId/review" params={{ listingId: l.id }}>
-                Open content
-              </Link>
-            </Button>
+            <div className={CARD_ACTIONS}>
+              <Button variant="secondary" size="sm" asChild>
+                <Link to="/listings/$listingId/review" params={{ listingId: l.id }}>
+                  Open content
+                </Link>
+              </Button>
+            </div>
           </LaCard>
         )
       })}
@@ -600,7 +769,7 @@ function ValidationCard({ listing }: { listing: Listing }) {
   const q = useListing(listing.id)
   const v = q.data?.data.validation
   return (
-    <LaCard>
+    <LaCard className={CARD_FRAME}>
       <div className="flex items-center justify-between gap-2">
         <MarketplaceName id={listing.marketplace} />
         {q.isPending ? (
@@ -624,11 +793,13 @@ function ValidationCard({ listing }: { listing: Listing }) {
       ) : q.isPending ? null : (
         <p className="mt-3 text-small text-ink-2">No checks have run on this listing yet.</p>
       )}
-      <Button variant="secondary" size="sm" className="mt-3" asChild>
-        <Link to="/listings/$listingId/review" params={{ listingId: listing.id }}>
-          See every check
-        </Link>
-      </Button>
+      <div className={CARD_ACTIONS}>
+        <Button variant="secondary" size="sm" asChild>
+          <Link to="/listings/$listingId/review" params={{ listingId: listing.id }}>
+            See every check
+          </Link>
+        </Button>
+      </div>
     </LaCard>
   )
 }
@@ -648,7 +819,7 @@ function ValidationTab({ data }: { data: DetailData }) {
         </div>
       </Can>
       {data.listingsPending ? (
-        <Skeleton className="h-32 rounded-card" />
+        <TabCardsSkeleton />
       ) : ls.length ? (
         <div className="grid gap-4 md:grid-cols-2">
           {ls.map((l) => (
@@ -715,7 +886,7 @@ function ActivityTab({ data }: { data: DetailData }) {
         />
       </LaCard>
       {data.listingsPending ? (
-        <Skeleton className="h-32 rounded-card" />
+        <TabCardsSkeleton />
       ) : ls.length ? (
         <div className={cn('grid gap-4', ls.length > 1 && 'md:grid-cols-2')}>
           {ls.map((l) => (

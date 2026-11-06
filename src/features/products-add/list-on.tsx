@@ -6,6 +6,7 @@
  */
 import { MARKETPLACES, MarketplaceTile, NOT_YET, UnavailableHint } from '@/components/la'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useCurrentMarketplaceAccounts } from '@/features/marketplaces/api'
 import { cn } from '@/lib/utils'
 import { API_MARKETPLACES, type Marketplace } from './catalog-model'
@@ -40,7 +41,7 @@ export function ListOnPicker({
   className?: string
 }) {
   return (
-    <fieldset className={className}>
+    <fieldset className={className} aria-busy={connected === null ? true : undefined}>
       <legend className="font-display text-h3 text-ink">List on</legend>
       <div className="mt-3 flex flex-wrap gap-2.5">
         {MARKETPLACES.map((m) => {
@@ -54,6 +55,8 @@ export function ListOnPicker({
               </UnavailableHint>
             )
           }
+          // Accounts still loading: pre-selection is not known yet, so the choice waits for it.
+          if (connected === null) return <Skeleton key={m.id} className="h-11 w-36 rounded-control" />
           const id = m.id as Marketplace
           const on = value.includes(id)
           const notConnected = connected !== null && !connected.includes(id)

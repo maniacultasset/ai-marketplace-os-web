@@ -10,11 +10,13 @@ import { createContext, useCallback, useContext, useMemo, useState } from 'react
 import { Page, PageHeader } from '@/components/app/page-header'
 import { columnHelper, DataTable, selectionColumn } from '@/components/data-table'
 import {
+  Banner,
   BulkBar,
   Glyph,
   Icon,
   MARKETPLACES,
   MarketplaceCell,
+  MarketplaceName,
   NOT_YET,
   Segmented,
   StatusChip,
@@ -26,6 +28,7 @@ import { EmptyState } from '@/components/states/empty-state'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { RelativeTime } from '@/features/products/format'
@@ -196,6 +199,12 @@ const columns = col.columns([
   }),
 ])
 
+/** Marketplaces the API can list on today; the rest get one caption on the phone card. */
+const LISTABLE = MARKETPLACES.filter((m) => m.supported)
+const NOT_YET_NAMES = MARKETPLACES.filter((m) => !m.supported)
+  .map((m) => m.name)
+  .join(', ')
+
 function ProductCard({ row, selected, toggle, canSelect }: { row: CatalogRow; selected: boolean; toggle: (v: boolean) => void; canSelect: boolean }) {
   return (
     <div className={cn('relative rounded-card border p-4', selected ? 'border-brand bg-brand-bg shadow-[var(--selected-ring),var(--shadow-raised-md)]' : 'border-line bg-surface shadow-raised-md')}>
@@ -214,26 +223,64 @@ function ProductCard({ row, selected, toggle, canSelect }: { row: CatalogRow; se
           </Link>
           <p className="truncate text-caption text-ink-2">
             {row.product.sku} · {humanizeSlug(row.product.category)}
-            {row.variants.length ? ` · ${row.variants.length} variants` : ''}
+            {row.variants.length ? ` · ${row.variants.length} ${row.variants.length === 1 ? 'variant' : 'variants'}` : ''}
           </p>
         </div>
-        <OverallCell row={row} />
       </div>
-      <div className="mt-3 grid grid-cols-6 items-start gap-0.5 border-t border-line pt-3">
-        {MARKETPLACES.map((m) => (
-          <span key={m.id} className="flex min-w-0 flex-col items-center gap-0.5">
-            <span className="max-w-full truncate text-[11px] font-semibold text-ink-2">{m.short}</span>
-            <MarketCell row={row} id={m.id} className="w-full" />
+      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-line pt-3">
+        {LISTABLE.map((m) => (
+          <span key={m.id} className="flex min-w-0 flex-col items-start gap-1.5">
+            <MarketplaceName id={m.id} size="xs" className="max-w-full gap-2 text-small" />
+            <CardMarketStatus row={row} id={m.id as Marketplace} name={m.name} />
           </span>
         ))}
       </div>
-      <p className="mt-2 flex items-center justify-between text-caption text-ink-2">
-        <span>
-          <IssuesCell row={row} card />
+      {NOT_YET_NAMES ? <p className="mt-2 text-caption text-ink-3">{NOT_YET_NAMES}: not available yet.</p> : null}
+      <div className="mt-3 flex items-center justify-between gap-2 text-caption text-ink-2">
+        <span className="flex min-w-0 items-center gap-2">
+          <OverallCell row={row} />
+          <span className="truncate">
+            <IssuesCell row={row} card />
+          </span>
         </span>
-        <RelativeTime iso={row.activityAt} className={ABOVE} />
-      </p>
+        <RelativeTime iso={row.activityAt} className={cn(ABOVE, 'shrink-0')} />
+      </div>
     </div>
+  )
+}
+
+/** Phone card: the listing's status as a labelled chip (the table uses the icon-only cell). */
+function CardMarketStatus({ row, id, name }: { row: CatalogRow; id: Marketplace; name: string }) {
+  const { listings } = useContext(LoadCtx)
+  if (listings === 'pending') return <Skeleton className="h-[22px] w-20 rounded-full" />
+  if (listings === 'error') return <Unknown what={`${name} status`} />
+  const chip = cellChip(row.listings[id])
+  return <StatusChip status={chip.status}>{chip.label}</StatusChip>
+}
+
+/** The status signs, behind a small "Key" button instead of a permanent line. */
+function GlyphKey() {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-[34px]">
+          <Icon name="info" size={14} />
+          Key
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-3 text-small text-ink-2">
+        <p className="font-semibold text-ink">Marketplace columns</p>
+        <ul className="mt-2 flex flex-col gap-1.5">
+          {BUCKETS.map((b) => (
+            <li key={b.value} className="flex items-center gap-2">
+              <Glyph status={BUCKET_GLYPH[b.value].status} className={BUCKET_GLYPH[b.value].className} />
+              {b.label}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-caption text-ink-3">The small text under a sign is the listing ID.</p>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -357,24 +404,7 @@ export function ProductsPage() {
         toolbar={
           n > 0 || catalog.isPending ? (
             <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <div className="relative w-full sm:w-[260px]">
-                  <Icon name="search" size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-3" />
-                  <Input
-                    type="search"
-                    name="q"
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
-                    autoComplete="off"
-                    spellCheck={false}
-                    enterKeyHint="search"
-                    maxLength={200}
-                    placeholder="Search name or SKU"
-                    aria-label="Search loaded products by name or SKU"
-                    className="pl-9"
-                    data-testid="products-filter"
-                  />
-                </div>
+              <div className="max-w-full overflow-x-auto">
                 <Segmented
                   label="Overall status"
                   value={bucket}
@@ -395,6 +425,25 @@ export function ProductsPage() {
                         }))),
                   ]}
                 />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative w-full sm:w-[260px]">
+                  <Icon name="search" size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-3" />
+                  <Input
+                    type="search"
+                    name="q"
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                    enterKeyHint="search"
+                    maxLength={200}
+                    placeholder="Search name or SKU…"
+                    aria-label="Search loaded products by name or SKU"
+                    className="h-[34px] pl-9 text-small"
+                    data-testid="products-filter"
+                  />
+                </div>
                 <FilterSelect
                   label="Category"
                   value={category}
@@ -402,30 +451,36 @@ export function ProductsPage() {
                   options={categories.map((c) => ({ value: c, label: humanizeSlug(c) }))}
                 />
                 {catalog.listingsState === 'error' ? null : (
-                <FilterSelect
-                  label="Marketplace"
-                  value={marketplace}
-                  onChange={(v) => setMarketplace(v as Marketplace | null)}
-                  options={[
-                    { value: 'amazon', label: 'Listed on Amazon' },
-                    { value: 'flipkart', label: 'Listed on Flipkart' },
-                  ]}
-                />
+                  <FilterSelect
+                    label="Marketplace"
+                    value={marketplace}
+                    onChange={(v) => setMarketplace(v as Marketplace | null)}
+                    options={[
+                      { value: 'amazon', label: 'Listed on Amazon' },
+                      { value: 'flipkart', label: 'Listed on Flipkart' },
+                    ]}
+                  />
                 )}
+                <GlyphKey />
               </div>
-              <p className="text-caption text-ink-3">
-                Marketplace columns: ● live · ◐ working · ▲ needs you · ■ blocked · ✕ error · – not listed. The small text is the listing ID.
-                {catalog.listingsState === 'error' ? ' Listing status could not be loaded, so status cells show “?”.' : ''}
-                {catalog.listingsState !== 'error' && catalog.issuesState === 'error' ? ' Open issues could not be loaded.' : ''}
-                {catalog.listingsState === 'error' || catalog.issuesState === 'error' ? (
-                  <>
-                    {' '}
-                    <button type="button" className="focus-ring rounded font-semibold text-brand underline" onClick={catalog.refetch}>
+              {catalog.listingsState === 'error' || catalog.issuesState === 'error' ? (
+                <Banner
+                  tone="attention"
+                  role="status"
+                  className="py-2"
+                  action={
+                    <Button variant="secondary" size="sm" onClick={catalog.refetch}>
                       Try again
-                    </button>
-                  </>
-                ) : null}
-              </p>
+                    </Button>
+                  }
+                >
+                  <span className="text-small">
+                    {catalog.listingsState === 'error'
+                      ? 'Listing status could not be loaded, so status cells show “?”.'
+                      : 'Open issues could not be loaded.'}
+                  </span>
+                </Banner>
+              ) : null}
             </div>
           ) : null
         }

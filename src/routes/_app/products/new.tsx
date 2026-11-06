@@ -4,7 +4,7 @@ import { RequireAction } from '@/components/states/require-action'
 import { ProductForm } from '@/features/products/product-form'
 
 export const Route = createFileRoute('/_app/products/new')({
-  staticData: { title: 'Add products' },
+  staticData: { title: 'New product' },
   component: NewProductPage,
 })
 
@@ -16,15 +16,15 @@ function NewProductPage() {
         description={
           <>
             Add one product by hand. For many at once,{' '}
-            <Link to="/imports/new" className="text-brand underline-offset-4 hover:underline">
-              import a CSV
+            <Link to="/add/bulk" className="font-semibold text-brand underline-offset-4 hover:underline">
+              upload a spreadsheet
             </Link>
             .
           </>
         }
         breadcrumbs={[{ label: 'Products', to: '/products' }, { label: 'New product' }]}
       />
-      <div className="max-w-3xl">
+      <div className="max-w-[720px]">
         <RequireAction action="product:import">
           <ProductForm />
         </RequireAction>

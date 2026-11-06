@@ -7,10 +7,12 @@
  * Each walk stops at WALK_MAX_PAGES. When a walk stops early the screen says so ("first N loaded")
  * instead of presenting a partial count as the total.
  */
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { api, unwrap } from '@/api/client'
 import type { Page } from '@/api/types'
+import { BUSY_REFETCH_MS } from '@/features/listings/api'
+import { isBusy } from '@/features/listings/model'
 import { useKeys } from '@/lib/query-keys'
 import { buildCatalog, type Issue, type Listing, type Product } from './catalog-model'
 
@@ -54,6 +56,12 @@ export function useAllListings(opts: { productId?: string } = {}) {
   return useQuery({
     queryKey: [...keys.listings.list({ productId: opts.productId }), 'all'] as const,
     staleTime: STALE_MS,
+    // While any listing is drafting or publishing, re-read so cells flip from Working on their own.
+    // keepPreviousData: a poll never drops the cells back to skeletons. Not for one product's
+    // listings: moving to another product must not show the last product's cards as its own.
+    refetchInterval: (q) => (q.state.data?.rows.some((l) => isBusy(l.status)) ? BUSY_REFETCH_MS : false),
+    refetchIntervalInBackground: false,
+    placeholderData: opts.productId ? undefined : keepPreviousData,
     queryFn: () =>
       walkPages<Listing>((cursor) =>
         unwrap(

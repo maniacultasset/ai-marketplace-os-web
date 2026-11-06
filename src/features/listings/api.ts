@@ -69,7 +69,7 @@ export function useListingsList(filters: ListingsFilters) {
 }
 
 /** While a listing is generating or publishing, re-read it on this cadence (the job may be unknown). */
-const BUSY_REFETCH_MS = 15_000
+export const BUSY_REFETCH_MS = 5_000
 
 export function useListing(listingId: string) {
   const keys = useKeys()
