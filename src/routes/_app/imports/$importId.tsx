@@ -16,6 +16,7 @@ const searchSchema = z.object({
 })
 
 export const Route = createFileRoute('/_app/imports/$importId')({
+  staticData: { title: 'Imports' },
   validateSearch: zodValidator(searchSchema),
   component: ImportReportPage,
 })
@@ -42,7 +43,7 @@ function ImportReportPage() {
             title={entry?.filename ?? 'Import report'}
             description={
               <>
-                Import <span className="font-mono text-xs">{importId}</span>
+                Import <span className="font-mono text-small">{importId}</span>
               </>
             }
             breadcrumbs={[{ label: 'Imports', to: '/imports' }, { label: entry?.filename ?? 'Report' }]}
@@ -53,7 +54,7 @@ function ImportReportPage() {
                   <Button variant="outline" asChild>
                     <Link to="/imports/new">
                       <Icon name="upload" size={16} data-icon="inline-start" />
-                      New import
+                      Import spreadsheet
                     </Link>
                   </Button>
                 </Can>

@@ -32,6 +32,7 @@ import {
   type MarketplaceAccount,
 } from '@/features/marketplaces/api'
 import { formatDateTime } from '@/features/marketplaces/format'
+import { rememberConnectOrigin } from '@/features/marketplaces-settings/use-start-connect'
 import { useCan } from '@/lib/permissions'
 import { toastError } from '@/lib/toast'
 import { cn } from '@/lib/utils'
@@ -198,7 +199,7 @@ function MarketplaceDetail({ info, account, loading }: { info: MarketplaceInfo; 
     return (
       <LaCard className="flex flex-col gap-4" aria-busy="true" aria-label="Loading connection">
         <div className="flex items-center gap-3">
-          <Skeleton className="size-11 rounded-[9px]" />
+          <Skeleton className="size-11 rounded-xl" />
           <div className="space-y-2">
             <Skeleton className="h-5 w-32" />
             <Skeleton className="h-4 w-48" />
@@ -242,7 +243,10 @@ function MarketplaceDetail({ info, account, loading }: { info: MarketplaceInfo; 
   const mp = info.id as Marketplace
   const startConnect = () => {
     connect.mutate(mp, {
-      onSuccess: ({ authorize_url }) => window.location.assign(authorize_url),
+      onSuccess: ({ authorize_url }) => {
+        rememberConnectOrigin('/setup/marketplaces', mp)
+        window.location.assign(authorize_url)
+      },
       onError: (err) => {
         if (isNotImplemented(err)) setNotConfigured(true)
         else toastError(err, `Couldn’t start connecting ${info.name}`)

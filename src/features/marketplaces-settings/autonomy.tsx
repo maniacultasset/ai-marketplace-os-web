@@ -9,6 +9,7 @@
  * - there is nothing to save, so the "Save changes" footer is not rendered.
  */
 import { useId } from 'react'
+import { PageHeader } from '@/components/app/page-header'
 import { Banner } from '@/components/la/banner'
 import { CardHead, LaCard } from '@/components/la/cards'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
@@ -22,10 +23,7 @@ import { AUTO_FIX_SCOPE, AUTONOMY_REASON, NEVER_GUESSED, SUPPORTED } from './mod
 export function AutonomySettings() {
   return (
     <div className="flex max-w-[820px] flex-col gap-4" data-testid="autonomy-settings">
-      <div>
-        <h1 className="font-display text-h1 text-ink">Autonomy</h1>
-        <p className="mt-1 text-body text-ink-2">How the agent submits listings for this brand.</p>
-      </div>
+      <PageHeader title="Autonomy" description="How listings are sent for this brand." className="pb-1" />
 
       <Banner tone="info" icon={CONCEPT_ICON.approval} title="Approval is always on" role="status">
         In this version a person approves every listing before it is sent to a marketplace. The agent proposes, the rules
@@ -48,8 +46,7 @@ export function AutonomySettings() {
               Approval mode
             </p>
             <p id="autonomy-mode-approval-desc" className="mt-1 text-small text-ink-2">
-              Show a review screen and wait for your approval before every submission. This is the only mode in this
-              version.
+              You review and approve every listing before it is sent.
             </p>
           </div>
         </div>
@@ -58,7 +55,7 @@ export function AutonomySettings() {
       <LaCard>
         <CardHead
           title="The agent may fix these on its own"
-          sub="Planned for a later version, so all of these are off. Today the agent does not make these changes on its own, and nothing is sent without your approval."
+          sub="Planned for a later version."
           action={
             <UnavailableHint reason={AUTONOMY_REASON.scope}>
               <ComingSoon />
@@ -79,7 +76,7 @@ export function AutonomySettings() {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <LaCard>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h4 className="text-[14px] font-bold text-ink">Retry limit</h4>
+            <h3 className="text-body font-bold text-ink">Retry limit</h3>
             <ComingSoon />
           </div>
           <div className="mt-3 flex items-center gap-3">
@@ -94,7 +91,7 @@ export function AutonomySettings() {
         </LaCard>
         <LaCard>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h4 className="text-[14px] font-bold text-ink">Tell me about tasks by</h4>
+            <h3 className="text-body font-bold text-ink">Tell me about tasks by</h3>
             <ComingSoon />
           </div>
           <div className="mt-3 flex flex-wrap gap-3.5">
@@ -111,7 +108,7 @@ export function AutonomySettings() {
       </div>
 
       <LaCard>
-        <h4 className="text-[14px] font-bold text-ink">Per marketplace</h4>
+        <h3 className="text-body font-bold text-ink">Per marketplace</h3>
         <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
           {SUPPORTED.map((m) => (
             <div key={m} className="flex items-center justify-between gap-3" data-testid={`autonomy-${m}`}>

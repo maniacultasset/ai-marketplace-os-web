@@ -19,7 +19,7 @@ function SecurityPage() {
   // Drop ?setup once the setup panel is open, so a reload does not open it again.
   const onSetupShown = useCallback(() => void navigate({ to: '/settings/security', search: {}, replace: true }), [navigate])
   return (
-    <Page className="max-w-[1100px]">
+    <Page className="mx-0 max-w-[1100px]">
       <PageHeader title="Security" description="Login codes and your password." />
       <SecurityView setup={setup === true} onSetupShown={onSetupShown} />
     </Page>

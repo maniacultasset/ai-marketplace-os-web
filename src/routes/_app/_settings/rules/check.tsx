@@ -19,11 +19,11 @@ export const Route = createFileRoute('/_app/_settings/rules/check')({
 function RulesCheckPage() {
   const search = Route.useSearch()
   return (
-    <Page>
+    <Page className="mx-0 max-w-[1100px]">
       <PageHeader
         title="Check a draft"
-        description="Run a listing draft through the rules engine before it is generated or published. Nothing is saved."
-        breadcrumbs={[{ label: 'Rules', to: '/rules' }, { label: 'Check a draft' }]}
+        description="Test a draft against the rules. Nothing is saved."
+        breadcrumbs={[{ label: 'Marketplace rules', to: '/rules' }, { label: 'Check a draft' }]}
       />
       <RequireAction action="listing:edit">
         <DryRunTool

@@ -267,7 +267,7 @@ test.describe('marketplaces', () => {
     await page.goto(`${authorize_url}&seller=B1OTHER`)
 
     const conflict = page.getByTestId('connect-conflict')
-    await expect(conflict).toContainText('This seller account already has a live connection; revoke it first.', ROUND_TRIP)
+    await expect(conflict).toContainText(/This brand already has an? (Amazon )?account connected/, ROUND_TRIP)
     await expect(conflict.getByTestId('error-reference')).toBeVisible()
     await shot(page, 'conflict')
 
@@ -351,7 +351,7 @@ test.describe('marketplaces', () => {
     await expect(page.getByText("Couldn't load marketplace accounts")).toBeVisible({ timeout: 20_000 })
     await shot(page, 'error')
     await page.unroute('**/api/v1/marketplaces/accounts**')
-    await page.getByRole('button', { name: 'Retry' }).click()
+    await page.getByRole('button', { name: 'Try again' }).click()
     await expect(page.getByTestId('marketplace-card-amazon')).toHaveAttribute('data-status', 'active')
   })
 

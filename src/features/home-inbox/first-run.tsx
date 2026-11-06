@@ -34,10 +34,10 @@ const STEP_LINK: Partial<Record<SetupStep['id'], '/setup/brand' | '/marketplaces
 }
 
 type RouteId = 'photos' | 'guided' | 'bulk'
-const ROUTES: readonly { id: RouteId; icon: IconSource; title: string; sub: string; to?: '/products/new' | '/imports/new' }[] = [
+const ROUTES: readonly { id: RouteId; icon: IconSource; title: string; sub: string; cta?: string; to?: '/products/new' | '/imports/new' }[] = [
   { id: 'photos', icon: 'image', title: 'Photos and basics', sub: 'Start from product photos.' },
-  { id: 'guided', icon: CONCEPT_ICON.guidedForm, title: 'Guided form', sub: 'One product, step by step.', to: '/products/new' },
-  { id: 'bulk', icon: 'table', title: 'Bulk spreadsheet', sub: 'Many products at once.', to: '/imports/new' },
+  { id: 'guided', icon: CONCEPT_ICON.guidedForm, title: 'Guided form', sub: 'One product, step by step.', cta: 'Start guided form', to: '/products/new' },
+  { id: 'bulk', icon: 'table', title: 'Import spreadsheet', sub: 'Many products at once.', cta: 'Upload spreadsheet', to: '/imports/new' },
 ]
 
 const AFTER_STEPS = [
@@ -107,7 +107,7 @@ export function FirstRun({ brand }: { brand: string }) {
               const body = (
                 <>
                   <IconTile icon={r.icon} tone={available ? 'brand' : 'neutral'} size="lg" flat={!available} className="size-10 rounded-tile" />
-                  <h4 className="mt-3 text-[15px] leading-5 font-bold text-ink">{r.title}</h4>
+                  <h4 className="mt-3 text-h3 text-ink">{r.title}</h4>
                   <p className="mt-1 text-small text-ink-2">{r.sub}</p>
                   {!available ? <ComingSoon className="mt-2" /> : null}
                 </>
@@ -157,7 +157,7 @@ export function FirstRun({ brand }: { brand: string }) {
           </div>
           {canAdd ? (
             <Button className="mt-4" onClick={() => void navigate({ to: selected.to! })} data-testid="first-run-add">
-              Add products
+              {selected.cta}
             </Button>
           ) : (
             <p className="mt-4 text-small text-ink-2">Your role cannot add products. Ask an owner or operator to add the first one.</p>
@@ -220,12 +220,14 @@ function SetupSkeleton() {
           <Skeleton className="h-3 w-20" />
         </div>
       </div>
-      {Array.from({ length: 4 }, (_, i) => (
-        <div key={i} className="mt-3 flex justify-between">
-          <Skeleton className="h-4 w-40" />
-          <Skeleton className="h-[22px] w-14 rounded-full" />
-        </div>
-      ))}
+      <div className="mt-4 flex flex-col gap-3">
+        {Array.from({ length: 4 }, (_, i) => (
+          <div key={i} className="flex items-center justify-between">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-[22px] w-14 rounded-full" />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

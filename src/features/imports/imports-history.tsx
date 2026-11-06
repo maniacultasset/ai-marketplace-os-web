@@ -5,6 +5,7 @@
  * finished jobs and their reports are served from cache on later visits.
  */
 import { Icon, IconTile } from '@/components/la/icons'
+import { ProgressBar } from '@/components/la/progress'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { isApiError, isNotFound } from '@/api/errors'
@@ -24,7 +25,7 @@ import { useImportReport } from './import-report'
 import { useImportJob } from './use-import-job'
 
 const HISTORY_PAGE = 20
-const HEAD = 'h-9 text-[0.75rem] font-medium tracking-wide text-muted-foreground'
+const HEAD = 'h-[38px] text-caption font-semibold text-ink-3'
 
 export function ImportsHistory() {
   const { entries } = useImportHistory()
@@ -35,9 +36,9 @@ export function ImportsHistory() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-caption text-ink-3">
         <p className="flex items-center gap-1.5" data-testid="history-note">
-          <Icon name="info" size={14} className="shrink-0" />
+          <Icon name="info" size={14} aria-hidden className="shrink-0" />
           Uploads from this browser only. Imports from other browsers are not listed.
         </p>
         {entries.length > 0 ? (
@@ -46,7 +47,7 @@ export function ImportsHistory() {
           </p>
         ) : null}
       </div>
-      <div className="overflow-hidden rounded-card border border-line bg-card shadow-raised-md">
+      <div className="overflow-hidden rounded-card border border-line bg-surface shadow-raised-md">
         <Table aria-label="Recent imports">
           <TableHeader className="bg-sunken [&_tr]:border-line">
             <TableRow className="hover:bg-transparent">
@@ -66,7 +67,7 @@ export function ImportsHistory() {
                     title="No imports from this browser yet"
                     description={
                       can('product:import')
-                        ? 'Upload a CSV of products. Its progress and row report will show up here.'
+                        ? 'Upload a spreadsheet of products. Its progress and row results show up here.'
                         : 'This list shows imports uploaded from this browser. Your role can open an import report from a link but cannot upload.'
                     }
                     actions={
@@ -74,7 +75,7 @@ export function ImportsHistory() {
                         <Button size="sm" asChild>
                           <Link to="/imports/new">
                             <Icon name="upload" size={16} data-icon="inline-start" />
-                            Import CSV
+                            Import spreadsheet
                           </Link>
                         </Button>
                       ) : null
@@ -118,16 +119,16 @@ function HistoryRow({ entry }: { entry: ImportHistoryEntry }) {
   const reportErr = report.error && !report.data && !gone ? report.error : null
   const count = (v: number | undefined, tone?: string) =>
     reportErr ? (
-      <span className="text-muted-foreground">—</span>
+      <span className="text-ink-3">—</span>
     ) : v === undefined ? (
       <Skeleton className="ml-auto h-4 w-8" />
     ) : (
-      <span className={cn('font-medium tabular-nums', v > 0 ? tone : 'text-muted-foreground')}>{v.toLocaleString()}</span>
+      <span className={cn('font-semibold tabular-nums', v > 0 ? tone : 'text-ink-3')}>{v.toLocaleString()}</span>
     )
 
   return (
-    <TableRow className="group/row cursor-pointer" onClick={open} data-testid="history-row" data-import-id={entry.import_id}>
-      <TableCell className="max-w-72 py-3">
+    <TableRow className="group/row h-12 cursor-pointer" onClick={open} data-testid="history-row" data-import-id={entry.import_id}>
+      <TableCell className="max-w-72 py-2">
         <div className="flex min-w-0 items-center gap-3">
           <IconTile icon="table" size="sm" className="tactile group-hover/row:text-brand" />
           <div className="min-w-0">
@@ -135,13 +136,13 @@ function HistoryRow({ entry }: { entry: ImportHistoryEntry }) {
               to="/imports/$importId"
               params={{ importId: entry.import_id }}
               search={{ job: entry.job_id }}
-              className="block truncate rounded-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:underline"
+              className="focus-ring block truncate rounded-sm font-semibold text-ink underline-offset-4 hover:underline"
               onClick={(e) => e.stopPropagation()}
               title={entry.filename}
             >
               {entry.filename}
             </Link>
-            <span className="block text-xs text-muted-foreground tabular-nums">
+            <span className="block text-caption text-ink-3 tabular-nums">
               {formatBytes(entry.size)}
               <span className="sm:hidden">
                 {' · '}
@@ -153,7 +154,7 @@ function HistoryRow({ entry }: { entry: ImportHistoryEntry }) {
           </div>
         </div>
       </TableCell>
-      <TableCell className="hidden text-muted-foreground sm:table-cell">
+      <TableCell className="hidden text-ink-2 sm:table-cell">
         <Tooltip>
           <TooltipTrigger asChild>
             <time dateTime={entry.created_at}>{formatRelative(entry.created_at)}</time>
@@ -166,15 +167,18 @@ function HistoryRow({ entry }: { entry: ImportHistoryEntry }) {
           <span className="inline-flex items-center gap-2">
             <JobStatusBadge status={polling.job.status} />
             {polling.job.status === 'running' ? (
-              <span className="text-xs text-muted-foreground tabular-nums">{polling.job.progress_pct}%</span>
+              <>
+                <ProgressBar value={(polling.job.progress_pct ?? 0) / 100} label="Import progress" className="w-24" />
+                <span className="w-9 text-right text-caption text-ink-3 tabular-nums">{polling.job.progress_pct ?? 0}%</span>
+              </>
             ) : null}
-            {polling.isWaitingForWorker ? <span className="text-xs text-muted-foreground">Waiting for a worker…</span> : null}
+            {polling.isWaitingForWorker ? <span className="text-caption text-ink-3">Waiting for a worker…</span> : null}
           </span>
         ) : polling.error ? (
           isNotFound(polling.error) ? (
             <JobStatusBadge status={undefined} />
           ) : (
-            <span className="inline-flex flex-col gap-0.5 text-xs text-destructive" onClick={(e) => e.stopPropagation()}>
+            <span className="inline-flex flex-col gap-0.5 text-caption text-danger" onClick={(e) => e.stopPropagation()}>
               Couldn't load status
               {isApiError(polling.error) ? <ReferenceId id={polling.error.correlationId} /> : null}
             </span>
@@ -184,7 +188,7 @@ function HistoryRow({ entry }: { entry: ImportHistoryEntry }) {
         )}
       </TableCell>
       <TableCell className="text-right">{count(report.data?.imported, 'text-success')}</TableCell>
-      <TableCell className="pr-4 text-right">{count(report.data?.failed, 'text-destructive')}</TableCell>
+      <TableCell className="pr-4 text-right">{count(report.data?.failed, 'text-danger')}</TableCell>
     </TableRow>
   )
 }

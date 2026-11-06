@@ -33,10 +33,16 @@ type Connector = ReturnType<typeof useStartConnect>
 export function MarketplaceConnections({
   selected: selectedProp,
   onSelect,
+  showHeading = true,
 }: {
   /** Selected marketplace (from the URL); defaults to the row with something to do. */
   selected?: Marketplace
   onSelect: (m: Marketplace) => void
+  /**
+   * The "Where do you sell?" heading above the list. /marketplaces turns it off: its page header
+   * already names the page, and the list then starts on the same top edge as the detail card.
+   */
+  showHeading?: boolean
 }) {
   const current = useCurrentMarketplaceAccounts()
   const can = useCan()
@@ -61,19 +67,26 @@ export function MarketplaceConnections({
     onSelect(m)
     // Below lg the detail sits under the list: bring it into view.
     if (window.matchMedia?.('(max-width: 1023px)').matches) {
-      requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }))
     }
   }
 
   return (
     <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[400px_minmax(0,1fr)]">
-      <section aria-labelledby="where-heading" className="flex flex-col gap-2.5">
-        <div className="mb-0.5">
-          <h2 id="where-heading" className="font-display text-h2 text-ink">
-            Where do you sell?
-          </h2>
-          <p className="mt-1 text-small text-ink-2">Connect one to start. Add the rest any time.</p>
-        </div>
+      <section
+        aria-labelledby={showHeading ? 'where-heading' : undefined}
+        aria-label={showHeading ? undefined : 'Marketplace accounts'}
+        className="flex flex-col gap-2.5"
+      >
+        {showHeading ? (
+          <div className="mb-0.5">
+            <h2 id="where-heading" className="font-display text-h2 text-ink">
+              Where do you sell?
+            </h2>
+            <p className="mt-1 text-small text-ink-2">Connect one to start. Add the rest any time.</p>
+          </div>
+        ) : null}
         <ul className="flex flex-col gap-2.5" aria-label="Marketplaces">
           {SUPPORTED.map((m) =>
             current.data ? (
@@ -295,7 +308,7 @@ function ConnectionDetail({ connection, canConnect, connector }: { connection: C
             </Kv>
           </dl>
           <div>
-            <h4 className="text-[14px] font-bold text-ink">Listing permissions</h4>
+            <h3 className="text-body font-bold text-ink">Listing permissions</h3>
             <div className="mt-2 flex items-center justify-between gap-3 text-body text-ink-2">
               <span>Category and brand approvals on {m.short}</span>
               <UnavailableHint reason={`Reading category approvals from ${m.short} is not available yet. Check them in ${m.console}.`}>

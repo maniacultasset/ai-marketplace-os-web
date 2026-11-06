@@ -5,20 +5,20 @@ import { Button } from '@/components/ui/button'
 import { ImportsHistory } from '@/features/imports/imports-history'
 import { Can } from '@/lib/permissions'
 
-export const Route = createFileRoute('/_app/imports/')({ component: ImportsPage })
+export const Route = createFileRoute('/_app/imports/')({ staticData: { title: 'Imports' }, component: ImportsPage })
 
 function ImportsPage() {
   return (
     <Page>
       <PageHeader
         title="Imports"
-        description="Bulk CSV uploads, their progress and row-level results."
+        description="Spreadsheet uploads, their progress and row results."
         actions={
           <Can action="product:import">
             <Button asChild>
               <Link to="/imports/new">
                 <Icon name="upload" size={16} data-icon="inline-start" />
-                Import CSV
+                Import spreadsheet
               </Link>
             </Button>
           </Can>

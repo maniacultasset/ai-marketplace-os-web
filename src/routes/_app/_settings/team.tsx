@@ -10,11 +10,11 @@ export const Route = createFileRoute('/_app/_settings/team')({ staticData: { tit
 function TeamPage() {
   const { data: me } = useMe()
   return (
-    <Page>
+    <Page className="mx-0 max-w-[1100px]">
       <RequireAction action="team:manage">
         <PageHeader
           title="Team and brands"
-          description={`People with access to ${tenantName(me) || 'this brand'}. Role and status changes apply on their next request.`}
+          description={`People with access to ${tenantName(me) || 'this brand'}.`}
         />
         <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 2xl:grid-cols-[minmax(0,1fr)_18rem]">
           <MembersTable />

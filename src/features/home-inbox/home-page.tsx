@@ -131,11 +131,22 @@ function DashboardBody({
 
       <div className="stagger-children grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4" data-testid="home-tiles">
         <Tile testId="tile-live" chip={<StatusChip status="live" />} view={live} />
-        <Tile testId="tile-working" chip={<StatusChip status="working">In progress</StatusChip>} view={working} />
+        <Tile
+          testId="tile-working"
+          chip={<StatusChip status="working">In progress</StatusChip>}
+          view={working}
+          action={
+            snapshot.working > 0 ? (
+              <Button asChild size="sm" variant="secondary">
+                <Link to="/products">See in Products</Link>
+              </Button>
+            ) : undefined
+          }
+        />
         {inboxError ? (
           <MetricTile
             emphasis="attention"
-            className="col-span-2 md:col-span-1"
+            className={cn('col-span-2 md:col-span-1', SWAP_IN)}
             chip={<StatusChip status="needs-you" />}
             value={<Unknown reason="Open questions and issues could not be loaded, so this number is unknown." />}
             caption="Couldn't load your Inbox."
@@ -150,7 +161,7 @@ function DashboardBody({
         ) : (
           <MetricTile
             emphasis="attention"
-            className="col-span-2 md:col-span-1"
+            className={cn('col-span-2 md:col-span-1', SWAP_IN)}
             chip={<StatusChip status="needs-you" />}
             value={<span data-testid="tile-needs-value"><Value view={needs} /></span>}
             caption={<span data-testid="tile-needs-caption">{needs.caption}</span>}
@@ -241,10 +252,18 @@ function Unknown({ reason }: { reason: string }) {
   )
 }
 
-function Tile({ chip, view, testId }: { chip: ReactNode; view: TileView; testId: string }) {
+/**
+ * The Needs-you tile lands after its skeleton, once the row has already risen: it only fades in
+ * (page-in, no stagger delay) instead of rising a second time. Forced over `stagger-children`'s
+ * rise; the reduced-motion rule in the base layer still turns it off.
+ */
+const SWAP_IN = 'animate-page-in [animation:page-in_200ms_var(--ease-tactile)_both]!'
+
+function Tile({ chip, view, testId, action }: { chip: ReactNode; view: TileView; testId: string; action?: ReactNode }) {
   return (
     <MetricTile
       chip={chip}
+      action={action}
       value={<span data-testid={`${testId}-value`}><Value view={view} /></span>}
       caption={<span data-testid={`${testId}-caption`}>{view.caption}</span>}
     />
@@ -256,7 +275,7 @@ const MARKETPLACE_CARDS: readonly MarketplaceId[] = ['amazon', 'flipkart', 'mynt
 function MarketplaceRow({ snapshot }: { snapshot: ListingsSnapshot }) {
   const accounts = useCurrentMarketplaceAccounts()
   return (
-    <div className="stagger-children mt-4 grid grid-cols-2 gap-3 [--stagger-base:200ms] lg:grid-cols-4" data-testid="home-marketplaces">
+    <div className="stagger-children mt-4 grid grid-cols-2 gap-3 [--stagger-base:80ms] lg:grid-cols-4" data-testid="home-marketplaces">
       {MARKETPLACE_CARDS.map((id) => {
         const name = id === 'ajio' ? 'AJIO' : id.charAt(0).toUpperCase() + id.slice(1)
         const supported = (API_MARKETPLACES as readonly string[]).includes(id)
@@ -287,7 +306,7 @@ function MarketplaceRow({ snapshot }: { snapshot: ListingsSnapshot }) {
             <LaCard key={id} pad="sm">
               <Skeleton className="h-9 w-32" />
               <Skeleton className="mt-3 h-[22px] w-20 rounded-full" />
-              <Skeleton className="mt-2 h-3 w-24" />
+              <Skeleton className="mt-2 h-4 w-24" />
             </LaCard>
           )
         const account = accounts.data?.live[m] ?? null
@@ -441,13 +460,16 @@ function TileSkeleton({ attention, className }: { attention?: boolean; className
 /** Loading body: mirrors the dashboard's header and grids so nothing jumps when data lands. */
 function HomeSkeletonBody() {
   return (
-    <>
-      <div className="flex justify-between gap-4 pb-5">
+    <div aria-busy="true">
+      <div className="flex flex-col gap-3 pb-5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div>
-          <Skeleton className="h-8 w-28" />
-          <Skeleton className="mt-2 h-4 w-56" />
+          <Skeleton className="h-8 w-56" />
+          <Skeleton className="mt-2 h-4 w-48" />
         </div>
-        <Skeleton className="h-9 w-36 rounded-control" />
+        <div className="flex gap-2">
+          <Skeleton className="h-9 w-36 rounded-control" />
+          <Skeleton className="h-9 w-32 rounded-control" />
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
         <TileSkeleton />
@@ -459,14 +481,29 @@ function HomeSkeletonBody() {
           <LaCard key={i} pad="sm">
             <Skeleton className="h-9 w-28" />
             <Skeleton className="mt-3 h-[22px] w-20 rounded-full" />
+            <Skeleton className="mt-2 h-4 w-24" />
           </LaCard>
         ))}
       </div>
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <LaCard className="h-56" />
-        <LaCard className="h-56" />
+        {[0, 1].map((card) => (
+          <LaCard key={card}>
+            <Skeleton className="h-[22px] w-40" />
+            <div className="mt-2">
+              {Array.from({ length: 3 }, (_, i) => (
+                <div key={i} className="flex h-14 items-center gap-3 border-b border-line last:border-b-0">
+                  <Skeleton className="size-9 rounded-tile" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-4 w-40 max-w-full" />
+                    <Skeleton className="h-3 w-56 max-w-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </LaCard>
+        ))}
       </div>
       <span className="sr-only">Loading Home…</span>
-    </>
+    </div>
   )
 }

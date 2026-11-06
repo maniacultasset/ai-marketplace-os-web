@@ -175,7 +175,7 @@ test.describe('imports', () => {
     expect(perRow(gets).filter((u) => u === `/imports/${accepted.import_id}`).length).toBeLessThanOrEqual(1)
     // A second in-app visit is served from cache: finished jobs and their reports never change.
     gets.length = 0
-    await page.getByRole('link', { name: 'Import CSV' }).first().click()
+    await page.getByRole('link', { name: 'Import spreadsheet' }).first().click()
     await expect(page).toHaveURL(/\/imports\/new$/)
     await sidebarLink(page, 'Imports').click()
     await expect(row.locator('[data-status]')).toHaveAttribute('data-status', TERMINAL)
@@ -280,7 +280,7 @@ test.describe('imports', () => {
     await expect(page.getByText('No imports from this browser yet')).toBeVisible()
     await expect(page.getByText('This list shows imports uploaded from this browser.')).toBeVisible()
     await expect(page.getByText('listed by the people who uploaded them')).toHaveCount(0)
-    await expect(page.getByRole('link', { name: 'Import CSV' })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'Import spreadsheet' })).toHaveCount(0)
     await page.screenshot({ path: `${SHOTS}/imports-empty-reviewer.png`, fullPage: true })
 
     // A finished partial import opens straight on Failed: job, report and failed rows, once each.
@@ -298,7 +298,7 @@ test.describe('imports', () => {
     expect(rowGets).toHaveLength(1)
     expect(rowGets[0]).toContain('status=failed')
     await expect(page.getByTestId('retry-failed')).toHaveCount(0)
-    await expect(page.getByRole('link', { name: 'New import' })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'Import spreadsheet' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Cancel job' })).toHaveCount(0)
 
     // Without ?job= and no local history the report still renders, minus live progress.
@@ -369,7 +369,7 @@ test.describe('imports', () => {
     await page.goto(`/products/${product!.id}`)
     await expect(page.getByTestId('product-title')).toHaveText(`Lamp before ${RUN}`)
     await sidebarLink(page, 'Imports').click()
-    await page.getByRole('link', { name: 'Import CSV' }).first().click()
+    await page.getByRole('link', { name: 'Import spreadsheet' }).first().click()
     await page.getByLabel('CSV file', { exact: true }).setInputFiles({
       name: `pw-${RUN}-upd-b.csv`,
       mimeType: 'text/csv',
@@ -422,7 +422,7 @@ test.describe('imports', () => {
 
     // 3) Same key, different bytes (the request is altered in flight) -> 409 IDEMPOTENCY_KEY_REUSED.
     await sidebarLink(page, 'Imports').click()
-    await page.getByRole('link', { name: 'Import CSV' }).first().click()
+    await page.getByRole('link', { name: 'Import spreadsheet' }).first().click()
     await pickFile()
     let firstKey = ''
     await page.route('**/api/v1/products/bulk', async (route) => {

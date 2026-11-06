@@ -17,16 +17,16 @@ export const Route = createFileRoute('/_app/_settings/settings/imports')({
 
 function ImportsSettingsPage() {
   return (
-    <Page className="max-w-[1100px]">
+    <Page className="mx-0 max-w-[1100px]">
       <PageHeader
         title="Imports history"
-        description="Spreadsheet uploads made from this browser, their progress and row-level results."
+        description="Spreadsheet uploads from this browser and their results."
         actions={
           <Can action="product:import">
             <Button variant="secondary" asChild>
               <Link to="/imports/new">
                 <Icon name="upload" size={16} />
-                Import a spreadsheet
+                Import spreadsheet
               </Link>
             </Button>
           </Can>
