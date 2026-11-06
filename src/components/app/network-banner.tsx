@@ -3,7 +3,7 @@ import { IconGlyph } from '@/components/la/icons'
 import { useEffect, useSyncExternalStore } from 'react'
 import { getOffline, probe, setOffline, subscribeOffline } from '@/api/client'
 
-/** "Can't reach the server" banner; polls /readyz every 5 s and hides itself. */
+/** "Can't reach the server" banner (36px); polls /readyz every 5 s and hides itself. */
 export function NetworkBanner() {
   const offline = useSyncExternalStore(subscribeOffline, getOffline, getOffline)
   useEffect(() => {
@@ -20,15 +20,24 @@ export function NetworkBanner() {
       window.removeEventListener('online', onOnline)
     }
   }, [offline])
+  // While shown, the sticky top bar and sticky asides sit below the banner (--banner-h).
+  useEffect(() => {
+    if (!offline) return
+    const root = document.documentElement
+    root.style.setProperty('--banner-h', '36px')
+    return () => {
+      root.style.removeProperty('--banner-h')
+    }
+  }, [offline])
   if (!offline) return null
   return (
     <div
       role="status"
       aria-live="polite"
-      className="sticky top-0 z-50 flex items-center justify-center gap-2 border-b border-warning/30 bg-warning/10 px-4 py-2 text-sm text-foreground"
+      className="sticky top-0 z-50 flex h-9 items-center justify-center gap-2 border-b border-attention-line bg-attention-tint px-4 text-small font-semibold text-attention-ink"
     >
-      <IconGlyph icon={CONCEPT_ICON.offline} size={18} className="text-warning" />
-      Can't reach the server. Retrying…
+      <IconGlyph icon={CONCEPT_ICON.offline} size={16} className="text-attention" />
+      Can't reach the server. Trying again…
     </div>
   )
 }

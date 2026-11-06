@@ -39,6 +39,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
         } as React.CSSProperties
       }
       duration={6000}
+      // Sit above pinned footer bars (FooterBar, StickyActions, BulkBar) so a toast never hides
+      // the primary button.
+      offset={{ bottom: "var(--toast-clear)", right: 24 }}
+      mobileOffset={{ bottom: "calc(var(--toast-clear) + env(safe-area-inset-bottom))" }}
       toastOptions={{
         classNames: {
           toast: "cn-toast !shadow-lg !font-sans",

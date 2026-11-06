@@ -150,6 +150,10 @@
   --sidebar-w: 232px;
   --sidebar-w-collapsed: 72px;
   --topbar-h: 56px;
+  /* Toasts sit this far up so they never cover a pinned footer bar's primary button. */
+  --toast-clear: 84px;
+  /* One content width for the top bar and the page, so their edges line up. */
+  --page-max: 1400px;
 
   /* shadcn/ui compatibility: the kit in src/components/ui reads these names. */
   --radius: 8px;
@@ -359,13 +363,9 @@
     text-rendering: optimizeLegibility;
     color-scheme: light;
     -webkit-tap-highlight-color: transparent;
-    /* In-page anchors land below the sticky 4rem header, not under it. */
-    scroll-padding-top: calc(4rem + 16px);
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    html {
-      scroll-behavior: smooth;
-    }
+    /* In-page anchors land below the sticky top bar (and the offline banner when shown). Route
+       changes and scroll restores stay instant: no global smooth scrolling. */
+    scroll-padding-top: calc(var(--topbar-h) + var(--banner-h, 0px) + 16px);
   }
   body {
     @apply bg-canvas text-body text-ink;
@@ -423,6 +423,7 @@
     .animate-page-in {
       animation: none !important;
     }
+    .skeleton,
     [data-slot="skeleton"] {
       animation: none !important;
       opacity: 0.7;
@@ -433,7 +434,14 @@
 @layer utilities {
   /* Page content arrives with a short rise; transform + opacity only. */
   .animate-page-in {
-    animation: page-in var(--dur-spring) var(--ease-spring) both;
+    animation: page-in 200ms var(--ease-tactile) both;
+  }
+  /* Loading placeholder: hidden for the first 120ms so a fast load shows nothing, then a gentle
+     pulse. Reduced motion holds it still (see the base layer). */
+  .skeleton {
+    animation:
+      skeleton-in 160ms ease-out 120ms backwards,
+      skeleton-pulse 1.6s ease-in-out 280ms infinite;
   }
   /* Controls draw their own ring instead of the global outline. */
   .focus-ring {
@@ -532,21 +540,21 @@
     border-bottom-color: var(--line-strong);
   }
 }
-/* Staggered arrival for a row of tiles: each child rises 80ms after the one before it. Set
+/* Staggered arrival for a row of tiles: each child rises 40ms after the one before it. Set
    --stagger-base on the row to start the whole sequence later (e.g. after the content above). */
 @utility stagger-children {
   & > * {
-    animation: rise 640ms var(--ease-spring) both;
+    animation: rise 320ms var(--ease-spring) both;
     animation-delay: var(--stagger-base, 0ms);
   }
   & > :nth-child(2) {
-    animation-delay: calc(var(--stagger-base, 0ms) + 80ms);
+    animation-delay: calc(var(--stagger-base, 0ms) + 40ms);
   }
   & > :nth-child(3) {
-    animation-delay: calc(var(--stagger-base, 0ms) + 160ms);
+    animation-delay: calc(var(--stagger-base, 0ms) + 80ms);
   }
   & > :nth-child(4) {
-    animation-delay: calc(var(--stagger-base, 0ms) + 240ms);
+    animation-delay: calc(var(--stagger-base, 0ms) + 120ms);
   }
 }
 
@@ -650,7 +658,7 @@ svg.lucide[stroke-width="2"] {
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(18px) scale(0.985);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -661,11 +669,30 @@ svg.lucide[stroke-width="2"] {
 @keyframes page-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+@keyframes skeleton-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
   }
 }
 

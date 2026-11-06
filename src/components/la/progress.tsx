@@ -79,7 +79,14 @@ export function ProgressBar({ value, tone = 'brand', label, className }: { value
       aria-valuenow={pct}
       className={cn('h-1.5 overflow-hidden rounded-full inset-track', className)}
     >
-      <div className={cn('h-full rounded-full transition-[width] duration-300', tone === 'success' ? 'bg-success' : 'bg-brand')} style={{ width: `${pct}%` }} />
+      {/* Grows with transform (no layout per frame); the rounded track clips the ends. */}
+      <div
+        className={cn(
+          'h-full w-full origin-left transition-transform duration-200 ease-[var(--ease-tactile)] motion-reduce:transition-none',
+          tone === 'success' ? 'bg-success' : 'bg-brand',
+        )}
+        style={{ transform: `scaleX(${pct / 100})` }}
+      />
     </div>
   )
 }

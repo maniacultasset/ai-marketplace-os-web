@@ -32,8 +32,8 @@ export function EmptyState({
     >
       <IconTile icon={icon} tone={tone} size={compact ? 'md' : 'lg'} />
       <div className="max-w-sm space-y-1">
-        <h3 className="text-[0.9375rem] font-semibold tracking-tight text-balance">{title}</h3>
-        {description ? <p className="text-sm text-pretty text-muted-foreground">{description}</p> : null}
+        <h3 className="font-display text-h3 text-balance text-ink">{title}</h3>
+        {description ? <p className="text-small text-pretty text-ink-2">{description}</p> : null}
       </div>
       {actions ? <div className="mt-1 flex flex-wrap items-center justify-center gap-2">{actions}</div> : null}
     </div>

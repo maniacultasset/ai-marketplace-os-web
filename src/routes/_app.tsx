@@ -1,6 +1,7 @@
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
-import { AppShell } from '@/components/app/app-shell'
+import { AppShell, readPref } from '@/components/app/app-shell'
 import { BrandMark } from '@/components/app/brand-mark'
+import { Page } from '@/components/app/page-header'
 import { ErrorState } from '@/components/states/error-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { networkError } from '@/api/errors'
@@ -10,6 +11,7 @@ import { ImportJobsWatcher } from '@/features/imports/import-jobs-watcher'
 import { StepUpHost } from '@/features/mfa/step-up-dialog'
 import { SoloShell } from '@/components/app/solo-shell'
 import { useRouteMeta } from '@/lib/route-meta'
+import { cn } from '@/lib/utils'
 
 class SessionUnreachable extends Error {}
 
@@ -42,29 +44,54 @@ function AppLayout() {
   )
 }
 
+/**
+ * First load: the shell's own frame (same sidebar width, tones and top bar container) with calm
+ * placeholders, so the real shell drops in without a jump.
+ */
 function ShellPending() {
+  const collapsed = readPref() === 'collapsed'
   return (
-    <div className="grid min-h-svh grid-cols-1 bg-canvas md:grid-cols-[232px_minmax(0,1fr)]" aria-busy="true" aria-label="Loading">
-      <div className="hidden flex-col gap-2 border-r border-line bg-surface px-3 py-4 md:flex">
-        <div className="mb-3.5 flex items-center gap-2.5 px-1.5">
+    <div
+      className={cn(
+        'grid min-h-svh grid-cols-1 bg-canvas',
+        collapsed ? 'md:grid-cols-[72px_minmax(0,1fr)]' : 'md:grid-cols-[232px_minmax(0,1fr)]',
+      )}
+      aria-busy="true"
+      aria-label="Loading Kuinn"
+    >
+      <div className="sticky top-0 hidden h-svh flex-col gap-0.5 border-r border-line bg-canvas px-3 py-4 md:flex">
+        <div
+          className={cn(
+            'mb-3.5 flex items-center gap-2.5 px-1.5 font-display text-[15px] font-bold text-ink',
+            collapsed && 'justify-center px-0',
+          )}
+        >
           <BrandMark />
-          <Skeleton className="h-4 w-28" />
+          <span className={cn(collapsed && 'sr-only')}>Kuinn</span>
         </div>
-        <Skeleton className="mb-3.5 h-[46px] w-full rounded-[10px]" />
+        <Skeleton className="mb-3.5 h-[46px] w-full rounded-card" />
         {Array.from({ length: 7 }, (_, i) => (
-          <Skeleton key={i} className="h-[38px] w-full" />
+          <Skeleton key={i} className="h-[38px] w-full rounded-tile" />
         ))}
+        <Skeleton className="mt-auto h-[54px] w-full rounded-card" />
+        <Skeleton className="mt-2 h-8 w-full rounded-tile" />
       </div>
-      <div>
-        <div className="flex h-14 items-center gap-3 border-b border-line bg-surface px-4 md:px-7">
-          <Skeleton className="h-5 w-32" />
-          <Skeleton className="ml-auto hidden h-[34px] w-60 sm:block" />
-          <Skeleton className="size-7 rounded-full" />
-        </div>
-        <div className="p-4 md:p-7">
+      <div className="flex min-w-0 flex-col">
+        <header className="material-bar h-14 shrink-0">
+          <div className="mx-auto flex h-full w-full max-w-[var(--page-max)] items-center gap-3.5 px-4 md:px-7">
+            <Skeleton className="h-5 w-32" />
+            <div className="ml-auto flex items-center gap-2 md:gap-3.5">
+              <Skeleton className="hidden h-[34px] w-60 rounded-tile sm:block" />
+              <span className="inline-flex size-9 items-center justify-center">
+                <Skeleton className="size-7 rounded-full" />
+              </span>
+            </div>
+          </div>
+        </header>
+        <Page>
           <Skeleton className="h-8 w-48" />
-          <Skeleton className="mt-2 h-4 w-72" />
-        </div>
+          <Skeleton className="mt-1 h-5 w-72 max-w-full" />
+        </Page>
       </div>
     </div>
   )
@@ -74,7 +101,7 @@ function ShellError({ error }: { error: unknown }) {
   const router = useRouter()
   return (
     <div className="flex min-h-svh items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-xl border bg-card shadow-sm">
+      <div className="w-full max-w-md rounded-card border border-line bg-surface shadow-raised-md">
         <ErrorState
           error={error instanceof SessionUnreachable ? networkError() : error}
           title={error instanceof SessionUnreachable ? "Can't reach the server" : "Couldn't load your workspace"}

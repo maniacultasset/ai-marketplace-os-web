@@ -20,6 +20,8 @@ const router = createRouter({
   defaultPreloadStaleTime: 0,
   defaultPendingMs: 150,
   scrollRestoration: true,
+  // Restores jump straight to the saved position; they never animate.
+  scrollRestorationBehavior: 'instant',
   defaultErrorComponent: ({ error, reset }) => (
     <Page>
       <ErrorState error={error} onRetry={reset} />

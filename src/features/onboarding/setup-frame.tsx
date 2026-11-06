@@ -8,6 +8,7 @@
  * (`brandProfileDone`); "Compliance defaults" never, because nothing on it can be saved yet.
  */
 import type { ReactNode } from 'react'
+import { SETUP_CONTAINER } from '@/components/app/solo-shell'
 import { FooterBar } from '@/components/la/footer-bar'
 import { Stepper } from '@/components/la/progress'
 import { useBrandProfile } from '@/features/brand/api'
@@ -19,7 +20,7 @@ export function SetupBody({ step, children }: { step: 0 | 1 | 2; children: React
   const done = setupStepsDone(profile.data?.data)
   return (
     <div className="flex flex-1 flex-col">
-      <div className="flex-1 px-4 pt-7 pb-10 md:px-16">
+      <div className={cn(SETUP_CONTAINER, 'flex-1 pt-7 pb-10')}>
         <Stepper steps={SETUP_STEPS} current={step} done={done} className="max-md:[&_li>span:last-child]:sr-only" />
         <div className="mt-6">{children}</div>
       </div>
@@ -39,7 +40,13 @@ export function SetupColumns({ main, aside, className }: { main: ReactNode; asid
 
 export function SetupFooter({ status, children }: { status: ReactNode; children: ReactNode }) {
   return (
-    <FooterBar status={<span data-testid="setup-footer-status">{status}</span>} className="min-h-[68px]">
+    // FooterBar pads 28 at md; the inner row adds 36 (= the body's 64) and is capped at
+    // 1240 - 2 x 28, so the save status and the primary button sit on the body's edges.
+    <FooterBar
+      status={<span data-testid="setup-footer-status">{status}</span>}
+      className="min-h-[68px]"
+      innerClassName="mx-auto max-w-[1184px] md:px-9"
+    >
       {children}
     </FooterBar>
   )

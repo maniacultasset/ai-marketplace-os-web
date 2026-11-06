@@ -54,23 +54,30 @@ export function PageHeader({
       ) : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0">
-          <h1 className="line-clamp-2 font-display text-h1 break-words text-balance text-ink">{title}</h1>
+          <h1
+            className="line-clamp-2 font-display text-h1 break-words text-balance text-ink"
+            title={typeof title === 'string' ? title : undefined}
+          >
+            {title}
+          </h1>
           {description ? <p className="mt-1 max-w-[70ch] text-body text-ink-2">{description}</p> : null}
         </div>
-        {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2 max-sm:w-full">{actions}</div> : null}
+        {/* -2px: a 36px button centres on the 32px first line of the title. */}
+        {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2 max-sm:w-full sm:-mt-0.5">{actions}</div> : null}
       </div>
     </header>
   )
 }
 
 /**
- * Standard page container used by every route under the app shell: max-w-7xl so data pages use
+ * Standard page container used by every route under the app shell: --page-max (shared with the
+ * top bar, so the title and the page edges line up) so data pages use
  * the panel, with tight-but-airy padding. Forms keep a readable measure by sitting in the main
  * column of <PageColumns> (never a lone max-w-3xl column stranded in a wide panel).
  */
 export function Page({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn('animate-page-in mx-auto w-full max-w-[1400px] px-4 pt-5 pb-10 md:p-7 md:pb-12', className)}>
+    <div className={cn('animate-page-in mx-auto w-full max-w-[var(--page-max)] px-4 pt-5 pb-10 md:p-7 md:pb-12', className)}>
       {children}
     </div>
   )
@@ -108,7 +115,7 @@ export function PageColumns({
   return (
     <div className={cn('grid items-start gap-5 lg:gap-6', cols, className)}>
       <div className={cn('flex min-w-0 flex-col gap-5', asideFirst && 'order-2 lg:order-1')}>{children}</div>
-      <aside className={cn('flex min-w-0 flex-col gap-4 lg:sticky lg:top-20', asideFirst && 'order-1 lg:order-2')}>
+      <aside className={cn('flex min-w-0 flex-col gap-4 lg:sticky lg:top-[calc(5rem+var(--banner-h,0px))]', asideFirst && 'order-1 lg:order-2')}>
         {aside}
       </aside>
     </div>
@@ -122,8 +129,9 @@ export function PageColumns({
 export function StickyActions({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
+      data-slot="footer-bar"
       className={cn(
-        'sticky bottom-0 z-10 -mx-4 mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-line bg-surface px-4 py-3 shadow-raised-up sm:-mx-6 sm:px-6 lg:mx-0 lg:rounded-[14px] lg:border lg:shadow-raised-lg lg:px-4',
+        'sticky bottom-0 z-10 -mx-4 mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-line bg-surface px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-raised-up md:-mx-7 md:px-7 lg:mx-0 lg:rounded-card lg:border lg:px-4 lg:pb-3 lg:shadow-raised-lg',
         className,
       )}
     >

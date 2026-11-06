@@ -10,16 +10,22 @@ export function toastError(error: unknown, title?: string) {
     return
   }
   toast.error(title ?? message, {
+    // Errors stay up longer so the message and reference can be read.
+    duration: 10000,
     description: (
       <span className="flex flex-col gap-0.5">
         {title ? <span>{message}</span> : null}
-        {ref ? <span className="font-mono text-[11px] opacity-70">Reference: {ref}</span> : null}
+        {ref ? <span className="font-mono text-caption text-ink-3">Reference: {ref}</span> : null}
       </span>
     ),
     action: ref
       ? {
           label: 'Copy ref',
-          onClick: () => void navigator.clipboard?.writeText(ref).catch(() => undefined),
+          onClick: () =>
+            void navigator.clipboard
+              ?.writeText(ref)
+              .then(() => toast.success('Reference copied'))
+              .catch(() => undefined),
         }
       : undefined,
   })
