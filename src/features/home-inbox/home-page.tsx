@@ -177,12 +177,21 @@ function DashboardBody({
               action={
                 // The tile counts two places: questions and issues live in the Inbox, listings to
                 // approve or publish live on their product (Products). Link to each part shown.
+                // The main button goes where the work is: the Inbox only when it holds something.
                 <div className="flex flex-wrap gap-2">
-                  <Button asChild size="sm" variant="warn" data-testid="tile-needs-inbox">
-                    <Link to="/inbox">Open Inbox</Link>
-                  </Button>
+                  {tasksCount.n + issuesCount.n > 0 || snapshot.approve + snapshot.publish === 0 ? (
+                    <Button asChild size="sm" variant="warn" data-testid="tile-needs-inbox">
+                      <Link to="/inbox">Open Inbox</Link>
+                    </Button>
+                  ) : null}
                   {snapshot.approve + snapshot.publish > 0 ? (
-                    <Button asChild size="sm" variant="secondary" className="min-w-0 max-w-full" data-testid="tile-needs-listings">
+                    <Button
+                      asChild
+                      size="sm"
+                      variant={tasksCount.n + issuesCount.n > 0 ? 'secondary' : 'warn'}
+                      className="min-w-0 max-w-full"
+                      data-testid="tile-needs-listings"
+                    >
                       <Link to="/products">
                         {/* One text item: the button is a flex row with a gap, and the label must not split. */}
                         <span className="min-w-0 truncate">
@@ -202,7 +211,7 @@ function DashboardBody({
       <MarketplaceRow snapshot={snapshot} />
 
       <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <WaitingCard tasks={tasks} issues={issues} total={fmtCount({ n: tasksCount.n + issuesCount.n, more: tasksCount.more || issuesCount.more })} />
+        <WaitingCard tasks={tasks} issues={issues} total={fmtCount({ n: tasksCount.n + issuesCount.n, more: tasksCount.more || issuesCount.more })} approve={snapshot.approve} publish={snapshot.publish} />
         {/* Not built yet: a flat tint card so it recedes behind the live cards. */}
         <LaCard emphasis="tint" data-testid="agent-feed">
           <CardHead title="What the agent did" icon="activity" iconTone="neutral" action={<ComingSoon />} />
@@ -382,10 +391,15 @@ function WaitingCard({
   tasks,
   issues,
   total,
+  approve,
+  publish,
 }: {
   tasks: ReturnType<typeof useTasksList>
   issues: ReturnType<typeof useIssuesList>
   total: string
+  /** Listings waiting for a person on their product page (not in the Inbox). */
+  approve: number
+  publish: number
 }) {
   const items = mergeInbox(tasks.rows, issues.rows).slice(0, WAITING_ROWS)
   const products = useProductsById(items.map((i) => (i.kind === 'task' ? i.task.product_id : null)))
@@ -431,7 +445,19 @@ function WaitingCard({
         ) : items.length === 0 ? (
           <div className="flex items-center gap-3 py-3 text-small text-ink-2" data-testid="waiting-empty">
             <IconTile icon="check" tone="ok" size="lg" />
-            Nothing needs you right now. New questions from the agent appear here.
+            {approve + publish > 0 ? (
+              <span>
+                No questions or issues.{' '}
+                <Link to="/products" className="font-bold text-brand underline-offset-4 hover:underline" data-testid="waiting-listings">
+                  {approve > 0
+                    ? `${approve} ${approve === 1 ? 'listing is' : 'listings are'} ready to approve`
+                    : `${publish} ${publish === 1 ? 'listing is' : 'listings are'} ready to publish`}
+                </Link>
+                .
+              </span>
+            ) : (
+              'Nothing needs you right now. New questions from the agent appear here.'
+            )}
           </div>
         ) : (
           items.map((it) => {
