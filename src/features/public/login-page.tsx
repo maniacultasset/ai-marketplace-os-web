@@ -40,6 +40,8 @@ type LoginValues = StatusFormValues
 type Tone = 'danger' | 'attention' | 'info'
 interface FormError {
   message: string
+  /** A second, quieter line under the message (the lockout rule on 401 and 429). */
+  detail?: string
   ref: string | null
   tone?: Tone
   icon?: IconName
@@ -55,6 +57,9 @@ const RESTART_TONE: Record<RestartReason, { tone: Tone; icon?: IconName }> = {
 
 /** Why the page opened with a notice: a restart sent back from /auth/google, or Google switched off. */
 export type LoginNotice = RestartReason | 'google_unavailable'
+
+/** Said only when a sign-in fails, never up front. */
+const LOCKOUT = 'Too many wrong tries locks the account for 15 minutes.'
 
 const restartError = (reason: RestartReason): FormError => ({ message: RESTART_MESSAGES[reason], ref: null, ...RESTART_TONE[reason] })
 
@@ -106,12 +111,12 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
         return
       }
       if (e.status === 401) {
-        setFormError({ message: 'Email or password is incorrect.', ref: e.correlationId })
+        setFormError({ message: 'Email or password is incorrect.', detail: LOCKOUT, ref: e.correlationId })
         form.setFocus('password')
       } else if (e.status === 429) {
         countdown.start(e.retryAfter ?? 60)
         // Fixed text: the seconds left count down on the button, not in the (assertive) alert.
-        setFormError({ message: TOO_MANY, ref: e.correlationId })
+        setFormError({ message: TOO_MANY, detail: LOCKOUT, ref: e.correlationId })
       } else if (e.status === 422) {
         const rest = applyFieldErrors(e, form.setError, { fields: ['email', 'password'] })
         if (rest.length) setFormError({ message: describeError(e), ref: e.correlationId })
@@ -144,7 +149,7 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
       <AuthCard size="sm">
         <div>
           <IconTile icon="lock" tone="brand" size="lg" className="mb-4" />
-          <h1 className="text-[24px] leading-[30px] font-bold tracking-[-0.02em] text-ink sm:text-h1">Sign in</h1>
+          <h1 className="font-display text-h2 text-ink sm:text-h1">Sign in</h1>
           <p className="mt-2 text-body text-pretty text-ink-2">
             {googleShown ? 'Sign in to your brand account.' : 'Use the email and password for your brand account.'}
           </p>
@@ -170,7 +175,16 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
             reference={formError.ref}
             tone={formError.tone}
             icon={formError.icon}
-            message={formError.message}
+            message={
+              formError.detail ? (
+                <>
+                  <span className="block">{formError.message}</span>
+                  <span className="mt-1 block text-small">{formError.detail}</span>
+                </>
+              ) : (
+                formError.message
+              )
+            }
           />
         ) : null}
         {googleShown ? <GoogleEntry intent="login" returnTo={target} /> : null}
@@ -197,7 +211,7 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
             htmlFor="password"
             error={errors.password?.message}
             submitCount={form.formState.submitCount}
-            hint="There's no reset link yet. If you forget it, ask your brand owner. Too many wrong tries locks the account for 15 minutes."
+            hint="Forgot it? Ask your brand owner to reset it."
           >
             <PasswordInput
               id="password"

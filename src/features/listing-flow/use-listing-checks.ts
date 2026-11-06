@@ -8,6 +8,7 @@
  * and the gate roll-up over them (gates.ts).
  */
 import { useMemo } from 'react'
+import { MARKETPLACES } from '@/components/la/marketplace'
 import { useListing, useListingPreview } from '@/features/listings/api'
 import { useProduct } from '@/features/products/api'
 import { useAllRules } from '@/features/rules/use-rules'
@@ -29,12 +30,21 @@ export function useListingChecks(listingId: string) {
   )
   const previewView = preview.data ? { errors: preview.data.report.errors ?? [], productType: preview.data.product_type } : null
   const current = currentFindings(listing?.validation, listing?.current_version_id)
+  // Images on the current version; null while there is no version to count (unknown, not zero).
+  const imageCount = hasVersion && listing.content ? (listing.content.images?.length ?? 0) : null
+  const marketplaceName = listing ? MARKETPLACES.find((m) => m.id === listing.marketplace)?.name : undefined
   const gates = useMemo(
-    () => (listing ? rollUpGates({ listing, validation: listing.validation, rules, preview: previewView }) : []),
+    () =>
+      listing
+        ? rollUpGates({ listing, validation: listing.validation, rules, preview: previewView, imageCount, marketplaceName })
+        : [],
     // previewView is derived from preview.data
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [listing, rules, preview.data],
+    [listing, rules, preview.data, imageCount, marketplaceName],
   )
+  // Every read the gates depend on has settled (an error counts as settled), so they paint once.
+  const rulesSettled = rulesQ.complete || !!rulesQ.error
+  const gatesReady = !!listing && rulesSettled && (!hasVersion || preview.fetchStatus === 'idle')
 
-  return { listingQ, listing, etag: listingQ.data?.etag ?? null, product, siblings, preview, rulesQ, rules, gates, current }
+  return { listingQ, listing, etag: listingQ.data?.etag ?? null, product, siblings, preview, rulesQ, rules, gates, current, gatesReady }
 }

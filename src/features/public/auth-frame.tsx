@@ -48,7 +48,7 @@ export function AuthCard({ size = 'sm', children, testId = 'login-card' }: { siz
     <div className={cn('mx-auto flex w-full flex-1 flex-col px-4 py-6 sm:px-6', size === 'sm' ? 'sm:py-10 lg:py-14' : 'max-sm:pb-0 sm:py-8')}>
       <div
         className={cn(
-          'mx-auto flex w-full flex-col gap-5 sm:rounded-2xl sm:border sm:border-line sm:bg-surface sm:p-8 sm:shadow-card',
+          'mx-auto flex w-full flex-col gap-5 sm:rounded-card sm:border sm:border-line sm:bg-surface sm:p-8 sm:shadow-raised-md',
           // The wide steps (enrolment, recovery codes, a new password) keep one top edge, so the
           // card does not jump up and down as each step's height changes.
           // On a phone the wide card fills the screen, so a step's sticky button bar can sit on
@@ -67,7 +67,7 @@ export function AuthCard({ size = 'sm', children, testId = 'login-card' }: { siz
 /** "Signing in as …" on the steps after the password, with the way back to a different account. */
 export function AccountChip({ email, onSwitch }: { email: string; onSwitch?: () => void }) {
   return (
-    <div className="flex min-h-11 items-center gap-3 rounded-xl border border-line bg-canvas py-1.5 pr-1.5 pl-3 shadow-inset-sm">
+    <div className="flex min-h-11 items-center gap-3 rounded-tile border border-line bg-canvas py-1.5 pr-1.5 pl-3 shadow-inset-sm">
       <IconTile icon="user" tone="neutral" size="sm" />
       {/* A long address wraps (two lines at most) rather than hiding which account this is. */}
       <p className="line-clamp-2 min-w-0 flex-1 text-small font-semibold [overflow-wrap:anywhere] text-ink" title={email}>
@@ -106,7 +106,7 @@ export function AuthColumn({ children, className, tone = 'white' }: { children: 
     <div
       className={cn(
         'flex flex-col gap-4 px-4 py-8 sm:px-10 lg:pt-12 lg:pb-12',
-        tone === 'white' ? 'bg-surface lg:px-24' : 'border-line bg-canvas max-lg:border-t lg:border-l lg:px-[72px]',
+        tone === 'white' ? 'bg-surface lg:px-24' : 'border-line bg-canvas max-lg:border-t lg:border-l lg:px-16',
         className,
       )}
     >
@@ -118,7 +118,7 @@ export function AuthColumn({ children, className, tone = 'white' }: { children: 
 /** "1a · Account" step tag (hi-fi `.chip.tag`). */
 export function StepTag({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex h-[22px] items-center self-start rounded-full border border-line-strong bg-surface px-[9px] text-caption font-semibold text-ink-2">
+    <span className="inline-flex h-[22px] items-center self-start rounded-full border border-line-strong bg-surface px-2 text-caption font-semibold text-ink-2">
       {children}
     </span>
   )

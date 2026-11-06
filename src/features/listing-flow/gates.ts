@@ -9,6 +9,9 @@
  *   - A gate is "checked" when the latest validation ran on the current version AND at least one
  *     enabled rule for this marketplace and category belongs to it (GET /rules), or the adapter
  *     preview covered it (classification: a mapped product type).
+ *   - Rule types the backend does not evaluate (NOT_EVALUATED_RULE_TYPES) are never evidence.
+ *   - Media is blocked when the listing has no image, and passes only on a vision check
+ *     (a `vision_model` validation stage) of the current version. Rules never make it pass.
  *   - Submission is decided by the marketplace itself (listing status and marketplace state).
  *   - Anything else is "Not checked yet". Never a green dot without evidence.
  */
@@ -131,6 +134,24 @@ export function currentFindings(
   return { findings: stage?.report.errors ?? [], checked: true, stage }
 }
 
+/**
+ * Rule types the backend stores but never evaluates in validation. Mirrors
+ * `apps/api/app/services/rules_engine/evaluators.py` NOT_EVALUATED: such a rule is no evidence
+ * that anything was checked.
+ */
+export const NOT_EVALUATED_RULE_TYPES: ReadonlySet<string> = new Set(['image_requirement', 'fact_source', 'fact_backed_attribute'])
+
+/** True when the latest validation ran a vision (image) check on the current version. */
+export function visionChecked(
+  validation: Pick<ValidationSummary, 'listing_version_id' | 'stages'> | null | undefined,
+  currentVersionId: string | null | undefined,
+): boolean {
+  if (!validation || !currentVersionId || validation.listing_version_id !== currentVersionId) return false
+  return (validation.stages ?? []).some(
+    (s) => (s.listing_version_id == null || s.listing_version_id === currentVersionId) && s.source === 'vision_model',
+  )
+}
+
 export interface GateInput {
   listing: Pick<Listing, 'status' | 'status_reason' | 'marketplace_state' | 'current_version_id'>
   validation: Pick<ValidationSummary, 'listing_version_id' | 'stages'> | null | undefined
@@ -138,15 +159,19 @@ export interface GateInput {
   rules: readonly Pick<Rule, 'rule_type' | 'field'>[] | null
   /** Adapter preview: its mapping errors and whether it resolved a product type. Null if none. */
   preview: { errors: readonly ErrorItem[]; productType: string | null | undefined } | null
+  /** Images on the current version. Null or undefined while unknown. */
+  imageCount?: number | null
+  /** Marketplace display name for notes ("Amazon"). */
+  marketplaceName?: string
 }
 
 const SUBMISSION_BLOCKED = new Set(['marketplace_rejected', 'publish_failed', 'publish_partial', 'publish_attempts_exhausted', 'marketplace_action_required'])
 
-export function rollUpGates({ listing, validation, rules, preview }: GateInput): GateResult[] {
+export function rollUpGates({ listing, validation, rules, preview, imageCount, marketplaceName }: GateInput): GateResult[] {
   const { findings, checked } = currentFindings(validation, listing.current_version_id)
   const all = [...findings, ...(preview?.errors ?? [])]
   const covered = new Set<GateId>()
-  if (checked) for (const r of rules ?? []) covered.add(ruleGate(r))
+  if (checked) for (const r of rules ?? []) if (!NOT_EVALUATED_RULE_TYPES.has(r.rule_type)) covered.add(ruleGate(r))
   if (preview && preview.productType) covered.add('classification')
 
   return GATES.map(({ id, label }) => {
@@ -162,6 +187,14 @@ export function rollUpGates({ listing, validation, rules, preview }: GateInput):
       return { id, label, state: 'unchecked', findings: [], note: 'Checked by the marketplace once it is sent.' }
     }
     if (errors.length) return { id, label, state: 'blocked', findings: mine, note: plural(errors.length, 'blocking issue') }
+    if (id === 'media') {
+      if (imageCount === 0)
+        return { id, label, state: 'blocked', findings: [], note: `Add at least one image. ${marketplaceName ?? 'The marketplace'} needs a main image.` }
+      if (mine.length) return { id, label, state: 'warning', findings: mine, note: plural(mine.length, 'warning') }
+      if (imageCount != null && imageCount > 0 && visionChecked(validation, listing.current_version_id))
+        return { id, label, state: 'passed', findings: [], note: 'Passed the image checks.' }
+      return { id, label, state: 'unchecked', findings: [], note: 'Not checked yet.' }
+    }
     if (mine.length) return { id, label, state: 'warning', findings: mine, note: plural(mine.length, 'warning') }
     if (covered.has(id)) return { id, label, state: 'passed', findings: [], note: 'Passed the checks that apply.' }
     return { id, label, state: 'unchecked', findings: [], note: checked ? 'No rule covers this yet.' : 'Not checked yet.' }

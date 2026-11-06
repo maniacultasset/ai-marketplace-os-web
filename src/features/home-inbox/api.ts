@@ -77,8 +77,13 @@ export function useHasProducts() {
   })
 }
 
-/** Products for task rows (SKU and title), deduplicated, sharing the product page's cache entry. */
-export function useProductsById(ids: readonly (string | null | undefined)[]) {
+/**
+ * Products for task rows (SKU and title), deduplicated, sharing the product page's cache entry.
+ * `pending` is true while any of them is still on its first read, so a row can paint once with its
+ * title and meta together. A failed read is not pending and is not in the map: the row falls back to
+ * the kind-only meta.
+ */
+export function useProductsById(ids: readonly (string | null | undefined)[]): ProductsById {
   const keys = useKeys()
   const unique = [...new Set(ids.filter((x): x is string => !!x))].slice(0, 25)
   const results = useQueries({ queries: unique.map((id) => ({ ...productQuery(keys, id), meta: { toast: false }, retry: false })) })
@@ -87,8 +92,10 @@ export function useProductsById(ids: readonly (string | null | undefined)[]) {
     const d = results[i]?.data
     if (d) map.set(id, { sku: d.sku, title: d.title })
   })
-  return map
+  return { map, pending: results.some((r) => r.isPending) }
 }
+
+export type ProductsById = { map: Map<string, { sku: string; title: string }>; pending: boolean }
 
 const ISSUE_STATUSES = ['open', 'auto_fixed', 'resolved', 'dismissed'] as const
 

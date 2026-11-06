@@ -58,7 +58,9 @@ test.describe('products table (p07)', () => {
   test('marketplaces outside the API are shown as not supported, never as listed', async ({ page }) => {
     await loginAs(page, USERS.acme.reviewer, '/products')
     const table = page.getByRole('table', { name: 'Products' })
-    await expect(table.getByRole('img', { name: 'Myntra: not supported yet' }).first()).toBeVisible()
+    // One caption names them; the table has no column for them, so nothing can read as listed.
+    await expect(page.getByText(/Myntra, AJIO, Meesho, Nykaa Fashion: not available yet/)).toBeVisible()
+    await expect(table.getByRole('columnheader', { name: /Myntra/ })).toHaveCount(0)
     await expect(table.getByRole('img', { name: /Myntra: Live/ })).toHaveCount(0)
   })
 
@@ -140,6 +142,7 @@ test.describe('add products (p08-p11)', () => {
     await page.getByLabel('Category', { exact: true }).fill('kurtas')
     await page.getByRole('button', { name: /^Attributes/ }).click()
     await page.getByLabel(/Fabric type/).fill('organic cotton')
+    await page.getByRole('button', { name: /^Price/ }).click()
     const created = page.waitForResponse((r) => r.url().endsWith('/api/v1/products') && r.request().method() === 'POST' && r.status() !== 401)
     await page.getByTestId('guided-next').click()
     const res = await created
@@ -158,6 +161,7 @@ test.describe('add products (p08-p11)', () => {
     await page.getByLabel('Product name').fill('Duplicate')
     await page.getByRole('button', { name: /^Category/ }).click()
     await page.getByLabel('Category', { exact: true }).fill('kurtas')
+    await page.getByRole('button', { name: /^Price/ }).click()
     await page.getByTestId('guided-next').click()
     await expect(page.getByText('This SKU already exists in this brand.')).toBeVisible()
   })

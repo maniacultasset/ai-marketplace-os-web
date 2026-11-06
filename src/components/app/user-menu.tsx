@@ -1,4 +1,4 @@
-/** Avatar menu (hi-fi top bar): 28px brand circle with the user's initial; account, sign out. */
+/** Avatar menu (hi-fi top bar): 28px brand circle with the user's initial in a 36px target; account, sign out. */
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import {
@@ -11,9 +11,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
+import { Skeleton } from '@/components/ui/skeleton'
 import { logout, useMe } from '@/lib/auth'
 import { useNavItems } from '@/lib/nav'
+import { cn } from '@/lib/utils'
 import { NavIcon } from './nav-icon'
+
+/** 36px hit area (40px on touch) around the 28px avatar. */
+const TRIGGER_BOX = 'inline-flex size-9 shrink-0 items-center justify-center rounded-full pointer-coarse:size-10'
 
 export function initials(text: string) {
   const base = text.split('@')[0] ?? text
@@ -25,19 +30,25 @@ export function UserMenu() {
   const { data: me } = useMe()
   const items = useNavItems('user')
   const [signingOut, setSigningOut] = useState(false)
-  if (!me) return <span className="size-7 rounded-full bg-subtle shadow-inset-sm" aria-hidden />
+  // Same 36px box as the loaded trigger, so the top bar never shifts when the user arrives.
+  if (!me)
+    return (
+      <span className={TRIGGER_BOX} aria-hidden>
+        <Skeleton className="size-7 rounded-full" />
+      </span>
+    )
   const name = me.display_name ?? me.email
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label="Open user menu"
-          data-testid="user-menu"
-          className="focus-ring tactile lift inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-brand text-caption font-bold text-white shadow-raised-brand [--focus-rest:var(--shadow-raised-brand)] active:shadow-pressed-fill"
-        >
-          {initials(name).slice(0, 1)}
+        <button type="button" aria-label="Open user menu" data-testid="user-menu" className={cn(TRIGGER_BOX, 'group focus-ring tactile press cursor-pointer')}>
+          <span
+            aria-hidden
+            className="tactile inline-flex size-7 items-center justify-center rounded-full bg-brand text-caption font-bold text-white shadow-raised-brand group-active:shadow-pressed-fill"
+          >
+            {initials(name).slice(0, 1)}
+          </span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">

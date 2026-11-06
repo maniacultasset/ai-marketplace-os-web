@@ -129,28 +129,41 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
 
   const others = SUPPORTED_MARKETPLACES.filter((m) => m.id !== listing.marketplace)
   const runJob = recallJob(listing.id)
+  // Until both reads land, the proof state is a guess: show a neutral shape, never "has not been sent".
+  const reading = subs.isPending || status.isPending
 
   return (
     <Page>
-      <h1 className="sr-only">{hero.title}</h1>
+      <h1 className="sr-only">{reading ? 'Listing status' : hero.title}</h1>
       <LaCard
         emphasis={proof.state === 'live' ? 'success' : 'default'}
         className={cn('flex flex-col gap-4 sm:flex-row sm:items-center', HERO[proof.state].tone === 'danger' && 'border-danger-line bg-danger-bg')}
         data-testid="live-hero"
-        data-state={proof.state}
+        data-state={reading ? 'reading' : proof.state}
+        aria-busy={reading || undefined}
       >
-        <IconTile
-          icon={proof.state === 'live' ? 'check' : proof.state === 'problem' ? 'x' : 'clock'}
-          tone={proof.state === 'live' ? 'ok' : proof.state === 'problem' ? 'fail' : 'brand'}
-          size="lg"
-        />
+        {reading ? (
+          <Skeleton className="size-11 shrink-0 rounded-xl" />
+        ) : (
+          <IconTile
+            icon={proof.state === 'live' ? 'check' : proof.state === 'problem' ? 'x' : 'clock'}
+            tone={proof.state === 'live' ? 'ok' : proof.state === 'problem' ? 'fail' : 'brand'}
+            size="lg"
+            className="animate-page-in"
+          />
+        )}
         <div className="min-w-0 flex-1">
-          <h2 className="font-display text-h2 text-ink">{product.isPending ? <Skeleton className="h-6 w-72" /> : hero.title}</h2>
-          <p className={cn('mt-0.5 text-small', proof.state === 'live' ? 'text-success-ink' : 'text-ink-2')}>
-            {subs.isPending || status.isPending ? 'Reading the marketplace status…' : hero.line}
+          {/* A Skeleton is a div: it replaces the heading while loading, never sits inside it. */}
+          {reading || product.isPending ? (
+            <Skeleton className="my-0.5 h-[22px] w-72 max-w-full" />
+          ) : (
+            <h2 className="font-display text-h2 text-ink">{hero.title}</h2>
+          )}
+          <p className={cn('mt-0.5 text-small', proof.state === 'live' && !reading ? 'text-success-ink' : 'text-ink-2')}>
+            {reading ? 'Reading the marketplace status…' : hero.line}
           </p>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
+        <div className={cn('flex shrink-0 flex-wrap gap-2', reading && 'hidden')}>
           {proof.state === 'live' && proof.liveUrl ? (
             <Button variant="secondary" asChild>
               <a href={proof.liveUrl} target="_blank" rel="noreferrer noopener" data-testid="view-live">
@@ -203,10 +216,14 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
       <div className="mt-4 grid items-start gap-4 lg:grid-cols-2">
         <LaCard data-testid="proof">
           <h3 className="text-h3 text-ink">{proof.state === 'live' ? 'Proof we hold' : 'What we hold so far'}</h3>
-          {subs.isPending ? (
-            <div className="mt-4 flex flex-col gap-2" aria-hidden>
-              {[0, 1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-4" />
+          {subs.isPending || product.isPending ? (
+            // One row per proof line (7), term and value, so the list lands without a jump.
+            <div className="mt-4 grid grid-cols-[130px_minmax(0,1fr)] gap-x-3 gap-y-2" aria-hidden>
+              {Array.from({ length: 7 }, (_, i) => (
+                <div key={i} className="contents">
+                  <Skeleton className="my-0.5 h-4 w-24" />
+                  <Skeleton className="my-0.5 h-4" style={{ width: `${70 - (i % 3) * 15}%` }} />
+                </div>
               ))}
             </div>
           ) : subs.error ? (
@@ -265,6 +282,8 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
             <h3 className="text-h3 text-ink">Next</h3>
             <div className="mt-3 flex flex-wrap gap-2">
               {others.map((m) => {
+                // Until the product's listings are read, hold each button's place so the row lands whole.
+                if (siblings.isPending) return <Skeleton key={m.id} className="h-9 w-32 rounded-control" />
                 const existing = siblings.rows.find((l) => l.marketplace === m.id)
                 if (existing)
                   return (
@@ -274,7 +293,7 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
                       </Link>
                     </Button>
                   )
-                return siblings.isPending ? null : <ListOnButton key={m.id} productId={listing.product_id} marketplace={m.id as 'amazon' | 'flipkart'} />
+                return <ListOnButton key={m.id} productId={listing.product_id} marketplace={m.id as 'amazon' | 'flipkart'} />
               })}
               {can('product:import') ? (
                 <Button variant="secondary" asChild>
@@ -298,7 +317,7 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
                 </Button>
               ) : null}
             </div>
-            {others.some((m) => !siblings.rows.some((l) => l.marketplace === m.id)) && can('listing:generate') ? (
+            {!siblings.isPending && others.some((m) => !siblings.rows.some((l) => l.marketplace === m.id)) && can('listing:generate') ? (
               <p className="mt-3 text-small text-ink-2">The other marketplace is prepared from the same product record.</p>
             ) : null}
           </LaCard>
@@ -345,6 +364,8 @@ function AgentDid({ listing }: { listing: ListingDetail }) {
     )
   if (regen) items.push({ tone: 'ok', text: `Rewrote it ${regen === 1 ? 'once' : `${regen} times`} after feedback` })
   if (edits) items.push({ tone: 'ok', text: `Kept ${plural(edits, 'edit')} made by your team` })
+  const removed = c?.claims?.filter((cl) => cl.status === 'removed').length ?? 0
+  if (removed) items.push({ tone: 'ok', text: `Left out ${plural(removed, 'claim')} it could not back up` })
   if (approved) items.push({ tone: 'ok', text: `Waited for approval (approved ${clock(approved.occurred_at)})` })
   return (
     <LaCard data-testid="agent-did">

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { useDropzone, type FileRejection } from 'react-dropzone'
 import { api, unwrap } from '@/api/client'
@@ -14,7 +14,8 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useCapability } from '@/hooks/use-capabilities'
+import { BUILT } from '@/api/capabilities'
+import { useCapability, useCapabilityProbe } from '@/hooks/use-capabilities'
 import { useJobPolling } from '@/hooks/use-job-polling'
 import { MARKETPLACE_META } from '@/features/marketplaces/meta'
 import { useKeys } from '@/lib/query-keys'
@@ -54,12 +55,26 @@ interface SessionUpload {
   stage: UploadStage
 }
 
+/** One image's compliance report. Shared by the card (to land badges together) and each row. */
+function reportQuery(keys: ReturnType<typeof useKeys>, imageId: string, live: boolean) {
+  return {
+    queryKey: keys.images.report(imageId),
+    queryFn: () => unwrap(api.GET('/images/{image_id}/report', { params: { path: { image_id: imageId } } })),
+    enabled: live,
+    staleTime: 30_000,
+  }
+}
+
 /** Images card on product detail: drop-to-upload plus each image's compliance report. */
 export function ProductImagesCard({ product }: { product: ProductLike }) {
   const keys = useKeys()
   const qc = useQueryClient()
   const can = useCan()
   const live = useCapability('images')
+  // Until the capability probe answers we do not know whether uploads are open: hold the drop
+  // zone's place instead of flashing "No images yet" and then the drop zone.
+  const probe = useCapabilityProbe({ enabled: BUILT.images })
+  const capPending = BUILT.images && probe.isPending
   const canUpload = live && can(OP_ACTION['POST /images/upload']) && can(OP_ACTION['POST /images/upload-url'])
   const listed = product.images ?? []
   const slots = slotsFor(!!product.parent_product_id)
@@ -125,6 +140,15 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
   const inFlight = uploads.filter((u) => u.stage.kind !== 'accepted')
   const count = listed.length + notYetListed.length
 
+  // Every listed image's report, read here too (same key and fetcher as the rows, so one request
+  // each): the rows' badges stay placeholders until all have answered, then land together.
+  const rowIds = [
+    ...notYetListed.flatMap((u) => (u.stage.kind === 'accepted' ? [u.stage.imageId] : [])),
+    ...listed.map(imageIdFromKey).filter((x): x is string => !!x),
+  ]
+  const reportsQ = useQueries({ queries: rowIds.map((id) => reportQuery(keys, id, live)) })
+  const reportsSettled = !live || reportsQ.every((r) => !r.isPending)
+
   return (
     <Card className="gap-0 py-0" data-testid="product-images">
       <CardHeader className="flex h-12 flex-row items-center justify-between gap-3 border-b py-0 [.border-b]:pb-0">
@@ -132,7 +156,12 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         {count ? <span className="text-xs text-muted-foreground tabular-nums">{count}</span> : null}
       </CardHeader>
 
-      {canUpload ? (
+      {capPending ? (
+        <div className="flex flex-col gap-3 p-4 sm:p-5" aria-busy="true" aria-label="Loading uploads">
+          <Skeleton className="h-9 w-40 rounded-control" />
+          <Skeleton className="min-h-28 rounded-lg" />
+        </div>
+      ) : canUpload ? (
         <Dropzone slot={slot} slots={slots} onSlot={setSlot} onFiles={add} hasImages={count > 0} />
       ) : null}
 
@@ -144,7 +173,7 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         </ul>
       ) : null}
 
-      {count === 0 && !canUpload && inFlight.length === 0 ? (
+      {count === 0 && !canUpload && !capPending && inFlight.length === 0 ? (
         <div className="flex items-center gap-3 px-5 py-4 text-sm text-muted-foreground" data-testid="no-images">
           <Icon name="image" size={16} />
           <span>No images yet. Owners and operators can upload them here.</span>
@@ -155,13 +184,13 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         <ul className="divide-y divide-border/70 border-t" aria-label="Product images" data-testid="image-list">
           {notYetListed.map((u) =>
             u.stage.kind === 'accepted' ? (
-              <ImageRow key={u.stage.imageId} imageId={u.stage.imageId} upload={u} live={live} productId={product.id} />
+              <ImageRow key={u.stage.imageId} imageId={u.stage.imageId} upload={u} live={live} productId={product.id} settled={reportsSettled} />
             ) : null,
           )}
           {listed.map((key) => {
             const id = imageIdFromKey(key)
             return id ? (
-              <ImageRow key={key} imageId={id} storageKey={key} upload={sessionById.get(id)} live={live} productId={product.id} />
+              <ImageRow key={key} imageId={id} storageKey={key} upload={sessionById.get(id)} live={live} productId={product.id} settled={reportsSettled} />
             ) : (
               <li key={key} className="truncate px-5 py-3 font-mono text-xs text-muted-foreground" title={key}>
                 {key}
@@ -260,8 +289,20 @@ function Dropzone({
 /* ---------------------------------------------------------------- Rows */
 
 function Thumb({ src, alt }: { src?: string; alt: string }) {
+  const [loaded, setLoaded] = useState(false)
   return src ? (
-    <img src={src} alt={alt} className="size-10 shrink-0 rounded-md bg-muted object-cover ring-1 ring-border" />
+    <img
+      src={src}
+      alt={alt}
+      width={40}
+      height={40}
+      onLoad={() => setLoaded(true)}
+      onError={() => setLoaded(true)}
+      className={cn(
+        'size-10 shrink-0 rounded-md bg-muted object-cover ring-1 ring-border transition-opacity duration-200 motion-reduce:transition-none',
+        loaded ? 'opacity-100' : 'opacity-0',
+      )}
+    />
   ) : (
     <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground ring-1 ring-border">
       <Icon name="image" size={16} />
@@ -313,22 +354,20 @@ function ImageRow({
   upload,
   live,
   productId,
+  settled = true,
 }: {
   imageId: string
   storageKey?: string
   upload?: SessionUpload
   live: boolean
   productId: string
+  /** Every row's report has answered (the card waits, so badges land together). */
+  settled?: boolean
 }) {
   const keys = useKeys()
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
-  const report = useQuery({
-    queryKey: keys.images.report(imageId),
-    queryFn: () => unwrap(api.GET('/images/{image_id}/report', { params: { path: { image_id: imageId } } })),
-    enabled: live,
-    staleTime: 30_000,
-  })
+  const report = useQuery(reportQuery(keys, imageId, live))
   const jobId = upload?.stage.kind === 'accepted' ? upload.stage.jobId : null
   const polling = useJobPolling(report.data?.compliance_status === 'pending' ? jobId : null, {
     onTerminal: () => {
@@ -346,14 +385,18 @@ function ImageRow({
         <div className="flex min-h-16 items-center gap-3 px-5 py-3">
           <Thumb src={upload?.previewUrl} alt={upload ? `${title} image ${upload.file.name}` : ''} />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{title}</p>
+            {report.isPending && live && !slot ? (
+              <Skeleton className="my-0.5 h-4 w-24" />
+            ) : (
+              <p className="truncate text-sm font-medium">{title}</p>
+            )}
             <p className="truncate font-mono text-xs text-muted-foreground" title={storageKey ?? imageId}>
               {imageId}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {report.isPending && live ? (
-              <Skeleton className="h-5 w-24 rounded-full" />
+            {live && (report.isPending || !settled) ? (
+              <Skeleton className="h-[22px] w-24 rounded-full" />
             ) : report.error ? (
               isNotFound(report.error) ? (
                 <Badge variant="muted">Replaced</Badge>

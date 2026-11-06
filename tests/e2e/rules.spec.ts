@@ -140,7 +140,7 @@ test.describe('rules list', () => {
 
     // Retry against the real API: the rule really is absent, so now it says so.
     await page.unroute('**/api/v1/rules?*')
-    await sheet.getByRole('button', { name: 'Retry' }).click()
+    await sheet.getByRole('button', { name: 'Try again' }).click()
     await expect(sheet).toContainText('Rule not found')
   })
 

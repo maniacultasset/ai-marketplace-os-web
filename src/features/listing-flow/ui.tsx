@@ -34,26 +34,38 @@ export function ProductTile({ size = 56, className }: { size?: number; className
   )
 }
 
-/** hi-fi `.phd`: tile + H1 + one muted line on the left, chips and actions on the right. */
+/**
+ * hi-fi `.phd`: tile + H1 + one muted line on the left, chips and actions on the right. With a tile
+ * the right slot centres on the tile + title block; `align="start"` keeps it on the first line for
+ * long titles that wrap.
+ */
 export function ScreenHead({
   title,
   sub,
   right,
   tile = true,
+  align,
 }: {
   title: ReactNode
   sub?: ReactNode
   right?: ReactNode
   tile?: boolean
+  align?: 'center' | 'start'
 }) {
+  const centred = (align ?? (tile ? 'center' : 'start')) === 'center'
   return (
-    <header className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+    <header className={cn('mb-5 flex flex-col gap-3 sm:flex-row sm:justify-between sm:gap-4', centred ? 'sm:items-center' : 'sm:items-start')}>
       <div className="flex min-w-0 items-center gap-3.5">
         {tile ? <ProductTile /> : null}
         <div className="min-w-0">
-          <h1 className="font-display text-h1 break-words text-ink sm:truncate" data-testid="screen-title">
-            {title}
-          </h1>
+          {/* A Skeleton is a div: render it in place of the heading, never inside it. */}
+          {title == null ? (
+            <Skeleton className="h-8 w-72 max-w-[60vw]" data-testid="screen-title-loading" />
+          ) : (
+            <h1 className="font-display text-h1 break-words text-ink sm:truncate" data-testid="screen-title">
+              {title}
+            </h1>
+          )}
           {sub ? <p className="mt-1 text-body text-ink-2">{sub}</p> : null}
         </div>
       </div>
@@ -68,7 +80,8 @@ export type DotTone = 'ok' | 'now' | 'need' | 'bad' | 'todo'
 
 const DOT: Record<DotTone, string> = {
   ok: 'border-success bg-success',
-  now: 'border-brand bg-brand shadow-selected',
+  // One calm ring on the step in progress: opacity and transform only, stopped under reduced motion.
+  now: 'border-brand bg-brand shadow-selected after:absolute after:inset-[-4px] after:rounded-full after:border-2 after:border-brand/30 motion-safe:after:animate-ping',
   need: 'border-attention bg-attention',
   bad: 'border-danger bg-danger',
   todo: 'border-ink-3 bg-field shadow-inset-sm',
@@ -156,6 +169,24 @@ export function GateList({ gates, layout = 'grid' }: { gates: readonly GateResul
   )
 }
 
+/** The gate list's shape while its reads settle, so the gates paint once (same grid or list). */
+export function GateListSkeleton({ layout = 'grid', className }: { layout?: 'grid' | 'list'; className?: string }) {
+  return (
+    <ul
+      aria-hidden
+      data-testid="quality-gates-loading"
+      className={cn('m-0 list-none p-0', layout === 'grid' ? 'mt-3 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2' : 'mt-3 flex flex-col gap-2', className)}
+    >
+      {Array.from({ length: 9 }, (_, i) => (
+        <li key={i} className={cn('flex items-center gap-1.5', layout === 'list' && 'min-h-7 flex-row-reverse justify-between')}>
+          <Skeleton className="size-4 rounded-full" />
+          <Skeleton className="h-4 w-24" />
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 /** The glyph legend under a gate list, so the states never rely on colour or hover alone. */
 export function GateLegend({ className }: { className?: string }) {
   const items: [ChipStatus, string][] = [
@@ -199,9 +230,9 @@ export function KeyValues({ rows, className }: { rows: readonly { term: string; 
 export function HeadSkeleton() {
   return (
     <div className="mb-5 flex items-center gap-3.5" aria-hidden>
-      <Skeleton className="size-14 rounded-[10px]" />
+      <Skeleton className="size-14 rounded-2xl" />
       <div className="flex flex-col gap-2">
-        <Skeleton className="h-7 w-72 max-w-[60vw]" />
+        <Skeleton className="h-8 w-72 max-w-[60vw]" />
         <Skeleton className="h-4 w-48" />
       </div>
     </div>
@@ -216,6 +247,45 @@ export function CardSkeleton({ lines = 4, className }: { lines?: number; classNa
         {Array.from({ length: lines }, (_, i) => (
           <Skeleton key={i} className="h-4" style={{ width: `${85 - i * 9}%` }} />
         ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * p13 product line and marketplace tabs, until the product and its listings are read. `children`
+ * (the approval banner) sits between them, exactly where it sits once they land.
+ */
+export function ReviewTopSkeleton({ children }: { children?: ReactNode }) {
+  return (
+    <div data-testid="review-top-loading">
+      <Skeleton className="mb-3 h-4 w-56" />
+      {children}
+      <div aria-hidden className="mb-5 flex h-[42px] items-center gap-4 border-b border-line">
+        <Skeleton className="h-4 w-20" />
+        <Skeleton className="h-4 w-20" />
+      </div>
+    </div>
+  )
+}
+
+/** p13 "How it will read": head, image box, title and bullets, then the preview note. */
+export function ReadsAsSkeleton({ className }: { className?: string }) {
+  return (
+    <div className={cn('rounded-card border border-line bg-surface p-5 shadow-raised-md', className)} aria-hidden>
+      <Skeleton className="h-5 w-56" />
+      <Skeleton className="mt-1.5 h-4 w-44" />
+      <div className="mt-4 flex flex-col items-start gap-4 sm:flex-row">
+        <Skeleton className="size-[130px] shrink-0 rounded-xl" />
+        <div className="flex w-full min-w-0 flex-1 flex-col gap-3">
+          <Skeleton className="h-6 w-3/4" />
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-4" style={{ width: `${92 - i * 8}%` }} />
+          ))}
+        </div>
+      </div>
+      <div className="mt-4 border-t border-line pt-3">
+        <Skeleton className="h-3 w-72 max-w-full" />
       </div>
     </div>
   )

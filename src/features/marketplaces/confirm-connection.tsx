@@ -2,12 +2,13 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { isApiError, isForbidden } from '@/api/errors'
-import { Icon, IconTile, type IconSource, type TileTone } from '@/components/la'
+import { Icon, IconTile, MonogramTile, type IconSource, type TileTone } from '@/components/la'
 import { ErrorState } from '@/components/states/error-state'
 import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
+import { clearConnectOrigin, readConnectOrigin } from '@/features/marketplaces-settings/use-start-connect'
 import { useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { PENDING_HANDLE_RE, useConfirmConnection } from './api'
@@ -28,6 +29,8 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
   const allowed = can('marketplace:connect')
   const confirm = useConfirmConnection()
   const fired = useRef<string | null>(null)
+  // Where the connect started (setup or Marketplaces), stored before the OAuth redirect.
+  const [origin] = useState(readConnectOrigin)
 
   const { mutate } = confirm
   useEffect(() => {
@@ -41,6 +44,11 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
     }
     void navigate({ to: '/marketplaces/connected', search: {}, replace: true })
   }, [urlPending, allowed, mutate, navigate])
+
+  // Forget the origin once the connection is saved, so a later visit starts clean.
+  useEffect(() => {
+    if (confirm.isSuccess) clearConnectOrigin()
+  }, [confirm.isSuccess])
 
   if (!pending) {
     return (
@@ -77,12 +85,13 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
   if (confirm.isSuccess) {
     const a = confirm.data
     const m = MARKETPLACE_META[a.marketplace]
+    const fromSetup = origin.from === '/setup/marketplaces'
     return (
       <Card className="gap-0 py-0" data-testid="connect-success">
         <StatusHead
           tile={<IconTile icon="check" tone="ok" size="lg" />}
           title={`${m.name} connected`}
-          description={`Listings for this brand can now be published to ${m.short}.`}
+          description={`Approved listings can now be published to ${m.short}.`}
         />
         <dl className="mx-6 divide-y border-t text-sm sm:mx-8">
           <Row label="Marketplace">
@@ -92,7 +101,7 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
             </span>
           </Row>
           <Row label="Seller">
-            <code className="font-mono text-[0.8125rem]" data-testid="seller-id">
+            <code className="font-mono text-small" data-testid="seller-id">
               {a.seller_id}
             </code>
           </Row>
@@ -105,14 +114,29 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
                 {formatRelative(a.expires_at)}
               </time>
             ) : (
-              <span className="text-muted-foreground">—</span>
+              <span className="text-ink-3">—</span>
             )}
           </Row>
         </dl>
-        <div className="mt-6 flex justify-end border-t border-line bg-sunken px-6 py-3.5 sm:px-8">
-          <Button size="sm" className="max-sm:w-full" asChild>
-            <Link to="/marketplaces">View marketplaces</Link>
-          </Button>
+        <div className="mt-6 flex flex-wrap justify-end gap-2 border-t border-line bg-sunken px-6 py-3.5 max-sm:flex-col-reverse max-sm:*:w-full sm:px-8">
+          {fromSetup ? (
+            <Button size="sm" asChild>
+              <Link to="/setup/marketplaces">Back to setup</Link>
+            </Button>
+          ) : can('product:import') ? (
+            <>
+              <Button size="sm" variant="secondary" asChild>
+                <Link to="/marketplaces">View marketplaces</Link>
+              </Button>
+              <Button size="sm" asChild>
+                <Link to="/add">Add products</Link>
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" asChild>
+              <Link to="/marketplaces">View marketplaces</Link>
+            </Button>
+          )}
         </div>
       </Card>
     )
@@ -137,7 +161,11 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
         <Panel
           icon="alert"
           tone="warning"
-          title={err.message}
+          title={
+            origin.marketplace
+              ? `This brand already has a ${MARKETPLACE_META[origin.marketplace].short} account connected`
+              : 'This brand already has an account connected'
+          }
           description="Revoke the existing connection on Marketplaces (opens in a new tab), then try again here. This link stays valid for about 10 minutes."
           reference={err.correlationId}
           testId="connect-conflict"
@@ -168,9 +196,10 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
     <Card className="py-0" role="status" aria-live="polite" data-testid="connect-confirming">
       <StatusHead
         tile={
-          <span className="flex size-11 items-center justify-center rounded-xl border border-[var(--tile-brand-line)] bg-[var(--tile-brand-bg)] text-[var(--tile-brand-fg)] shadow-raised-sm">
+          // The icon tile's box and brand tone, holding a spinner (IconTile itself takes an icon only).
+          <MonogramTile tone="brand" size="lg">
             <Spinner className="size-5" />
-          </span>
+          </MonogramTile>
         }
         title="Finishing your connection…"
         description="Saving the seller account to this brand."
@@ -216,7 +245,7 @@ function StatusHead({
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex min-h-11 items-center justify-between gap-4 py-2">
-      <dt className="text-[0.8125rem] leading-5 text-muted-foreground">{label}</dt>
+      <dt className="text-small text-ink-3">{label}</dt>
       <dd className="flex min-w-0 items-center justify-end truncate leading-5">{children}</dd>
     </div>
   )

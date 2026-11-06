@@ -7,7 +7,7 @@
 import { Icon, IconGlyph } from '@/components/la/icons'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CircleSlash } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { api, unwrap } from '@/api/client'
 import { isApiError, isNotFound } from '@/api/errors'
 import { idempotencyHeader, newIdempotencyKey } from '@/api/idempotency'
@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
+import { STAGE_SUB } from '@/features/listing-flow/run-steps'
 import type { useJobPolling } from '@/hooks/use-job-polling'
 import { useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
@@ -29,23 +30,28 @@ import { formatDateTime, formatDuration, formatTime, importIdFromResultUrl, JOB_
 
 export type JobPolling = ReturnType<typeof useJobPolling>
 
-function statusLine(job: JobEnvelope): string {
-  switch (job.status) {
+function statusLine(status: JobEnvelope['status'], kind: string, timedOut: boolean): string {
+  switch (status) {
     case 'queued':
-      return 'Waiting in the queue.'
+      return 'Queued. It starts when a worker is free.'
     case 'running':
-      return job.kind === 'bulk_import' ? 'Processing rows in batches of 100.' : 'Working on it.'
+      return kind === 'bulk_import' ? 'Importing rows…' : 'Working on it…'
     case 'succeeded':
       return 'Finished without failures.'
     case 'partial':
       return 'Finished. Some items failed.'
     case 'failed':
-      return job.error?.errors?.some((e) => e.error_code === 'JOB_TIMEOUT') ? 'Timed out.' : 'The job failed.'
+      return timedOut ? 'Timed out.' : 'The job failed.'
     case 'cancelled':
       return 'Cancelled before it started.'
     case 'dead_letter':
       return 'Failed permanently (support has been notified).'
   }
+}
+
+/** The pipeline stage in plain words ("Writing the title, bullets and description…"); unknown stages say nothing. */
+function stageLine(stage: JobEnvelope['stage'] | undefined): string | null {
+  return stage && stage in STAGE_SUB ? STAGE_SUB[stage] : null
 }
 
 export function JobProgress({
@@ -67,6 +73,17 @@ export function JobProgress({
   const qc = useQueryClient()
   const can = useCan()
   const [cancelMsg, setCancelMsg] = useState<string | null>(null)
+  // What a screen reader hears: only when the status or stage changes, never on % or time ticks.
+  const status = job?.status
+  const stage = job?.stage
+  const timedOut = !!job?.error?.errors?.some((e) => e.error_code === 'JOB_TIMEOUT')
+  const kind = job?.kind
+  const announce = useMemo(() => {
+    if (!status || !kind) return ''
+    const line = statusLine(status, kind, timedOut)
+    const sub = status === 'running' ? stageLine(stage) : null
+    return sub ? `${line} ${sub}` : line
+  }, [status, stage, kind, timedOut])
 
   const cancel = useMutation({
     meta: { toast: false },
@@ -102,7 +119,7 @@ export function JobProgress({
     }
     if (isNotFound(polling.error)) {
       return (
-        <section className={cn('rounded-card border border-line bg-card px-5 py-4 text-sm text-muted-foreground shadow-raised-md', className)}>
+        <section className={cn('rounded-card border border-line bg-card px-5 py-4 text-small text-ink-2 shadow-raised-md', className)}>
           The job for this import is no longer available. The report below is still current.
         </section>
       )
@@ -147,18 +164,20 @@ export function JobProgress({
       data-testid="job-progress"
       data-job-id={job.job_id}
       data-status={job.status}
-      aria-live="polite"
     >
+      <p className="sr-only" role="status" aria-live="polite">
+        {announce}
+      </p>
       <div className="flex flex-col gap-6 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-[0.9375rem] font-semibold tracking-tight">{title ?? JOB_KIND_LABEL[job.kind] ?? job.kind}</h2>
+              <h2 className="font-display text-h3 text-ink">{title ?? JOB_KIND_LABEL[job.kind] ?? job.kind}</h2>
               <JobStatusBadge status={job.status} />
             </div>
-            <p className="text-sm text-muted-foreground">
-              {statusLine(job)}
-              {job.stage && running ? <span className="ml-1">Stage: {job.stage.replace(/_/g, ' ')}.</span> : null}
+            <p className="text-small text-ink-2" aria-hidden>
+              {statusLine(job.status, job.kind, timedOut)}
+              {running && stageLine(job.stage) ? <span className="ml-1">{stageLine(job.stage)}</span> : null}
             </p>
           </div>
           {canCancel ? (
@@ -177,19 +196,19 @@ export function JobProgress({
         <JobStepper job={job} pct={pct} />
 
         {isWaitingForWorker ? (
-          <p className="flex items-start gap-2 rounded-lg border border-line bg-sunken px-3 py-2.5 text-sm text-muted-foreground shadow-inset-sm" data-testid="waiting-for-worker">
-            <Icon name="clock" size={16} className="mt-0.5 shrink-0" />
-            Waiting for a worker… The job stays queued until a background worker picks it up.
+          <p className="flex animate-page-in items-start gap-2 rounded-lg border border-line bg-sunken px-3 py-2.5 text-small text-ink-2 shadow-inset-sm" data-testid="waiting-for-worker">
+            <Icon name="clock" size={16} className="mt-[calc((1lh-16px)/2)] shrink-0" />
+            Still waiting for a worker. It starts on its own when one is free.
           </p>
         ) : null}
         {rateLimitedFor !== null ? (
-          <p className="flex items-center gap-2 text-sm text-warning">
+          <p className="flex items-center gap-2 text-small text-attention-ink tabular-nums">
             <Icon name="pause" size={16} />
-            Rate limited, resuming in {rateLimitedFor} s
+            Paused for {rateLimitedFor}&nbsp;s to stay within limits.
           </p>
         ) : null}
         {cancelMsg ? (
-          <p className="text-sm text-muted-foreground" role="status">
+          <p className="text-small text-ink-2" role="status">
             {cancelMsg}
           </p>
         ) : null}
@@ -200,11 +219,11 @@ export function JobProgress({
         {job.status === 'dead_letter' ? <ReferenceId id={job.request_id} /> : null}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-line bg-sunken px-5 py-3 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-line bg-sunken px-5 py-3 text-caption text-ink-2">
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 tabular-nums">
           {timing ? <span>{timing}</span> : null}
           {job.attempt > 1 ? (
-            <span className="inline-flex items-center gap-1 text-warning">
+            <span className="inline-flex items-center gap-1 text-attention-ink">
               <Icon name="clock" size={14} />
               Attempt {job.attempt} of {job.max_attempts}
             </span>
@@ -278,17 +297,17 @@ function JobStepper({ job, pct }: { job: JobEnvelope; pct: number }) {
         <Leg value={lastLeg} tone={legTone} label />
         <StepDot {...steps[2]} />
       </div>
-      <ol className="grid grid-cols-3 gap-2 text-xs" aria-label="Job stages">
+      <ol className="grid grid-cols-3 gap-2 text-caption" aria-label="Job stages">
         {steps.map((s, i) => (
           <li
             key={s.label}
             className={cn('min-w-0 space-y-0.5', i === 1 && 'text-center', i === 2 && 'text-right')}
             aria-current={s.state === 'current' ? 'step' : undefined}
           >
-            <p className={cn('truncate font-medium', s.state === 'pending' || s.state === 'skipped' ? 'text-muted-foreground' : 'text-foreground')}>
+            <p className={cn('truncate font-medium', s.state === 'pending' || s.state === 'skipped' ? 'text-ink-3' : 'text-ink')}>
               {s.label}
             </p>
-            <p className="truncate text-muted-foreground tabular-nums">
+            <p className="truncate text-ink-3 tabular-nums">
               {s.at ? (
                 <time dateTime={s.at} title={formatDateTime(s.at)}>
                   {formatTime(s.at)}
@@ -318,7 +337,7 @@ function StepDot({ state, fill, icon }: { state: StepState; fill?: string; icon?
   if (state === 'current') {
     return (
       <span aria-hidden className="flex size-5 shrink-0 items-center justify-center rounded-full border-2 border-brand bg-surface shadow-raised-sm ring-4 ring-brand/15">
-        <span className="size-2 animate-pulse rounded-full bg-brand" />
+        <span className="size-2 rounded-full bg-brand motion-safe:animate-pulse" />
       </span>
     )
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { failedJobRemedy, logEntries } from './agent-run'
-import { clock } from './format'
+import { clock, fieldLabel } from './format'
 import { applicableRules, claimFindings, currentFindings, fieldGate, findingGate, gateCounts, rollUpGates, ruleGate, type ErrorItem } from './gates'
 import { mappingRows, payloadField } from './mapping'
 import { externalIdFromUrl, liveProof, maskId } from './proof'
@@ -102,14 +102,52 @@ describe('gates', () => {
     expect(by).toMatchObject({
       attributes: 'blocked',
       content: 'warning',
-      media: 'passed',
+      // image_requirement is stored but never evaluated by the backend, so it is no evidence.
+      media: 'unchecked',
       classification: 'passed',
       identity: 'unchecked',
       compliance: 'unchecked',
       commercial: 'unchecked',
       submission: 'unchecked',
     })
-    expect(gateCounts(gates)).toMatchObject({ passed: 2, blocked: 1, warning: 1, total: 9 })
+    expect(gateCounts(gates)).toMatchObject({ passed: 1, blocked: 1, warning: 1, total: 9 })
+  })
+
+  const media = (input: Partial<Parameters<typeof rollUpGates>[0]>) =>
+    rollUpGates({ listing: baseListing, validation: validation([]), rules: null, preview: null, ...input }).find((g) => g.id === 'media')!
+
+  it('blocks media when the listing has no image, naming the marketplace', () => {
+    for (const name of ['Amazon', 'Flipkart']) {
+      const g = media({ imageCount: 0, marketplaceName: name, rules: [{ rule_type: 'image_requirement', field: 'images' }] })
+      expect(g.state).toBe('blocked')
+      expect(g.findings).toEqual([])
+      expect(g.note).toBe(`Add at least one image. ${name} needs a main image.`)
+    }
+    expect(media({ imageCount: 0 }).note).toBe('Add at least one image. The marketplace needs a main image.')
+  })
+
+  it('passes media only on a vision check of the current version', () => {
+    const withVision = (version = V1): ValidationSummary => {
+      const v = validation([])
+      return { ...v, stages: [...v.stages!, { ...v.stages![0]!, listing_version_id: version, source: 'vision_model' }] }
+    }
+    expect(media({ imageCount: 2, validation: withVision() })).toMatchObject({ state: 'passed', note: 'Passed the image checks.' })
+    expect(media({ imageCount: 2, validation: withVision(V0) }).state).toBe('unchecked')
+    expect(media({ imageCount: 2 })).toMatchObject({ state: 'unchecked', note: 'Not checked yet.' })
+    expect(media({ imageCount: null, validation: withVision() }).state).toBe('unchecked')
+    expect(media({ imageCount: 2, rules: [{ rule_type: 'image_requirement', field: 'images' }] }).state).toBe('unchecked')
+  })
+
+  it('still blocks media on an image finding', () => {
+    const v = validation([item({ error_code: 'IMAGE_NON_COMPLIANT', field: 'images[0]' })])
+    expect(media({ imageCount: 2, validation: v }).state).toBe('blocked')
+  })
+
+  it('never passes a gate from a rule type the backend does not evaluate', () => {
+    for (const rule_type of ['fact_source', 'fact_backed_attribute'] as const) {
+      const gates = rollUpGates({ listing: baseListing, validation: validation([]), rules: [{ rule_type, field: 'attributes.x' }], preview: null })
+      expect(gates.find((g) => g.id === 'attributes')!.state).toBe('unchecked')
+    }
   })
 
   it('decides submission from the marketplace', () => {
@@ -136,6 +174,15 @@ describe('run steps', () => {
     const s = runSteps({ job: job({ stage: 'keyword_agent' }), listing: { ...baseListing, status: 'generating' } as Listing })
     expect(states(s)).toEqual(['understand:done', 'write:now', 'check:todo', 'approve:todo', 'submit:todo', 'live:todo'])
     expect(s[1]!.sub).toBe('Choosing search terms…')
+    // Past tense only once a step is done: the step in progress and the ones after it read as tasks.
+    expect(s.map((x) => x.label)).toEqual([
+      'Understood the product',
+      'Write titles and bullets',
+      'Check against the rules',
+      'Your approval',
+      'Send to the marketplace',
+      'Confirm live',
+    ])
     expect(runSteps({ job: job({ status: 'queued' }), listing: null })[0]).toMatchObject({ state: 'now', sub: 'Waiting for a worker…' })
   })
 
@@ -155,6 +202,7 @@ describe('run steps', () => {
       runSteps({ job: { kind: 'listing_publish', status: 'succeeded', stage: null }, listing: { ...baseListing, status: 'published', marketplace_state: ms } as Listing, liveConfirmed })
     expect(pub('processing').find((x) => x.id === 'live')!.state).toBe('now')
     expect(pub('live', true).every((x) => x.state === 'done')).toBe(true)
+    expect(pub('live', true).map((x) => x.label)).toEqual(['Understood the product', 'Wrote titles and bullets', 'Checked against the rules', 'Approved', 'Sent', 'Confirmed live'])
     expect(pub('live').find((x) => x.id === 'live')).toMatchObject({ state: 'now', sub: 'Amazon reports it live. We can’t confirm it yet' })
     expect(pub('rejected').find((x) => x.id === 'submit')!.state).toBe('failed')
   })
@@ -321,6 +369,21 @@ describe('agent log', () => {
     expect(out[0]!.text).toBe('Approved by you.')
     expect(out[1]).toMatchObject({ tone: 'need', text: 'Rejected by a teammate. Reason: off brand voice.' })
     expect(out[2]).toMatchObject({ tone: 'bad', text: 'Generation failed. Model timed out' })
+  })
+})
+
+describe('field label', () => {
+  it('names finding and claim paths in plain words', () => {
+    expect(fieldLabel('content.title')).toBe('Title')
+    expect(fieldLabel('content.bullets[0]')).toBe('Bullet 1')
+    expect(fieldLabel('content.bullets[3]')).toBe('Bullet 4')
+    expect(fieldLabel('content.description')).toBe('Description')
+    expect(fieldLabel('keywords.search_terms')).toBe('Search terms')
+    expect(fieldLabel('attributes.fabric_type')).toBe('Fabric type')
+    expect(fieldLabel('images[1]')).toBe('Image 2')
+    expect(fieldLabel('category')).toBe('Category')
+    expect(fieldLabel('variants.size_map')).toBe('Variants size map')
+    expect(fieldLabel('')).toBe('The listing')
   })
 })
 

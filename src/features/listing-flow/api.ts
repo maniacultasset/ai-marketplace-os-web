@@ -14,10 +14,10 @@ import { useNavigate } from '@tanstack/react-router'
 import { api, unwrap } from '@/api/client'
 import { isNetworkError } from '@/api/errors'
 import { useIntentKey } from '@/api/idempotency'
-import { fetchListingsPage, useGenerateListing } from '@/features/listings/api'
+import { BUSY_REFETCH_MS, fetchListingsPage, useGenerateListing } from '@/features/listings/api'
 import { useCursorList } from '@/hooks/use-cursor-list'
 import { rememberJob } from '@/features/listings/job-memory'
-import type { Listing, Marketplace } from '@/features/listings/model'
+import { isBusy, type Listing, type Marketplace } from '@/features/listings/model'
 import { useKeys } from '@/lib/query-keys'
 
 /** Re-read the cheap status alias while the marketplace is still deciding. */
@@ -47,6 +47,10 @@ export function useProductListings(productId: string | null | undefined) {
   return useCursorList<Listing>({
     queryKey: keys.listings.list(filters),
     enabled: !!productId,
+    // Per-product: never show another product's listings while this one loads.
+    keepPrevious: false,
+    // Re-read while any sibling is generating or publishing, so tabs and lanes stay in step.
+    refetchInterval: (q) => (q.state.data?.pages.some((p) => p.data.some((l) => isBusy(l.status))) ? BUSY_REFETCH_MS : false),
     fetchPage: (cursor) => fetchListingsPage(filters, cursor),
   })
 }

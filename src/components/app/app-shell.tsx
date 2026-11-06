@@ -4,7 +4,7 @@
  * drawer opened from the top bar.
  */
 import { Outlet, useRouterState } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Icon } from '@/components/la/icons'
 import { NOT_YET } from '@/components/la/unavailable'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
@@ -18,9 +18,10 @@ import { CommandPaletteProvider } from './command-palette'
 import { UserMenu } from './user-menu'
 
 const SIDEBAR_KEY = 'la.sidebar'
-type Pref = 'open' | 'collapsed' | null
+export type Pref = 'open' | 'collapsed' | null
 
-function readPref(): Pref {
+/** The saved sidebar choice (also read by the first-load placeholder in routes/_app). */
+export function readPref(): Pref {
   try {
     const v = localStorage.getItem(SIDEBAR_KEY)
     return v === 'open' || v === 'collapsed' ? v : null
@@ -41,54 +42,59 @@ function writePref(v: Pref) {
 function TopBar({ title, onOpenMenu }: { title: string; onOpenMenu: () => void }) {
   const scrolled = useScrolled()
   return (
-    <header
-      data-scrolled={scrolled || undefined}
-      className="material-bar sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3.5 px-4 md:px-7"
-    >
-      <button
-        type="button"
-        onClick={onOpenMenu}
-        aria-label="Open navigation"
-        className="tactile press -ml-1 inline-flex size-10 items-center justify-center rounded-tile text-ink-2 hover:bg-hover active:shadow-pressed md:hidden md:size-9"
-      >
-        <Icon name="menu" size={20} />
-      </button>
-      {/* Not a heading: each page's outline starts at its own h1. */}
-      <p className="min-w-0 truncate font-sans text-[15px] font-bold text-ink" data-testid="page-title">
+    <header data-scrolled={scrolled || undefined} className="material-bar sticky top-[var(--banner-h,0px)] z-30 h-14 shrink-0">
+      {/* Same width and gutters as <Page>, so the title lines up with the page h1 and the avatar
+          with the content's right edge on wide screens. */}
+      <div className="mx-auto flex h-full w-full max-w-[var(--page-max)] items-center gap-3.5 px-4 md:px-7">
+        <button
+          type="button"
+          onClick={onOpenMenu}
+          aria-label="Open navigation"
+          className="tactile press -ml-1 inline-flex size-10 items-center justify-center rounded-tile text-ink-2 hover:bg-hover active:shadow-pressed md:hidden md:size-9"
+        >
+          <Icon name="menu" size={20} />
+        </button>
+        {/* Not a heading: each page's outline starts at its own h1. */}
+        <p className="min-w-0 truncate font-sans text-[15px] font-bold text-ink" data-testid="page-title">
+          {title}
+        </p>
+        <div className="ml-auto flex items-center gap-2 md:gap-3.5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-disabled="true"
+                aria-label="Search products and SKUs (not available yet)"
+                onClick={(e) => e.preventDefault()}
+                className="focus-ring inset-field hidden h-[34px] w-60 cursor-not-allowed items-center gap-2 rounded-tile border px-2.5 text-left text-small text-ink-3 sm:flex"
+              >
+                <Icon name="search" size={16} />
+                <span className="truncate">Search products, SKUs</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{NOT_YET.productSearch}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-disabled
+                aria-label="Notifications (coming soon)"
+                onClick={(e) => e.preventDefault()}
+                className="focus-ring inline-flex size-10 cursor-not-allowed items-center justify-center rounded-tile text-ink-3 md:size-9"
+              >
+                <Icon name="bell" size={20} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{NOT_YET.notifications}</TooltipContent>
+          </Tooltip>
+          <UserMenu />
+        </div>
+      </div>
+      {/* Screen readers hear the new page name after a route change. */}
+      <p aria-live="polite" className="sr-only">
         {title}
       </p>
-      <div className="ml-auto flex items-center gap-2 md:gap-3.5">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-disabled="true"
-              aria-label="Search products and SKUs (not available yet)"
-              onClick={(e) => e.preventDefault()}
-              className="focus-ring inset-field hidden h-[34px] w-60 cursor-not-allowed items-center gap-2 rounded-tile border px-2.5 text-left text-small text-ink-3 sm:flex"
-            >
-              <Icon name="search" size={16} />
-              <span className="truncate">Search products, SKUs</span>
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{NOT_YET.productSearch}</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-disabled
-              aria-label="Notifications (coming soon)"
-              onClick={(e) => e.preventDefault()}
-              className="focus-ring inline-flex size-10 cursor-not-allowed items-center justify-center rounded-tile text-ink-3 md:size-9"
-            >
-              <Icon name="bell" size={20} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{NOT_YET.notifications}</TooltipContent>
-        </Tooltip>
-        <UserMenu />
-      </div>
     </header>
   )
 }
@@ -103,6 +109,16 @@ export function AppShell() {
   const title = meta.title ?? NAV_ITEMS.find((i) => i.id === navId)?.label ?? ''
 
   useEffect(() => setDrawer(false), [pathname])
+  // After a route change (path only, so filters in the URL never steal focus), move focus to the
+  // content so keyboard and screen reader users start at the new page, not the old link.
+  const firstPath = useRef(true)
+  useEffect(() => {
+    if (firstPath.current) {
+      firstPath.current = false
+      return
+    }
+    document.getElementById('main')?.focus({ preventScroll: true })
+  }, [pathname])
   useEffect(() => {
     document.title = title ? `${title} · Kuinn` : 'Kuinn'
   }, [title])
@@ -117,11 +133,11 @@ export function AppShell() {
       </a>
       <div
         className={cn(
-          'grid min-h-svh grid-cols-1 bg-canvas',
+          'grid min-h-svh grid-cols-1 bg-canvas md:transition-[grid-template-columns] md:duration-200 md:ease-[var(--ease-tactile)] motion-reduce:transition-none',
           collapsed ? 'md:grid-cols-[72px_minmax(0,1fr)]' : 'md:grid-cols-[232px_minmax(0,1fr)]',
         )}
       >
-        <aside className="sticky top-0 hidden h-svh md:block">
+        <aside className="sticky top-[var(--banner-h,0px)] hidden h-[calc(100svh-var(--banner-h,0px))] md:block">
           <AppSidebar
             collapsed={collapsed}
             onToggleCollapsed={() => {

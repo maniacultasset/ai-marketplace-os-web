@@ -19,7 +19,7 @@ function MarketplacesRoute() {
     <Page className="max-w-[1180px]">
       <PageHeader
         title="Marketplaces"
-        description="Seller accounts this brand publishes approved listings to. Access refreshes automatically while a connection is active."
+        description="Seller accounts your approved listings go to."
       />
       <MarketplacesPage selected={mp} onSelect={(next) => void navigate({ search: { mp: next }, replace: true })} />
     </Page>

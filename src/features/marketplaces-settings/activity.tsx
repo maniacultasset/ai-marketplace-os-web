@@ -7,13 +7,11 @@
  */
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
-import { Banner } from '@/components/la/banner'
 import { LaCard } from '@/components/la/cards'
 import { Icon } from '@/components/la/icons'
 import { cn } from '@/lib/utils'
 import { MarketplaceName } from '@/components/la/marketplace'
 import { StatusChip } from '@/components/la/status-chip'
-import { NOT_YET } from '@/components/la/unavailable'
 import { EmptyState } from '@/components/states/empty-state'
 import { ErrorState } from '@/components/states/error-state'
 import { Button } from '@/components/ui/button'
@@ -32,18 +30,17 @@ export function ActivityView() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div data-testid="activity-coming-soon">
-        <Banner tone="neutral" icon="clock" title="Activity across your brand is coming soon">
-          <span className="text-ink-2">{NOT_YET.activityFeed} Open a listing below to see what the agent and your team did.</span>
-        </Banner>
-      </div>
-
       <section aria-labelledby="listings-activity" className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4">
-          <h2 id="listings-activity" className="font-display text-h3 text-ink">
-            Listing history
-          </h2>
-          <p className="text-caption text-ink-3">Most recent activity first</p>
+        <div className="flex flex-col gap-1">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h2 id="listings-activity" className="font-display text-h3 text-ink">
+              Listing history
+            </h2>
+            <p className="text-caption text-ink-3">Most recent activity first</p>
+          </div>
+          <p className="text-caption text-ink-3" data-testid="activity-coming-soon">
+            One feed for the whole brand is coming. For now, each listing keeps its own history.
+          </p>
         </div>
 
         {list.error && !list.rows.length ? (
@@ -51,14 +48,19 @@ export function ActivityView() {
             <ErrorState error={list.error} title="Couldn't load listings" onRetry={() => void list.refetch()} />
           </LaCard>
         ) : list.isPending ? (
-          <LaCard pad="none" aria-busy>
+          <LaCard pad="none" aria-busy="true">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="flex items-center gap-3 border-b border-line px-5 py-4 last:border-b-0">
-                <Skeleton className="size-7 rounded-md" />
-                <Skeleton className="h-4 w-40" />
-                <Skeleton className="ml-auto h-[22px] w-24 rounded-full" />
+              <div key={i} className={cn(ROW, 'border-b border-line last:border-b-0')}>
+                <Skeleton className="size-7 rounded-lg" />
+                <div className="order-first basis-full space-y-1.5 sm:order-none sm:basis-auto">
+                  <Skeleton className="h-4 w-48 max-w-full" />
+                  <Skeleton className="h-3 w-32" />
+                </div>
+                <Skeleton className="h-[22px] w-24 rounded-full sm:justify-self-start" />
+                <Skeleton className="h-8 w-28 rounded-control" />
               </div>
             ))}
+            <span className="sr-only">Loading listings…</span>
           </LaCard>
         ) : list.rows.length === 0 ? (
           <LaCard pad="none">
@@ -94,15 +96,22 @@ export function ActivityView() {
   )
 }
 
+/**
+ * One row from sm: marketplace | product | status | actions, on fixed columns so every row's
+ * chip and buttons line up down the list. Below sm it wraps, product first.
+ */
+const ROW =
+  'flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5 sm:grid sm:grid-cols-[8rem_minmax(0,1fr)_9rem_auto] sm:items-center'
+
 function ListingActivityRow({ listing }: { listing: Listing }) {
   const [open, setOpen] = useState(false)
   const chip = listingChip(listing)
   const panelId = `history-${listing.id}`
   return (
     <li className="border-b border-line last:border-b-0" data-testid="activity-listing">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5">
-        <MarketplaceName id={listing.marketplace} size="sm" className="w-32" />
-        <div className="order-first min-w-0 basis-full sm:order-none sm:min-w-48 sm:basis-0 sm:flex-1">
+      <div className={ROW}>
+        <MarketplaceName id={listing.marketplace} size="sm" className="w-32 sm:w-auto" />
+        <div className="order-first min-w-0 basis-full sm:order-none sm:basis-auto">
           <ListingProductName productId={listing.product_id} />
           <p className="text-caption text-ink-3 sm:truncate">
             {listing.category ? `${sentence(listing.category)} · ` : ''}Status changed{' '}
@@ -111,11 +120,18 @@ function ListingActivityRow({ listing }: { listing: Listing }) {
             </time>
           </p>
         </div>
-        <StatusChip status={chip.status}>{chip.label}</StatusChip>
+        <StatusChip status={chip.status} className="sm:justify-self-start">
+          {chip.label}
+        </StatusChip>
         <div className="flex basis-full items-center gap-1 sm:basis-auto">
           <Button variant="ghost" size="sm" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen((o) => !o)}>
-            {open ? 'Hide history' : 'Show history'}
-            <Icon name="chev" size={16} className={cn('transition-transform duration-150 motion-reduce:transition-none', open && 'rotate-180')} />
+            History
+            <Icon
+              name="chev"
+              size={16}
+              aria-hidden
+              className={cn('transition-transform duration-200 motion-reduce:transition-none', open && 'rotate-180')}
+            />
           </Button>
           <Button variant="link" size="sm" asChild>
             <Link to="/products/$productId" params={{ productId: listing.product_id }}>
@@ -147,11 +163,15 @@ function HistoryPanel({ id, listingId }: { id: string; listingId: string }) {
   const history = useListingHistory(listingId)
   const { data: me } = useMe()
   return (
-    <div id={id} className="border-t border-line bg-sunken px-5 py-3 shadow-inset-sm">
+    // Fades in (200ms, opacity only) when opened; reduced motion shows it at once.
+    <div
+      id={id}
+      className="border-t border-line bg-sunken px-5 py-3 shadow-inset-sm transition-opacity duration-200 ease-out starting:opacity-0 motion-reduce:transition-none"
+    >
       {history.error && !history.rows.length ? (
         <ErrorState compact error={history.error} title="Couldn't load this listing's history" onRetry={() => void history.refetch()} />
       ) : history.isPending ? (
-        <div className="flex flex-col gap-2 py-1" aria-busy>
+        <div className="flex flex-col gap-2 py-1" aria-busy="true">
           <Skeleton className="h-3.5 w-64" />
           <Skeleton className="h-3.5 w-52" />
         </div>

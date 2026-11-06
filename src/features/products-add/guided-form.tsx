@@ -29,7 +29,7 @@ import {
   LaField,
   MarketplaceName,
   SourceBadge,
-  StatusChip,
+  TagChip,
   fieldHintId,
 } from '@/components/la'
 import { ReferenceId } from '@/components/states/reference-id'
@@ -205,6 +205,9 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
   const [formError, setFormError] = useState<unknown>(null)
   const [created, setCreated] = useState<Product | null>(null)
   const [busy, setBusy] = useState<'next' | 'send' | null>(null)
+  /** What "Send to agent now" is doing right now: saving the product, then starting each draft. */
+  const [sendPhase, setSendPhase] = useState<{ kind: 'saving' } | { kind: 'drafts'; done: number; total: number } | null>(null)
+  const navRef = useRef<HTMLUListElement>(null)
   /**
    * The existing product behind a 409 SKU_CONFLICT. POST /products has no Idempotency-Key, so a
    * retry after a lost response (status 0) answers 409 for the product the first attempt created
@@ -320,14 +323,18 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
 
   const onSend = async () => {
     setBusy('send')
+    setSendPhase({ kind: 'saving' })
     const p = await ensureCreated()
     if (!p) {
       setBusy(null)
+      setSendPhase(null)
       return
     }
     if (listOn.length && can('listing:generate')) {
       const plan = planGenerate([p], listOn, () => ({}))
-      const out = await generateMany(plan.send)
+      const total = plan.send.length
+      setSendPhase({ kind: 'drafts', done: 0, total })
+      const out = await generateMany(plan.send, (done) => setSendPhase({ kind: 'drafts', done, total }))
       const ok = out.filter((o) => o.kind === 'accepted')
       invalidateListingWork(qc, keys, ok.flatMap((o) => (o.kind === 'accepted' && o.accepted.listing_id ? [o.accepted.listing_id] : [])))
       const failed = out.filter((o) => o.kind === 'failed')
@@ -344,12 +351,27 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
       })
     }
     setBusy(null)
+    setSendPhase(null)
     void navigate({ to: '/products/$productId', params: { productId: p.id } })
   }
 
   const sectionLabel = SECTIONS.find((s) => s.id === section)!.label
   const idx = SECTIONS.findIndex((s) => s.id === section)
   const isPending = busy !== null
+  const nextSection = SECTIONS[idx + 1]
+  const sendLabel =
+    sendPhase?.kind === 'saving'
+      ? 'Saving product…'
+      : sendPhase?.kind === 'drafts'
+        ? `Starting drafts ${sendPhase.done}/${sendPhase.total}…`
+        : listOn.length
+          ? 'Send to agent now'
+          : 'Save product'
+
+  // Phones: the section list scrolls sideways; keep the current one in view. 'nearest' never moves the page.
+  useEffect(() => {
+    navRef.current?.querySelector<HTMLElement>('[aria-current="step"]')?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' })
+  }, [section])
 
   const body = (() => {
     switch (section) {
@@ -452,9 +474,6 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
                 ? 'Sizes, colours and per-variant prices are set on the next step, once this product is saved.'
                 : 'Images are uploaded on the next step, once this product is saved, and checked against each marketplace’s rules.'}
             </p>
-            <Button className="mt-3" variant="secondary" onClick={() => void onNext()} disabled={isPending}>
-              Save and go to variants and media
-            </Button>
           </LaCard>
         )
       case 'price':
@@ -473,8 +492,8 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
     <div className="flex min-h-[calc(100svh-56px)] flex-col">
       <div className="grid flex-1 grid-cols-1 content-start lg:grid-cols-[190px_minmax(0,1fr)_290px] lg:content-stretch">
         <nav aria-label="Sections" className="border-b border-line bg-canvas px-3.5 py-4 lg:border-r lg:border-b-0 lg:py-6">
-          <h2 className="mb-2 px-2.5 font-display text-[15px] font-bold text-ink">Sections</h2>
-          <ul className="relative flex gap-0.5 overflow-x-auto lg:flex-col">
+          <h2 className="mb-2 px-2.5 font-display text-h3 text-ink">Sections</h2>
+          <ul ref={navRef} className="relative flex gap-0.5 overflow-x-auto lg:flex-col">
             {SECTIONS.map((s) => (
               <li key={s.id} className="shrink-0">
                 <button
@@ -500,7 +519,7 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
               {values.title.trim() || 'New product'}
             </h1>
             <p className="mt-1 text-body text-ink-2">
-              {[values.sku.trim(), values.category.trim() ? humanizeSlug(values.category.trim()) : null, sectionLabel].filter(Boolean).join(' · ')}
+              {[values.sku.trim(), values.category.trim() ? humanizeSlug(values.category.trim()) : null].filter(Boolean).join(' · ') || 'Fill in what you know.'}
             </p>
           </div>
           {created ? (
@@ -551,60 +570,72 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
               {isApiError(formError) ? <ReferenceId id={formError.correlationId} className="mt-1" /> : null}
             </Banner>
           ) : null}
-          {body}
+          <div key={section} className="flex animate-page-in flex-col gap-4">
+            <div>
+              <p className="text-caption text-ink-3">
+                Section {idx + 1} of {SECTIONS.length}
+              </p>
+              <h2 className="mt-0.5 text-h3 text-ink">{sectionLabel}</h2>
+            </div>
+            {body}
+          </div>
         </section>
 
-        <aside aria-label="Agent's understanding" className="flex flex-col gap-3 border-t border-line bg-canvas px-4 py-6 lg:border-t-0 lg:border-l">
-          <h2 className="font-display text-[15px] font-bold text-ink">Agent’s understanding</h2>
-          <LaCard pad="sm">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-caption text-ink-2">Category</p>
-              <ComingSoon />
-            </div>
-            <h3 className="mt-1 text-h3 text-ink">{values.category.trim() ? humanizeSlug(values.category.trim()) : 'Not chosen yet'}</h3>
-            <p className="mt-1 text-caption text-ink-2">Classification by the agent is coming soon. Choose the category yourself for now.</p>
-          </LaCard>
-          {missing.length ? (
-            <AttentionCard pad="sm" className="flex items-start gap-3">
-              <IconTile icon="alert" tone="warn" size="sm" flat />
-              <div className="min-w-0">
-                <b className="text-ink">
-                  {missing.length} critical {missing.length === 1 ? 'fact' : 'facts'} missing
-                </b>
-                <p className="mt-0.5 text-small text-attention-ink">{missing.join(', ')}</p>
-              </div>
-            </AttentionCard>
-          ) : (
-            <LaCard pad="sm" emphasis="success" className="flex items-start gap-3">
-              <IconTile icon="check" tone="ok" size="sm" flat />
-              <div className="min-w-0">
-                <b className="text-ink">Critical facts filled</b>
-                <p className="mt-0.5 text-small text-success-ink">The agent will not guess any of them.</p>
-              </div>
-            </LaCard>
-          )}
-          <LaCard pad="sm">
-            <h3 className="font-display text-[15px] font-bold text-ink">Ready to list on</h3>
-            {listOn.length ? (
-              <ul className="mt-3 flex flex-col gap-2.5">
-                {listOn.map((m) => (
-                  <li key={m} className="flex items-center justify-between gap-2 text-small">
-                    <MarketplaceName id={m} size="sm" />
-                    <StatusChip status="draft">Not checked</StatusChip>
-                  </li>
-                ))}
-              </ul>
+        <aside aria-label="Agent's understanding" className="border-t border-line bg-canvas px-4 py-6 lg:border-t-0 lg:border-l">
+          <div className="flex flex-col gap-3 lg:sticky lg:top-[calc(var(--topbar-h)+16px)]">
+            <h2 className="font-display text-h3 text-ink">Agent’s understanding</h2>
+            {missing.length ? (
+              <AttentionCard pad="sm" className="flex items-start gap-3">
+                <IconTile icon="alert" tone="warn" size="sm" flat />
+                <div className="min-w-0">
+                  <b className="text-ink">
+                    {missing.length} critical {missing.length === 1 ? 'fact' : 'facts'} missing
+                  </b>
+                  <p className="mt-0.5 text-small text-attention-ink">{missing.join(', ')}</p>
+                </div>
+              </AttentionCard>
             ) : (
-              <p className="mt-2 text-small text-ink-2">
-                No marketplace chosen.{' '}
-                <Link to="/add" className="font-semibold text-brand hover:underline">
-                  Choose on the previous step
-                </Link>
-                .
-              </p>
+              <LaCard pad="sm" emphasis="success" className="flex items-start gap-3">
+                <IconTile icon="check" tone="ok" size="sm" flat />
+                <div className="min-w-0">
+                  <b className="text-ink">Critical facts filled</b>
+                  <p className="mt-0.5 text-small text-success-ink">The agent will not guess any of them.</p>
+                </div>
+              </LaCard>
             )}
-            <p className="mt-3 text-caption text-ink-3">Readiness is checked against each marketplace’s rules once the agent drafts the listing.</p>
-          </LaCard>
+            <LaCard pad="sm">
+              <h3 className="text-h3 text-ink">Ready to list on</h3>
+              {listOn.length ? (
+                <ul className="mt-3 flex flex-col gap-2.5">
+                  {listOn.map((m) => (
+                    <li key={m} className="flex items-center justify-between gap-2 text-small">
+                      <MarketplaceName id={m} size="sm" />
+                      <TagChip tone="plain" className="shrink-0">
+                        Checked after drafting
+                      </TagChip>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-small text-ink-2">
+                  No marketplace chosen.{' '}
+                  <Link to="/add" className="font-semibold text-brand hover:underline">
+                    Choose on the previous step
+                  </Link>
+                  .
+                </p>
+              )}
+              <p className="mt-3 text-caption text-ink-3">Readiness is checked against each marketplace’s rules once the agent drafts the listing.</p>
+            </LaCard>
+            <LaCard pad="sm">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-caption text-ink-2">Category</p>
+                <ComingSoon />
+              </div>
+              <p className="mt-1 truncate text-small font-semibold text-ink">{values.category.trim() ? humanizeSlug(values.category.trim()) : 'Not chosen yet'}</p>
+              <p className="mt-0.5 text-caption text-ink-3">The agent will suggest a category later. Choose it yourself for now.</p>
+            </LaCard>
+          </div>
         </aside>
       </div>
 
@@ -619,14 +650,20 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
         >
           Back
         </Button>
-        <Button variant="secondary" disabled={isPending} onClick={() => void onNext()} data-testid="guided-next">
-          {busy === 'next' ? <Spinner data-icon="inline-start" /> : null}
-          Next: Variants
-          <Icon name="arrow" size={16} />
-        </Button>
-        <Button disabled={isPending} onClick={() => void onSend()} data-testid="guided-send">
-          {busy === 'send' ? <Spinner data-icon="inline-start" /> : listOn.length ? <Icon name="spark" size={16} /> : null}
-          {listOn.length ? 'Send to agent now' : 'Save product'}
+        {nextSection ? (
+          <Button variant="secondary" disabled={isPending} onClick={() => setSection(nextSection.id)} data-testid="guided-step">
+            Next: {nextSection.label}
+            <Icon name="arrow" size={16} />
+          </Button>
+        ) : (
+          <Button variant="secondary" disabled={isPending} onClick={() => void onNext()} data-testid="guided-next">
+            {busy === 'next' ? <Spinner data-icon="inline-start" aria-hidden /> : null}
+            {busy === 'next' ? 'Saving product…' : 'Save and add variants'}
+          </Button>
+        )}
+        <Button className="min-w-44" disabled={isPending} onClick={() => void onSend()} data-testid="guided-send">
+          {busy === 'send' ? <Spinner data-icon="inline-start" aria-hidden /> : listOn.length ? <Icon name="spark" size={16} /> : null}
+          {sendLabel}
         </Button>
       </FooterBar>
     </div>
@@ -653,7 +690,7 @@ function ExtraAttributes({
   return (
     <div className="flex flex-col gap-3">
       {values.extra.map((x, i) => (
-        <div key={i} className="grid items-start gap-x-5 gap-y-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+        <div key={i} className="grid items-end gap-x-5 gap-y-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
           <LaField label={`Attribute ${i + 1}`} htmlFor={`g-extra-${i}-key`} error={errors[`extra.${i}.key`]} submitCount={submitCount} confirmFix>
             <Input
               id={`g-extra-${i}-key`}
@@ -687,7 +724,6 @@ function ExtraAttributes({
           <Button
             variant="ghost"
             size="icon"
-            className="md:mt-[22px]"
             aria-label={`Remove attribute ${i + 1}`}
             onClick={() => setValues((v) => ({ ...v, extra: v.extra.filter((_, j) => j !== i) }))}
           >

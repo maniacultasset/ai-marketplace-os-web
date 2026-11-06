@@ -105,7 +105,7 @@ test.describe('journey', () => {
       `${importSkus[1]},Journey rust kurta set,ethnic_wear_kurta_sets,rust,https://cdn.example.com/j/${RUN}-b.jpg`,
     ].join('\n')
     await nav(page, 'Imports').click()
-    await page.getByRole('link', { name: 'Import CSV' }).first().click()
+    await page.getByRole('link', { name: 'Import spreadsheet' }).first().click()
     await expect(page).toHaveURL(/\/imports\/new$/)
     await page
       .getByLabel('CSV file', { exact: true })

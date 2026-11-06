@@ -11,7 +11,7 @@ import { apiLogin, expect, loginAs, test, USERS } from './fixtures'
 test.describe('marketplaces: p04 list and detail', () => {
   test('lists the two real marketplaces and four honest waitlist rows', async ({ page }) => {
     await loginAs(page, USERS.acme.owner, '/marketplaces')
-    await expect(page.getByRole('heading', { name: 'Where do you sell?' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: 'Marketplaces' })).toBeVisible()
     await expect(page.getByTestId('marketplace-card-amazon')).toBeVisible()
     await expect(page.getByTestId('marketplace-card-flipkart')).toBeVisible()
 
@@ -127,16 +127,16 @@ test.describe('settings', () => {
 test.describe('activity', () => {
   test('says the brand-wide feed is coming and opens real per-listing history', async ({ page }) => {
     await loginAs(page, USERS.acme.owner, '/activity')
-    await expect(page.getByTestId('activity-coming-soon')).toContainText('Activity across your brand is coming soon')
+    await expect(page.getByTestId('activity-coming-soon')).toContainText('One feed for the whole brand is coming')
     const rows = page.getByTestId('activity-listing')
     const empty = page.getByText('No listings yet')
     await expect(rows.first().or(empty)).toBeVisible()
     if ((await rows.count()) === 0) return
 
     const historyRes = page.waitForResponse((r) => /\/api\/v1\/listings\/[^/]+\/history/.test(r.url()))
-    await rows.first().getByRole('button', { name: 'Show history' }).click()
+    await rows.first().getByRole('button', { name: 'History' }).click()
     expect((await historyRes).status()).toBe(200)
-    await expect(rows.first().getByRole('button', { name: 'Hide history' })).toHaveAttribute('aria-expanded', 'true')
+    await expect(rows.first().getByRole('button', { name: 'History' })).toHaveAttribute('aria-expanded', 'true')
     await expect(rows.first().getByRole('link', { name: 'Open product' })).toHaveAttribute('href', /\/products\//)
   })
 })

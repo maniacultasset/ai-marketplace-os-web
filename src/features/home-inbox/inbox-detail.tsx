@@ -36,6 +36,7 @@ import {
   type InboxItem,
   type InboxSearch,
 } from './model'
+import type { ProductsById } from './api'
 import { Ago, CodeBlock, KeyValues } from './parts'
 
 /** The sentence the brief asks for, shown next to the disabled answer controls. */
@@ -52,7 +53,7 @@ export function InboxDetail({
   items: readonly InboxItem[]
   pending: boolean
   search: InboxSearch
-  products: Map<string, { sku: string; title: string }>
+  products: ProductsById
 }) {
   const item = selectedKey ? items.find((i) => itemKey(i) === selectedKey) : undefined
   const idx = item ? items.indexOf(item) : -1
@@ -82,7 +83,8 @@ export function InboxDetail({
             key={item.id}
             task={item.task}
             position={positionLabel(items, itemKey(item))}
-            product={item.task.product_id ? products.get(item.task.product_id) : undefined}
+            product={item.task.product_id ? products.map.get(item.task.product_id) : undefined}
+            productPending={!!item.task.product_id && products.pending}
             remaining={items.length - idx - 1}
           />
         ) : (
@@ -127,11 +129,14 @@ function TaskDetail({
   task,
   position,
   product,
+  productPending,
   remaining,
 }: {
   task: Task
   position: string | null
   product?: { sku: string; title: string }
+  /** The product is still on its first read: hold its line with a skeleton, never "One product". */
+  productPending: boolean
   remaining: number
 }) {
   const suggestions = suggestionTexts(task.suggestions, 6)
@@ -155,11 +160,16 @@ function TaskDetail({
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-small text-ink">
           <span className="rounded-md border border-line-strong bg-surface px-2 py-px text-caption font-semibold text-ink-2">Affects</span>
-          <span>
-            {[product ? `${product.sku} · ${product.title}` : task.product_id ? 'One product' : null, task.target_path, TASK_KIND_LABEL[task.kind]]
-              .filter(Boolean)
-              .join(' · ')}
-          </span>
+          {productPending && !product ? (
+            <Skeleton className="h-4 w-48" data-testid="task-affects-loading" />
+          ) : (
+            <span>
+              {/* "One product" only when the product read failed: the SKU and title are unknown. */}
+              {[product ? `${product.sku} · ${product.title}` : task.product_id ? 'One product' : null, task.target_path, TASK_KIND_LABEL[task.kind]]
+                .filter(Boolean)
+                .join(' · ')}
+            </span>
+          )}
         </div>
         <p className="mt-2 text-caption text-ink-2">
           Asked <Ago iso={task.created_at} />. The agent resumes from {RESUME_LABEL[task.resume_from]} once this is answered.

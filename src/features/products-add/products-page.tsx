@@ -10,11 +10,13 @@ import { createContext, useCallback, useContext, useMemo, useState } from 'react
 import { Page, PageHeader } from '@/components/app/page-header'
 import { columnHelper, DataTable, selectionColumn } from '@/components/data-table'
 import {
+  Banner,
   BulkBar,
   Glyph,
   Icon,
   MARKETPLACES,
   MarketplaceCell,
+  MarketplaceName,
   NOT_YET,
   Segmented,
   StatusChip,
@@ -26,6 +28,7 @@ import { EmptyState } from '@/components/states/empty-state'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { RelativeTime } from '@/features/products/format'
@@ -76,9 +79,9 @@ export function ProductThumb({ size = 40, className }: { size?: number; classNam
 }
 
 /**
- * Load state of the lists joined into each row. Until GET /listings (or /issues) has answered, the
- * cells it feeds show a skeleton; if it failed, they say "unknown" instead of guessing
- * "Not listed", "Draft" or 0.
+ * Load state of the lists joined into each row. The table waits for all three lists (rows, chips
+ * and issue counts paint once together); if one failed, the cells it feeds say "unknown" instead
+ * of guessing "Not listed", "Draft" or 0.
  */
 const LoadCtx = createContext<{ listings: LoadState; issues: LoadState }>({ listings: 'ready', issues: 'ready' })
 
@@ -92,7 +95,6 @@ function Unknown({ what, className }: { what: string; className?: string }) {
 
 function OverallCell({ row }: { row: CatalogRow }) {
   const { listings } = useContext(LoadCtx)
-  if (listings === 'pending') return <Skeleton className="h-[22px] w-20 rounded-full" />
   if (listings === 'error') return <Unknown what="Overall status" />
   const o = OVERALL_CHIP[row.overall]
   return <StatusChip status={o.status}>{o.label}</StatusChip>
@@ -100,7 +102,6 @@ function OverallCell({ row }: { row: CatalogRow }) {
 
 function IssuesCell({ row, card }: { row: CatalogRow; card?: boolean }) {
   const { issues, listings } = useContext(LoadCtx)
-  if (issues === 'pending' || listings === 'pending') return <Skeleton className={cn('h-4', card ? 'w-16' : 'w-5')} />
   if (issues === 'error' || listings === 'error') return card ? <>Issues unknown</> : <Unknown what="Open issues" />
   const n = row.openIssues
   return <>{card ? `${n} ${n === 1 ? 'issue' : 'issues'}` : n}</>
@@ -109,10 +110,6 @@ function IssuesCell({ row, card }: { row: CatalogRow; card?: boolean }) {
 function MarketCell({ row, id, className }: { row: CatalogRow; id: MarketplaceId; className?: string }) {
   const { listings: state } = useContext(LoadCtx)
   const info = MARKETPLACES.find((m) => m.id === id)!
-  if (!info.supported) {
-    return <MarketplaceCell status="not-listed" label={`${info.name}: not supported yet`} className={className} />
-  }
-  if (state === 'pending') return <Skeleton className={cn('mx-auto size-7 rounded-control', className)} />
   if (state === 'error') return <Unknown what={`${info.name} status`} className={className} />
   const listing = row.listings[id as Marketplace]
   const chip = cellChip(listing)
@@ -130,12 +127,31 @@ function MarketCell({ row, id, className }: { row: CatalogRow; id: MarketplaceId
   )
 }
 
+/** Marketplaces the API can list on today get a column; the rest share one caption line. */
+const LISTABLE = MARKETPLACES.filter((m) => m.supported)
+const NOT_YET_NAMES = MARKETPLACES.filter((m) => !m.supported)
+  .map((m) => m.name)
+  .join(', ')
+
+const SK_PILL = <Skeleton className="h-[22px] w-20 rounded-full" />
+
 const columns = col.columns([
   selectionColumn<CatalogRow>(),
   col.display({
     id: 'product',
     header: 'Product',
-    meta: { className: 'min-w-[210px]' },
+    meta: {
+      className: 'min-w-[210px]',
+      skeleton: (
+        <span className="flex items-center gap-2.5">
+          <Skeleton className="size-10 shrink-0 rounded-tile" />
+          <span className="flex flex-col gap-1.5">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-3 w-24" />
+          </span>
+        </span>
+      ),
+    },
     cell: ({ row }) => (
       <span className="flex min-w-0 items-center gap-2.5">
         <ProductThumb />
@@ -168,30 +184,30 @@ const columns = col.columns([
     meta: { className: 'w-11 tabular-nums' },
     cell: ({ row }) => (row.original.variants.length ? row.original.variants.length : '—'),
   }),
-  ...MARKETPLACES.map((m) =>
+  ...LISTABLE.map((m) =>
     col.display({
       id: `m-${m.id}`,
       header: m.short,
-      meta: { className: 'w-14 px-1 text-center', cellClassName: 'text-center' },
+      meta: { className: 'w-14 px-1 text-center', cellClassName: 'text-center', skeleton: <Skeleton className="mx-auto size-7 rounded-control" /> },
       cell: ({ row }) => <MarketCell row={row.original} id={m.id} />,
     }),
   ),
   col.display({
     id: 'overall',
     header: 'Overall',
-    meta: { className: 'w-[112px]' },
+    meta: { className: 'w-[112px]', skeleton: SK_PILL },
     cell: ({ row }) => <OverallCell row={row.original} />,
   }),
   col.display({
     id: 'issues',
     header: 'Issues',
-    meta: { className: 'w-[56px] tabular-nums' },
+    meta: { className: 'w-[56px] tabular-nums', skeleton: <Skeleton className="h-4 w-5" /> },
     cell: ({ row }) => <IssuesCell row={row.original} />,
   }),
   col.display({
     id: 'activity',
     header: 'Activity',
-    meta: { className: 'w-[96px]' },
+    meta: { className: 'w-[96px]', skeleton: <Skeleton className="h-3 w-14" /> },
     cell: ({ row }) => <RelativeTime iso={row.original.activityAt} className={cn(ABOVE, 'text-caption whitespace-nowrap text-ink-2')} />,
   }),
 ])
@@ -214,26 +230,95 @@ function ProductCard({ row, selected, toggle, canSelect }: { row: CatalogRow; se
           </Link>
           <p className="truncate text-caption text-ink-2">
             {row.product.sku} · {humanizeSlug(row.product.category)}
-            {row.variants.length ? ` · ${row.variants.length} variants` : ''}
+            {row.variants.length ? ` · ${row.variants.length} ${row.variants.length === 1 ? 'variant' : 'variants'}` : ''}
           </p>
         </div>
-        <OverallCell row={row} />
       </div>
-      <div className="mt-3 grid grid-cols-6 items-start gap-0.5 border-t border-line pt-3">
-        {MARKETPLACES.map((m) => (
-          <span key={m.id} className="flex min-w-0 flex-col items-center gap-0.5">
-            <span className="max-w-full truncate text-[11px] font-semibold text-ink-2">{m.short}</span>
-            <MarketCell row={row} id={m.id} className="w-full" />
+      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-line pt-3">
+        {LISTABLE.map((m) => (
+          <span key={m.id} className="flex min-w-0 flex-col items-start gap-1.5">
+            <MarketplaceName id={m.id} size="xs" className="max-w-full gap-2 text-small" />
+            <CardMarketStatus row={row} id={m.id as Marketplace} name={m.name} />
           </span>
         ))}
       </div>
-      <p className="mt-2 flex items-center justify-between text-caption text-ink-2">
-        <span>
-          <IssuesCell row={row} card />
+      <div className="mt-3 flex items-center justify-between gap-2 text-caption text-ink-2">
+        <span className="flex min-w-0 items-center gap-2">
+          <OverallCell row={row} />
+          <span className="truncate">
+            <IssuesCell row={row} card />
+          </span>
         </span>
-        <RelativeTime iso={row.activityAt} className={ABOVE} />
-      </p>
+        <RelativeTime iso={row.activityAt} className={cn(ABOVE, 'shrink-0')} />
+      </div>
     </div>
+  )
+}
+
+/** Loading phone card: the same frame as ProductCard, so the list does not move when it lands. */
+function ProductCardSkeleton() {
+  return (
+    <div className="rounded-card border border-line bg-surface p-4 shadow-raised-md" aria-hidden>
+      <div className="flex items-start gap-3">
+        <Skeleton className="size-10 shrink-0 rounded-tile" />
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5 pt-0.5">
+          <Skeleton className="h-4 w-2/3" />
+          <Skeleton className="h-3 w-1/2" />
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-line pt-3">
+        {LISTABLE.map((m) => (
+          <span key={m.id} className="flex flex-col items-start gap-1.5">
+            <Skeleton className="h-6 w-24 rounded-tile" />
+            {SK_PILL}
+          </span>
+        ))}
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-2">
+        {SK_PILL}
+        <Skeleton className="h-3 w-14" />
+      </div>
+    </div>
+  )
+}
+
+/** Phone card: the listing's status as a labelled chip (the table uses the icon-only cell). */
+function CardMarketStatus({ row, id, name }: { row: CatalogRow; id: Marketplace; name: string }) {
+  const { listings } = useContext(LoadCtx)
+  if (listings === 'error') return <Unknown what={`${name} status`} />
+  const chip = cellChip(row.listings[id])
+  return <StatusChip status={chip.status}>{chip.label}</StatusChip>
+}
+
+/** The status signs, behind a small "Key" button instead of a permanent line. */
+function GlyphKey() {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-[34px]">
+          <Icon name="info" size={14} />
+          Key
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-3 text-small text-ink-2">
+        <p className="font-semibold text-ink">Marketplace columns</p>
+        <ul className="mt-2 flex flex-col gap-1.5">
+          {BUCKETS.map((b) => (
+            <li key={b.value} className="flex items-center gap-2">
+              <Glyph status={BUCKET_GLYPH[b.value].status} className={BUCKET_GLYPH[b.value].className} />
+              {b.label}
+            </li>
+          ))}
+          <li className="flex items-center gap-2">
+            <Glyph status="ready" className="text-brand" />
+            <span>
+              Awaiting approval or ready to list <span className="text-ink-3">(counted in Needs you)</span>
+            </span>
+          </li>
+        </ul>
+        <p className="mt-2 text-caption text-ink-3">The small text under a sign is the listing ID.</p>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -279,6 +364,8 @@ export function ProductsPage() {
   const [adding, setAdding] = useState<CatalogRow[] | null>(null)
 
   const listingsReady = catalog.listingsState === 'ready'
+  // Every count appears at once, when the whole catalog has answered.
+  const countsReady = !catalog.isPending
   const load = useMemo(() => ({ listings: catalog.listingsState, issues: catalog.issuesState }), [catalog.listingsState, catalog.issuesState])
   const counts = useMemo(() => bucketCounts(catalog.rows), [catalog.rows])
   const categories = useMemo(() => categoriesOf(catalog.rows), [catalog.rows])
@@ -354,10 +441,33 @@ export function ProductsPage() {
         rowSelection={selection}
         onRowSelectionChange={setSelection}
         renderCard={(row, s) => <ProductCard row={row} {...s} />}
+        renderCardSkeleton={() => <ProductCardSkeleton />}
         toolbar={
           n > 0 || catalog.isPending ? (
             <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap items-center gap-2.5">
+              <div className="max-w-full overflow-x-auto">
+                <Segmented
+                  label="Overall status"
+                  value={bucket}
+                  onChange={setBucket}
+                  options={[
+                    { value: 'all', label: 'All', count: countsReady ? counts.all : undefined },
+                    ...(catalog.listingsState === 'error'
+                      ? []
+                      : BUCKETS.map((b) => ({
+                          value: b.value,
+                          label: (
+                            <>
+                              <Glyph status={BUCKET_GLYPH[b.value].status} className={BUCKET_GLYPH[b.value].className} />
+                              {b.label}
+                            </>
+                          ),
+                          count: countsReady && listingsReady ? counts[b.value] : undefined,
+                        }))),
+                  ]}
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
                 <div className="relative w-full sm:w-[260px]">
                   <Icon name="search" size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-3" />
                   <Input
@@ -369,32 +479,12 @@ export function ProductsPage() {
                     spellCheck={false}
                     enterKeyHint="search"
                     maxLength={200}
-                    placeholder="Search name or SKU"
+                    placeholder="Search name or SKU…"
                     aria-label="Search loaded products by name or SKU"
-                    className="pl-9"
+                    className="h-[34px] pl-9 text-small"
                     data-testid="products-filter"
                   />
                 </div>
-                <Segmented
-                  label="Overall status"
-                  value={bucket}
-                  onChange={setBucket}
-                  options={[
-                    { value: 'all', label: 'All', count: catalog.isPending ? undefined : counts.all },
-                    ...(catalog.listingsState === 'error'
-                      ? []
-                      : BUCKETS.map((b) => ({
-                          value: b.value,
-                          label: (
-                            <>
-                              <Glyph status={BUCKET_GLYPH[b.value].status} className={BUCKET_GLYPH[b.value].className} />
-                              {b.label}
-                            </>
-                          ),
-                          count: listingsReady ? counts[b.value] : undefined,
-                        }))),
-                  ]}
-                />
                 <FilterSelect
                   label="Category"
                   value={category}
@@ -402,30 +492,41 @@ export function ProductsPage() {
                   options={categories.map((c) => ({ value: c, label: humanizeSlug(c) }))}
                 />
                 {catalog.listingsState === 'error' ? null : (
-                <FilterSelect
-                  label="Marketplace"
-                  value={marketplace}
-                  onChange={(v) => setMarketplace(v as Marketplace | null)}
-                  options={[
-                    { value: 'amazon', label: 'Listed on Amazon' },
-                    { value: 'flipkart', label: 'Listed on Flipkart' },
-                  ]}
-                />
+                  <FilterSelect
+                    label="Marketplace"
+                    value={marketplace}
+                    onChange={(v) => setMarketplace(v as Marketplace | null)}
+                    options={[
+                      { value: 'amazon', label: 'Listed on Amazon' },
+                      { value: 'flipkart', label: 'Listed on Flipkart' },
+                    ]}
+                  />
                 )}
+                <GlyphKey />
               </div>
-              <p className="text-caption text-ink-3">
-                Marketplace columns: ● live · ◐ working · ▲ needs you · ■ blocked · ✕ error · – not listed. The small text is the listing ID.
-                {catalog.listingsState === 'error' ? ' Listing status could not be loaded, so status cells show “?”.' : ''}
-                {catalog.listingsState !== 'error' && catalog.issuesState === 'error' ? ' Open issues could not be loaded.' : ''}
-                {catalog.listingsState === 'error' || catalog.issuesState === 'error' ? (
-                  <>
-                    {' '}
-                    <button type="button" className="focus-ring rounded font-semibold text-brand underline" onClick={catalog.refetch}>
+              {NOT_YET_NAMES ? (
+                <p className="text-caption text-ink-3" title={NOT_YET.waitlist}>
+                  {NOT_YET_NAMES}: not available yet.<span className="sr-only"> {NOT_YET.waitlist}</span>
+                </p>
+              ) : null}
+              {catalog.listingsState === 'error' || catalog.issuesState === 'error' ? (
+                <Banner
+                  tone="attention"
+                  role="status"
+                  className="py-2"
+                  action={
+                    <Button variant="secondary" size="sm" onClick={catalog.refetch}>
                       Try again
-                    </button>
-                  </>
-                ) : null}
-              </p>
+                    </Button>
+                  }
+                >
+                  <span className="text-small">
+                    {catalog.listingsState === 'error'
+                      ? 'Listing status could not be loaded, so status cells show “?”.'
+                      : 'Open issues could not be loaded.'}
+                  </span>
+                </Banner>
+              ) : null}
             </div>
           ) : null
         }

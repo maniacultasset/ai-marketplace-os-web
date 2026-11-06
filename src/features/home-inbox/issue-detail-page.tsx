@@ -18,15 +18,17 @@ import type { ReactNode } from 'react'
 import { Page } from '@/components/app/page-header'
 import { Banner } from '@/components/la/banner'
 import { CardHead, LaCard } from '@/components/la/cards'
-import { Icon, IconTile } from '@/components/la/icons'
+import { Icon } from '@/components/la/icons'
 import { StatusChip } from '@/components/la/status-chip'
 import { ErrorState, NotFound } from '@/components/states'
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Skeleton } from '@/components/ui/skeleton'
 import { NOT_YET, UnavailableButton } from '@/components/la/unavailable'
 import { DismissIssueButton } from '@/features/inbox/dismiss-issue'
 import { canDismiss, issueHeadline, MARKETPLACE_LABEL, RESOLUTION_LABEL, SOURCE_LABEL, type Issue } from '@/features/inbox/model'
 import { useListing, useListingSubmissions } from '@/features/listings/api'
+import { ScreenHead } from '@/features/listing-flow/ui'
 import { useProduct } from '@/features/products/api'
 import { listingChip } from '@/lib/listing-chip'
 import { useCan } from '@/lib/permissions'
@@ -85,31 +87,43 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
   const l = listing.data?.data
   const others = issues.data.filter((i) => i.id !== issueId)
   const openCount = issues.data.filter((i) => i.status === 'open').length
-  const stopped = retriesStopped(submissions.rows, issue)
+  // Only once the attempts have loaded: the banner lands with them, in the same paint.
+  const stopped = submissions.isPending ? null : retriesStopped(submissions.rows, issue)
   const marketplace = MARKETPLACE_LABEL[issue.marketplace]
   const chip = l ? listingChip(l) : null
+  // The head paints once: title, SKU line and chip together. Until the listing (and then its
+  // product) has answered, each slot holds a skeleton of its own size. "<Marketplace> listing"
+  // is only the fallback when one of those reads failed.
+  const headPending = listing.isPending || (!!l && product.isPending)
 
   return (
     <Page>
       <BackLink />
-      <header className="flex flex-col gap-3 pb-5 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3.5">
-          <IconTile icon="box" size="lg" className="size-14 rounded-card [&_svg]:size-6" />
-          <div className="min-w-0">
-            <h1 className="truncate font-display text-h1 text-ink" data-testid="issue-product-title">
-              {product.data?.title ?? (product.isPending && l ? <Skeleton className="h-8 w-56" /> : `${marketplace} listing`)}
-            </h1>
-            <p className="text-body text-ink-2">
-              {[product.data?.sku, marketplace, `${openCount} open ${plural(openCount, 'issue')}`].filter(Boolean).join(' · ')}
-            </p>
-          </div>
-        </div>
-        {chip ? (
-          <StatusChip status={chip.status} className="self-start">
-            {chip.label}
-          </StatusChip>
-        ) : null}
-      </header>
+      {/* Same head as the run, review and mapping screens; null shows the title skeleton. */}
+      <ScreenHead
+        title={
+          product.data?.title ? (
+            <span data-testid="issue-product-title">{product.data.title}</span>
+          ) : headPending ? null : (
+            <span data-testid="issue-product-title">{`${marketplace} listing`}</span>
+          )
+        }
+        sub={
+          headPending ? (
+            // The sub line is a <p>: an inline placeholder (a Skeleton is a div) keeps the markup valid.
+            <span aria-hidden data-slot="skeleton" className="skeleton inline-block h-4 w-48 max-w-full rounded-md bg-subtle align-middle" />
+          ) : (
+            [product.data?.sku, marketplace, `${openCount} open ${plural(openCount, 'issue')}`].filter(Boolean).join(' · ')
+          )
+        }
+        right={
+          headPending ? (
+            <Skeleton className="h-[22px] w-20 rounded-full" />
+          ) : chip ? (
+            <StatusChip status={chip.status}>{chip.label}</StatusChip>
+          ) : null
+        }
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <LaCard className="flex flex-col gap-3" data-testid="issue-card" data-issue-id={issue.id}>
@@ -120,7 +134,9 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
                 Choose category
               </UnavailableButton>
             ) : null}
-            {l ? (
+            {listing.isPending ? (
+              <Skeleton className="h-9 w-32 rounded-control" />
+            ) : l ? (
               <Button
                 asChild
                 variant={issue.status === 'open' && isCategoryIssue(issue) ? 'secondary' : 'primary'}
@@ -138,53 +154,57 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
           </div>
         </LaCard>
 
-        <LaCard className="flex flex-col gap-3" data-testid="attempts-card">
-          <CardHead title={`Submissions to ${marketplace}`} sub="Every attempt to send this listing, oldest first." />
-          {submissions.isPending ? (
-            <div className="space-y-3">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-4 w-1/2" />
-            </div>
-          ) : submissions.isError ? (
-            <ErrorState compact error={submissions.error} title="Couldn't load the attempts" onRetry={() => void submissions.refetch()} />
-          ) : submissions.rows.length === 0 ? (
-            <p className="text-small text-ink-2" data-testid="attempts-empty">
-              Not sent to {marketplace} yet. This issue was found by our own checks before sending.
-            </p>
-          ) : (
-            <>
-              <Timeline label="Submission attempts" entries={attemptsTimeline(submissions.rows)} />
-              {submissions.hasNextPage ? (
-                <Button variant="ghost" size="sm" className="self-start" onClick={() => void submissions.fetchNextPage()}>
-                  Load older attempts
-                </Button>
-              ) : null}
-            </>
-          )}
-        </LaCard>
-      </div>
-
-      {stopped ? (
-        <Banner tone="attention" className="mt-4" role="status">
-          <span data-testid="retries-stopped" data-reason={stopped.reason}>
-            {stopped.reason === 'exhausted' ? (
-              <>
-                <b>
-                  Retries stopped after {stopped.attempts} {plural(stopped.attempts, 'attempt')}.
-                </b>{' '}
-                {stopped.attempts > 1 ? 'The same error came back without any new input, so we' : 'We'} will not resubmit
-                until something changes.
-              </>
+        {/* The attempts column: the "Retries stopped" banner sits under its card, so it lands with
+            the attempts and never pushes content that is already on screen. */}
+        <div className="flex min-w-0 flex-col gap-4">
+          <LaCard className="flex flex-col gap-3" data-testid="attempts-card">
+            <CardHead title={`Submissions to ${marketplace}`} sub="Every attempt to send this listing, oldest first." />
+            {submissions.isPending ? (
+              <div className="space-y-3">
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-4 w-1/2" />
+              </div>
+            ) : submissions.isError ? (
+              <ErrorState compact error={submissions.error} title="Couldn't load the attempts" onRetry={() => void submissions.refetch()} />
+            ) : submissions.rows.length === 0 ? (
+              <p className="text-small text-ink-2" data-testid="attempts-empty">
+                Not sent to {marketplace} yet. This issue was found by our own checks before sending.
+              </p>
             ) : (
               <>
-                <b>Not retried.</b> {marketplace} reported an error that sending the same listing again cannot fix, so we
-                will not resubmit until something changes.
+                <Timeline label="Submission attempts" entries={attemptsTimeline(submissions.rows)} />
+                {submissions.hasNextPage ? (
+                  <Button variant="ghost" size="sm" className="self-start" onClick={() => void submissions.fetchNextPage()}>
+                    Load older attempts
+                  </Button>
+                ) : null}
               </>
-            )}{' '}
-            Changing the listing and approving it again starts a new attempt.
-          </span>
-        </Banner>
-      ) : null}
+            )}
+          </LaCard>
+        {stopped ? (
+          <Banner tone="attention" role="status">
+            <span data-testid="retries-stopped" data-reason={stopped.reason}>
+              {stopped.reason === 'exhausted' ? (
+                <>
+                  <b>
+                    Retries stopped after {stopped.attempts} {plural(stopped.attempts, 'attempt')}.
+                  </b>{' '}
+                  {stopped.attempts > 1 ? 'The same error came back without any new input, so we' : 'We'} will not resubmit
+                  until something changes.
+                </>
+              ) : (
+                <>
+                  <b>Not retried.</b> {marketplace} reported an error that sending the same listing again cannot fix, so we
+                  will not resubmit until something changes.
+                </>
+              )}{' '}
+              Changing the listing and approving it again starts a new attempt.
+            </span>
+          </Banner>
+        ) : null}
+        </div>
+      </div>
+
 
       {others.length ? (
         <section className="mt-6" aria-labelledby="other-issues">
@@ -230,18 +250,7 @@ function IssueBody({ issue }: { issue: Issue }) {
         <h2 className="font-display text-h3 text-ink">{issueTitle(issue)}</h2>
         <StatusChip status={chip.status}>{chip.label}</StatusChip>
       </div>
-      <div>
-        <div className="text-caption text-ink-3">
-          {fromMarketplace ? `What ${marketplace} said (unchanged)` : `What the ${SOURCE_LABEL[issue.source].toLowerCase()} said`}
-        </div>
-        <CodeBlock>
-          <span data-testid="issue-raw">
-            {[issue.marketplace_code ? `code ${issue.marketplace_code}` : null, `field: ${issue.field_path}`, issue.raw_message ?? issue.message]
-              .filter(Boolean)
-              .join(' · ')}
-          </span>
-        </CodeBlock>
-      </div>
+      {/* What it means first; the marketplace's own words stay one click away. */}
       {plain ? (
         <div>
           <div className="text-caption text-ink-3">In plain language</div>
@@ -249,7 +258,9 @@ function IssueBody({ issue }: { issue: Issue }) {
             {plain}
           </p>
         </div>
-      ) : null}
+      ) : (
+        <p className="text-body text-ink">{issue.message}</p>
+      )}
       {issue.suggestion ? (
         <div>
           <div className="text-caption text-ink-3">Suggested fix</div>
@@ -261,9 +272,25 @@ function IssueBody({ issue }: { issue: Issue }) {
           ['Affects', issueAffects(issue)],
           ['Class', issueClassLine(issue)],
           ['Next step', RETRY_CLASS_TEXT[issue.retry_class]],
-          ...(issue.value_submitted ? ([['Value sent', <code key="v" className="font-mono text-[12px]">{issue.value_submitted}</code>]] as [string, ReactNode][]) : []),
+          ...(issue.value_submitted ? ([['Value sent', <code key="v" className="font-mono text-caption">{issue.value_submitted}</code>]] as [string, ReactNode][]) : []),
         ]}
       />
+      <Collapsible className="rounded-control border border-line">
+        <CollapsibleTrigger className="group focus-ring flex min-h-10 w-full items-center justify-between gap-2 rounded-control px-3 text-left text-small font-semibold text-ink-2 transition-colors duration-150 hover:bg-hover hover:text-ink">
+          {fromMarketplace ? `What ${marketplace} said (unchanged)` : `What the ${SOURCE_LABEL[issue.source].toLowerCase()} said`}
+          <Icon name="chev" size={16} className="shrink-0 transition-transform duration-150 group-data-[state=open]:rotate-180 motion-reduce:transition-none" />
+        </CollapsibleTrigger>
+        {/* Kept in the DOM while closed (hidden), so the raw text stays findable and testable. */}
+        <CollapsibleContent forceMount className="px-3 pb-3 data-[state=closed]:hidden">
+          <CodeBlock>
+            <span data-testid="issue-raw">
+              {[issue.marketplace_code ? `code ${issue.marketplace_code}` : null, `field: ${issue.field_path}`, issue.raw_message ?? issue.message]
+                .filter(Boolean)
+                .join(' · ')}
+            </span>
+          </CodeBlock>
+        </CollapsibleContent>
+      </Collapsible>
       <Timeline label="History of this issue" className="mt-1" entries={issueTimeline(issue, (r) => RESOLUTION_LABEL[r])} />
     </>
   )
@@ -296,10 +323,10 @@ function DetailSkeleton() {
   return (
     <Page>
       <Skeleton className="mb-3 h-5 w-16" />
-      <div className="flex items-center gap-3.5 pb-5">
-        <Skeleton className="size-14 rounded-card" />
+      <div className="mb-5 flex items-center gap-3.5">
+        <Skeleton className="size-14 rounded-2xl" />
         <div className="space-y-2">
-          <Skeleton className="h-7 w-64" />
+          <Skeleton className="h-8 w-64" />
           <Skeleton className="h-4 w-48" />
         </div>
       </div>

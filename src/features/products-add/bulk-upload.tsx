@@ -13,14 +13,14 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useDropzone, type FileRejection } from 'react-dropzone'
 import { api, unwrap } from '@/api/client'
 import { describeError, isApiError, isNotFound } from '@/api/errors'
 import { idempotencyHeader, useIntentKey } from '@/api/idempotency'
 import type { Schema } from '@/api/types'
 import { Page, PageHeader } from '@/components/app/page-header'
-import { Banner, CardHead, CONCEPT_ICON, FooterBar, Icon, IconTile, LaCard, StatusChip, Stepper, UnavailableButton } from '@/components/la'
+import { Banner, CardHead, CONCEPT_ICON, FooterBar, Icon, IconTile, LaCard, ProgressBar, StatusChip, Stepper, UnavailableButton } from '@/components/la'
 import { ErrorState } from '@/components/states/error-state'
 import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
@@ -310,10 +310,15 @@ function downloadErrorRows(name: string, rows: readonly ImportRow[]) {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-function Tile({ value, caption, tone }: { value: number | string; caption: string; tone?: 'success' | 'attention' | 'tint' }) {
+/** A count tile. `pending`: the import is still running, so every tile shows the same placeholder. */
+function Tile({ value, caption, tone, pending }: { value: ReactNode; caption: string; tone?: 'success' | 'attention' | 'tint'; pending?: boolean }) {
   return (
-    <LaCard pad="sm" emphasis={tone === 'success' ? 'success' : tone === 'attention' ? 'attention' : tone === 'tint' ? 'tint' : 'default'}>
-      <p className={cn('font-display text-[30px] leading-9 font-bold tabular-nums', tone === 'success' ? 'text-success' : tone === 'attention' ? 'text-attention' : 'text-ink')}>{value}</p>
+    <LaCard pad="sm" emphasis={pending ? 'default' : tone === 'success' ? 'success' : tone === 'attention' ? 'attention' : tone === 'tint' ? 'tint' : 'default'}>
+      {pending ? (
+        <Skeleton className="h-9 w-12" />
+      ) : (
+        <p className={cn('font-display text-h1 tabular-nums', tone === 'success' ? 'text-success' : tone === 'attention' ? 'text-attention' : 'text-ink')}>{value}</p>
+      )}
       <p className="mt-0.5 text-small text-ink-2">{caption}</p>
     </LaCard>
   )
@@ -382,14 +387,22 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
 
   if (report.isPending)
     return (
-      <Page>
-        <Skeleton className="mb-6 h-8 w-64" />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }, (_, i) => (
-            <Skeleton key={i} className="h-24 rounded-card" />
-          ))}
-        </div>
-      </Page>
+      <div className="flex min-h-[calc(100svh-56px)] flex-col" aria-busy="true">
+        <Page className="flex-1">
+          <PageHeader title="Bulk upload" description={<span aria-hidden className="skeleton inline-block h-4 w-56 max-w-full rounded-md bg-muted align-middle" />} />
+          <Stepper steps={STEPS} current={2} className="mb-6" />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }, (_, i) => (
+              <Skeleton key={i} className="h-[88px] rounded-card" />
+            ))}
+          </div>
+        </Page>
+        <FooterBar status="Sending opens once the import has run.">
+          <Button variant="ghost" asChild>
+            <Link to="/products">Cancel</Link>
+          </Button>
+        </FooterBar>
+      </div>
     )
   if (report.error && !r)
     return (
@@ -426,7 +439,8 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
           <Banner tone={waiting ? 'neutral' : 'info'} role="status" className="mb-4" title={waiting ? 'Queued: processing starts soon' : 'Checking your rows…'}>
             {waiting
               ? 'The import is accepted and will run when processing resumes. This page updates by itself.'
-              : `${job?.progress_pct ?? 0}% done. Counts update as rows are processed.`}
+              : `${job?.progress_pct ?? 0}% done. Counts show once every row is checked.`}
+            {waiting ? null : <ProgressBar value={(job?.progress_pct ?? 0) / 100} label="Import progress" className="mt-2" />}
           </Banner>
         ) : job && (job.status === 'failed' || job.status === 'dead_letter' || job.status === 'cancelled') ? (
           <Banner tone="danger" role="alert" className="mb-4" title="The import did not finish">
@@ -435,13 +449,13 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="bulk-counts">
-          <Tile value={r?.imported ?? 0} caption="rows imported, ready for the agent" tone="success" />
-          <Tile value={needValue} caption="need a value" tone={needValue ? 'attention' : undefined} />
-          <Tile value={done ? duplicates : '…'} caption="repeat a SKU in the file" />
+          <Tile pending={!done} value={r?.imported ?? 0} caption="rows imported, ready for the agent" tone="success" />
+          <Tile pending={!done} value={needValue} caption="need a value" tone={needValue ? 'attention' : undefined} />
+          <Tile pending={!done} value={duplicates} caption="repeat a SKU in the file" />
           {local ? (
-            <Tile value={local.analysis.columns.filter((c) => c.match === 'ok' || c.match === 'alias').length} caption="columns matched by name" tone="tint" />
+            <Tile pending={!done} value={local.analysis.columns.filter((c) => c.match === 'ok' || c.match === 'alias').length} caption="columns matched by name" tone="tint" />
           ) : (
-            <Tile value={r?.total_rows ?? 0} caption="rows in the file" tone="tint" />
+            <Tile pending={!done} value={r?.total_rows ?? 0} caption="rows in the file" tone="tint" />
           )}
         </div>
 
@@ -513,7 +527,7 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
         {results ? (
           <div className="mt-4 flex flex-col gap-3">
             {accepted ? (
-              <Banner tone="success" role="status" title={`${accepted} ${accepted === 1 ? 'draft' : 'drafts'} queued`} action={<Button size="sm" variant="secondary" asChild><Link to="/products">Open products</Link></Button>}>
+              <Banner tone="success" role="status" title={`${accepted} ${accepted === 1 ? 'draft' : 'drafts'} queued`}>
                 The agent drafts each listing. A person approves every one before it is sent.
               </Banner>
             ) : null}
@@ -538,16 +552,22 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
             : 'Sending opens once the import has run.'
         }
       >
-        <Button variant="ghost" asChild>
-          <Link to="/products">Cancel</Link>
-        </Button>
-        {!can('listing:generate') ? (
+        {results ? (
+          <Button asChild data-testid="bulk-open-products">
+            <Link to="/products">Open products</Link>
+          </Button>
+        ) : (
+          <Button variant="ghost" asChild>
+            <Link to="/products">Cancel</Link>
+          </Button>
+        )}
+        {results ? null : !can('listing:generate') ? (
           <UnavailableButton reason="Your role can’t start drafts. An owner or operator can.">Send to the agent</UnavailableButton>
         ) : (
-          <Button disabled={!done || plan.send.length === 0 || !!sending || !!results} onClick={() => void send()} data-testid="bulk-send">
-            {sending ? <Spinner data-icon="inline-start" /> : null}
+          <Button className="min-w-44" disabled={!done || plan.send.length === 0 || !!sending} onClick={() => void send()} data-testid="bulk-send">
+            {sending ? <Spinner data-icon="inline-start" aria-hidden /> : null}
             {sending
-              ? `Starting ${sending.done}/${sending.total}…`
+              ? `Starting drafts ${sending.done}/${sending.total}…`
               : listOn.length === 0
                 ? 'Choose where to list'
                 : `Send ${planProducts} to the agent`}

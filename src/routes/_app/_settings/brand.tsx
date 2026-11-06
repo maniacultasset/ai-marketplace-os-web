@@ -8,7 +8,7 @@ export const Route = createFileRoute('/_app/_settings/brand')({ staticData: { ti
 
 function BrandRoute() {
   return (
-    <Page className="max-w-[1100px]">
+    <Page className="mx-0 max-w-[1100px]">
       <PageHeader
         title="Brand profile"
         description="The voice and reference documents used when listings are written for this brand."

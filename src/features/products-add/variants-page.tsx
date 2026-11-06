@@ -207,7 +207,7 @@ function MoneyInput({
           onBlur={onBlur}
           aria-invalid={error ? true : undefined}
           aria-describedby={`${id}-error`}
-          className="h-8 pl-6 text-small tabular-nums"
+          className="h-9 pl-6 text-small tabular-nums max-md:h-10"
         />
       </div>
       <CellError id={`${id}-error`} error={error} />
@@ -294,15 +294,15 @@ function ImagesCard({ productId, existing, canUpload }: { productId: string; exi
       <CardHead title="Images for this product" sub="Per-colour images are not available yet; these apply to every variant." />
       <div className="mt-4 flex flex-wrap gap-2.5">
         {stored.map((id, i) => (
-          <span key={id} className="relative flex size-[84px] items-center justify-center rounded-lg border border-line bg-field text-ink-3 shadow-inset-sm">
+          <span key={id} className="relative flex size-20 items-center justify-center rounded-lg border border-line bg-field text-ink-3 shadow-inset-sm">
             <Icon name="image" size={24} />
-            <span className="absolute bottom-1 left-1 rounded border border-line bg-surface px-1 text-[11px] font-semibold text-ink">Image {i + 1}</span>
+            <span className="absolute bottom-1 left-1 rounded border border-line bg-surface px-1 text-caption font-semibold text-ink">Image {i + 1}</span>
           </span>
         ))}
         {galleryUploads.map((u) => (
-          <span key={u.id} className="relative size-[84px] overflow-hidden rounded-lg border border-line bg-subtle shadow-raised-sm">
+          <span key={u.id} className="relative size-20 overflow-hidden rounded-lg border border-line bg-subtle shadow-raised-sm">
             <img src={u.preview} alt="" className="size-full object-cover" />
-            <span className="absolute bottom-1 left-1 rounded border border-line bg-surface px-1 text-[11px] font-semibold text-ink">{SLOT_LABEL[u.slot]}</span>
+            <span className="absolute bottom-1 left-1 rounded border border-line bg-surface px-1 text-caption font-semibold text-ink">{SLOT_LABEL[u.slot]}</span>
             {u.state.kind === 'uploading' ? (
               <span className="absolute inset-0 flex items-center justify-center bg-surface/70">
                 <Spinner />
@@ -316,7 +316,7 @@ function ImagesCard({ productId, existing, canUpload }: { productId: string; exi
             <button
               type="button"
               onClick={() => input.current?.click()}
-              className="focus-ring tactile flex size-[84px] items-center justify-center rounded-lg border-[1.5px] border-dashed border-line-strong text-ink-2 hover:border-brand hover:bg-brand-bg/50 hover:text-brand active:shadow-pressed"
+              className="focus-ring tactile flex size-20 items-center justify-center rounded-lg border border-dashed border-line-strong text-ink-2 hover:border-brand hover:bg-brand-bg/50 hover:text-brand active:shadow-pressed"
               aria-label="Add images"
             >
               <Icon name="plus" size={22} />
@@ -371,7 +371,7 @@ function SizeChartCard({ productId, canUpload }: { productId: string; canUpload:
   return (
     <DashedCard className="flex flex-col items-center justify-center text-center">
       <IconTile icon="upload" size="lg" />
-      <h3 className="mt-3 font-display text-[15px] font-bold text-ink">Size chart</h3>
+      <h3 className="mt-3 font-display text-h3 text-ink">Size chart</h3>
       <p className="mt-1 max-w-[34ch] text-small text-ink-2">Upload your brand’s chart for this style. It is checked like any other image.</p>
       {canUpload ? (
         <>
@@ -708,7 +708,7 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
                             maxLength={SKU_MAX + 8}
                             aria-invalid={errors[`${r.key}.sku`] ? true : undefined}
                             aria-describedby={`sku-${r.sku}-error`}
-                            className="h-8 text-small"
+                            className="h-9 text-small tabular-nums max-md:h-10"
                           />
                           <CellError id={`sku-${r.sku}-error`} error={errors[`${r.key}.sku`]} />
                         </td>
@@ -733,7 +733,7 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
                             onBlur={() => touch(`${r.key}.identifier`)}
                             aria-invalid={errors[`${r.key}.identifier`] ? true : undefined}
                             aria-describedby={`gtin-${r.sku}-error`}
-                            className="h-8 text-small tabular-nums"
+                            className="h-9 text-small tabular-nums max-md:h-10"
                           />
                           <CellError id={`gtin-${r.sku}-error`} error={errors[`${r.key}.identifier`]} />
                         </td>

@@ -23,14 +23,17 @@ export interface RunStep {
   sub?: string
 }
 
-export const STEP_LABEL: Record<StepId, string> = {
-  understand: 'Understood the product',
-  write: 'Wrote titles and bullets',
-  check: 'Checked everything',
-  approve: 'Waiting for your approval',
-  submit: 'Submitting and monitoring',
-  live: 'Confirming live',
+/** Each step reads as a task until it is done, then in the past tense (never "Wrote…" while writing). */
+export const STEP_LABEL: Record<StepId, { todo: string; done: string }> = {
+  understand: { todo: 'Understand the product', done: 'Understood the product' },
+  write: { todo: 'Write titles and bullets', done: 'Wrote titles and bullets' },
+  check: { todo: 'Check against the rules', done: 'Checked against the rules' },
+  approve: { todo: 'Your approval', done: 'Approved' },
+  submit: { todo: 'Send to the marketplace', done: 'Sent' },
+  live: { todo: 'Confirm live', done: 'Confirmed live' },
 }
+
+const stepLabel = (id: StepId, state: StepState) => (state === 'done' ? STEP_LABEL[id].done : STEP_LABEL[id].todo)
 
 const ORDER: readonly StepId[] = ['understand', 'write', 'check', 'approve', 'submit', 'live']
 
@@ -51,7 +54,7 @@ export const STAGE_STEP: Record<Stage, StepId> = {
   quality_check: 'check',
 }
 
-const STAGE_SUB: Record<Stage, string> = {
+export const STAGE_SUB: Record<Stage, string> = {
   load_context: 'Reading the product record…',
   retrieve_brand: 'Reading your brand guidelines…',
   content_agent: 'Writing the title, bullets and description…',
@@ -82,12 +85,10 @@ const MP: Record<string, string> = { amazon: 'Amazon', flipkart: 'Flipkart' }
 /** Steps before `id` done, `id` in `state`, the rest todo. */
 function upTo(id: StepId, state: StepState, sub?: string): RunStep[] {
   const at = ORDER.indexOf(id)
-  return ORDER.map((s, i) => ({
-    id: s,
-    label: STEP_LABEL[s],
-    state: i < at ? 'done' : i === at ? state : 'todo',
-    sub: i === at ? sub : undefined,
-  }))
+  return ORDER.map((s, i) => {
+    const st: StepState = i < at ? 'done' : i === at ? state : 'todo'
+    return { id: s, label: stepLabel(s, st), state: st, sub: i === at ? sub : undefined }
+  })
 }
 
 const ACTIVE = new Set(['queued', 'running'])
@@ -129,12 +130,13 @@ export function runSteps({ job, listing, validation, liveConfirmed = false }: Ru
     case 'needs_review':
       return withSub(upTo('approve', 'needs-you', 'Read the warnings, then approve'), 'check', checkSub)
     case 'approved':
-      return withSub(upTo('submit', 'todo'), 'approve', 'Approved')
+      // The done label already says "Approved"; a sub would repeat it.
+      return upTo('submit', 'todo')
     case 'publishing':
-      return withSub(upTo('submit', 'now', `Sending to ${mp}…`), 'approve', 'Approved')
+      return upTo('submit', 'now', `Sending to ${mp}…`)
     case 'published':
       if (ms === 'live' && liveConfirmed)
-        return ORDER.map((s) => ({ id: s, label: STEP_LABEL[s], state: 'done' as const, sub: s === 'live' ? `${mp} confirmed it` : undefined }))
+        return ORDER.map((s) => ({ id: s, label: stepLabel(s, 'done'), state: 'done' as const, sub: s === 'live' ? `${mp} confirmed it` : undefined }))
       if (ms === 'live') return upTo('live', 'now', `${mp} reports it live. We can’t confirm it yet`)
       if (ms === 'partially_live') return upTo('live', 'needs-you', 'Some variants are not live')
       if (ms === 'rejected') return upTo('submit', 'failed', `${mp} rejected it`)

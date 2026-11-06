@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowDownRight, ArrowRight, ArrowUpRight, CalendarRange } from 'lucide-react'
-import { useId, useState, type ReactNode } from 'react'
+import { useId, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Page, PageHeader } from '@/components/app/page-header'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { Icon, IconGlyph } from '@/components/la/icons'
@@ -83,16 +83,20 @@ export function Dashboard({ preset, onPreset }: { preset: RangePreset; onPreset:
                 ))}
               </TabsList>
             </Tabs>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={refresh}
-              disabled={refreshing}
-              aria-label={refreshing ? 'Refreshing…' : 'Refresh metrics'}
-              title="Refresh metrics"
-            >
-              <Icon name="refresh" size={16} className={cn(refreshing && 'motion-safe:animate-spin')} />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={refresh}
+                  disabled={refreshing}
+                  aria-label={refreshing ? 'Refreshing…' : 'Refresh metrics'}
+                >
+                  <Icon name="refresh" size={16} aria-hidden className={cn(refreshing && 'motion-safe:animate-spin')} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Refresh metrics</TooltipContent>
+            </Tooltip>
           </>
         }
       />
@@ -181,21 +185,23 @@ function Kpi({
   const delta = previous ? metricDelta(metric.kind, value, metricValue(previous, metric.id)) : null
   return (
     <div className={cn('flex min-w-0 flex-col gap-1.5 px-4 py-4 sm:px-5', className)} data-testid={`kpi-${metric.id}`}>
-      <dt className="flex items-center gap-1 text-[0.8125rem] text-muted-foreground">
+      <dt className="flex items-center gap-1 text-small text-ink-2">
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="cursor-help underline decoration-border decoration-dotted underline-offset-4">{metric.label}</span>
+            <span tabIndex={0} className="focus-ring cursor-help rounded-sm underline decoration-line-strong decoration-dotted underline-offset-4">
+              {metric.label}
+            </span>
           </TooltipTrigger>
           <TooltipContent>{metric.help}</TooltipContent>
         </Tooltip>
       </dt>
       <dd className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <span className="text-[1.75rem] leading-none font-semibold tracking-[-0.02em]" data-testid={`kpi-${metric.id}-value`}>
+        <span className="font-display text-h1 tracking-[-0.02em] text-ink tabular-nums" data-testid={`kpi-${metric.id}-value`}>
           {formatMetric(metric.kind, value)}
         </span>
         {delta ? <DeltaChip delta={delta} /> : previousLoading ? <Skeleton className="h-4 w-12" /> : null}
       </dd>
-      <dd className="truncate text-xs text-muted-foreground tabular-nums">
+      <dd className="truncate text-caption text-ink-3 tabular-nums">
         {fraction
           ? fraction.den > 0
             ? `${formatCount(fraction.num)} of ${formatCount(fraction.den)}`
@@ -213,10 +219,10 @@ function DeltaChip({ delta }: { delta: Delta }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-0.5 text-xs font-medium tabular-nums',
-        delta.direction === 'up' && 'text-success',
-        delta.direction === 'down' && 'text-destructive',
-        delta.direction === 'flat' && 'text-muted-foreground',
+        'inline-flex items-center gap-0.5 text-caption font-semibold tabular-nums',
+        delta.direction === 'up' && 'text-success-ink',
+        delta.direction === 'down' && 'text-danger-ink',
+        delta.direction === 'flat' && 'text-ink-3',
       )}
       title="Change against the previous period of the same length"
     >
@@ -258,7 +264,7 @@ function TrendCard({
         }}>
           <TabsList aria-label="Trend metric" className="max-w-full overflow-x-auto">
             {METRICS.map((m) => (
-              <TabsTrigger key={m.id} value={m.id} className="px-2 text-xs">
+              <TabsTrigger key={m.id} value={m.id} className="px-2 text-caption">
                 {m.id === 'generated' ? 'Generated' : m.id === 'approval' ? 'Approval' : m.id === 'validation' ? 'First pass' : 'Publish'}
               </TabsTrigger>
             ))}
@@ -284,12 +290,12 @@ function TrendSkeleton() {
   const heights = [40, 62, 48, 75, 55, 68]
   return (
     <div aria-busy="true" aria-label="Loading trend" className="flex flex-col gap-2">
-      <div className="flex items-end gap-3 pl-10" style={{ height: CHART_H }}>
+      <div className="flex items-end gap-3 pl-12" style={{ height: CHART_H }}>
         {heights.map((h, i) => (
           <Skeleton key={i} className="flex-1 rounded-t-md rounded-b-none" style={{ height: `${h}%` }} />
         ))}
       </div>
-      <div className="flex gap-3 pl-10">
+      <div className="flex gap-3 pl-12">
         {heights.map((_, i) => (
           <Skeleton key={i} className="h-3 flex-1" />
         ))}
@@ -308,15 +314,46 @@ function ColumnChart({ points, metric }: { points: TrendPoint[]; metric: MetricD
   // Label every bucket when they fit, else every other one (the tooltip and table carry the rest).
   const labelEvery = points.length > 9 ? 2 : 1
   const fmtTick = (t: number) => (metric.kind === 'rate' ? `${Math.round(t * 100)}%` : formatCount(t))
+  const describe = (i: number) => {
+    const v = values[i] ?? null
+    return `${formatRange(points[i]!.range)}: ${v == null ? 'nothing to rate' : formatMetric(metric.kind, v)}`
+  }
+
+  // One tab stop for the whole chart: arrow keys move between periods, Home and End jump.
+  const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+    const last = points.length - 1
+    const at = active ?? last
+    const next =
+      e.key === 'ArrowLeft' ? Math.max(0, at - 1) : e.key === 'ArrowRight' ? Math.min(last, at + 1) : e.key === 'Home' ? 0 : e.key === 'End' ? last : null
+    if (next == null) return
+    e.preventDefault()
+    setActive(next)
+  }
 
   return (
-    <figure aria-labelledby={titleId} className="m-0">
+    <figure
+      aria-labelledby={titleId}
+      aria-describedby={`${titleId}-hint`}
+      tabIndex={0}
+      onKeyDown={onKeyDown}
+      onFocus={(e) => {
+        if (e.target === e.currentTarget && active == null) setActive(points.length - 1)
+      }}
+      onBlur={() => setActive(null)}
+      className="focus-ring m-0 rounded-md"
+    >
       <figcaption id={titleId} className="sr-only">
         {metric.label} per period
       </figcaption>
+      <span id={`${titleId}-hint`} className="sr-only">
+        Use the left and right arrow keys to move between periods.
+      </span>
+      <span className="sr-only" aria-live="polite">
+        {active != null && points[active] ? describe(active) : ''}
+      </span>
       <div className="relative flex" style={{ height: CHART_H }}>
         {/* y axis */}
-        <div className="relative w-10 shrink-0 text-[0.6875rem] text-muted-foreground tabular-nums" aria-hidden>
+        <div className="relative w-12 shrink-0 text-caption text-ink-3 tabular-nums" aria-hidden>
           {ticks.map((t) => (
             <span key={t} className="absolute right-2 leading-none" style={{ bottom: `${(t / top) * 100}%`, transform: 'translateY(50%)' }}>
               {fmtTick(t)}
@@ -328,7 +365,7 @@ function ColumnChart({ points, metric }: { points: TrendPoint[]; metric: MetricD
             <div
               key={t}
               aria-hidden
-              className={cn('absolute inset-x-0 h-px', t === 0 ? 'bg-border-strong' : 'bg-border/70')}
+              className={cn('absolute inset-x-0 h-px', t === 0 ? 'bg-line-strong' : 'bg-line')}
               style={{ bottom: `${(t / top) * 100}%` }}
             />
           ))}
@@ -340,21 +377,22 @@ function ColumnChart({ points, metric }: { points: TrendPoint[]; metric: MetricD
               return (
                 <div
                   key={p.range.from}
-                  tabIndex={0}
                   role="img"
-                  aria-label={`${formatRange(p.range)}: ${v == null ? 'nothing to rate' : formatMetric(metric.kind, v)}`}
-                  className="group/col relative flex h-full flex-1 cursor-default items-end justify-center outline-none"
+                  aria-label={describe(i)}
+                  className="relative flex h-full flex-1 cursor-default items-end justify-center"
                   onMouseEnter={() => setActive(i)}
-                  onFocus={() => setActive(i)}
-                  onBlur={() => setActive(null)}
                 >
-                  <div className={cn('absolute inset-x-0.5 inset-y-0 rounded-md transition-colors duration-150', isActive && 'bg-muted/70 group-focus-visible/col:ring-2 group-focus-visible/col:ring-ring/50')} />
+                  <div className={cn('absolute inset-x-0.5 inset-y-0 rounded-md transition-colors duration-150 motion-reduce:transition-none', isActive && 'bg-hover')} />
                   {v == null ? (
-                    <div className="relative mb-0 h-0.5 w-[min(24px,60%)] rounded-full bg-border-strong" />
+                    <div className="relative mb-0 h-0.5 w-[min(24px,60%)] rounded-full bg-line-strong" />
                   ) : (
+                    // Full height, scaled from the bottom: a transform animates on the compositor.
                     <div
-                      className={cn('relative w-[min(24px,60%)] rounded-t-xs transition-[height,background-color] duration-300', isActive ? 'bg-brand' : 'bg-brand/80')}
-                      style={{ height: `${h}%` }}
+                      className={cn(
+                        'relative h-full w-[min(24px,60%)] origin-bottom rounded-t-xs transition-[transform,background-color] duration-200 ease-out motion-reduce:transition-none',
+                        isActive ? 'bg-brand' : 'bg-brand/80',
+                      )}
+                      style={{ transform: `scaleY(${h / 100})` }}
                     />
                   )}
                   {isActive ? <ColumnTooltip point={p} metric={metric} value={v} alignEnd={i > points.length / 2} /> : null}
@@ -365,7 +403,7 @@ function ColumnChart({ points, metric }: { points: TrendPoint[]; metric: MetricD
         </div>
       </div>
       {/* x axis */}
-      <div className="flex pl-10 pt-2 text-[0.6875rem] text-muted-foreground" aria-hidden>
+      <div className="flex pt-2 pl-12 text-caption text-ink-3" aria-hidden>
         {points.map((p, i) => (
           <span key={p.range.from} className="flex-1 truncate text-center">
             {i % labelEvery === 0 || i === points.length - 1 ? bucketLabel(p.range) : ''}
@@ -409,18 +447,18 @@ function ColumnTooltip({
     <div
       role="presentation"
       className={cn(
-        'pointer-events-none absolute top-1 z-10 w-max max-w-56 rounded-lg bg-popover px-3 py-2 text-popover-foreground shadow-elev-3 ring-1 ring-border',
+        'pointer-events-none absolute top-1 z-10 w-max max-w-56 rounded-card border border-line bg-surface px-3 py-2 text-ink shadow-raised-lg',
         alignEnd ? 'right-1/2' : 'left-1/2',
       )}
     >
-      <div className="text-[0.6875rem] text-muted-foreground">{formatRange(point.range)}</div>
-      <div className="mt-0.5 flex items-center gap-1.5 text-sm">
+      <div className="text-caption text-ink-3">{formatRange(point.range)}</div>
+      <div className="mt-0.5 flex items-center gap-1.5 text-body">
         <span className="size-2 rounded-sm bg-brand" aria-hidden />
         <span className="font-semibold tabular-nums">{value == null ? '—' : formatMetric(metric.kind, value)}</span>
-        <span className="text-muted-foreground">{metric.kind === 'count' ? 'generated' : metric.label.toLowerCase()}</span>
+        <span className="text-ink-2">{metric.kind === 'count' ? 'generated' : metric.label.toLowerCase()}</span>
       </div>
       {fraction ? (
-        <div className="mt-0.5 text-[0.6875rem] text-muted-foreground tabular-nums">
+        <div className="mt-0.5 text-caption text-ink-3 tabular-nums">
           {fraction.den > 0 ? `${formatCount(fraction.num)} of ${formatCount(fraction.den)}` : 'Nothing to rate'}
         </div>
       ) : null}
@@ -463,7 +501,7 @@ function OutcomesCard({ summary }: { summary: AnalyticsSummary }) {
       <CardHeader className="flex h-14 flex-row items-center border-b py-0 [.border-b]:pb-0">
         <CardTitle>Outcomes</CardTitle>
       </CardHeader>
-      <ul className="divide-y divide-border/70">
+      <ul className="divide-y divide-line">
         {rows.map((r) => (
           <OutcomeRow key={r.id} {...r} />
         ))}
@@ -490,8 +528,8 @@ function OutcomeRow({
   return (
     <li className="flex flex-col gap-2 px-5 py-4">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="text-sm font-medium">{label}</span>
-        <span className="text-xs text-muted-foreground tabular-nums">{total ? `${formatCount(total)} total` : 'None yet'}</span>
+        <span className="text-body font-semibold text-ink">{label}</span>
+        <span className="text-caption text-ink-3 tabular-nums">{total ? `${formatCount(total)} total` : 'None yet'}</span>
       </div>
       <div
         className="flex h-2 w-full gap-0.5 overflow-hidden rounded-full bg-subtle shadow-inset-sm"
@@ -499,15 +537,15 @@ function OutcomeRow({
         aria-label={total ? `${good} ${goodLabel}, ${bad} ${badLabel}` : `No ${label.toLowerCase()} in this period`}
       >
         {good > 0 ? <div className="h-full rounded-full bg-success" style={{ width: `${goodPct}%` }} /> : null}
-        {bad > 0 ? <div className="h-full flex-1 rounded-full bg-destructive" /> : null}
+        {bad > 0 ? <div className="h-full flex-1 rounded-full bg-danger" /> : null}
       </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground tabular-nums">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-caption text-ink-3 tabular-nums">
         <LegendDot className="bg-success">
-          <span className="text-foreground">{formatCount(good)}</span> {goodLabel}
+          <span className="text-ink">{formatCount(good)}</span> {goodLabel}
           {total ? ` · ${formatRate(good / total)}` : ''}
         </LegendDot>
-        <LegendDot className="bg-destructive">
-          <span className="text-foreground">{formatCount(bad)}</span> {badLabel}
+        <LegendDot className="bg-danger">
+          <span className="text-ink">{formatCount(bad)}</span> {badLabel}
         </LegendDot>
       </div>
     </li>
@@ -538,19 +576,19 @@ function MarketplaceCard({ rows }: { rows: MarketplaceBreakdown[] }) {
         <CardTitle>By marketplace</CardTitle>
       </CardHeader>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[40rem] text-sm">
-          <thead className="border-b border-line bg-sunken text-xs text-muted-foreground">
+        <table className="w-full min-w-[40rem] text-body">
+          <thead className="border-b border-line bg-sunken text-caption text-ink-3">
             <tr>
-              <th scope="col" className="h-9 pl-5 text-left font-medium">Marketplace</th>
-              <th scope="col" className="h-9 px-3 text-right font-medium">Generated</th>
+              <th scope="col" className="h-9 pl-5 text-left font-semibold">Marketplace</th>
+              <th scope="col" className="h-9 px-3 text-right font-semibold">Generated</th>
               {rateCols.map((c) => (
-                <th key={c.id} scope="col" className="h-9 px-3 text-left font-medium last:pr-5">
+                <th key={c.id} scope="col" className="h-9 px-3 text-left font-semibold last:pr-5">
                   {c.label}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-border/70">
+          <tbody className="divide-y divide-line">
             {rows.map((r) => {
               const meta = MARKETPLACE_META[r.marketplace]
               return (
@@ -558,7 +596,7 @@ function MarketplaceCard({ rows }: { rows: MarketplaceBreakdown[] }) {
                   <td className="h-14 pl-5">
                     <span className="flex items-center gap-2.5">
                       <MarketplaceTile id={r.marketplace} size="sm" />
-                      <span className="font-medium">{meta.short}</span>
+                      <span className="font-semibold text-ink">{meta.short}</span>
                     </span>
                   </td>
                   <td className="px-3 text-right tabular-nums">{formatCount(r.listings_generated)}</td>
@@ -573,7 +611,7 @@ function MarketplaceCard({ rows }: { rows: MarketplaceBreakdown[] }) {
                             {v != null ? <span className="block h-full rounded-full bg-brand" style={{ width: `${v * 100}%` }} /> : null}
                           </span>
                           {f && f.den > 0 ? (
-                            <span className="hidden text-xs text-muted-foreground tabular-nums xl:inline">
+                            <span className="hidden text-caption text-ink-3 tabular-nums xl:inline">
                               {formatCount(f.num)}/{formatCount(f.den)}
                             </span>
                           ) : null}
@@ -632,7 +670,7 @@ function DashboardSkeleton() {
               className={cn('flex flex-col gap-2.5 px-4 py-4 sm:px-5', i % 2 === 1 && 'border-l', i >= 2 && 'border-t lg:border-t-0', i === 2 && 'lg:border-l')}
             >
               <Skeleton className="h-3.5 w-28" />
-              <Skeleton className="h-7 w-20" />
+              <Skeleton className="h-8 w-20" />
               <Skeleton className="h-3 w-24" />
             </div>
           ))}

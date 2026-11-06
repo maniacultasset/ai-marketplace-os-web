@@ -2,7 +2,7 @@
  * Sidebar (hi-fi app shell): 232px white column (72px icon rail when collapsed), Kuinn
  * mark, brand switcher, nav (38px rows, 40px on touch; active = brand label on one raised tile
  * that slides between rows), Platform section for platform admins, Agent status card at the
- * bottom, collapse control.
+ * bottom (an icon with a tooltip in the rail), collapse control.
  */
 import { Link, useRouterState } from '@tanstack/react-router'
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
@@ -77,7 +77,7 @@ export function AppSidebar({
           </div>
         ))}
       </div>
-      {collapsed ? <div className="mt-auto" /> : <AgentStatusCard />}
+      <AgentStatusCard collapsed={collapsed} onNavigate={onNavigate} />
       {onToggleCollapsed ? (
         <button
           type="button"

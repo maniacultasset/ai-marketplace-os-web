@@ -20,7 +20,7 @@ export type Marketplace = Schema<'Marketplace'>
 export const API_MARKETPLACES: readonly Marketplace[] = ['amazon', 'flipkart']
 
 /** Overall status of a product, from its listings (one word per row, p07 "Overall"). */
-export type Overall = 'live' | 'partly-live' | 'working' | 'needs-you' | 'error' | 'draft'
+export type Overall = 'live' | 'partly-live' | 'ready' | 'ready-to-list' | 'working' | 'needs-you' | 'error' | 'draft'
 
 /** Segmented filter buckets. Every product falls in exactly one, so the counts sum to All. */
 export type Bucket = 'live' | 'progress' | 'needs-you' | 'error' | 'draft'
@@ -35,6 +35,8 @@ export const BUCKETS: readonly { value: Bucket; label: string }[] = [
 export const OVERALL_CHIP: Record<Overall, { status: ChipStatus; label: string }> = {
   live: { status: 'live', label: 'Live' },
   'partly-live': { status: 'partly-live', label: 'Partly live' },
+  ready: { status: 'ready', label: 'Awaiting approval' },
+  'ready-to-list': { status: 'ready', label: 'Ready to list' },
   working: { status: 'working', label: 'Working' },
   'needs-you': { status: 'needs-you', label: 'Needs you' },
   error: { status: 'error', label: 'Error' },
@@ -59,9 +61,12 @@ export interface CatalogRow {
  * Overall status, in priority order (hi-fi p07 rows):
  *  1. any listing in error (failed, or rejected by the marketplace)  → Error
  *  2. any live listing: every listing live → Live, else → Partly live
- *  3. any listing that needs a person (needs_review, blocked)        → Needs you
- *  4. any listing being worked on or ready (generating … publishing) → Working
- *  5. no listing, or only created / removed / inactive ones          → Draft
+ *  3. any listing that needs_review or is blocked                    → Needs you
+ *  4. any listing validated (waiting for a person to approve)        → Awaiting approval;
+ *     else any listing approved (waiting for a person to list it)     → Ready to list.
+ *     Both count in the Needs-you bucket (a person acts next, nothing is running)
+ *  5. any listing generating, publishing or processing at the marketplace → Working
+ *  6. otherwise (no listing, or only created / removed / inactive ones)   → Draft
  */
 export function overallStatus(listings: readonly Listing[]): Overall {
   if (listings.length === 0) return 'draft'
@@ -70,7 +75,9 @@ export function overallStatus(listings: readonly Listing[]): Overall {
   const live = chips.filter((c) => c === 'live' || c === 'partly-live').length
   if (live > 0) return live === chips.length && chips.every((c) => c === 'live') ? 'live' : 'partly-live'
   if (chips.some((c) => c === 'needs-you' || c === 'blocked')) return 'needs-you'
-  if (chips.some((c) => c === 'working' || c === 'ready')) return 'working'
+  if (listings.some((l) => l.status === 'validated')) return 'ready'
+  if (chips.includes('ready')) return 'ready-to-list'
+  if (chips.includes('working')) return 'working'
   return 'draft'
 }
 
@@ -82,6 +89,8 @@ export function bucketOf(o: Overall): Bucket {
     case 'working':
       return 'progress'
     case 'needs-you':
+    case 'ready':
+    case 'ready-to-list':
       return 'needs-you'
     case 'error':
       return 'error'

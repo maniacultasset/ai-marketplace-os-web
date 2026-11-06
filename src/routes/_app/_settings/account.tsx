@@ -6,7 +6,7 @@ export const Route = createFileRoute('/_app/_settings/account')({ staticData: { 
 
 function AccountPage() {
   return (
-    <Page className="max-w-[1100px]">
+    <Page className="mx-0 max-w-[1100px]">
       <PageHeader title="Account" description="Your sign-in details and the brands you belong to." />
       <AccountView />
     </Page>

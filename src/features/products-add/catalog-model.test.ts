@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   bucketCounts,
+  bucketOf,
   buildCatalog,
   filterCatalog,
   humanizeSlug,
+  OVERALL_CHIP,
   overallStatus,
   shortId,
   variantMatrix,
@@ -51,6 +53,21 @@ describe('overallStatus', () => {
     expect(overallStatus([listing('p', { status: 'blocked' })])).toBe('needs-you')
   })
   it('created-only listings are draft', () => expect(overallStatus([listing('p')])).toBe('draft'))
+  it('a validated or approved listing waits for a person, so it is never Working', () => {
+    expect(overallStatus([listing('p', { status: 'validated' })])).toBe('ready')
+    expect(overallStatus([listing('p', { status: 'approved' })])).toBe('ready-to-list')
+    expect(overallStatus([listing('p', { status: 'approved' }), listing('p', { marketplace: 'flipkart', status: 'validated' })])).toBe('ready')
+    expect(bucketOf(overallStatus([listing('p', { status: 'approved' })]))).toBe('needs-you')
+    expect(OVERALL_CHIP['ready-to-list'].label).toBe('Ready to list')
+    expect(bucketOf(overallStatus([listing('p', { status: 'validated' })]))).toBe('needs-you')
+    expect(OVERALL_CHIP.ready.label).toBe('Awaiting approval')
+  })
+  it('generating is Working', () => expect(overallStatus([listing('p', { status: 'generating' })])).toBe('working'))
+  it('needs you wins over awaiting approval, awaiting approval over working', () => {
+    expect(overallStatus([listing('p', { status: 'blocked' }), listing('p', { marketplace: 'flipkart', status: 'validated' })])).toBe('needs-you')
+    expect(overallStatus([listing('p', { status: 'needs_review' }), listing('p', { marketplace: 'flipkart', status: 'validated' })])).toBe('needs-you')
+    expect(overallStatus([listing('p', { status: 'validated' }), listing('p', { marketplace: 'flipkart', status: 'generating' })])).toBe('ready')
+  })
 })
 
 describe('buildCatalog', () => {
@@ -74,10 +91,16 @@ describe('buildCatalog', () => {
   })
 
   it('counts always sum to all', () => {
-    const ps = [product(), product(), product(), product()]
-    const ls = [listing(ps[0]!.id, { status: 'published', marketplace_state: 'live' }), listing(ps[1]!.id, { status: 'failed' }), listing(ps[2]!.id, { status: 'approved' })]
+    const ps = [product(), product(), product(), product(), product(), product()]
+    const ls = [
+      listing(ps[0]!.id, { status: 'published', marketplace_state: 'live' }),
+      listing(ps[1]!.id, { status: 'failed' }),
+      listing(ps[2]!.id, { status: 'approved' }),
+      listing(ps[3]!.id, { status: 'generating' }),
+      listing(ps[4]!.id, { status: 'needs_review' }),
+    ]
     const c = bucketCounts(buildCatalog(ps, ls, []))
-    expect(c).toEqual({ all: 4, live: 1, progress: 1, 'needs-you': 0, error: 1, draft: 1 })
+    expect(c).toEqual({ all: 6, live: 1, progress: 1, 'needs-you': 2, error: 1, draft: 1 })
     expect(c.live + c.progress + c['needs-you'] + c.error + c.draft).toBe(c.all)
   })
 })
@@ -96,6 +119,13 @@ describe('filterCatalog', () => {
     expect(filterCatalog(rows, { marketplace: 'flipkart' }).map((r) => r.product.id)).toEqual([b.id])
     expect(filterCatalog(rows, { bucket: 'draft' })).toHaveLength(2)
     expect(filterCatalog(rows, { bucket: 'error' })).toHaveLength(0)
+  })
+  it('the Needs-you filter includes a product awaiting approval', () => {
+    const p = product()
+    const ready = buildCatalog([p], [listing(p.id, { status: 'validated' })], [])
+    expect(ready[0]!.overall).toBe('ready')
+    expect(filterCatalog(ready, { bucket: 'needs-you' }).map((r) => r.product.id)).toEqual([p.id])
+    expect(filterCatalog(ready, { bucket: 'progress' })).toHaveLength(0)
   })
 })
 

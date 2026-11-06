@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { useIssuesList, useTasksList } from '@/features/inbox/api'
 import { ISSUE_STATUS_LABEL, MARKETPLACE_LABEL, TASK_KIND_LABEL, TASK_STATUS_LABEL } from '@/features/inbox/model'
+import { fieldLabel } from '@/features/listing-flow/format'
 import { cn } from '@/lib/utils'
 import { useProductsById } from './api'
 import { InboxDetail } from './inbox-detail'
@@ -49,7 +50,7 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
   const showsTasks = view !== 'issues'
   const showsIssues = view !== 'questions'
   const lists = [showsTasks && taskList, showsIssues && issueList].filter((x) => !!x)
-  const pending = lists.some((l) => l.isPending)
+  const listsPending = lists.some((l) => l.isPending)
   const error = lists.find((l) => l.error)?.error
   const items = visibleItems(view, mergeInbox(showsTasks ? taskList.rows : [], showsIssues ? issueList.rows : []))
   const selectedKey = search.item ?? (items[0] ? itemKey(items[0]) : undefined)
@@ -59,6 +60,8 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
   const countsReady = !!openTasks.data && !!openIssues.data
   const openTotal = { n: tCount.n + iCount.n, more: tCount.more || iCount.more }
   const products = useProductsById(items.map((i) => (i.kind === 'task' ? i.task.product_id : null)))
+  // A card paints once, title and meta together: its product (SKU) is part of the meta.
+  const pending = listsPending || products.pending
   const filteredStatus = (view === 'questions' && statuses.task !== 'open') || (view === 'issues' && statuses.issue !== 'open')
 
   return (
@@ -68,12 +71,13 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
         className={cn('flex min-w-0 flex-col gap-3 border-line bg-canvas px-4 py-5 lg:border-r', search.item && 'max-lg:hidden')}
         data-testid="inbox-list"
       >
-        <div className="flex items-baseline justify-between gap-3">
-          <h1 className="font-display text-h2 text-ink">Inbox</h1>
-          <span className="text-small text-ink-3" data-testid="inbox-open-count">
+        <h1 className="font-display text-h2 text-ink">
+          Inbox
+          {/* The count shows once, on the All segment; this copy is for screen readers only. */}
+          <span className="sr-only" data-testid="inbox-open-count">
             {countsReady ? `${fmtCount(openTotal)} open` : null}
           </span>
-        </div>
+        </h1>
         <Segmented<InboxView>
           label="Show"
           className="w-full"
@@ -81,8 +85,9 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
           onChange={(v) => onSearch({ view: v === 'all' ? undefined : v, item: undefined }, { replace: true })}
           options={[
             { value: 'all', label: 'All', count: countsReady ? fmtCount(openTotal) : undefined },
-            { value: 'questions', label: 'Questions', count: openTasks.data ? fmtCount(tCount) : undefined },
-            { value: 'issues', label: 'Issues', count: openIssues.data ? fmtCount(iCount) : undefined },
+            // All three counts appear together, once both open lists have answered.
+            { value: 'questions', label: 'Questions', count: countsReady ? fmtCount(tCount) : undefined },
+            { value: 'issues', label: 'Issues', count: countsReady ? fmtCount(iCount) : undefined },
           ]}
         />
         {view !== 'all' ? <StatusPicker view={view} search={search} onSearch={onSearch} /> : null}
@@ -94,11 +99,14 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
             </li>
           ) : pending ? (
             Array.from({ length: 4 }, (_, i) => (
-              <li key={i} className="flex gap-3 rounded-card border border-line bg-surface p-4 shadow-raised-sm">
-                <Skeleton className="size-10 rounded-[11px]" />
+              <li key={i} className="flex items-center gap-3 rounded-card border border-line bg-surface p-4 shadow-raised-sm">
+                <Skeleton className="size-9 shrink-0 rounded-tile" />
                 <div className="flex-1 space-y-1.5">
                   <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-3 w-1/2" />
+                  <div className="flex justify-between gap-2">
+                    <Skeleton className="h-3 w-1/2" />
+                    <Skeleton className="h-3 w-12" />
+                  </div>
                 </div>
               </li>
             ))
@@ -115,7 +123,7 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
           ) : (
             items.map((it) => (
               <li key={itemKey(it)}>
-                <ItemCard item={it} selected={itemKey(it) === selectedKey} search={search} product={it.kind === 'task' && it.task.product_id ? products.get(it.task.product_id) : undefined} />
+                <ItemCard item={it} selected={itemKey(it) === selectedKey} search={search} product={it.kind === 'task' && it.task.product_id ? products.map.get(it.task.product_id) : undefined} />
               </li>
             ))
           )}
@@ -137,7 +145,7 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
         <InboxDetail
           selectedKey={selectedKey}
           items={items}
-          pending={pending}
+          pending={listsPending}
           search={search}
           products={products}
         />
@@ -193,7 +201,7 @@ function ItemCard({
   const meta =
     item.kind === 'task'
       ? [product?.sku, TASK_KIND_LABEL[item.task.kind]].filter(Boolean).join(' · ')
-      : `${MARKETPLACE_LABEL[item.issue.marketplace]} · ${item.issue.field_path}`
+      : `${MARKETPLACE_LABEL[item.issue.marketplace]} · ${fieldLabel(item.issue.field_path)}`
   return (
     <Link
       to="/inbox"
@@ -213,14 +221,15 @@ function ItemCard({
         <ItemTile item={item} />
         <div className="min-w-0 flex-1">
           <p className="line-clamp-2 font-bold text-ink">{title}</p>
-          <p className="truncate text-caption text-ink-2">{meta}</p>
+          {/* Time on every card, so a card keeps its height when it is selected. */}
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="min-w-0 truncate text-caption text-ink-2">{meta}</p>
+            <time dateTime={item.at} className="shrink-0 text-caption text-ink-3 tabular-nums">
+              {formatDistanceToNowStrict(new Date(item.at), { addSuffix: true })}
+            </time>
+          </div>
         </div>
       </div>
-      {selected ? (
-        <p className="mt-2 text-caption text-ink-2">
-          <time dateTime={item.at}>{formatDistanceToNowStrict(new Date(item.at), { addSuffix: true })}</time>
-        </p>
-      ) : null}
     </Link>
   )
 }

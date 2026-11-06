@@ -47,6 +47,6 @@ describe('DataTable', () => {
     const error = new ApiError({ type: 'INTERNAL_ERROR', status: 500, message: 'x', correlationId: 'req-42' })
     render(<DataTable label="x" columns={columns} data={[]} getRowId={(r) => r.id} error={error} onRetry={() => {}} />)
     expect(screen.getByText('req-42')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
   })
 })

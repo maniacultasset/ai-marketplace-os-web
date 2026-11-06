@@ -44,10 +44,10 @@ function RulesPage() {
     void navigate({ search: { marketplace: next.marketplace, category: next.category }, replace: false })
 
   return (
-    <Page>
+    <Page className="mx-0 max-w-[1400px]">
       <PageHeader
-        title="Rules"
-        description="Checks a listing must pass before it can go live on each marketplace. Platform rules apply to every brand; brand rules only to yours."
+        title="Marketplace rules"
+        description="Checks a listing must pass before it goes live."
         actions={
           <Can action="listing:edit">
             <Button asChild>
@@ -63,6 +63,9 @@ function RulesPage() {
           </Can>
         }
       />
+      <p className="mb-3 text-caption text-ink-3" data-testid="rules-scope-note">
+        Platform rules apply to every brand. Brand rules apply only to yours.
+      </p>
       <RulesTable
         list={list}
         filters={filters}

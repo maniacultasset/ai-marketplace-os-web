@@ -93,6 +93,7 @@ export function AddChooser() {
   // Connected marketplaces are pre-selected until the person changes the choice.
   const [picked, setListOn] = useState<Marketplace[] | null>(null)
   const listOn = picked ?? connected
+  const loadingMarketplaces = listOn === null
 
   const onKey = (e: KeyboardEvent) => {
     if (!['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(e.key)) return
@@ -123,8 +124,8 @@ export function AddChooser() {
         </Banner>
         <ListOnPicker className="mt-6" value={listOn ?? []} onChange={setListOn} connected={connected} />
       </Page>
-      <FooterBar status="Nothing is submitted yet. The agent prepares a draft first.">
-        <Button onClick={go} data-testid="add-continue">
+      <FooterBar status={loadingMarketplaces ? 'Loading marketplaces…' : 'Nothing is submitted yet. The agent prepares a draft first.'}>
+        <Button onClick={go} disabled={loadingMarketplaces} data-testid="add-continue">
           Continue
         </Button>
       </FooterBar>

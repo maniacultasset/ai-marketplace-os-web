@@ -4,6 +4,8 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { Controller, useFieldArray, useForm, type UseFormSetError } from 'react-hook-form'
 import { toast } from 'sonner'
 import { isApiError } from '@/api/errors'
+import { StickyActions } from '@/components/app/page-header'
+import { Banner } from '@/components/la/banner'
 import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -229,7 +231,7 @@ export function ProductForm() {
               <div className="flex items-baseline justify-between gap-2">
                 <FieldLabel htmlFor="title">Title</FieldLabel>
                 <span
-                  className={cn('text-xs tabular-nums text-muted-foreground', titleLen > TITLE_MAX && 'text-destructive')}
+                  className={cn('text-caption tabular-nums text-ink-3', titleLen > TITLE_MAX && 'text-danger')}
                   id="title-count"
                 >
                   {titleLen}/{TITLE_MAX}
@@ -255,7 +257,6 @@ export function ProductForm() {
                   spellCheck={false}
                   autoCapitalize="none"
                   maxLength={SKU_MAX + 8}
-                  className="font-mono"
                   placeholder="KURTA-003"
                   aria-invalid={!!errors.sku || undefined}
                   {...form.register('sku', { onChange: () => setConflictSku(null) })}
@@ -314,26 +315,26 @@ export function ProductForm() {
           title="Attributes"
           description={
             <>
-              Optional facts such as color or fabric. Aliases like <code className="font-mono text-xs">material</code>{' '}
+              Optional facts such as color or fabric. Aliases like <code className="rounded-sm bg-subtle px-1 text-caption text-ink">material</code>{' '}
               are saved under their canonical key.
             </>
           }
           meta={
-            <span className="text-xs tabular-nums text-muted-foreground">
+            <span className="text-caption tabular-nums text-ink-3">
               {attributes.fields.length}/{MAX_ATTRIBUTES}
             </span>
           }
         >
           <div className="flex flex-col gap-3">
             {attributes.fields.length === 0 ? (
-              <p className="rounded-lg border border-dashed px-4 py-5 text-center text-sm text-muted-foreground">
+              <p className="rounded-lg border border-dashed border-line-strong px-4 py-5 text-center text-small text-ink-2">
                 No attributes yet. You can create the product without any.
               </p>
             ) : (
               <ul className="flex flex-col gap-3 sm:gap-2" aria-label="Attributes">
                 <li
                   aria-hidden
-                  className={cn(ATTR_GRID, 'hidden text-xs font-medium text-muted-foreground sm:grid')}
+                  className={cn(ATTR_GRID, 'hidden text-caption font-semibold text-ink-2 sm:grid')}
                 >
                   <span>Key</span>
                   <span>Type</span>
@@ -352,7 +353,7 @@ export function ProductForm() {
                       key={f.id}
                       data-testid={`attribute-row-${i}`}
                       className={cn(
-                        'grid grid-cols-[minmax(0,1fr)_6.5rem_2.25rem] gap-2 rounded-lg bg-muted/40 p-2.5 ring-1 ring-border ring-inset sm:items-start sm:bg-transparent sm:p-0 sm:ring-0',
+                        'grid grid-cols-[minmax(0,1fr)_6.5rem_2.25rem] gap-2 rounded-lg bg-canvas p-2.5 ring-1 ring-line ring-inset sm:items-start sm:bg-transparent sm:p-0 sm:ring-0',
                         ATTR_GRID,
                       )}
                     >
@@ -364,12 +365,11 @@ export function ProductForm() {
                           autoCapitalize="none"
                           maxLength={64 + 8}
                           placeholder="color"
-                          className="font-mono"
                           aria-label={`Attribute ${i + 1} key`}
                           aria-invalid={!!rowErr?.key || undefined}
                           {...form.register(`attributes.${i}.key`)}
                         />
-                        <FieldError errors={[rowErr?.key]} className="text-xs" />
+                        <FieldError errors={[rowErr?.key]} className="text-caption" />
                       </div>
                       <Controller
                         control={form.control}
@@ -430,13 +430,13 @@ export function ProductForm() {
                             {...filterInput(form.register(`attributes.${i}.value`), type === 'number' ? numberChars : asTyped)}
                           />
                         )}
-                        <FieldError errors={[rowErr?.value]} className="text-xs" />
+                        <FieldError errors={[rowErr?.value]} className="text-caption" />
                       </div>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="size-9 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        className="size-9 text-ink-2 hover:bg-danger-bg hover:text-danger"
                         aria-label={`Remove attribute ${i + 1}`}
                         onClick={() => attributes.remove(i)}
                       >
@@ -469,36 +469,30 @@ export function ProductForm() {
         </FormSection>
 
         {submitError && isApiError(submitError) ? (
-          <div className="border-t px-5 py-4">
-            <div
-              role="alert"
-              data-testid="form-error"
-              className="flex flex-col gap-1 rounded-lg bg-destructive/5 px-4 py-3 text-sm ring-1 ring-destructive/25 ring-inset"
-            >
-              <span className="font-medium text-destructive">
-                {submitError.status === 0
-                  ? "Can't reach the server. The product may not have been saved; submit again to retry."
-                  : submitError.status === 422
-                    ? (unmappedDetails.map((d) => d.msg).join(' ') || submitError.message)
-                    : submitError.status === 403
-                      ? "Your role can't create products in this brand."
-                      : 'The product was not created.'}
-              </span>
-              <ReferenceId id={submitError.correlationId} />
-            </div>
+          <div className="border-t border-line px-5 py-4" data-testid="form-error">
+            <Banner tone="danger" role="alert" title="The product was not created">
+              {submitError.status === 0
+                ? "Can't reach the server. The product may not have been saved; submit again to retry."
+                : submitError.status === 422
+                  ? (unmappedDetails.map((d) => d.msg).join(' ') || submitError.message)
+                  : submitError.status === 403
+                    ? "Your role can't create products in this brand."
+                    : 'Try again in a moment.'}
+              <ReferenceId id={submitError.correlationId} className="mt-1" />
+            </Banner>
           </div>
         ) : null}
-
-        <div className="flex items-center justify-end gap-2 rounded-b-xl border-t bg-muted/40 px-5 py-3">
-          <Button type="button" variant="ghost" asChild>
-            <Link to="/products">Cancel</Link>
-          </Button>
-          <Button type="submit" disabled={pending} className="flex-1 sm:flex-none" data-testid="create-product">
-            {pending ? <Spinner data-icon="inline-start" /> : null}
-            {pending ? 'Creating…' : 'Create product'}
-          </Button>
-        </div>
       </Card>
+
+      <StickyActions className="mt-4">
+        <Button type="button" variant="ghost" asChild>
+          <Link to="/products">Cancel</Link>
+        </Button>
+        <Button type="submit" disabled={pending} className="flex-1 sm:flex-none" data-testid="create-product">
+          {pending ? <Spinner data-icon="inline-start" aria-hidden /> : null}
+          {pending ? 'Creating…' : 'Create product'}
+        </Button>
+      </StickyActions>
     </form>
   )
 }
@@ -521,11 +515,11 @@ function FormSection({
   children: ReactNode
 }) {
   return (
-    <section className="flex flex-col gap-5 border-t px-5 py-5 first:border-t-0">
+    <section className="flex flex-col gap-5 border-t border-line px-5 py-5 first:border-t-0">
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h2 className="text-[0.9375rem] leading-snug font-semibold tracking-tight">{title}</h2>
-          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+          <h2 className="text-h3 text-ink">{title}</h2>
+          {description ? <p className="text-small text-ink-2">{description}</p> : null}
         </div>
         {meta ? <div className="shrink-0 pt-0.5">{meta}</div> : null}
       </div>

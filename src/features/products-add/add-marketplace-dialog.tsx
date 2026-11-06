@@ -61,6 +61,7 @@ export function AddMarketplaceDialog({
 
   const accepted = results?.filter((r) => r.kind === 'accepted') ?? []
   const failed = results?.filter((r) => r.kind === 'failed') ?? []
+  const single = accepted[0]?.kind === 'accepted' ? accepted[0] : null
   const close = (v: boolean) => {
     if (sending) return
     onOpenChange(v)
@@ -85,19 +86,37 @@ export function AddMarketplaceDialog({
             {accepted.length ? (
               <Banner tone="success" role="status" title={`${accepted.length} ${accepted.length === 1 ? 'draft' : 'drafts'} queued`}>
                 Each one shows as Working until the agent finishes. While processing is paused it stays queued.
-                {/* listing-flow: each accepted job is an agent run (/runs/<job id>, p12). */}
-                <span className="mt-2 flex flex-wrap gap-2">
-                  {accepted.map((a) =>
-                    a.kind === 'accepted' ? (
-                      <Button key={a.accepted.job_id} variant="secondary" size="sm" asChild>
-                        <Link to="/runs/$runId" params={{ runId: a.accepted.job_id }} data-testid={`watch-run-${a.item.marketplace}`}>
-                          Watch the {API_NAMES[a.item.marketplace]} run
+              </Banner>
+            ) : null}
+            {/* listing-flow: each accepted job is an agent run (/runs/<job id>, p12). */}
+            {accepted.length === 1 && single ? (
+              <Button variant="secondary" size="sm" className="self-start" asChild>
+                <Link to="/runs/$runId" params={{ runId: single.accepted.job_id }} data-testid={`watch-run-${single.item.marketplace}`}>
+                  Watch the run
+                </Link>
+              </Button>
+            ) : accepted.length > 1 ? (
+              <ul className="max-h-48 divide-y divide-line overflow-y-auto rounded-banner border border-line" aria-label="Queued drafts">
+                {accepted.map((a) =>
+                  a.kind === 'accepted' ? (
+                    <li key={a.accepted.job_id} className="flex items-center justify-between gap-3 px-3 py-2 text-small text-ink-2">
+                      <span className="min-w-0 truncate">
+                        <b className="text-ink">{a.item.product.sku}</b> · {API_NAMES[a.item.marketplace]}
+                      </span>
+                      <Button variant="ghost" size="xs" className="shrink-0" asChild>
+                        <Link
+                          to="/runs/$runId"
+                          params={{ runId: a.accepted.job_id }}
+                          data-testid={`watch-run-${a.item.marketplace}`}
+                          aria-label={`Watch the run for ${a.item.product.sku} on ${API_NAMES[a.item.marketplace]}`}
+                        >
+                          Watch
                         </Link>
                       </Button>
-                    ) : null,
-                  )}
-                </span>
-              </Banner>
+                    </li>
+                  ) : null,
+                )}
+              </ul>
             ) : null}
             {failed.length ? (
               <Banner tone="danger" role="alert" title={`${failed.length} not started`}>
@@ -116,7 +135,7 @@ export function AddMarketplaceDialog({
         ) : (
           <div className="flex flex-col gap-4">
             <ListOnPicker value={chosen} onChange={setChosen} connected={connected} />
-            <div className="rounded-[10px] border border-line bg-sunken px-4 py-3 text-small text-ink-2 shadow-inset-sm" aria-live="polite">
+            <div className="rounded-banner border border-line bg-subtle px-4 py-3 text-small text-ink-2" aria-live="polite">
               {chosen.length === 0 ? (
                 'Choose at least one marketplace.'
               ) : (
@@ -161,10 +180,10 @@ export function AddMarketplaceDialog({
               <Button variant="ghost" onClick={() => close(false)} disabled={!!sending}>
                 Cancel
               </Button>
-              <Button disabled={plan.send.length === 0 || !!sending} onClick={() => void run(plan.send)} data-testid="start-generate">
-                {sending ? <Spinner data-icon="inline-start" /> : null}
+              <Button className="min-w-40" disabled={plan.send.length === 0 || !!sending} onClick={() => void run(plan.send)} data-testid="start-generate">
+                {sending ? <Spinner data-icon="inline-start" aria-hidden /> : null}
                 {sending
-                  ? `Starting ${sending.done}/${sending.total}…`
+                  ? `Starting drafts ${sending.done}/${sending.total}…`
                   : plan.send.length === 1
                     ? 'Start 1 draft'
                     : `Start ${plan.send.length} drafts`}

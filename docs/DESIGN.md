@@ -175,7 +175,7 @@ The shadcn kit in `src/components/ui` is restyled to the tokens. The Kuinn piece
 | `Stepper`, `ProgressBar`, `ProgressRing` | `la/progress` | Use the stepper only for real sequences (setup, bulk). The ring is 56px with a 7px stroke and shows "3/4". |
 | `DataTable` | `components/data-table` | Raised md container, 38px sunken header (sticky), quiet rows (hairline, `bg-sunken` hover), rows 48 or `density="tall"` 68, `bg-brand-bg` selection. `renderCard` turns rows into cards below 1024px (required for catalog tables). `bulkBar` renders a `BulkBar` (sticky, raised lg, floating) while rows are selected. |
 | `FooterBar` | `la/footer-bar` | Pinned footer for setup, guided and bulk screens: save state on the left, Back and the primary action on the right. |
-| Toast | `lib/toast` | 360px wide, radius 12, raised lg, auto-dismisses after 6s. |
+| Toast | `lib/toast` | 360px wide, radius 12, raised lg. Success toasts auto-dismiss after 6s, error toasts after 10s. Toasts sit above pinned footer bars (`--toast-clear`). |
 | `UnavailableButton`, `ComingSoon`, `UnavailableHint`, `NOT_YET` | `la/unavailable` | The honest states. They stay focusable, clicks do nothing, and the reason is the tooltip and the accessible description. Reuse the `NOT_YET` sentences. |
 | `BeingBuilt` | `la/being-built` | A placeholder for an unbuilt route. Delete it when you replace the route. |
 | `Icon`, `IconGlyph`, `IconTile`, `MonogramTile`, `LogoMark`, `Wordmark` | `la/icons` | See **Icons**. The hi-fi icon paths (24 grid, 1.75 stroke), any-source glyph, matte icon tiles and monogram tiles. |

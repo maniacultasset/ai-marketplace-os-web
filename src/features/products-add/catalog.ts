@@ -7,10 +7,12 @@
  * Each walk stops at WALK_MAX_PAGES. When a walk stops early the screen says so ("first N loaded")
  * instead of presenting a partial count as the total.
  */
-import { useQuery } from '@tanstack/react-query'
-import { useMemo } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo, useRef } from 'react'
 import { api, unwrap } from '@/api/client'
 import type { Page } from '@/api/types'
+import { BUSY_REFETCH_MS } from '@/features/listings/api'
+import { isBusy } from '@/features/listings/model'
 import { useKeys } from '@/lib/query-keys'
 import { buildCatalog, type Issue, type Listing, type Product } from './catalog-model'
 
@@ -54,6 +56,12 @@ export function useAllListings(opts: { productId?: string } = {}) {
   return useQuery({
     queryKey: [...keys.listings.list({ productId: opts.productId }), 'all'] as const,
     staleTime: STALE_MS,
+    // While any listing is drafting or publishing, re-read so cells flip from Working on their own.
+    // keepPreviousData: a poll never drops the cells back to skeletons. Not for one product's
+    // listings: moving to another product must not show the last product's cards as its own.
+    refetchInterval: (q) => (q.state.data?.rows.some((l) => isBusy(l.status)) ? BUSY_REFETCH_MS : false),
+    refetchIntervalInBackground: false,
+    placeholderData: opts.productId ? undefined : keepPreviousData,
     queryFn: () =>
       walkPages<Listing>((cursor) =>
         unwrap(
@@ -65,11 +73,17 @@ export function useAllListings(opts: { productId?: string } = {}) {
   })
 }
 
-export function useOpenIssues() {
+/**
+ * Every open issue of the brand. `refetchInterval` lets a caller keep the counts in step with a
+ * live listing re-read; the query key never changes, so a re-read never drops back to skeletons.
+ */
+export function useOpenIssues(opts: { refetchInterval?: number | false } = {}) {
   const keys = useKeys()
   return useQuery({
     queryKey: [...keys.issues.list({ status: 'open' }), 'all'] as const,
     staleTime: STALE_MS,
+    refetchInterval: opts.refetchInterval ?? false,
+    refetchIntervalInBackground: false,
     queryFn: () =>
       walkPages<Issue>((cursor) =>
         unwrap(api.GET('/issues', { params: { query: { status: 'open', limit: WALK_PAGE_SIZE, cursor } } })),
@@ -86,7 +100,17 @@ const loadState = (q: { data?: unknown; error: unknown }): LoadState => (q.data 
 export function useCatalog() {
   const products = useAllProducts()
   const listings = useAllListings()
-  const issues = useOpenIssues()
+  // While a listing is drafting or publishing, open issues are re-read with the listings, so a
+  // row's chip and its issue count change together.
+  const busy = !!listings.data?.rows.some((l) => isBusy(l.status))
+  const issues = useOpenIssues({ refetchInterval: busy ? BUSY_REFETCH_MS : false })
+  // One last read when the work settles: the final issues land with the final chip.
+  const wasBusy = useRef(busy)
+  const refetchIssues = issues.refetch
+  useEffect(() => {
+    if (wasBusy.current && !busy) void refetchIssues()
+    wasBusy.current = busy
+  }, [busy, refetchIssues])
   const rows = useMemo(
     () => (products.data ? buildCatalog(products.data.rows, listings.data?.rows ?? [], issues.data?.rows ?? []) : []),
     [products.data, listings.data, issues.data],
@@ -101,8 +125,12 @@ export function useCatalog() {
     listings,
     issues,
     variantCount,
-    /** Products load first; listing cells and issue counts fill in when their lists arrive. */
-    isPending: products.isPending,
+    /**
+     * True until all three lists have answered (or failed), so the rows, their chips and their
+     * issue counts paint once together. A failed list is not pending: its cells show "?" and the
+     * page shows the banner.
+     */
+    isPending: products.isPending || listings.isPending || issues.isPending,
     /** Listing cells, Overall and the status filters are only true once this is 'ready'. */
     listingsState: loadState(listings),
     /** Issue counts are only true once this is 'ready'. */

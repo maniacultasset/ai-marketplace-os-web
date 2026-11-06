@@ -158,7 +158,12 @@ export function DryRunTool({
       onSuccess: (result) => {
         setLast({ result, category, bodyText })
         if (window.matchMedia('(max-width: 1023px)').matches) {
-          requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+          requestAnimationFrame(() =>
+            resultRef.current?.scrollIntoView({
+              behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+              block: 'start',
+            }),
+          )
         }
       },
       onError: (err) => {
@@ -304,7 +309,7 @@ export function DryRunTool({
               <IconTile icon="box" tone="brand" size="sm" />
               <div className="min-w-0 space-y-0.5">
                 <p className="text-sm font-medium">Start from a product</p>
-                <p className="text-[13px] text-muted-foreground">Copies its title, category and attributes into the draft.</p>
+                <p className="text-small text-ink-3">Copies its title, category and attributes into the draft.</p>
               </div>
             </div>
             <div className="flex min-w-0 items-center gap-1 @2xl/left:w-80 @2xl/left:shrink-0">
@@ -371,7 +376,7 @@ export function DryRunTool({
               <Card>
                 <CardContent className="space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="max-w-prose text-[13px] text-muted-foreground">
+                    <p className="max-w-prose text-small text-ink-3">
                       The full request body: <code className="font-mono">{'{"listing": CanonicalListing}'}</code>. Fields
                       the form does not cover (images, status, locale…) can be set here.
                     </p>
@@ -499,7 +504,7 @@ function ProblemAlert({ problem, onDismiss }: { problem: Problem; onDismiss: () 
       <ul className="mt-1 space-y-1" data-testid="problem-details">
         {problem.details.map((d, i) => (
           <li key={i}>
-            <code className="font-mono text-[11px]">{d.loc.filter((x) => x !== 'body').join('.')}</code>: {d.msg}
+            <code className="font-mono text-caption">{d.loc.filter((x) => x !== 'body').join('.')}</code>: {d.msg}
           </li>
         ))}
       </ul>
