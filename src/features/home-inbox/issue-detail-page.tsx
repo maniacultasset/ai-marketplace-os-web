@@ -87,9 +87,14 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
   const l = listing.data?.data
   const others = issues.data.filter((i) => i.id !== issueId)
   const openCount = issues.data.filter((i) => i.status === 'open').length
-  const stopped = retriesStopped(submissions.rows, issue)
+  // Only once the attempts have loaded: the banner lands with them, in the same paint.
+  const stopped = submissions.isPending ? null : retriesStopped(submissions.rows, issue)
   const marketplace = MARKETPLACE_LABEL[issue.marketplace]
   const chip = l ? listingChip(l) : null
+  // The head paints once: title, SKU line and chip together. Until the listing (and then its
+  // product) has answered, each slot holds a skeleton of its own size. "<Marketplace> listing"
+  // is only the fallback when one of those reads failed.
+  const headPending = listing.isPending || (!!l && product.isPending)
 
   return (
     <Page>
@@ -99,12 +104,25 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
         title={
           product.data?.title ? (
             <span data-testid="issue-product-title">{product.data.title}</span>
-          ) : product.isPending && l ? null : (
+          ) : headPending ? null : (
             <span data-testid="issue-product-title">{`${marketplace} listing`}</span>
           )
         }
-        sub={[product.data?.sku, marketplace, `${openCount} open ${plural(openCount, 'issue')}`].filter(Boolean).join(' · ')}
-        right={chip ? <StatusChip status={chip.status}>{chip.label}</StatusChip> : null}
+        sub={
+          headPending ? (
+            // The sub line is a <p>: an inline placeholder (a Skeleton is a div) keeps the markup valid.
+            <span aria-hidden data-slot="skeleton" className="skeleton inline-block h-4 w-48 max-w-full rounded-md bg-subtle align-middle" />
+          ) : (
+            [product.data?.sku, marketplace, `${openCount} open ${plural(openCount, 'issue')}`].filter(Boolean).join(' · ')
+          )
+        }
+        right={
+          headPending ? (
+            <Skeleton className="h-[22px] w-20 rounded-full" />
+          ) : chip ? (
+            <StatusChip status={chip.status}>{chip.label}</StatusChip>
+          ) : null
+        }
       />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -116,7 +134,9 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
                 Choose category
               </UnavailableButton>
             ) : null}
-            {l ? (
+            {listing.isPending ? (
+              <Skeleton className="h-9 w-32 rounded-control" />
+            ) : l ? (
               <Button
                 asChild
                 variant={issue.status === 'open' && isCategoryIssue(issue) ? 'secondary' : 'primary'}
@@ -134,53 +154,57 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
           </div>
         </LaCard>
 
-        <LaCard className="flex flex-col gap-3" data-testid="attempts-card">
-          <CardHead title={`Submissions to ${marketplace}`} sub="Every attempt to send this listing, oldest first." />
-          {submissions.isPending ? (
-            <div className="space-y-3">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-4 w-1/2" />
-            </div>
-          ) : submissions.isError ? (
-            <ErrorState compact error={submissions.error} title="Couldn't load the attempts" onRetry={() => void submissions.refetch()} />
-          ) : submissions.rows.length === 0 ? (
-            <p className="text-small text-ink-2" data-testid="attempts-empty">
-              Not sent to {marketplace} yet. This issue was found by our own checks before sending.
-            </p>
-          ) : (
-            <>
-              <Timeline label="Submission attempts" entries={attemptsTimeline(submissions.rows)} />
-              {submissions.hasNextPage ? (
-                <Button variant="ghost" size="sm" className="self-start" onClick={() => void submissions.fetchNextPage()}>
-                  Load older attempts
-                </Button>
-              ) : null}
-            </>
-          )}
-        </LaCard>
-      </div>
-
-      {stopped ? (
-        <Banner tone="attention" className="mt-4" role="status">
-          <span data-testid="retries-stopped" data-reason={stopped.reason}>
-            {stopped.reason === 'exhausted' ? (
-              <>
-                <b>
-                  Retries stopped after {stopped.attempts} {plural(stopped.attempts, 'attempt')}.
-                </b>{' '}
-                {stopped.attempts > 1 ? 'The same error came back without any new input, so we' : 'We'} will not resubmit
-                until something changes.
-              </>
+        {/* The attempts column: the "Retries stopped" banner sits under its card, so it lands with
+            the attempts and never pushes content that is already on screen. */}
+        <div className="flex min-w-0 flex-col gap-4">
+          <LaCard className="flex flex-col gap-3" data-testid="attempts-card">
+            <CardHead title={`Submissions to ${marketplace}`} sub="Every attempt to send this listing, oldest first." />
+            {submissions.isPending ? (
+              <div className="space-y-3">
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-4 w-1/2" />
+              </div>
+            ) : submissions.isError ? (
+              <ErrorState compact error={submissions.error} title="Couldn't load the attempts" onRetry={() => void submissions.refetch()} />
+            ) : submissions.rows.length === 0 ? (
+              <p className="text-small text-ink-2" data-testid="attempts-empty">
+                Not sent to {marketplace} yet. This issue was found by our own checks before sending.
+              </p>
             ) : (
               <>
-                <b>Not retried.</b> {marketplace} reported an error that sending the same listing again cannot fix, so we
-                will not resubmit until something changes.
+                <Timeline label="Submission attempts" entries={attemptsTimeline(submissions.rows)} />
+                {submissions.hasNextPage ? (
+                  <Button variant="ghost" size="sm" className="self-start" onClick={() => void submissions.fetchNextPage()}>
+                    Load older attempts
+                  </Button>
+                ) : null}
               </>
-            )}{' '}
-            Changing the listing and approving it again starts a new attempt.
-          </span>
-        </Banner>
-      ) : null}
+            )}
+          </LaCard>
+        {stopped ? (
+          <Banner tone="attention" role="status">
+            <span data-testid="retries-stopped" data-reason={stopped.reason}>
+              {stopped.reason === 'exhausted' ? (
+                <>
+                  <b>
+                    Retries stopped after {stopped.attempts} {plural(stopped.attempts, 'attempt')}.
+                  </b>{' '}
+                  {stopped.attempts > 1 ? 'The same error came back without any new input, so we' : 'We'} will not resubmit
+                  until something changes.
+                </>
+              ) : (
+                <>
+                  <b>Not retried.</b> {marketplace} reported an error that sending the same listing again cannot fix, so we
+                  will not resubmit until something changes.
+                </>
+              )}{' '}
+              Changing the listing and approving it again starts a new attempt.
+            </span>
+          </Banner>
+        ) : null}
+        </div>
+      </div>
+
 
       {others.length ? (
         <section className="mt-6" aria-labelledby="other-issues">

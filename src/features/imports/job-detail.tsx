@@ -27,21 +27,40 @@ export function JobDetail({ jobId }: { jobId: string }) {
   const job = polling.job
   const listingJob = isListingJob(job)
 
+  // Until the job is known its kind is too: hold the breadcrumb and the action with skeletons, then
+  // paint the right trail (Imports or Products) and "Open the agent run" together, so neither flips.
+  const loading = valid && !job && !polling.error
+
   const header = (
-    <PageHeader
-      title="Job"
-      description="Status, timing and result of a background job."
-      breadcrumbs={listingJob ? [{ label: 'Products', to: '/products' }, { label: 'Job' }] : [{ label: 'Imports', to: '/imports' }, { label: 'Job' }]}
-      actions={
-        job && listingJob ? (
-          <Button asChild data-testid="job-run-link">
-            <Link to="/runs/$runId" params={{ runId: job.job_id }}>
-              Open the agent run
-            </Link>
-          </Button>
-        ) : undefined
-      }
-    />
+    <>
+      {loading ? (
+        <div className="mb-3 flex h-5 items-center" aria-hidden data-testid="job-crumbs-loading">
+          <Skeleton className="h-3 w-24" />
+        </div>
+      ) : null}
+      <PageHeader
+        title="Job"
+        description="Status, timing and result of a background job."
+        breadcrumbs={
+          loading
+            ? undefined
+            : listingJob
+              ? [{ label: 'Products', to: '/products' }, { label: 'Job' }]
+              : [{ label: 'Imports', to: '/imports' }, { label: 'Job' }]
+        }
+        actions={
+          loading ? (
+            <Skeleton className="h-9 w-40 rounded-control" />
+          ) : job && listingJob ? (
+            <Button asChild data-testid="job-run-link">
+              <Link to="/runs/$runId" params={{ runId: job.job_id }}>
+                Open the agent run
+              </Link>
+            </Button>
+          ) : undefined
+        }
+      />
+    </>
   )
 
   if (!valid || isNotFound(polling.error) || (isApiError(polling.error) && polling.error.status === 422)) {

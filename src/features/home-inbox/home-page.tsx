@@ -8,11 +8,11 @@
 import { Link } from '@tanstack/react-router'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Page, PageHeader } from '@/components/app/page-header'
-import { LaCard, CardHead, MetricTile, TaskRow } from '@/components/la/cards'
+import { LaCard, CardHead, DashedCard, MetricTile, TaskRow } from '@/components/la/cards'
 import { CountUp } from '@/components/la/count-up'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { Icon, IconGlyph, IconTile } from '@/components/la/icons'
-import { MarketplaceTile, type MarketplaceId } from '@/components/la/marketplace'
+import { MARKETPLACES, MarketplaceTile, type MarketplaceId } from '@/components/la/marketplace'
 import { StatusChip } from '@/components/la/status-chip'
 import { ComingSoon, NOT_YET, UnavailableButton } from '@/components/la/unavailable'
 import { ErrorState } from '@/components/states'
@@ -96,6 +96,8 @@ function DashboardBody({
     LISTINGS_CAP,
   )
   const inboxError = tasks.error ?? issues.error
+  // DashboardBody only mounts once the snapshot has loaded, so this is the whole S10 gate.
+  const tilesReady = inboxReady || !!inboxError
 
   return (
     <>
@@ -129,65 +131,73 @@ function DashboardBody({
         }
       />
 
-      <div className="stagger-children grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4" data-testid="home-tiles">
-        <Tile testId="tile-live" chip={<StatusChip status="live" />} view={live} />
-        <Tile
-          testId="tile-working"
-          chip={<StatusChip status="working">In progress</StatusChip>}
-          view={working}
-          action={
-            snapshot.working > 0 ? (
-              <Button asChild size="sm" variant="secondary">
-                <Link to="/products">See in Products</Link>
-              </Button>
-            ) : undefined
-          }
-        />
-        {inboxError ? (
-          <MetricTile
-            emphasis="attention"
-            className={cn('col-span-2 md:col-span-1', SWAP_IN)}
-            chip={<StatusChip status="needs-you" />}
-            value={<Unknown reason="Open questions and issues could not be loaded, so this number is unknown." />}
-            caption="Couldn't load your Inbox."
-            action={
-              <Button size="sm" variant="secondary" onClick={() => void Promise.all([tasks.refetch(), issues.refetch()])}>
-                Retry
-              </Button>
-            }
-          />
-        ) : !inboxReady ? (
+      {/* The three tiles land together: skeletons until Home's listings and the Inbox have both
+          answered (or the Inbox failed), then one row that rises once and counts up once. */}
+      {!tilesReady ? (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4" aria-busy="true" data-testid="home-tiles-loading">
+          <TileSkeleton />
+          <TileSkeleton />
           <TileSkeleton attention className="col-span-2 md:col-span-1" />
-        ) : (
-          <MetricTile
-            emphasis="attention"
-            className={cn('col-span-2 md:col-span-1', SWAP_IN)}
-            chip={<StatusChip status="needs-you" />}
-            value={<span data-testid="tile-needs-value"><Value view={needs} /></span>}
-            caption={<span data-testid="tile-needs-caption">{needs.caption}</span>}
+        </div>
+      ) : (
+        <div className="stagger-children grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4" data-testid="home-tiles">
+          <Tile testId="tile-live" chip={<StatusChip status="live" />} view={live} />
+          <Tile
+            testId="tile-working"
+            chip={<StatusChip status="working">In progress</StatusChip>}
+            view={working}
             action={
-              // The tile counts two places: questions and issues live in the Inbox, listings to
-              // approve or publish live on their product (Products). Link to each part shown.
-              <div className="flex flex-wrap gap-2">
-                <Button asChild size="sm" variant="warn" data-testid="tile-needs-inbox">
-                  <Link to="/inbox">Open Inbox</Link>
+              snapshot.working > 0 ? (
+                <Button asChild size="sm" variant="secondary">
+                  <Link to="/products">See in Products</Link>
                 </Button>
-                {snapshot.approve + snapshot.publish > 0 ? (
-                  <Button asChild size="sm" variant="secondary" className="min-w-0 max-w-full" data-testid="tile-needs-listings">
-                    <Link to="/products">
-                      {/* One text item: the button is a flex row with a gap, and the label must not split. */}
-                      <span className="min-w-0 truncate">
-                        {snapshot.approve ? 'Approve' : 'Publish'}
-                        <span className="max-lg:sr-only"> in Products</span>
-                      </span>
-                    </Link>
-                  </Button>
-                ) : null}
-              </div>
+              ) : undefined
             }
           />
-        )}
-      </div>
+          {inboxError ? (
+            <MetricTile
+              emphasis="attention"
+              className="col-span-2 md:col-span-1"
+              chip={<StatusChip status="needs-you" />}
+              value={<Unknown reason="Open questions and issues could not be loaded, so this number is unknown." />}
+              caption="Couldn't load your Inbox."
+              action={
+                <Button size="sm" variant="secondary" onClick={() => void Promise.all([tasks.refetch(), issues.refetch()])}>
+                  Retry
+                </Button>
+              }
+            />
+          ) : (
+            <MetricTile
+              emphasis="attention"
+              className="col-span-2 md:col-span-1"
+              chip={<StatusChip status="needs-you" />}
+              value={<span data-testid="tile-needs-value"><Value view={needs} /></span>}
+              caption={<span data-testid="tile-needs-caption">{needs.caption}</span>}
+              action={
+                // The tile counts two places: questions and issues live in the Inbox, listings to
+                // approve or publish live on their product (Products). Link to each part shown.
+                <div className="flex flex-wrap gap-2">
+                  <Button asChild size="sm" variant="warn" data-testid="tile-needs-inbox">
+                    <Link to="/inbox">Open Inbox</Link>
+                  </Button>
+                  {snapshot.approve + snapshot.publish > 0 ? (
+                    <Button asChild size="sm" variant="secondary" className="min-w-0 max-w-full" data-testid="tile-needs-listings">
+                      <Link to="/products">
+                        {/* One text item: the button is a flex row with a gap, and the label must not split. */}
+                        <span className="min-w-0 truncate">
+                          {snapshot.approve ? 'Approve' : 'Publish'}
+                          <span className="max-lg:sr-only"> in Products</span>
+                        </span>
+                      </Link>
+                    </Button>
+                  ) : null}
+                </div>
+              }
+            />
+          )}
+        </div>
+      )}
 
       <MarketplaceRow snapshot={snapshot} />
 
@@ -252,13 +262,6 @@ function Unknown({ reason }: { reason: string }) {
   )
 }
 
-/**
- * The Needs-you tile lands after its skeleton, once the row has already risen: it only fades in
- * (page-in, no stagger delay) instead of rising a second time. Forced over `stagger-children`'s
- * rise; the reduced-motion rule in the base layer still turns it off.
- */
-const SWAP_IN = 'animate-page-in [animation:page-in_200ms_var(--ease-tactile)_both]!'
-
 function Tile({ chip, view, testId, action }: { chip: ReactNode; view: TileView; testId: string; action?: ReactNode }) {
   return (
     <MetricTile
@@ -271,56 +274,28 @@ function Tile({ chip, view, testId, action }: { chip: ReactNode; view: TileView;
 }
 
 const MARKETPLACE_CARDS: readonly MarketplaceId[] = ['amazon', 'flipkart', 'myntra', 'ajio']
+const SUPPORTED_CARDS = MARKETPLACE_CARDS.filter((id): id is (typeof API_MARKETPLACES)[number] => (API_MARKETPLACES as readonly string[]).includes(id))
+const UNSUPPORTED_CARDS = MARKETPLACE_CARDS.filter((id) => !(API_MARKETPLACES as readonly string[]).includes(id))
+const MARKETPLACE_ROW = 'mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3'
 
 function MarketplaceRow({ snapshot }: { snapshot: ListingsSnapshot }) {
   const accounts = useCurrentMarketplaceAccounts()
   return (
-    <div className="stagger-children mt-4 grid grid-cols-2 gap-3 [--stagger-base:80ms] lg:grid-cols-4" data-testid="home-marketplaces">
-      {MARKETPLACE_CARDS.map((id) => {
-        const name = id === 'ajio' ? 'AJIO' : id.charAt(0).toUpperCase() + id.slice(1)
-        const supported = (API_MARKETPLACES as readonly string[]).includes(id)
-        if (!supported) {
-          return (
-            <LaCard key={id} emphasis="dashed" pad="sm" data-testid={`home-mp-${id}`}>
-              <div className="flex items-center gap-3 font-semibold text-ink">
-                <MarketplaceTile id={id} />
-                {name}
-              </div>
-              <div className="mt-3">
-                <StatusChip status="not-listed">Not available</StatusChip>
-              </div>
-              <UnavailableButton
-                reason={NOT_YET.waitlist}
-                variant="link"
-                size="xs"
-                className="mt-2 h-auto px-0 text-caption font-medium text-ink-3 no-underline aria-disabled:opacity-100"
-              >
-                Join waitlist
-              </UnavailableButton>
-            </LaCard>
-          )
-        }
-        const m = id as (typeof API_MARKETPLACES)[number]
-        if (accounts.isPending)
-          return (
-            <LaCard key={id} pad="sm">
-              <Skeleton className="h-9 w-32" />
-              <Skeleton className="mt-3 h-[22px] w-20 rounded-full" />
-              <Skeleton className="mt-2 h-4 w-24" />
-            </LaCard>
-          )
+    <div className={cn('stagger-children [--stagger-base:80ms]', MARKETPLACE_ROW)} data-testid="home-marketplaces">
+      {SUPPORTED_CARDS.map((m) => {
+        if (accounts.isPending) return <MarketplaceCardSkeleton key={m} />
         const account = accounts.data?.live[m] ?? null
         const view = accounts.isError ? null : marketplaceCard(account, snapshot.byMarketplace[m], snapshot.complete)
         return (
           // Solid once anything is live on it; dashed only while nothing is listed and nothing to fix.
           <LaCard
-            key={id}
+            key={m}
             pad="sm"
             emphasis={view && view.chip.status === 'not-listed' && !view.action ? 'dashed' : 'default'}
-            data-testid={`home-mp-${id}`}
+            data-testid={`home-mp-${m}`}
           >
             <div className="flex items-center gap-3 font-semibold text-ink">
-              <MarketplaceTile id={id} />
+              <MarketplaceTile id={m} />
               {MARKETPLACE_LABEL[m]}
             </div>
             <div className="mt-3">
@@ -349,7 +324,55 @@ function MarketplaceRow({ snapshot }: { snapshot: ListingsSnapshot }) {
           </LaCard>
         )
       })}
+      <UnsupportedMarketplaces />
     </div>
+  )
+}
+
+function MarketplaceCardSkeleton() {
+  return (
+    <LaCard pad="sm">
+      <Skeleton className="h-9 w-32" />
+      <Skeleton className="mt-3 h-[22px] w-20 rounded-full" />
+      <Skeleton className="mt-2 h-4 w-24" />
+    </LaCard>
+  )
+}
+
+/**
+ * Marketplaces Kuinn does not list on yet, in one quiet card so the two real ones keep the room.
+ * Static (no API): the skeleton body shows the same card, so it never swaps on load.
+ */
+function UnsupportedMarketplaces() {
+  return (
+    <DashedCard pad="sm" className="col-span-2 lg:col-span-1" data-testid="home-mp-more">
+      <h3 className="text-small font-semibold text-ink-2">More marketplaces</h3>
+      <ul className="mt-1.5">
+        {UNSUPPORTED_CARDS.map((id) => (
+          <li
+            key={id}
+            className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-line py-2 last:border-b-0 last:pb-0"
+            data-testid={`home-mp-${id}`}
+          >
+            <span className="flex min-w-0 items-center gap-2.5 font-semibold text-ink">
+              <MarketplaceTile id={id} size="xs" />
+              {MARKETPLACES.find((x) => x.id === id)?.name ?? id}
+            </span>
+            <span className="ml-auto flex items-center gap-2">
+              <StatusChip status="not-listed">Not available</StatusChip>
+              <UnavailableButton
+                reason={NOT_YET.waitlist}
+                variant="link"
+                size="xs"
+                className="h-auto px-0 text-caption font-medium text-ink-3 no-underline aria-disabled:opacity-100"
+              >
+                Join waitlist
+              </UnavailableButton>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </DashedCard>
   )
 }
 
@@ -367,7 +390,8 @@ function WaitingCard({
   const items = mergeInbox(tasks.rows, issues.rows).slice(0, WAITING_ROWS)
   const products = useProductsById(items.map((i) => (i.kind === 'task' ? i.task.product_id : null)))
   const error = tasks.error ?? issues.error
-  const pending = tasks.isPending || issues.isPending
+  // A row paints once, title and meta together: wait for its product (SKU) too.
+  const pending = tasks.isPending || issues.isPending || products.pending
   return (
     <LaCard data-testid="waiting-card">
       <CardHead
@@ -396,11 +420,11 @@ function WaitingCard({
           <ErrorState compact error={error} title="Couldn't load your Inbox" onRetry={() => void Promise.all([tasks.refetch(), issues.refetch()])} />
         ) : pending ? (
           Array.from({ length: 3 }, (_, i) => (
-            <div key={i} className="flex items-center gap-3 border-b border-line py-3 last:border-b-0">
+            <div key={i} className="flex items-center gap-3 border-b border-line py-3.5 last:border-b-0">
               <Skeleton className="size-9 rounded-tile" />
               <div className="flex-1 space-y-1.5">
-                <Skeleton className="h-4 w-40" />
-                <Skeleton className="h-3 w-56" />
+                <Skeleton className="h-4 w-40 max-w-full" />
+                <Skeleton className="h-3 w-56 max-w-full" />
               </div>
             </div>
           ))
@@ -411,7 +435,7 @@ function WaitingCard({
           </div>
         ) : (
           items.map((it) => {
-            const product = it.kind === 'task' && it.task.product_id ? products.get(it.task.product_id) : undefined
+            const product = it.kind === 'task' && it.task.product_id ? products.map.get(it.task.product_id) : undefined
             const title = it.kind === 'task' ? it.task.question : issueTitle(it.issue)
             const meta =
               it.kind === 'task'
@@ -476,14 +500,11 @@ function HomeSkeletonBody() {
         <TileSkeleton />
         <TileSkeleton attention className="col-span-2 md:col-span-1" />
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {Array.from({ length: 4 }, (_, i) => (
-          <LaCard key={i} pad="sm">
-            <Skeleton className="h-9 w-28" />
-            <Skeleton className="mt-3 h-[22px] w-20 rounded-full" />
-            <Skeleton className="mt-2 h-4 w-24" />
-          </LaCard>
+      <div className={MARKETPLACE_ROW}>
+        {SUPPORTED_CARDS.map((m) => (
+          <MarketplaceCardSkeleton key={m} />
         ))}
+        <UnsupportedMarketplaces />
       </div>
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         {[0, 1].map((card) => (

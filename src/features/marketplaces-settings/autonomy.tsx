@@ -5,7 +5,8 @@
  *   Approval mode is shown as the one, selected mode with its explanation;
  * - "The agent may fix these on its own", the retry limit and the task notifications are drawn as
  *   designed but disabled, each with its reason;
- * - "Per marketplace" states the real rule for each supported marketplace;
+ * - the real rule for each supported marketplace is one caption line inside the Approval mode tile;
+ * - the three planned cards sit together under one "Planned for a later version" heading;
  * - there is nothing to save, so the "Save changes" footer is not rendered.
  */
 import { useId } from 'react'
@@ -14,7 +15,7 @@ import { Banner } from '@/components/la/banner'
 import { CardHead, LaCard } from '@/components/la/cards'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { Icon } from '@/components/la/icons'
-import { MarketplaceName } from '@/components/la/marketplace'
+import { MARKETPLACES } from '@/components/la/marketplace'
 import { ComingSoon, UnavailableHint } from '@/components/la/unavailable'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -37,7 +38,7 @@ export function AutonomySettings() {
           aria-checked
           aria-disabled
           aria-labelledby="autonomy-mode-approval"
-          aria-describedby="autonomy-mode-approval-desc"
+          aria-describedby="autonomy-mode-approval-desc autonomy-per-marketplace"
           className="focus-ring flex items-start gap-3 rounded-tile border border-brand bg-brand-bg px-3.5 py-3 shadow-selected-inset"
         >
           <span aria-hidden className="mt-0.5 size-[18px] shrink-0 rounded-full border-[5px] border-brand bg-surface" />
@@ -48,76 +49,81 @@ export function AutonomySettings() {
             <p id="autonomy-mode-approval-desc" className="mt-1 text-small text-ink-2">
               You review and approve every listing before it is sent.
             </p>
+            {/* Per marketplace: the same rule on each supported marketplace, as one line. */}
+            <p id="autonomy-per-marketplace" className="mt-1.5 text-caption text-ink-3" data-testid="autonomy-per-marketplace">
+              {SUPPORTED.map((m, i) => (
+                <span key={m}>
+                  {i > 0 ? <span aria-hidden> · </span> : null}
+                  <span data-testid={`autonomy-${m}`}>
+                    <span className="font-semibold text-ink-2">{MARKETPLACES.find((x) => x.id === m)?.name ?? m}:</span>{' '}
+                    Approval required
+                  </span>
+                  {i < SUPPORTED.length - 1 ? <span className="sr-only">,</span> : null}
+                </span>
+              ))}
+            </p>
           </div>
         </div>
       </div>
 
-      <LaCard>
-        <CardHead
-          title="The agent may fix these on its own"
-          sub="Planned for a later version."
-          action={
-            <UnavailableHint reason={AUTONOMY_REASON.scope}>
-              <ComingSoon />
-            </UnavailableHint>
-          }
-        />
-        <ul className="mt-1">
-          {AUTO_FIX_SCOPE.map((label) => (
-            <li key={label} className="mt-3 flex items-center justify-between gap-3 text-body text-ink">
-              <span>{label}</span>
-              <StaticToggle label={label} reason={AUTONOMY_REASON.scope} />
-            </li>
-          ))}
-        </ul>
-        <p className="mt-4 text-caption text-ink-3">{NEVER_GUESSED}</p>
-      </LaCard>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <section aria-labelledby="autonomy-planned" className="mt-2 flex flex-col gap-4">
+        <h2 id="autonomy-planned" className="text-caption text-ink-3">
+          Planned for a later version
+        </h2>
         <LaCard>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-body font-bold text-ink">Retry limit</h3>
-            <ComingSoon />
-          </div>
-          <div className="mt-3 flex items-center gap-3">
-            <UnavailableHint reason={AUTONOMY_REASON.retry}>
-              <span className="inline-flex h-[34px] w-[72px] items-center justify-between rounded-control border border-line-strong bg-subtle px-2.5 text-small text-ink-3">
-                <span aria-label="Not set">—</span>
-                <Icon name="chev" size={16} />
-              </span>
-            </UnavailableHint>
-            <span className="text-small text-ink-2">attempts, then ask me</span>
-          </div>
+          <CardHead
+            title="The agent may fix these on its own"
+            action={
+              <UnavailableHint reason={AUTONOMY_REASON.scope}>
+                <ComingSoon />
+              </UnavailableHint>
+            }
+          />
+          <ul className="mt-1">
+            {AUTO_FIX_SCOPE.map((label) => (
+              <li key={label} className="mt-3 flex items-center justify-between gap-3 text-body text-ink">
+                <span>{label}</span>
+                <StaticToggle label={label} reason={AUTONOMY_REASON.scope} />
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 text-caption text-ink-3">{NEVER_GUESSED}</p>
         </LaCard>
-        <LaCard>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-body font-bold text-ink">Tell me about tasks by</h3>
-            <ComingSoon />
-          </div>
-          <div className="mt-3 flex flex-wrap gap-3.5">
-            {['Email', 'Push', 'WhatsApp'].map((c) => (
-              <UnavailableHint key={c} reason={AUTONOMY_REASON.notify}>
-                <span className="inline-flex items-center gap-1.5 text-body text-ink-3">
-                  <span aria-hidden className="size-[18px] rounded-sm border-[1.5px] border-line-strong bg-subtle" />
-                  {c}
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <LaCard>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-body font-bold text-ink">Retry limit</h3>
+              <ComingSoon />
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <UnavailableHint reason={AUTONOMY_REASON.retry}>
+                <span className="inline-flex h-[34px] w-[72px] items-center justify-between rounded-control border border-line-strong bg-subtle px-2.5 text-small text-ink-3">
+                  <span aria-label="Not set">—</span>
+                  <Icon name="chev" size={16} />
                 </span>
               </UnavailableHint>
-            ))}
-          </div>
-        </LaCard>
-      </div>
-
-      <LaCard>
-        <h3 className="text-body font-bold text-ink">Per marketplace</h3>
-        <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
-          {SUPPORTED.map((m) => (
-            <div key={m} className="flex items-center justify-between gap-3" data-testid={`autonomy-${m}`}>
-              <MarketplaceName id={m} size="sm" />
-              <span className="text-small font-semibold text-ink-2">Approval required</span>
+              <span className="text-small text-ink-2">attempts, then ask me</span>
             </div>
-          ))}
+          </LaCard>
+          <LaCard>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-body font-bold text-ink">Tell me about tasks by</h3>
+              <ComingSoon />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-3.5">
+              {['Email', 'Push', 'WhatsApp'].map((c) => (
+                <UnavailableHint key={c} reason={AUTONOMY_REASON.notify}>
+                  <span className="inline-flex items-center gap-1.5 text-body text-ink-3">
+                    <span aria-hidden className="size-[18px] rounded-sm border-[1.5px] border-line-strong bg-subtle" />
+                    {c}
+                  </span>
+                </UnavailableHint>
+              ))}
+            </div>
+          </LaCard>
         </div>
-      </LaCard>
+      </section>
     </div>
   )
 }

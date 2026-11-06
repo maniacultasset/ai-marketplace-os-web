@@ -5,6 +5,7 @@ import { IconGlyph, type IconSource } from '@/components/la/icons'
 import { NOT_YET } from '@/components/la/unavailable'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCan, type Policy } from '@/lib/permissions'
+import { cn } from '@/lib/utils'
 
 /**
  * Settings area (hi-fi 19): a 200px sub-nav beside the page from 1024px, a horizontal scroller
@@ -33,22 +34,29 @@ interface SubItem {
   action?: Policy
   /** Not available yet: shown disabled with this reason. */
   reason?: string
-  /** Starts a new group with this heading (sentence case, as the sidebar's section labels). */
+  /**
+   * The group heading this item sits under (sentence case, as the sidebar's section labels). The
+   * heading renders before the first visible item of each group, so a group keeps its heading
+   * when a role hides one of its items.
+   */
   group?: string
 }
 
-/** Hi-fi order (Brand profile … Audit log), then this build's extra pages. */
+/**
+ * Hi-fi items, grouped: what the brand sells by, how the agent works, the workspace, and you.
+ * Within each group the hi-fi order is kept. Every item and its route stay; Soon items stay.
+ */
 const SETTINGS_ITEMS: readonly SubItem[] = [
-  { label: 'Brand profile', icon: CONCEPT_ICON.brandProfile, to: '/brand' },
-  { label: 'Compliance', icon: 'shield', to: '/settings/compliance' },
-  { label: 'Autonomy', icon: 'sliders', to: '/settings' },
-  { label: 'Notifications', icon: 'bell', reason: NOT_YET.notifications },
-  { label: 'Team and brands', icon: 'users', to: '/team', action: 'team:manage' },
-  { label: 'Marketplace rules', icon: CONCEPT_ICON.rules, to: '/rules' },
-  { label: 'Imports history', icon: 'table', to: '/settings/imports' },
-  { label: 'Audit log', icon: CONCEPT_ICON.auditLog, reason: NOT_YET.auditLog },
-  { label: 'Account', icon: 'user', to: '/account' },
-  { label: 'Security', icon: 'lock', to: '/settings/security' },
+  { label: 'Brand profile', icon: CONCEPT_ICON.brandProfile, to: '/brand', group: 'Brand' },
+  { label: 'Compliance', icon: 'shield', to: '/settings/compliance', group: 'Brand' },
+  { label: 'Marketplace rules', icon: CONCEPT_ICON.rules, to: '/rules', group: 'Brand' },
+  { label: 'Autonomy', icon: 'sliders', to: '/settings', group: 'Agent' },
+  { label: 'Notifications', icon: 'bell', reason: NOT_YET.notifications, group: 'Agent' },
+  { label: 'Team and brands', icon: 'users', to: '/team', action: 'team:manage', group: 'Workspace' },
+  { label: 'Imports history', icon: 'table', to: '/settings/imports', group: 'Workspace' },
+  { label: 'Audit log', icon: CONCEPT_ICON.auditLog, reason: NOT_YET.auditLog, group: 'Workspace' },
+  { label: 'Account', icon: 'user', to: '/account', group: 'You' },
+  { label: 'Security', icon: 'lock', to: '/settings/security', group: 'You' },
 ]
 
 /** Shared by links and the disabled "Soon" rows, so both sit on the same box and line up. */
@@ -74,9 +82,12 @@ function SettingsLayout() {
         data-testid="settings-nav"
         className="flex scroll-pr-8 scroll-pl-3 items-start gap-0.5 self-start overflow-x-auto border-b border-line bg-canvas px-3 py-2 lg:flex-col lg:items-stretch lg:self-stretch lg:overflow-visible lg:border-r lg:border-b-0 lg:py-6"
       >
-        {items.map((i) => (
+        {items.map((i, n) => (
           <div key={i.label} className="contents">
-            {i.group ? <p className="hidden px-3 pt-4 pb-1 text-caption text-ink-3 lg:block">{i.group}</p> : null}
+            {/* Headings are for the 200px column only; the sideways scroller below 1024px stays one row. */}
+            {i.group && i.group !== items[n - 1]?.group ? (
+              <p className={cn('hidden px-3 pb-1 text-caption text-ink-3 lg:block', n === 0 ? 'pt-0' : 'pt-4')}>{i.group}</p>
+            ) : null}
             {i.to ? (
               <Link to={i.to} activeOptions={{ exact: i.to === '/settings', includeSearch: false }} className={LINK}>
                 <IconGlyph icon={i.icon} size={16} />

@@ -34,6 +34,18 @@ export function countWorking(pages: readonly ({ data: readonly Pick<Schema<'List
   return { count, more }
 }
 
+/**
+ * Which source the card reads: Home's snapshot only when it is newer than every agent-card read
+ * (`agentAt` holds each read's dataUpdatedAt, 0 while it has no data). While the card's own reads
+ * have not all answered, a snapshot from the last minute stands in rather than "Checking…".
+ */
+function pickFresher(agentAt: readonly number[], snapshotAt: number, now: number): 'agent' | 'snapshot' {
+  if (!snapshotAt) return 'agent'
+  const ownComplete = agentAt.length > 0 && agentAt.every((t) => t > 0)
+  if (!ownComplete) return now - snapshotAt < 2 * REFRESH_MS ? 'snapshot' : 'agent'
+  return snapshotAt > Math.max(...agentAt) ? 'snapshot' : 'agent'
+}
+
 export function useAgentWork() {
   const keys = useKeys()
   const client = useQueryClient()
@@ -46,12 +58,17 @@ export function useAgentWork() {
       meta: { toast: false },
     })),
   })
-  // On Home the full listings walk is already loaded: read it (never fetch it here) so the sidebar
-  // and the "In progress" tile show the same number.
-  // Read from the cache only (the card re-renders with its own 30s refetches).
+  // Two sources count the same thing: these three reads, and Home's full listings walk when it is
+  // in the cache (read only, never fetched here). Use whichever read the API last, so moving between
+  // pages never changes the line without a real data change. A refetch in flight keeps its data, so
+  // the previous line stays until the new answer lands.
   const state = client.getQueryState<ListingsSnapshot>([...keys.listings.lists(), 'home-snapshot'])
-  const snap = state?.data && Date.now() - state.dataUpdatedAt < 2 * REFRESH_MS ? state.data : undefined
-  if (snap) return { pending: false, failed: false, count: snap.working, more: !snap.complete }
+  const source = pickFresher(
+    results.map((r) => (r.data ? r.dataUpdatedAt : 0)),
+    state?.data ? state.dataUpdatedAt : 0,
+    Date.now(),
+  )
+  if (source === 'snapshot' && state?.data) return { pending: false, failed: false, count: state.data.working, more: !state.data.complete }
   const pending = results.some((r) => r.isPending)
   const failed = results.some((r) => r.isError)
   return { pending, failed, ...countWorking(results.map((r) => r.data)) }

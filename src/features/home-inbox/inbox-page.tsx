@@ -50,7 +50,7 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
   const showsTasks = view !== 'issues'
   const showsIssues = view !== 'questions'
   const lists = [showsTasks && taskList, showsIssues && issueList].filter((x) => !!x)
-  const pending = lists.some((l) => l.isPending)
+  const listsPending = lists.some((l) => l.isPending)
   const error = lists.find((l) => l.error)?.error
   const items = visibleItems(view, mergeInbox(showsTasks ? taskList.rows : [], showsIssues ? issueList.rows : []))
   const selectedKey = search.item ?? (items[0] ? itemKey(items[0]) : undefined)
@@ -60,6 +60,8 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
   const countsReady = !!openTasks.data && !!openIssues.data
   const openTotal = { n: tCount.n + iCount.n, more: tCount.more || iCount.more }
   const products = useProductsById(items.map((i) => (i.kind === 'task' ? i.task.product_id : null)))
+  // A card paints once, title and meta together: its product (SKU) is part of the meta.
+  const pending = listsPending || products.pending
   const filteredStatus = (view === 'questions' && statuses.task !== 'open') || (view === 'issues' && statuses.issue !== 'open')
 
   return (
@@ -83,8 +85,9 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
           onChange={(v) => onSearch({ view: v === 'all' ? undefined : v, item: undefined }, { replace: true })}
           options={[
             { value: 'all', label: 'All', count: countsReady ? fmtCount(openTotal) : undefined },
-            { value: 'questions', label: 'Questions', count: openTasks.data ? fmtCount(tCount) : undefined },
-            { value: 'issues', label: 'Issues', count: openIssues.data ? fmtCount(iCount) : undefined },
+            // All three counts appear together, once both open lists have answered.
+            { value: 'questions', label: 'Questions', count: countsReady ? fmtCount(tCount) : undefined },
+            { value: 'issues', label: 'Issues', count: countsReady ? fmtCount(iCount) : undefined },
           ]}
         />
         {view !== 'all' ? <StatusPicker view={view} search={search} onSearch={onSearch} /> : null}
@@ -120,7 +123,7 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
           ) : (
             items.map((it) => (
               <li key={itemKey(it)}>
-                <ItemCard item={it} selected={itemKey(it) === selectedKey} search={search} product={it.kind === 'task' && it.task.product_id ? products.get(it.task.product_id) : undefined} />
+                <ItemCard item={it} selected={itemKey(it) === selectedKey} search={search} product={it.kind === 'task' && it.task.product_id ? products.map.get(it.task.product_id) : undefined} />
               </li>
             ))
           )}
@@ -142,7 +145,7 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
         <InboxDetail
           selectedKey={selectedKey}
           items={items}
-          pending={pending}
+          pending={listsPending}
           search={search}
           products={products}
         />
