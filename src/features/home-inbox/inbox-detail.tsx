@@ -223,7 +223,7 @@ function TaskDetail({
           {photo
             ? 'This doesn’t block your listing. Answer to improve it.'
             : account
-              ? 'Publishing to this marketplace waits until it is sorted.'
+              ? ''
               : fact
                 ? 'Regenerate the listing after you answer to use it.'
                 : `The agent resumes from ${RESUME_LABEL[task.resume_from]} once this is answered.`}

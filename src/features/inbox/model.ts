@@ -261,3 +261,17 @@ export function accountTaskHelp(kind: AccountReviewKind, marketplace: Issue['mar
     return `${mp} needs an approval on your seller account for this category. Ask for it in ${marketplace ? SELLER_PORTAL[marketplace] : 'your seller account'}. Once it is approved, open the listing to send it again.`
   return `Kuinn doesn’t know this ${marketplace ? `${mp} ` : ''}error yet, so it can’t fix it on its own. Read what ${marketplace ? mp : 'the marketplace'} said, change the product or the listing, then generate it again.`
 }
+
+/**
+ * One live account task covers every listing the same refusal hit (one per account and kind, or
+ * per category): its issues grouped by listing, in the order given (newest first).
+ */
+export function issuesByListing(issues: readonly Issue[]): { listingId: string; issues: Issue[] }[] {
+  const groups = new Map<string, Issue[]>()
+  for (const i of issues) {
+    const list = groups.get(i.listing_id)
+    if (list) list.push(i)
+    else groups.set(i.listing_id, [i])
+  }
+  return [...groups].map(([listingId, list]) => ({ listingId, issues: list }))
+}

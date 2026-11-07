@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -20,13 +20,15 @@ vi.mock('@/features/inbox/dismiss-issue', () => ({ DismissIssueButton: () => <bu
 const { InboxDetail } = await import('./inbox-detail')
 const { keysFor } = await import('@/lib/query-keys')
 const { listingDetailQuery } = await import('@/features/listings/api')
-const { accountTaskHelp, isAccountReviewTask, linkedIssues } = await import('@/features/inbox/model')
+const { accountTaskHelp, isAccountReviewTask, issuesByListing, linkedIssues } = await import('@/features/inbox/model')
 
 afterEach(cleanup)
 
 const TASK = '0b1c2d3e-0000-4000-8000-000000003001'
 const LISTING = '0b1c2d3e-0000-4000-8000-000000000201'
 const PRODUCT = '0b1c2d3e-0000-4000-8000-000000000101'
+const LISTING2 = '0b1c2d3e-0000-4000-8000-000000000211'
+const PRODUCT2 = '0b1c2d3e-0000-4000-8000-000000000111'
 
 const task = (kind: Task['kind']): Task => ({
   id: TASK,
@@ -72,10 +74,14 @@ function show(t: Task, issues: Issue[]) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const keys = keysFor('t1')
   qc.setQueryData([...keys.issues.all(), 'by-task', TASK], issues)
-  qc.setQueryData(listingDetailQuery(keys, LISTING).queryKey, {
-    etag: '"l1"',
-    data: { id: LISTING, product_id: PRODUCT, marketplace: 'amazon', status: 'failed', current_version_id: 'v1', created_at: 'x', updated_at: 'x' } as never,
-  })
+  for (const [id, product] of [
+    [LISTING, PRODUCT],
+    [LISTING2, PRODUCT2],
+  ] as const)
+    qc.setQueryData(listingDetailQuery(keys, id).queryKey, {
+      etag: '"l1"',
+      data: { id, product_id: product, marketplace: 'amazon', status: 'failed', current_version_id: 'v1', created_at: 'x', updated_at: 'x' } as never,
+    })
   const item = { kind: 'task' as const, id: t.id, at: t.created_at, task: t }
   return render(
     <QueryClientProvider client={qc}>
@@ -101,7 +107,24 @@ describe('Inbox account tasks', () => {
     expect(screen.getByTestId('task-regenerate')).toBeTruthy()
     // The internal target path is never shown.
     expect(screen.getByTestId('task-detail').textContent).not.toContain('account.error_review')
-    expect(screen.getByTestId('task-resume').textContent).toContain('Publishing to this marketplace waits')
+    // No promise about publishing: nothing closes this task on its own.
+    expect(screen.getByTestId('task-resume').textContent).not.toContain('waits')
+  })
+
+  it('one task covers many listings: one block per listing, each with its own error and actions', () => {
+    const second = { ...issue, id: '0b1c2d3e-0000-4000-8000-000000001002', listing_id: LISTING2, raw_message: 'Size map is missing.', plain_message: 'Amazon needs a size map.' }
+    show(task('marketplace_error_review'), [issue, second, { ...issue, id: '0b1c2d3e-0000-4000-8000-000000001003', last_seen_at: '2026-11-06T09:00:00Z' }])
+    expect(screen.getByTestId('account-task-count').textContent).toBe('2 listings')
+    const blocks = screen.getAllByTestId('account-task-listing')
+    expect(blocks).toHaveLength(2)
+    const [a, b] = blocks.map((el) => within(el))
+    expect(a!.getByTestId('task-open-listing').getAttribute('href')).toBe(`/listings/${LISTING}/review`)
+    expect(a!.getByTestId('task-edit-product').getAttribute('href')).toBe(`/products/${PRODUCT}`)
+    expect(a!.getByText(/1 more error/)).toBeTruthy()
+    expect(b!.getByTestId('task-open-listing').getAttribute('href')).toBe(`/listings/${LISTING2}/review`)
+    expect(b!.getByTestId('task-edit-product').getAttribute('href')).toBe(`/products/${PRODUCT2}`)
+    expect(b!.getByTestId('account-task-error').textContent).toContain('Size map is missing.')
+    expect(b!.getByTestId('task-regenerate')).toBeTruthy()
   })
 
   it('a permission task says where to ask, and offers no regenerate', () => {
@@ -125,5 +148,10 @@ describe('account task model', () => {
     const older = { ...issue, id: 'a', last_seen_at: '2026-11-06T09:00:00Z' }
     expect(linkedIssues(TASK, [older, issue, { ...issue, id: 'b', human_task_id: null }]).map((i) => i.id)).toEqual([issue.id, 'a'])
     expect(accountTaskHelp('marketplace_error_review', null)).toContain('the marketplace said')
+    const groups = issuesByListing([issue, { ...issue, id: 'c', listing_id: LISTING2 }, older])
+    expect(groups.map((g) => [g.listingId, g.issues.map((i) => i.id)])).toEqual([
+      [LISTING, [issue.id, 'a']],
+      [LISTING2, ['c']],
+    ])
   })
 })
