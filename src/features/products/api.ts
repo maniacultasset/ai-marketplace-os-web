@@ -113,16 +113,17 @@ export function useCreateProduct() {
     // Field errors / SKU conflict are shown inline by the form.
     meta: { toast: false },
     // Sent as hand-built JSON so number attributes keep the digits the user typed (see toCreateJson).
-    mutationFn: async (values: ProductFormValues) =>
-      parseProductJson(
-        await unwrap(
-          api.POST('/products', {
-            body: toCreateBody(values),
-            bodySerializer: () => toCreateJson(values),
-            parseAs: 'text',
-          }),
-        ),
-      ),
+    mutationFn: async (values: ProductFormValues): Promise<ProductDetail> => {
+      // The 201 carries the product's ETag: cache it, so an edit right after can PATCH.
+      const { data: text, etag } = await unwrapVersioned(
+        api.POST('/products', {
+          body: toCreateBody(values),
+          bodySerializer: () => toCreateJson(values),
+          parseAs: 'text',
+        }),
+      )
+      return { ...parseProductJson(text), etag }
+    },
     onSuccess: (product) => {
       qc.setQueryData(productQuery(keys, product.id).queryKey, product)
       void qc.invalidateQueries({ queryKey: keys.products.list() })
