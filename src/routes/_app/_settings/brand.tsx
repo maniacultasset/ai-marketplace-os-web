@@ -11,7 +11,7 @@ function BrandRoute() {
     <Page className="mx-0 max-w-[1100px]">
       <PageHeader
         title="Brand profile"
-        description="The voice and reference documents used when listings are written for this brand."
+        description="The voice, manufacturer and reference documents used when listings are written for this brand."
         actions={
           <Can action="settings:manage">
             <Button variant="secondary" asChild>
