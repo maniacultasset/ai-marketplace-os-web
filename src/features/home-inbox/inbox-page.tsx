@@ -201,11 +201,11 @@ function ItemCard({
   const meta =
     item.kind === 'task'
       ? [product?.sku, TASK_KIND_LABEL[item.task.kind]].filter(Boolean).join(' · ')
-      : // A closed issue says so in words, not only with the tile's colour.
+      : // A closed issue says so in words, first so the line's truncation never hides it.
         [
+          item.issue.status === 'open' ? null : ISSUE_STATUS_LABEL[item.issue.status],
           MARKETPLACE_LABEL[item.issue.marketplace],
           fieldLabel(item.issue.field_path),
-          item.issue.status === 'open' ? null : ISSUE_STATUS_LABEL[item.issue.status],
         ]
           .filter(Boolean)
           .join(' · ')
