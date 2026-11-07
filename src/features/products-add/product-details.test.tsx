@@ -1,4 +1,4 @@
-import { act, cleanup, render, renderHook, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ProductDetail } from '@/features/products/api'
 
@@ -42,5 +42,31 @@ describe('ProductDetailsEditor', () => {
     act(() => result.current.patch({ title: 'New title' }))
     view.rerender(<ProductDetailsEditor session={result.current} />)
     expect((screen.getByTestId('product-save') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('offers the category only while the product has no listing, and never on a variant', () => {
+    const { result } = renderHook(() => useProductEditSession(product, false, 'none'))
+    act(() => result.current.start())
+    const view = render(<ProductDetailsEditor session={result.current} categoryLock="open" />)
+    const trigger = () => screen.getByTestId('e-category') as HTMLButtonElement
+    expect(trigger().disabled).toBe(false)
+    expect(screen.getByText('Kurta sets and T-shirts can be listed for now.')).toBeTruthy()
+    view.rerender(<ProductDetailsEditor session={result.current} categoryLock="locked" />)
+    expect(trigger().disabled).toBe(true)
+    expect(screen.getByText('Fixed once the product has a listing.')).toBeTruthy()
+    view.rerender(<ProductDetailsEditor session={result.current} categoryLock="pending" />)
+    expect(trigger().disabled).toBe(true)
+    // A failed listings read keeps it fixed (the safe side) and offers a retry.
+    const retry = vi.fn()
+    view.rerender(<ProductDetailsEditor session={result.current} categoryLock="unknown" onRetryCategoryLock={retry} />)
+    expect(trigger().disabled).toBe(true)
+    expect(screen.getByText('Couldn’t check for listings, so it stays as it is.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Check again' }))
+    expect(retry).toHaveBeenCalledOnce()
+    cleanup()
+    const variant = renderHook(() => useProductEditSession({ ...product, parent_product_id: 'p0' }, true, 'none'))
+    act(() => variant.result.current.start())
+    render(<ProductDetailsEditor session={variant.result.current} categoryLock="open" />)
+    expect(screen.queryByTestId('e-category')).toBeNull()
   })
 })

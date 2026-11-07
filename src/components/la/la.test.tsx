@@ -26,6 +26,8 @@ describe('status chip', () => {
 describe('source badge', () => {
   it('always shows the agent confidence', () => {
     expect(sourceLabel({ kind: 'agent', confidence: 0.82, detail: 'from photos' })).toBe('Agent · from photos · 82%')
+    expect(sourceLabel({ kind: 'photo' })).toBe('From photo')
+    expect(sourceLabel({ kind: 'photo', unconfirmed: true })).toBe('From photo, not confirmed')
     expect(formatConfidence(94)).toBe('94%')
     expect(formatConfidence(0.5)).toBe('50%')
     expect(formatConfidence(140)).toBe('100%')

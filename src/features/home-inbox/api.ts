@@ -20,7 +20,7 @@ import { useCallback } from 'react'
 import { api, unwrap } from '@/api/client'
 import type { Schema } from '@/api/types'
 import { fetchIssuesPage } from '@/features/inbox/api'
-import type { Issue } from '@/features/inbox/model'
+import { linkedIssues, type Issue } from '@/features/inbox/model'
 import { autoFixedOn, versionRef } from '@/features/listing-flow/auto-fix-model'
 import { listingDetailQuery } from '@/features/listings/api'
 import { productQuery } from '@/features/products/api'
@@ -203,5 +203,24 @@ export function useFixCounts(listings: readonly FixRef[]): { pending: boolean; c
       ...listings.map((l) => ({ ...listingDetailQuery(keys, l.id), meta: { toast: false } })),
     ],
     combine,
+  })
+}
+
+/** Pages of open issues walked to find a task's linked issues (the API has no task filter). */
+const TASK_ISSUE_PAGES = 4
+
+/**
+ * The open issues linked to an account task (`human_task_id`), from GET /issues?status=open
+ * walked up to a cap. Under `issues.all()`, so a dismiss, regenerate or re-check refreshes it.
+ */
+export function useTaskIssues(taskId: string, enabled = true) {
+  const keys = useKeys()
+  return useQuery({
+    queryKey: [...keys.issues.all(), 'by-task', taskId] as const,
+    enabled,
+    queryFn: async (): Promise<Issue[]> => {
+      const rows = await walkIssues((cursor) => fetchIssuesPage({ status: 'open' }, cursor), TASK_ISSUE_PAGES)
+      return linkedIssues(taskId, rows)
+    },
   })
 }

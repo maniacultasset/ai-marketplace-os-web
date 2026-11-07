@@ -7,6 +7,9 @@
  *   - quality gates: gates.ts over the latest validation, the rules and the preview; "Run checks"
  *     is POST /listings/validate;
  *   - claim card: only when the checks return UNSUPPORTED_CLAIM;
+ *   - "Read from your photos": the product's photo values nobody has confirmed, with Confirm /
+ *     Reject (PATCH /products/{id}, features/photo-facts); after a reject, Generate again
+ *     (POST /listings/{id}/regenerate) so the text drops the removed value;
  *   - "Fixed for you": what Kuinn fixed on this version (GET /issues?status=auto_fixed&listing_id=),
  *     next to the gates; it lands with them, and Approve waits for it, so it is seen first;
  *   - Approve / Approve all: POST /listings/approve (Idempotency-Key, `listing_version_id`),
@@ -36,7 +39,7 @@ import { NotFound } from '@/components/states/not-found'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useFixCounts, useFixTrail } from '@/features/home-inbox/api'
-import { invalidateListingWork, useListingHistory, usePublishListings, useReviewListings, useValidateListing } from '@/features/listings/api'
+import { invalidateListingWork, useListingHistory, usePublishListings, useRegenerateListing, useReviewListings, useValidateListing } from '@/features/listings/api'
 import { recallJob, rememberJob } from '@/features/listings/job-memory'
 import {
   approveItems,
@@ -50,6 +53,7 @@ import {
   type Listing,
   type ListingDetail,
 } from '@/features/listings/model'
+import { ReviewPhotoValues } from '@/features/photo-facts/review-photo-values'
 import { useJobPolling } from '@/hooks/use-job-polling'
 import { useMe } from '@/lib/auth'
 import { listingChip } from '@/lib/listing-chip'
@@ -362,6 +366,13 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
                 validating={validate.isPending}
                 onValidate={() => validate.mutate(listing.current_version_id ?? null)}
               />
+              {/* Lands with the gates and "Fixed for you", so nothing below it moves. */}
+              {product && checks.gatesReady && !fixesQ.isPending ? (
+                <ReviewPhotoValues
+                  product={product}
+                  afterReject={<RegenerateButton listing={listing} state={actions.regenerate} />}
+                />
+              ) : null}
               {/* Lands with the gates (same ready flag), so it never pushes the cards below it. */}
               {fixesQ.isPending || !checks.gatesReady ? null : (
                 <FixedForYouCard
@@ -459,6 +470,41 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
         />
       ) : null}
     </div>
+  )
+}
+
+/** "Generate again" (POST /listings/{id}/regenerate) after a photo value was removed here. */
+function RegenerateButton({ listing, state }: { listing: ListingDetail; state: ActionState }) {
+  const navigate = useNavigate()
+  const regenerate = useRegenerateListing(listing.id)
+  const key = useIntentKey()
+  return (
+    <ActionButton
+      state={state}
+      size="sm"
+      variant="secondary"
+      disabled={regenerate.isPending}
+      data-testid="photo-regenerate"
+      onClick={() =>
+        regenerate.mutate(
+          { instructions: null, key: key.get() },
+          {
+            onSuccess: (a) => {
+              key.reset()
+              rememberJob(listing.id, a.job_id)
+              void navigate({ to: '/runs/$runId', params: { runId: a.job_id } })
+            },
+            onError: (e) => {
+              if (isApiError(e) && !e.isNetwork) key.reset()
+              toastError(e, 'Couldn’t start a new generation')
+            },
+          },
+        )
+      }
+    >
+      <Icon name="refresh" size={14} />
+      {regenerate.isPending ? 'Starting…' : 'Generate again'}
+    </ActionButton>
   )
 }
 
