@@ -408,7 +408,7 @@ export function ProductDetailsEditor({ session }: { session: ProductEditSession 
             <Button type="button" variant="ghost" onClick={session.cancel} disabled={session.saving}>
               Cancel
             </Button>
-            <Button type="submit" disabled={session.saving} data-testid="product-save">
+            <Button type="submit" disabled={session.saving || !session.dirty} data-testid="product-save">
               {session.saving ? <Spinner data-icon="inline-start" aria-hidden /> : null}
               {session.saving ? 'Saving…' : 'Save changes'}
             </Button>
