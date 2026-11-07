@@ -3,7 +3,7 @@
  *   Brand profile               GET /tenants/me (tone, guidelines or glossary saved)
  *   Brand manufacturer          GET /brand-profile (default_manufacturer set)
  *   Connect a marketplace       GET /marketplaces/accounts (active accounts, of the 2 the API supports)
- *   Add a teammate who approves GET /members (someone else can approve: maker-checker)
+ *   Add a teammate who approves GET /members (someone else can approve: maker-checker); opens Invite on /team
  *   Add your first product      GET /products?limit=1
  * The route cards open the V1 add screens (guided form, its photo-first start, bulk spreadsheet),
  * with the brand's connected marketplaces chosen.
@@ -164,11 +164,19 @@ export function FirstRun({ brand }: { brand: string }) {
 
 function SetupRow({ step, unknown }: { step: SetupStep; unknown: boolean }) {
   const to = STEP_LINK[step.id]
+  const linkClass = cn('rounded-sm underline-offset-4 hover:underline', step.state === 'next' ? 'font-bold text-ink' : 'text-ink')
   const label =
     step.state !== 'done' ? (
-      <Link to={to} className={cn('rounded-sm underline-offset-4 hover:underline', step.state === 'next' ? 'font-bold text-ink' : 'text-ink')}>
-        {step.label}
-      </Link>
+      step.id === 'approver' ? (
+        // Opens "Invite a teammate" on the Team page.
+        <Link to="/team" search={{ invite: 1 }} className={linkClass}>
+          {step.label}
+        </Link>
+      ) : (
+        <Link to={to} className={linkClass}>
+          {step.label}
+        </Link>
+      )
     ) : (
       <span className="text-ink">{step.label}</span>
     )
