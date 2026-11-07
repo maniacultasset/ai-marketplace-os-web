@@ -1,4 +1,4 @@
-/** Avatar menu (hi-fi top bar): 28px brand circle with the user's initial in a 36px target; account, sign out. */
+/** Avatar menu (hi-fi top bar): 28px brand circle with the user's initial in a 36px target; account, support, sign out. */
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import {
@@ -13,6 +13,7 @@ import {
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { Skeleton } from '@/components/ui/skeleton'
 import { logout, useMe } from '@/lib/auth'
+import { SUPPORT_EMAIL, supportMailto } from '@/lib/support'
 import { useNavItems } from '@/lib/nav'
 import { cn } from '@/lib/utils'
 import { NavIcon } from './nav-icon'
@@ -72,6 +73,16 @@ export function UserMenu() {
             <DropdownMenuSeparator />
           </>
         ) : null}
+        <DropdownMenuItem asChild>
+          <a href={supportMailto('Kuinn support')} data-testid="contact-support">
+            <NavIcon icon={CONCEPT_ICON.support} size={16} className="text-ink-3" />
+            <span className="flex min-w-0 flex-col">
+              Contact support
+              <span className="truncate text-caption text-ink-3">{SUPPORT_EMAIL}</span>
+            </span>
+          </a>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           disabled={signingOut}
           onSelect={(e) => {

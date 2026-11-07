@@ -15,6 +15,7 @@ import {
   FlaskConical,
   Gauge,
   IndianRupee,
+  LifeBuoy,
   ListChecks,
   LogOut,
   MessageSquareWarning,
@@ -71,6 +72,8 @@ export const CONCEPT_ICON = {
   rulebook: BookOpen,
   fit: Ruler,
   lateRejection: MessageSquareWarning,
+  /** Contact Kuinn support (an email; the app has no support channel of its own). */
+  support: LifeBuoy,
   /** A critical fact: never filled by the agent (field labels and their legend). */
   critical: Star,
 } as const satisfies Record<string, IconSource>

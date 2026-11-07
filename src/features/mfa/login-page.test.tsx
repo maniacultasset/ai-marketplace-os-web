@@ -314,3 +314,18 @@ describe('LoginPage: every LoginResult status', () => {
     expect(await screen.findByText('That sign-in step timed out. Sign in again.')).toBeTruthy()
   })
 })
+
+describe('LoginPage: forgot password', () => {
+  afterEach(() => {
+    cleanup()
+    queryClient.clear()
+    vi.unstubAllGlobals()
+  })
+
+  it('gives owners the support email instead of "ask your brand owner"', () => {
+    setup({})
+    const link = screen.getByRole('link', { name: 'support@kuinn.in' })
+    expect(link.getAttribute('href')).toMatch(/^mailto:support@kuinn\.in\?subject=Reset/)
+    expect(link.closest('[id]')?.textContent).toContain('Owners, email')
+  })
+})

@@ -45,6 +45,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { unlinkGoogle } from '@/features/google/api'
 import { FormAlert } from '@/features/public/auth-frame'
 import { PasswordInput } from '@/features/signup-admin/password-input'
+import { SUPPORT_EMAIL, supportMailto } from '@/lib/support'
 import { logout, useMe } from '@/lib/auth'
 import { useKeys } from '@/lib/query-keys'
 import { cn } from '@/lib/utils'
@@ -1137,8 +1138,11 @@ export function SecurityView({ setup = false, onSetupShown }: { setup?: boolean;
       <LaCard emphasis="tint" pad="md" className="flex items-start gap-3">
         <IconTile icon="info" size="md" />
         <p className="text-small text-ink-2">
-          <span className="font-semibold text-ink">Lost your phone and your recovery codes?</span> Ask your brand owner to contact
-          Kuinn support. We check who you are before we reset login codes.
+          <span className="font-semibold text-ink">Lost your phone and your recovery codes?</span> Email{' '}
+          <a href={supportMailto('Reset my login codes')} className="font-semibold text-brand underline-offset-4 hover:underline">
+            {SUPPORT_EMAIL}
+          </a>{' '}
+          from your sign-in email. We check who you are before we reset login codes.
         </p>
       </LaCard>
     </div>
