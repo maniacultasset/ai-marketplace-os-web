@@ -22,6 +22,7 @@ import {
   partyProblems,
   priceAboveMrp,
   samePartyDraft,
+  SIZE_CHART_REFUSED,
   sizeChartProblems,
   toPartyIn,
   toSizeChart,
@@ -52,7 +53,24 @@ export interface EditDraft {
   manufacturer: PartyDraft
 }
 
-export function toEditDraft(p: Product): EditDraft {
+/**
+ * Where the effective manufacturer comes from. The backend marks `inherited` only for the brand
+ * default, so a variant that inherits its style's party looks like its own: compare it with the
+ * style's effective party (`parent`, read with GET /products/{id}; undefined while unknown).
+ */
+export type ManufacturerSource = 'none' | 'brand' | 'style' | 'own' | 'unknown'
+
+export function manufacturerSource(p: Product, parent: Product | null | undefined): ManufacturerSource {
+  const m = p.manufacturer
+  if (!m) return 'none'
+  if (m.inherited) return 'brand'
+  if (!p.parent_product_id) return 'own'
+  if (!parent || parent.id === p.id) return 'unknown'
+  return parent.manufacturer?.id === m.id ? 'style' : 'own'
+}
+
+/** `source` decides whether the loaded manufacturer counts as this product's own. */
+export function toEditDraft(p: Product, source: ManufacturerSource = manufacturerSource(p, null)): EditDraft {
   const attrs = Object.fromEntries(EDIT_ATTRS.map((k) => {
     const v = p.attributes?.[k]
     return [k, typeof v === 'string' ? v : v == null ? '' : String(v)]
@@ -66,7 +84,7 @@ export function toEditDraft(p: Product): EditDraft {
     sizeChart: fromSizeChart(p.size_chart),
     mrp: p.mrp ?? '',
     sellingPrice: p.selling_price ?? '',
-    ownManufacturer: !!p.manufacturer && !p.manufacturer.inherited,
+    ownManufacturer: source === 'own',
     manufacturer: fromPartyOut(p.manufacturer),
   }
 }
@@ -159,6 +177,7 @@ export function mapPatchErrors(
     let msg = det.msg
     if (err.type === 'FACT_LEVEL_INVALID') msg = 'This is set on the style, not on a single variant.'
     if (err.type === 'UNKNOWN_FACT_KEY') msg = 'Unknown attribute.'
+    if (key === 'size_chart') msg = SIZE_CHART_REFUSED
     if (key === 'selling_price' && priceAboveMrp(d.sellingPrice, d.mrp)) msg = 'Keep the selling price at or below the MRP.'
     if (!/^(title|style_number|mrp|selling_price|size_chart|attr\.|manufacturer\.)/.test(key)) {
       unmapped = true
@@ -167,4 +186,32 @@ export function mapPatchErrors(
     fields[key] ??= msg
   }
   return { fields, unmapped }
+}
+
+/**
+ * 409 STALE_VERSION: put the fields the person changed (from `original`, the version their edit
+ * started from, to `mine`) on top of `fresh`, the version someone else saved. Untouched fields
+ * take the fresh values, so the retry never reverts the other person's change.
+ */
+export function rebaseDraft(original: EditDraft, mine: EditDraft, fresh: EditDraft): EditDraft {
+  const out: EditDraft = { ...fresh, attrs: { ...fresh.attrs } }
+  if (mine.title.trim() !== original.title.trim()) out.title = mine.title
+  if (mine.styleNumber.trim() !== original.styleNumber.trim()) out.styleNumber = mine.styleNumber
+  if (!sameMoney(mine.mrp, original.mrp)) out.mrp = mine.mrp
+  if (!sameMoney(mine.sellingPrice, original.sellingPrice)) out.sellingPrice = mine.sellingPrice
+  for (const k of EDIT_ATTRS) if (mine.attrs[k].trim() !== original.attrs[k].trim()) out.attrs[k] = mine.attrs[k]
+  if (compositionValue(mine.composition) !== compositionValue(original.composition)) out.composition = mine.composition
+  if (JSON.stringify(toSizeChart(mine.sizeChart)) !== JSON.stringify(toSizeChart(original.sizeChart))) out.sizeChart = mine.sizeChart
+  const mfrChanged =
+    mine.ownManufacturer !== original.ownManufacturer || (mine.ownManufacturer && !samePartyDraft(mine.manufacturer, original.manufacturer))
+  if (mfrChanged) {
+    out.ownManufacturer = mine.ownManufacturer
+    out.manufacturer = mine.manufacturer
+  }
+  return out
+}
+
+/** Whether a save changed anything the editor shows (a no-op is not reported as saved). */
+export function changedOnServer(before: Product, after: Product, isVariant: boolean): boolean {
+  return Object.keys(buildPatch(toEditDraft(before, 'own'), toEditDraft(after, 'own'), isVariant)).length > 0 || before.manufacturer?.id !== after.manufacturer?.id
 }

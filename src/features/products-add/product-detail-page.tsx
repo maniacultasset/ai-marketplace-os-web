@@ -66,6 +66,8 @@ import {
   type Product,
 } from './catalog-model'
 import { ProductDetailsCard, ProductDetailsEditor } from './product-details'
+import { useProductEditSession, type ProductEditSession } from './product-edit-session'
+import { manufacturerSource } from '@/features/products/edit-model'
 import { DETAIL_TABS, type DetailTab } from './detail-tabs'
 import { ProductThumb } from './products-page'
 
@@ -245,16 +247,12 @@ interface DetailData {
 }
 
 export function ProductDetailPage({ productId, tab }: { productId: string; tab: DetailTab }) {
-  const navigate = useNavigate()
   const q = useProduct(productId)
   const all = useAllProducts()
   const listingsQ = useAllListings({ productId })
   const issuesQ = useOpenIssues()
   const refetchAll = all.refetch
   const tabsRef = useRef<HTMLDivElement>(null)
-  const can = useCan()
-  const canEdit = can(OP_ACTION['PATCH /products/{product_id}'])
-  const [editing, setEditing] = useState(false)
 
   // Keep the active tab in view when the row scrolls sideways (phones). 'nearest' never moves the page.
   useEffect(() => {
@@ -304,6 +302,23 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
     )
   }
 
+  return <LoadedDetail key={data.product.id} data={data} tab={tab} tabsRef={tabsRef} />
+}
+
+/**
+ * The page once the product is loaded. The product editor's draft lives here, above the tabs,
+ * so switching tabs while editing keeps it.
+ */
+function LoadedDetail({ data, tab, tabsRef }: { data: DetailData; tab: DetailTab; tabsRef: React.RefObject<HTMLDivElement | null> }) {
+  const navigate = useNavigate()
+  const can = useCan()
+  const canEdit = can(OP_ACTION['PATCH /products/{product_id}'])
+  const productId = data.product.id
+  // A variant's manufacturer may be its style's: read the style (lists carry no manufacturer).
+  const parentQ = useProduct(data.product.parent_product_id)
+  const source = manufacturerSource(data.product, data.isVariant ? parentQ.data : null)
+  const session = useProductEditSession(data.product, data.isVariant, source)
+  const editing = session.editing
   const p = data.product
   const overall = OVERALL_CHIP[overallStatus(Object.values(data.listings))]
   // The header's one primary action: the first listing a person has to look at, if any.
@@ -379,7 +394,7 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
               size="sm"
               onClick={() => {
                 setTab('overview')
-                setEditing(true)
+                session.start()
               }}
               data-testid="header-edit"
             >
@@ -407,7 +422,7 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
           ))}
         </TabsList>
         <TabsContent value="overview">
-          <OverviewTab data={data} editing={editing} onEdit={canEdit ? () => setEditing(true) : undefined} onDone={() => setEditing(false)} />
+          <OverviewTab data={data} session={session} onEdit={canEdit ? session.start : undefined} />
         </TabsContent>
         <TabsContent value="variants">
           <VariantsTab data={data} />
@@ -729,18 +744,18 @@ function MarketplaceCard({
   )
 }
 
-function OverviewTab({ data, editing, onEdit, onDone }: { data: DetailData; editing: boolean; onEdit?: () => void; onDone: () => void }) {
-  if (editing)
+function OverviewTab({ data, session, onEdit }: { data: DetailData; session: ProductEditSession; onEdit?: () => void }) {
+  if (session.editing)
     return (
       <div className="max-w-4xl">
-        <ProductDetailsEditor key={data.product.id} product={data.product} isVariant={data.isVariant} onDone={onDone} />
+        <ProductDetailsEditor session={session} />
       </div>
     )
   return (
     <div className="flex flex-col gap-4">
       <MarketplaceCards data={data} />
       <div className="grid gap-4 lg:grid-cols-2">
-        <ProductDetailsCard product={data.product} isVariant={data.isVariant} onEdit={onEdit} />
+        <ProductDetailsCard product={data.product} isVariant={data.isVariant} source={session.source} onEdit={onEdit} />
         <VariantStatusCard data={data} />
       </div>
     </div>

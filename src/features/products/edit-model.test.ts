@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Schema } from '@/api/types'
-import { buildPatch, editableAttrs, mapPatchErrors, toEditDraft, validateEdit } from './edit-model'
+import { buildPatch, changedOnServer, editableAttrs, manufacturerSource, mapPatchErrors, rebaseDraft, toEditDraft, validateEdit } from './edit-model'
 import { emptySizeRow } from './intake-model'
 
 const product = (over: Partial<Schema<'ProductOut'>> = {}): Schema<'ProductOut'> => ({
@@ -84,5 +84,55 @@ describe('product edit', () => {
       'size_chart.rows.0.chest': 'big',
     })
     expect(mapPatchErrors({ type: 'VALIDATION_FAILED', details: [{ loc: ['header', 'If-Match'], msg: 'x' }] }, base).unmapped).toBe(true)
+  })
+})
+
+describe('stale version rebase (409)', () => {
+  it('keeps my changes on top of theirs and never reverts their fields', () => {
+    const original = product()
+    const mine = { ...toEditDraft(original), title: 'My new title' }
+    const theirs = product({ mrp: '999.00', updated_at: '2026-11-07T11:00:00Z' })
+    const rebased = rebaseDraft(toEditDraft(original), mine, toEditDraft(theirs))
+    expect(rebased.title).toBe('My new title')
+    expect(rebased.mrp).toBe('999.00')
+    // The retry sends only my change against their version.
+    expect(buildPatch(toEditDraft(theirs), rebased, false)).toEqual({ title: 'My new title' })
+  })
+  it('rebases nested fields one by one', () => {
+    const original = toEditDraft(product())
+    const mine = { ...original, attrs: { ...original.attrs, fit: 'Slim' } }
+    const theirs = toEditDraft(product({ attributes: { ...product().attributes, fabric_type: 'Linen' } }))
+    const r = rebaseDraft(original, mine, theirs)
+    expect(r.attrs.fit).toBe('Slim')
+    expect(r.attrs.fabric_type).toBe('Linen')
+  })
+})
+
+describe('manufacturerSource', () => {
+  const m = product().manufacturer!
+  it('reads brand, style and own', () => {
+    expect(manufacturerSource(product(), null)).toBe('brand')
+    expect(manufacturerSource(product({ manufacturer: null }), null)).toBe('none')
+    const own = product({ manufacturer: { ...m, inherited: false } })
+    expect(manufacturerSource(own, null)).toBe('own')
+    // A variant whose party is its style's effective one inherits it from the style.
+    const variant = product({ parent_product_id: 's1', manufacturer: { ...m, id: 'm9', inherited: false } })
+    expect(manufacturerSource(variant, product({ id: 's1', manufacturer: { ...m, id: 'm9', inherited: false } }))).toBe('style')
+    expect(manufacturerSource(variant, product({ id: 's1', manufacturer: { ...m, id: 'm8', inherited: false } }))).toBe('own')
+    // Parent not loaded: unknown, so no clear action is offered.
+    expect(manufacturerSource(variant, undefined)).toBe('unknown')
+  })
+  it('does not treat a style-inherited manufacturer as own in the draft', () => {
+    const variant = product({ parent_product_id: 's1', manufacturer: { ...m, id: 'm9', inherited: false } })
+    expect(toEditDraft(variant, 'style').ownManufacturer).toBe(false)
+    expect(toEditDraft(variant, 'own').ownManufacturer).toBe(true)
+  })
+})
+
+describe('changedOnServer', () => {
+  it('tells a real save from a no-op', () => {
+    expect(changedOnServer(product(), product({ updated_at: 'later' }), false)).toBe(false)
+    expect(changedOnServer(product(), product({ mrp: '1499.00' }), false)).toBe(true)
+    expect(changedOnServer(product(), product({ manufacturer: { ...product().manufacturer!, id: 'm2' } }), false)).toBe(true)
   })
 })

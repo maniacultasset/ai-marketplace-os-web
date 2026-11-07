@@ -7,15 +7,14 @@
  * loads the latest and keeps the person's changes for a second save; 422s land on the fields.
  */
 import { useMemo, useRef, useState, type ReactNode } from 'react'
-import { isStaleVersion, STALE_VERSION_COPY } from '@/api/etag'
 import { isApiError } from '@/api/errors'
-import { Banner, CardHead, CONCEPT_ICON, Icon, IconGlyph, LaCard, SourceBadge } from '@/components/la'
+import { Banner, CardHead, CONCEPT_ICON, Icon, IconGlyph, LaCard, SourceBadge, TagChip } from '@/components/la'
 import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
-import { fetchProduct, useUpdateProduct, type ProductDetail } from '@/features/products/api'
-import { buildPatch, editableAttrs, mapPatchErrors, toEditDraft, validateEdit, type EditDraft, type EditErrors } from '@/features/products/edit-model'
+import { type ProductDetail } from '@/features/products/api'
+import { editableAttrs, type ManufacturerSource } from '@/features/products/edit-model'
 import { CompositionEditor, MoneyField, PartyFields, PickOrOtherField, SizeChartEditor, TextField } from '@/features/products/intake-fields'
 import {
   COLOURS,
@@ -29,8 +28,8 @@ import {
 } from '@/features/products/intake-model'
 import { formatAttributeValue } from '@/features/products/format'
 import { humanizeSlug } from './catalog-model'
+import type { ProductEditSession } from './product-edit-session'
 import { ATTR_FIELDS, ATTR_LABEL } from './guided-model'
-import { toast } from '@/lib/toast'
 import { focusFirstInvalid } from '@/lib/validation'
 import { cn } from '@/lib/utils'
 
@@ -62,7 +61,17 @@ function Row({ k, attr, children }: { k: string; attr?: string; children: ReactN
 }
 
 /** The saved values. `onEdit` is absent when the person may not edit (no product:import). */
-export function ProductDetailsCard({ product, isVariant, onEdit }: { product: ProductDetail; isVariant: boolean; onEdit?: () => void }) {
+export function ProductDetailsCard({
+  product,
+  isVariant,
+  source,
+  onEdit,
+}: {
+  product: ProductDetail
+  isVariant: boolean
+  source: ManufacturerSource
+  onEdit?: () => void
+}) {
   const a = product.attributes ?? {}
   const text = (k: string) => {
     const v = a[k]
@@ -124,7 +133,8 @@ export function ProductDetailsCard({ product, isVariant, onEdit }: { product: Pr
               <span className="flex min-w-0 flex-col">
                 <span className="flex flex-wrap items-center gap-2">
                   {m.legal_name}
-                  {m.inherited ? <SourceBadge source={{ kind: 'brand-profile' }} /> : null}
+                  {source === 'brand' ? <SourceBadge source={{ kind: 'brand-profile' }} /> : null}
+                  {source === 'style' ? <TagChip tone="plain">From the style</TagChip> : null}
                 </span>
                 <span className="text-caption text-ink-2">{partyPlace(m)}</span>
               </span>
@@ -216,67 +226,12 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-export function ProductDetailsEditor({ product, isVariant, onDone }: { product: ProductDetail; isVariant: boolean; onDone: () => void }) {
-  const update = useUpdateProduct(product.id)
-  /** The version the edit is based on: its ETag goes in If-Match, its values are the diff base. */
-  const [base, setBase] = useState(product)
-  const baseDraft = useMemo(() => toEditDraft(base), [base])
-  const [d, setD] = useState<EditDraft>(() => toEditDraft(product))
-  const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set())
-  const [submitted, setSubmitted] = useState(0)
-  const [server, setServer] = useState<EditErrors>({})
-  const [stale, setStale] = useState(false)
-  const [error, setError] = useState<unknown>(null)
+export function ProductDetailsEditor({ session }: { session: ProductEditSession }) {
+  const { d, patch, setAttr, touch, errors, submitted, isVariant, base: product } = session
   const ref = useRef<HTMLFormElement>(null)
-
-  const client = useMemo(() => validateEdit(d, isVariant), [d, isVariant])
-  const errors: EditErrors = { ...server }
-  for (const [k, v] of Object.entries(client)) if (submitted > 0 || touched.has(k)) errors[k] ??= v
-  const touch = (k: string) => setTouched((t) => (t.has(k) ? t : new Set(t).add(k)))
-  const patch = (p: Partial<EditDraft>, ...clear: string[]) => {
-    setD((x) => ({ ...x, ...p }))
-    if (clear.length)
-      setServer((s) => Object.fromEntries(Object.entries(s).filter(([k]) => !clear.some((c) => k === c || k.startsWith(`${c}.`)))))
-  }
-  const setAttr = (k: string, v: string) => {
-    setD((x) => ({ ...x, attrs: { ...x.attrs, [k]: v } }))
-    setServer((s) => Object.fromEntries(Object.entries(s).filter(([key]) => key !== `attr.${k}`)))
-  }
-  const body = buildPatch(baseDraft, d, isVariant)
-  const dirty = Object.keys(body).length > 0
-
   const onSave = async () => {
-    setSubmitted((n) => n + 1)
-    setError(null)
-    if (Object.keys(validateEdit(d, isVariant)).length) {
-      requestAnimationFrame(() => focusFirstInvalid(ref.current))
-      return
-    }
-    if (!dirty) {
-      onDone()
-      return
-    }
-    try {
-      await update.mutateAsync({ body, etag: base.etag })
-      toast.success('Product saved', { description: 'Listings made before this change are checked again before they publish.' })
-      onDone()
-    } catch (err) {
-      if (isStaleVersion(err)) {
-        // Load the latest; keep the person's draft and diff it against the new version.
-        const fresh = await fetchProduct(product.id).catch(() => null)
-        if (fresh) setBase(fresh)
-        setStale(true)
-        return
-      }
-      if (isApiError(err) && err.status === 422) {
-        const { fields, unmapped } = mapPatchErrors(err, d)
-        setServer(fields)
-        if (unmapped || !Object.keys(fields).length) setError(err)
-        requestAnimationFrame(() => focusFirstInvalid(ref.current))
-        return
-      }
-      setError(err)
-    }
+    const out = await session.save()
+    if (out === 'invalid') requestAnimationFrame(() => focusFirstInvalid(ref.current))
   }
 
   const attrs = editableAttrs(isVariant)
@@ -314,14 +269,13 @@ export function ProductDetailsEditor({ product, isVariant, onDone }: { product: 
   }
   const sub = (prefix: string) =>
     Object.fromEntries(Object.entries(errors).flatMap(([k, v]) => (k.startsWith(`${prefix}.`) ? [[k.slice(prefix.length + 1), v]] : [])))
-  const inherited = product.manufacturer?.inherited ? product.manufacturer : null
 
   return (
     <LaCard data-testid="product-editor" className="flex flex-col gap-5">
       <CardHead title="Edit product details" sub={`SKU ${product.sku} stays the same.`} />
-      {stale ? (
-        <Banner tone="attention" role="status" title={STALE_VERSION_COPY.title}>
-          We loaded it. Your changes are kept below. Check them and save again.
+      {session.stale ? (
+        <Banner tone="attention" role="status" title="Someone else saved changes">
+          We kept yours on top of theirs. Check them and save again.
         </Banner>
       ) : null}
       <form
@@ -415,63 +369,105 @@ export function ProductDetailsEditor({ product, isVariant, onDone }: { product: 
           </Group>
         )}
         <Group title="Manufacturer">
-          {inherited || !d.ownManufacturer ? (
-            <label className="flex items-center gap-2 text-small text-ink-2">
-              <Switch checked={d.ownManufacturer} onCheckedChange={(ownManufacturer) => patch({ ownManufacturer }, 'manufacturer')} aria-label="Different manufacturer for this product" />
-              Different for this product
-            </label>
-          ) : null}
-          {d.ownManufacturer ? (
-            <>
-              <PartyFields
-                id="e-mfr"
-                value={d.manufacturer}
-                onChange={(manufacturer) => patch({ manufacturer }, 'manufacturer')}
-                errors={sub('manufacturer') as Partial<Record<PartyField, string>>}
-                onBlur={(k) => touch(`manufacturer.${k}`)}
-                submitCount={submitted}
-              />
-              {baseDraft.ownManufacturer ? (
-                <div>
-                  <Button type="button" variant="ghost" size="sm" className="-ml-3" onClick={() => patch({ ownManufacturer: false }, 'manufacturer')}>
-                    Use the brand manufacturer instead
-                  </Button>
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <p className="text-small text-ink-2">
-              {inherited?.legal_name ? (
-                <>
-                  Uses <b className="text-ink">{inherited.legal_name}</b> from your brand profile.
-                </>
-              ) : (
-                'Uses your brand manufacturer, once it is set in Brand profile.'
-              )}
-            </p>
-          )}
+          <ManufacturerEdit session={session} />
         </Group>
-        {error ? (
+        {session.error ? (
           <Banner tone="danger" role="alert" title="Couldn’t save this product">
-            {isApiError(error) && error.status === 0 ? 'Can’t reach the server. Your changes are still here; try again.' : isApiError(error) ? error.message : 'Something went wrong. Try again.'}
-            {isApiError(error) ? <ReferenceId id={error.correlationId} className="mt-1" /> : null}
+            {isApiError(session.error) && session.error.status === 0
+              ? 'Can’t reach the server. Your changes are still here; try again.'
+              : isApiError(session.error)
+                ? session.error.message
+                : 'Something went wrong. Try again.'}
+            {isApiError(session.error) ? <ReferenceId id={session.error.correlationId} className="mt-1" /> : null}
+          </Banner>
+        ) : null}
+        {session.confirmCancel ? (
+          <Banner
+            tone="attention"
+            role="alert"
+            title="Discard your changes?"
+            action={
+              <div className="flex gap-2">
+                <Button type="button" variant="ghost" size="sm" onClick={session.keepEditing}>
+                  Keep editing
+                </Button>
+                <Button type="button" variant="danger" size="sm" onClick={session.discard} data-testid="product-discard">
+                  Discard
+                </Button>
+              </div>
+            }
+          >
+            The changes you made here are not saved yet.
           </Banner>
         ) : null}
         <div className="sticky bottom-0 -mx-5 -mb-5 flex flex-wrap items-center justify-between gap-3 rounded-b-card border-t border-line bg-surface px-5 py-3">
           <p className="text-caption text-ink-3" aria-live="polite">
-            {dirty ? 'Unsaved changes' : 'No changes yet'}
+            {session.dirty ? 'Unsaved changes' : 'No changes yet'}
           </p>
           <div className="flex gap-2">
-            <Button type="button" variant="ghost" onClick={onDone} disabled={update.isPending}>
+            <Button type="button" variant="ghost" onClick={session.cancel} disabled={session.saving}>
               Cancel
             </Button>
-            <Button type="submit" disabled={update.isPending} data-testid="product-save">
-              {update.isPending ? <Spinner data-icon="inline-start" aria-hidden /> : null}
-              {update.isPending ? 'Saving…' : 'Save changes'}
+            <Button type="submit" disabled={session.saving} data-testid="product-save">
+              {session.saving ? <Spinner data-icon="inline-start" aria-hidden /> : null}
+              {session.saving ? 'Saving…' : 'Save changes'}
             </Button>
           </div>
         </div>
       </form>
     </LaCard>
+  )
+}
+
+const FROM: Record<ManufacturerSource, string> = {
+  brand: 'from your brand profile',
+  style: 'from its style',
+  own: '',
+  unknown: '',
+  none: '',
+}
+
+/** Manufacturer in the editor: inherited (brand or style) with a "Different" switch, or this product's own. */
+function ManufacturerEdit({ session }: { session: ProductEditSession }) {
+  const { d, patch, touch, errors, submitted, baseDraft, base, source, isVariant } = session
+  const loaded = base.manufacturer
+  const ownAtStart = baseDraft.ownManufacturer
+  const sub = Object.fromEntries(
+    Object.entries(errors).flatMap(([k, v]) => (k.startsWith('manufacturer.') ? [[k.slice('manufacturer.'.length), v]] : [])),
+  ) as Partial<Record<PartyField, string>>
+  return (
+    <>
+      {!ownAtStart ? (
+        <label className="flex items-center gap-2 text-small text-ink-2">
+          <Switch checked={d.ownManufacturer} onCheckedChange={(ownManufacturer) => patch({ ownManufacturer }, 'manufacturer')} aria-label="Different manufacturer for this product" />
+          Different for this product
+        </label>
+      ) : null}
+      {d.ownManufacturer ? (
+        <>
+          <PartyFields id="e-mfr" value={d.manufacturer} onChange={(manufacturer) => patch({ manufacturer }, 'manufacturer')} errors={sub} onBlur={(k) => touch(`manufacturer.${k}`)} submitCount={submitted} />
+          {ownAtStart ? (
+            <div>
+              <Button type="button" variant="ghost" size="sm" className="-ml-3" onClick={() => patch({ ownManufacturer: false }, 'manufacturer')}>
+                {isVariant ? 'Use the style’s manufacturer instead' : 'Use the brand manufacturer instead'}
+              </Button>
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <p className="text-small text-ink-2">
+          {ownAtStart ? (
+            isVariant ? 'Will use its style’s manufacturer.' : 'Will use your brand manufacturer.'
+          ) : loaded?.legal_name ? (
+            <>
+              Uses <b className="text-ink">{loaded.legal_name}</b> {FROM[source]}
+              {FROM[source] ? '.' : ''}
+            </>
+          ) : (
+            'No manufacturer yet. Set it once in Brand profile, or enter it here.'
+          )}
+        </p>
+      )}
+    </>
   )
 }
