@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import { Icon } from '@/components/la/icons'
 import { useRef, useState, type ReactNode } from 'react'
 import { isApiError } from '@/api/errors'
@@ -17,13 +18,18 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useMe } from '@/lib/auth'
 import { allows } from '@/lib/permissions'
+import { useKeys } from '@/lib/query-keys'
+import { securityQueryOptions } from '@/features/mfa/api'
 import { cn } from '@/lib/utils'
+import { resetLinkReason } from './access-model'
+import { ResetLinkDialog } from './reset-link-dialog'
 import { initials, memberGating, ROLE_INFO, type Member } from './roles'
 import { inlineMemberError, useIsLatestMemberMutation, useMemberRowPending, useMembersList, useUpdateMember } from './use-members'
 
@@ -227,14 +233,54 @@ function StatusCell({ member }: { member: Member }) {
   )
 }
 
+/** Whether everyone signs in with a login code (GET /auth/security `enforcement`): reset links need it. */
+function useEnforcement() {
+  const keys = useKeys()
+  return useQuery(securityQueryOptions(keys.security())).data?.enforcement
+}
+
+function ResetCell({ member }: { member: Member }) {
+  const { data: me } = useMe()
+  const enforcement = useEnforcement()
+  const [open, setOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  if (!me) return null
+  const reason = resetLinkReason(me, member, enforcement)
+  return (
+    <div className="flex min-h-8 items-center">
+      <Locked reason={reason}>
+        <Button
+          ref={buttonRef}
+          variant="outline"
+          size="sm"
+          disabled={!!reason}
+          onClick={() => setOpen(true)}
+          aria-label={`Make a password reset link for ${member.email}`}
+          data-testid="reset-link-button"
+        >
+          <Icon name="lock" size={16} />
+          Reset link
+        </Button>
+      </Locked>
+      <ResetLinkDialog member={member} open={open} onClose={() => setOpen(false)} />
+    </div>
+  )
+}
+
 const col = columnHelper<Member>()
 const columns = col.columns([
   col.accessor('email', { header: 'Member', meta: { className: 'align-top py-3 sm:pl-4' }, cell: (c) => <MemberCell member={c.row.original} /> }),
   col.accessor('role', { header: 'Role', meta: { className: 'sm:w-48 align-top py-3' }, cell: (c) => <RoleCell member={c.row.original} /> }),
   col.accessor('is_active', {
     header: 'Status',
-    meta: { className: 'sm:w-36 align-top py-3 sm:pr-4' },
+    meta: { className: 'sm:w-36 align-top py-3' },
     cell: (c) => <StatusCell member={c.row.original} />,
+  }),
+  col.display({
+    id: 'password',
+    header: 'Password',
+    meta: { className: 'sm:w-36 align-top py-3 sm:pr-4' },
+    cell: (c) => <ResetCell member={c.row.original} />,
   }),
 ])
 
