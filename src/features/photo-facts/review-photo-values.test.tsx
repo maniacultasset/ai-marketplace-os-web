@@ -27,6 +27,7 @@ const base: ProductDetail = {
   status: 'active',
   category: 'kurtas',
   created_at: 'x',
+  identifier_exemption: false,
   updated_at: 'x',
   attributes: { neckline: 'v-neck', fit: 'slim fit', pattern: 'solid' },
   attribute_literals: {},

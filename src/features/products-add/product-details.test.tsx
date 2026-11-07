@@ -27,6 +27,7 @@ const product: ProductDetail = {
   status: 'active',
   category: 'kurtas',
   created_at: 'x',
+  identifier_exemption: false,
   updated_at: 'x',
   attributes: {},
   attribute_literals: {},
