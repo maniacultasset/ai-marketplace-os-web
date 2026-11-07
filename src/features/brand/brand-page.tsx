@@ -1,4 +1,4 @@
-/** /brand: profile (main column) + documents (aside). Readable by every role; editable with settings:manage. */
+/** /brand: profile and manufacturer (main column) + documents (aside). Readable by every role; editable with settings:manage. */
 import { PageColumns } from '@/components/app/page-header'
 import { ErrorState } from '@/components/states/error-state'
 import { Card } from '@/components/ui/card'
@@ -7,6 +7,7 @@ import { useCan } from '@/lib/permissions'
 import { OP_ACTION } from '@/lib/permissions'
 import { useBrandProfile } from './api'
 import { DocumentsPanel } from './documents-panel'
+import { ManufacturerCard } from './manufacturer-card'
 import { ProfileEditor } from './profile-editor'
 
 export function BrandPage() {
@@ -17,15 +18,18 @@ export function BrandPage() {
 
   return (
     <PageColumns asideWidth="lg" aside={<DocumentsPanel canManage={canManageDocs} />}>
-      {profile.data ? (
-        <ProfileEditor key={profile.data.data.id} profile={profile.data} canEdit={canEdit} />
-      ) : profile.isError ? (
-        <Card className="py-0">
-          <ErrorState error={profile.error} onRetry={() => void profile.refetch()} title="Couldn’t load the brand profile" />
-        </Card>
-      ) : (
-        <ProfileSkeleton />
-      )}
+      <div className="flex flex-col gap-5">
+        {profile.data ? (
+          <ProfileEditor key={profile.data.data.id} profile={profile.data} canEdit={canEdit} />
+        ) : profile.isError ? (
+          <Card className="py-0">
+            <ErrorState error={profile.error} onRetry={() => void profile.refetch()} title="Couldn’t load the brand profile" />
+          </Card>
+        ) : (
+          <ProfileSkeleton />
+        )}
+        <ManufacturerCard canEdit={can(OP_ACTION['PATCH /brand-profile'])} />
+      </div>
     </PageColumns>
   )
 }

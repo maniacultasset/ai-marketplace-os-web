@@ -11,7 +11,7 @@
  */
 import { useQueries } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api } from '@/api/client'
 import { isNotFound } from '@/api/errors'
 import { unwrapVersioned } from '@/api/etag'
@@ -27,7 +27,6 @@ import {
   MARKETPLACES,
   MarketplaceName,
   NOT_YET,
-  SourceBadge,
   StatusChip,
   TagChip,
   UnavailableButton,
@@ -47,8 +46,8 @@ import { BUSY_REFETCH_MS, useListingHistory } from '@/features/listings/api'
 import { recallJob } from '@/features/listings/job-memory'
 import { historyLabel, isBusy } from '@/features/listings/model'
 import { useProduct, type ProductDetail } from '@/features/products/api'
-import { formatAttributeValue, RelativeTime } from '@/features/products/format'
-import { Can, useCan } from '@/lib/permissions'
+import { RelativeTime } from '@/features/products/format'
+import { Can, OP_ACTION, useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
 import { cn } from '@/lib/utils'
 import { AddMarketplaceDialog } from './add-marketplace-dialog'
@@ -66,7 +65,9 @@ import {
   type Marketplace,
   type Product,
 } from './catalog-model'
-import { ATTR_FIELDS } from './guided-model'
+import { ProductDetailsCard, ProductDetailsEditor } from './product-details'
+import { useProductEditSession, type ProductEditSession } from './product-edit-session'
+import { manufacturerSource } from '@/features/products/edit-model'
 import { DETAIL_TABS, type DetailTab } from './detail-tabs'
 import { ProductThumb } from './products-page'
 
@@ -246,7 +247,6 @@ interface DetailData {
 }
 
 export function ProductDetailPage({ productId, tab }: { productId: string; tab: DetailTab }) {
-  const navigate = useNavigate()
   const q = useProduct(productId)
   const all = useAllProducts()
   const listingsQ = useAllListings({ productId })
@@ -302,6 +302,23 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
     )
   }
 
+  return <LoadedDetail key={data.product.id} data={data} tab={tab} tabsRef={tabsRef} />
+}
+
+/**
+ * The page once the product is loaded. The product editor's draft lives here, above the tabs,
+ * so switching tabs while editing keeps it.
+ */
+function LoadedDetail({ data, tab, tabsRef }: { data: DetailData; tab: DetailTab; tabsRef: React.RefObject<HTMLDivElement | null> }) {
+  const navigate = useNavigate()
+  const can = useCan()
+  const canEdit = can(OP_ACTION['PATCH /products/{product_id}'])
+  const productId = data.product.id
+  // A variant's manufacturer may be its style's: read the style (lists carry no manufacturer).
+  const parentQ = useProduct(data.product.parent_product_id)
+  const source = manufacturerSource(data.product, data.isVariant ? parentQ.data : null)
+  const session = useProductEditSession(data.product, data.isVariant, source)
+  const editing = session.editing
   const p = data.product
   const overall = OVERALL_CHIP[overallStatus(Object.values(data.listings))]
   // The header's one primary action: the first listing a person has to look at, if any.
@@ -371,10 +388,20 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
             <Icon name="refresh" size={16} />
             Resubmit
           </UnavailableButton>
-          <UnavailableButton variant="ghost" size="sm" reason="Editing a product is not available yet. Upload its SKU again in a spreadsheet to update it.">
-            <IconGlyph icon={CONCEPT_ICON.edit} size={16} />
-            Edit
-          </UnavailableButton>
+          {canEdit && !editing ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setTab('overview')
+                session.start()
+              }}
+              data-testid="header-edit"
+            >
+              <IconGlyph icon={CONCEPT_ICON.edit} size={16} />
+              Edit
+            </Button>
+          ) : null}
           {review ? (
             <Button asChild data-testid="header-review">
               <Link to="/listings/$listingId/review" params={{ listingId: review.id }}>
@@ -395,7 +422,7 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
           ))}
         </TabsList>
         <TabsContent value="overview">
-          <OverviewTab data={data} />
+          <OverviewTab data={data} session={session} onEdit={canEdit ? session.start : undefined} />
         </TabsContent>
         <TabsContent value="variants">
           <VariantsTab data={data} />
@@ -717,57 +744,21 @@ function MarketplaceCard({
   )
 }
 
-function OverviewTab({ data }: { data: DetailData }) {
+function OverviewTab({ data, session, onEdit }: { data: DetailData; session: ProductEditSession; onEdit?: () => void }) {
+  if (session.editing)
+    return (
+      <div className="max-w-4xl">
+        <ProductDetailsEditor session={session} />
+      </div>
+    )
   return (
     <div className="flex flex-col gap-4">
       <MarketplaceCards data={data} />
       <div className="grid gap-4 lg:grid-cols-2">
-        <FactsCard product={data.product} />
+        <ProductDetailsCard product={data.product} isVariant={data.isVariant} source={session.source} onEdit={onEdit} />
         <VariantStatusCard data={data} />
       </div>
     </div>
-  )
-}
-
-/** Attributes shown before "Show all": enough to recognise the product, short enough to scan. */
-const FACTS_VISIBLE = 8
-
-function FactsCard({ product }: { product: ProductDetail }) {
-  const entries = useMemo(
-    () => Object.entries(product.attributes ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
-    [product.attributes],
-  )
-  const [expanded, setExpanded] = useState(false)
-  const listId = useId()
-  const hidden = entries.length - FACTS_VISIBLE
-  return (
-    <LaCard>
-      <CardHead title="Facts we hold about this product" sub="Every value here came from you, through the form or a spreadsheet." />
-      <dl id={listId} className={cn('mt-4 text-small', KV_GRID)} data-testid="product-attributes">
-        <div className="contents">
-          <dt className="whitespace-nowrap text-ink-2">Category</dt>
-          <dd className="flex flex-wrap items-center gap-2 text-ink">
-            {humanizeSlug(product.category)} <SourceBadge source={{ kind: 'you' }} />
-          </dd>
-        </div>
-        {entries.map(([k, v], i) => (
-          <div key={k} className={!expanded && i >= FACTS_VISIBLE ? 'hidden' : 'contents'} data-attr-key={k}>
-            <dt className="whitespace-nowrap text-ink-2">{ATTR_FIELDS.find((f) => f.key === k)?.label ?? humanizeSlug(k)}</dt>
-            <dd className="flex min-w-0 flex-wrap items-center gap-2 break-words text-ink">
-              <span className="min-w-0 tabular-nums">{typeof v === 'string' ? v || '—' : formatAttributeValue(v, product.attribute_literals[k])}</span>
-              <SourceBadge source={{ kind: 'you' }} />
-            </dd>
-          </div>
-        ))}
-      </dl>
-      {hidden > 0 ? (
-        <Button variant="ghost" size="sm" className="mt-3 -ml-3" aria-expanded={expanded} aria-controls={listId} onClick={() => setExpanded((v) => !v)}>
-          {expanded ? 'Show fewer' : `Show all ${entries.length + 1} facts`}
-          <Icon name="chev" size={14} className={cn('motion-safe:transition-transform motion-safe:duration-150 motion-reduce:transition-none', expanded && 'rotate-180')} />
-        </Button>
-      ) : null}
-      {entries.length === 0 ? <p className="mt-3 text-small text-ink-2">No attributes yet. Add them with a spreadsheet import of this SKU.</p> : null}
-    </LaCard>
   )
 }
 

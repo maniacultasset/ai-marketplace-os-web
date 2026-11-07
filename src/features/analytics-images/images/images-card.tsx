@@ -18,6 +18,7 @@ import { BUILT } from '@/api/capabilities'
 import { useCapability, useCapabilityProbe } from '@/hooks/use-capabilities'
 import { useJobPolling } from '@/hooks/use-job-polling'
 import { MARKETPLACE_META } from '@/features/marketplaces/meta'
+import { useDeleteImage } from '@/features/products/api'
 import { useKeys } from '@/lib/query-keys'
 import { OP_ACTION, useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
@@ -92,6 +93,12 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
     setUploads((list) => list.map((u) => (u.localId === localId ? { ...u, ...next } : u)))
 
   const mutation = useMutation({ meta: { toast: false }, mutationFn: uploadImage })
+  const del = useDeleteImage(product.id)
+  const canDelete = live && can(OP_ACTION['DELETE /images/{image_id}'])
+  const onDelete = async (imageId: string) => {
+    await del.mutateAsync(imageId)
+    setUploads((list) => list.filter((u) => !(u.stage.kind === 'accepted' && u.stage.imageId === imageId)))
+  }
 
   const start = (u: SessionUpload) => {
     patch(u.localId, { stage: { kind: 'uploading' } })
@@ -184,13 +191,22 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         <ul className="divide-y divide-border/70 border-t" aria-label="Product images" data-testid="image-list">
           {notYetListed.map((u) =>
             u.stage.kind === 'accepted' ? (
-              <ImageRow key={u.stage.imageId} imageId={u.stage.imageId} upload={u} live={live} productId={product.id} settled={reportsSettled} />
+              <ImageRow key={u.stage.imageId} imageId={u.stage.imageId} upload={u} live={live} productId={product.id} settled={reportsSettled} onDelete={canDelete ? onDelete : undefined} />
             ) : null,
           )}
           {listed.map((key) => {
             const id = imageIdFromKey(key)
             return id ? (
-              <ImageRow key={key} imageId={id} storageKey={key} upload={sessionById.get(id)} live={live} productId={product.id} settled={reportsSettled} />
+              <ImageRow
+                key={key}
+                imageId={id}
+                storageKey={key}
+                upload={sessionById.get(id)}
+                live={live}
+                productId={product.id}
+                settled={reportsSettled}
+                onDelete={canDelete ? onDelete : undefined}
+              />
             ) : (
               <li key={key} className="truncate px-5 py-3 font-mono text-xs text-muted-foreground" title={key}>
                 {key}
@@ -355,6 +371,7 @@ function ImageRow({
   live,
   productId,
   settled = true,
+  onDelete,
 }: {
   imageId: string
   storageKey?: string
@@ -363,10 +380,26 @@ function ImageRow({
   productId: string
   /** Every row's report has answered (the card waits, so badges land together). */
   settled?: boolean
+  /** DELETE /images/{id}; absent when the person may not delete. */
+  onDelete?: (imageId: string) => Promise<void>
 }) {
   const keys = useKeys()
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
+  const [confirm, setConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<unknown>(null)
+  const remove = async () => {
+    if (!onDelete) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await onDelete(imageId)
+    } catch (err) {
+      setDeleteError(err)
+      setDeleting(false)
+    }
+  }
   const report = useQuery(reportQuery(keys, imageId, live))
   const jobId = upload?.stage.kind === 'accepted' ? upload.stage.jobId : null
   const polling = useJobPolling(report.data?.compliance_status === 'pending' ? jobId : null, {
@@ -431,8 +464,28 @@ function ImageRow({
                 <Icon name="refresh" size={16} className={cn(report.isFetching && 'motion-safe:animate-spin')} />
               </Button>
             ) : null}
+            {onDelete && !confirm ? (
+              <Button variant="ghost" size="icon-sm" aria-label={`Delete ${title.toLowerCase()} image`} onClick={() => setConfirm(true)} data-testid="image-delete">
+                <Icon name="trash" size={16} />
+              </Button>
+            ) : null}
           </div>
         </div>
+        {confirm ? (
+          <div className="mx-5 mb-3 flex flex-wrap items-center justify-between gap-2 rounded-tile border border-danger-line bg-danger-bg px-3 py-2" role="alert">
+            <p className="text-small text-ink">
+              {deleteError ? describeError(deleteError) : 'Delete this image? A marketplace that already has it keeps its own copy.'}
+            </p>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setConfirm(false)} disabled={deleting}>
+                Keep
+              </Button>
+              <Button variant="danger" size="sm" onClick={() => void remove()} disabled={deleting} data-testid="image-delete-confirm">
+                {deleting ? 'Deleting…' : 'Delete'}
+              </Button>
+            </div>
+          </div>
+        ) : null}
         {report.error && !isNotFound(report.error) && open ? (
           <ErrorState error={report.error} compact onRetry={() => void report.refetch()} />
         ) : null}
