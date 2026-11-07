@@ -106,14 +106,41 @@ test.describe('product detail (p17)', () => {
     await expect(waitlist.first()).toHaveAttribute('aria-disabled', 'true')
   })
 
-  test('tabs are addressable and the edit button is honest', async ({ page }) => {
-    const tokens = await apiLogin(page.request, USERS.acme.reviewer)
+  test('tabs are addressable and Edit opens the product editor', async ({ page }) => {
+    const tokens = await apiLogin(page.request, USERS.acme.operator)
     const [style] = (await walk<ProductOut>(page.request, tokens.access_token, '/products')).filter((p) => !p.parent_product_id)
-    await loginAs(page, USERS.acme.reviewer, `/products/${style!.id}?tab=activity`)
+    await loginAs(page, USERS.acme.operator, `/products/${style!.id}?tab=activity`)
     await expect(page.getByTestId('tab-activity')).toHaveAttribute('data-state', 'active')
     await page.getByTestId('tab-validation').click()
     await expect(page).toHaveURL(/tab=validation/)
-    await expect(page.getByRole('button', { name: 'Edit' })).toHaveAttribute('aria-disabled', 'true')
+    // Edit is real (PATCH /products/{id}): it opens the editor on Overview.
+    await page.getByTestId('header-edit').click()
+    await expect(page.getByTestId('tab-overview')).toHaveAttribute('data-state', 'active')
+    const editor = page.getByTestId('product-editor')
+    await expect(editor).toBeVisible()
+    const save = page.getByTestId('product-save')
+    await expect(save).toBeDisabled()
+    await page.getByLabel('Product name').fill(`${style!.title} edited`)
+    await expect(save).toBeEnabled()
+    // Cancel with a change asks first; discarding closes the editor without saving.
+    let patched = 0
+    page.on('request', (r) => {
+      if (r.method() === 'PATCH' && r.url().includes('/api/v1/products/')) patched += 1
+    })
+    await editor.getByRole('button', { name: 'Cancel' }).click()
+    await page.getByTestId('product-discard').click()
+    await expect(editor).toBeHidden()
+    await expect(page.getByTestId('product-details')).toBeVisible()
+    expect(patched).toBe(0)
+  })
+
+  test('a reviewer sees no Edit button', async ({ page }) => {
+    const tokens = await apiLogin(page.request, USERS.acme.reviewer)
+    const [style] = (await walk<ProductOut>(page.request, tokens.access_token, '/products')).filter((p) => !p.parent_product_id)
+    await loginAs(page, USERS.acme.reviewer, `/products/${style!.id}`)
+    await expect(page.getByTestId('product-title')).toBeVisible()
+    await expect(page.getByTestId('header-edit')).toHaveCount(0)
+    await expect(page.getByTestId('product-edit')).toHaveCount(0)
   })
 })
 
@@ -177,6 +204,17 @@ test.describe('add products (p08-p11)', () => {
     })
     expect(res.status()).toBe(201)
     const product = (await res.json()) as ProductOut
+    // Read the multipart body in the page: branded Chrome leaves the file part out of
+    // Playwright's postData(), so the request object alone cannot show the CSV.
+    await page.addInitScript(() => {
+      const w = window as unknown as { __bulkBody?: string }
+      const orig = window.fetch.bind(window)
+      window.fetch = async (input, init) => {
+        const req = new Request(input, init)
+        if (req.method === 'POST' && req.url.endsWith('/api/v1/products/bulk')) w.__bulkBody = await req.clone().text()
+        return orig(req)
+      }
+    })
     await loginAs(page, USERS.acme.operator, `/add/variants?product=${product.id}`)
     const colours = page.getByLabel('Colours')
     await colours.fill('Black')
@@ -185,7 +223,7 @@ test.describe('add products (p08-p11)', () => {
     await page.getByTestId('variants-save').click()
     const sent = await bulk
     expect(sent.headers()['idempotency-key']).toBeTruthy()
-    const csv = sent.postData() ?? ''
+    const csv = await page.evaluate(() => (window as unknown as { __bulkBody?: string }).__bulkBody ?? '')
     expect(csv).toContain(`${sku}-BLK-S,${sku},PW variant tee,kurtas,Black,S`)
     await expect(page).toHaveURL(/\/add\/bulk\?import=/)
   })
