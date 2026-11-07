@@ -201,7 +201,14 @@ function ItemCard({
   const meta =
     item.kind === 'task'
       ? [product?.sku, TASK_KIND_LABEL[item.task.kind]].filter(Boolean).join(' · ')
-      : `${MARKETPLACE_LABEL[item.issue.marketplace]} · ${fieldLabel(item.issue.field_path)}`
+      : // A closed issue says so in words, not only with the tile's colour.
+        [
+          MARKETPLACE_LABEL[item.issue.marketplace],
+          fieldLabel(item.issue.field_path),
+          item.issue.status === 'open' ? null : ISSUE_STATUS_LABEL[item.issue.status],
+        ]
+          .filter(Boolean)
+          .join(' · ')
   return (
     <Link
       to="/inbox"

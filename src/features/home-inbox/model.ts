@@ -13,6 +13,7 @@ import { z } from 'zod'
 import type { ChipStatus } from '@/components/la/status-chip'
 import type { Schema } from '@/api/types'
 import { humanizeCode, type Issue, type Task } from '@/features/inbox/model'
+import { NO_TRAIL_TEXT } from '@/features/listing-flow/auto-fix-model'
 
 type Listing = Schema<'ListingOut'>
 type Marketplace = Schema<'Marketplace'>
@@ -403,6 +404,35 @@ export const RETRY_CLASS_TEXT: Record<Issue['retry_class'], string> = {
   ai_correct: 'Content needs a correction, then a new approval.',
   user_action: 'Needs a person. Retrying alone will not fix it.',
   system_failure: 'Our system failed. Nothing is wrong with your listing.',
+}
+
+/**
+ * "Next step" for an issue. Only an open issue asks anything of a person; a closed one says
+ * plainly that nothing is left, so an auto-fixed issue never reads as "needs you".
+ */
+export function issueNextStep(i: Pick<Issue, 'status' | 'retry_class'>): string {
+  switch (i.status) {
+    case 'open':
+      return RETRY_CLASS_TEXT[i.retry_class]
+    case 'auto_fixed':
+      return 'Nothing. Kuinn fixed this on its own.'
+    case 'resolved':
+      return 'Nothing. This is resolved.'
+    case 'dismissed':
+      return 'Nothing. The warning was accepted.'
+  }
+}
+
+/** What Kuinn changed for an auto-fixed issue, or null when the issue was not auto-fixed. */
+export function issueFixTrail(
+  i: Pick<Issue, 'status' | 'action_taken' | 'resolution' | 'resolved_at' | 'last_seen_at'>,
+): { change: string; at: string; rewritten: boolean } | null {
+  if (i.status !== 'auto_fixed') return null
+  return {
+    change: i.action_taken?.trim() || NO_TRAIL_TEXT,
+    at: i.resolved_at ?? i.last_seen_at,
+    rewritten: i.resolution === 'ai_correction',
+  }
 }
 
 /** "Unknown error, not auto-fixable" (p16 "Class"). */

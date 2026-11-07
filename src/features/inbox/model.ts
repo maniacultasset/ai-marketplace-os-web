@@ -69,7 +69,7 @@ export const TASK_KIND_LABEL: Record<TaskKind, string> = {
 
 export const RESOLUTION_LABEL: Record<IssueResolution, string> = {
   deterministic_fix: 'Fixed automatically',
-  ai_correction: 'Corrected by AI',
+  ai_correction: 'Rewritten by the agent',
   human_answer: 'Answered by a person',
   human_edit: 'Fixed by an edit',
   regenerated: 'Cleared by regeneration',

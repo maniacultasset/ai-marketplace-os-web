@@ -13,6 +13,8 @@ import {
   inProgressTile,
   isCategoryIssue,
   issueChip,
+  issueFixTrail,
+  issueNextStep,
   issueTimeline,
   itemKey,
   listingBucket,
@@ -290,6 +292,31 @@ describe('issues', () => {
       { tone: 'need', title: 'Seen 3 times', at: '2026-10-06T09:00:00Z', detail: 'Latest check' },
       { tone: 'ok', title: 'Fixed automatically', at: '2026-10-06T09:05:00Z', detail: 'Mapped "XXL" to "2XL"' },
     ])
+  })
+})
+
+describe('auto-fixed issues', () => {
+  it('never ask anything of a person', () => {
+    expect(issueNextStep({ status: 'auto_fixed', retry_class: 'user_action' })).toBe('Nothing. Kuinn fixed this on its own.')
+    expect(issueNextStep({ status: 'resolved', retry_class: 'user_action' })).toBe('Nothing. This is resolved.')
+    expect(issueNextStep({ status: 'dismissed', retry_class: 'user_action' })).toBe('Nothing. The warning was accepted.')
+    expect(issueNextStep({ status: 'open', retry_class: 'user_action' })).toBe('Needs a person. Retrying alone will not fix it.')
+    expect(issueChip({ status: 'auto_fixed', severity: 'error' }).status).not.toBe('needs-you')
+  })
+  it('carry the trail: what changed, when, and whether the agent rewrote it', () => {
+    const base = issue(6, '2026-11-07T09:00:00Z', { status: 'auto_fixed', resolution: 'deterministic_fix', resolved_at: '2026-11-07T09:00:01Z' })
+    expect(issueFixTrail({ ...base, action_taken: 'Removed 2 repeated terms.' })).toEqual({
+      change: 'Removed 2 repeated terms.',
+      at: '2026-11-07T09:00:01Z',
+      rewritten: false,
+    })
+    expect(issueFixTrail({ ...base, action_taken: null, resolution: 'ai_correction' })).toEqual({
+      change: 'Fixed on its own. No details were recorded.',
+      at: '2026-11-07T09:00:01Z',
+      rewritten: true,
+    })
+    expect(issueFixTrail({ ...base, status: 'open' })).toBeNull()
+    expect(issueFixTrail({ ...base, status: 'resolved' })).toBeNull()
   })
 })
 
