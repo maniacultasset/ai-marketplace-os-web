@@ -10,12 +10,14 @@ import { Spinner } from '@/components/ui/spinner'
 import { digitsOnly, filterInput } from '@/lib/validation'
 import { useApproveSignup } from './api'
 import { decisionError, type SignupRequest } from './format'
-import { parseTrialDays, toApproveBody, TRIAL_DAYS_DEFAULT, TRIAL_DAYS_MAX, TRIAL_DAYS_MIN } from './schema'
+import { parseTrialDays, toApproveBody, TRIAL_DAYS_MAX, TRIAL_DAYS_MIN } from './schema'
 import { TimeAgo } from './time'
 
 /**
- * Confirm, then POST /admin/signup-requests/{id}/approve. On success the dialog shows what the
- * backend created (the trial tenant id and its owner) from the response.
+ * Confirm, then POST /admin/signup-requests/{id}/approve. The trial length starts empty: left
+ * untouched the body is `{}`, so the backend's own default applies (it is not repeated here, so
+ * it can change without this screen lying). On success the dialog shows what the backend created
+ * (the trial tenant id and its owner) from the response.
  */
 export function ApproveDialog({
   request,
@@ -28,18 +30,19 @@ export function ApproveDialog({
   onClose: () => void
 }) {
   const approve = useApproveSignup()
-  const [trial, setTrial] = useState(String(TRIAL_DAYS_DEFAULT))
+  const [trial, setTrial] = useState('')
   /** The error waits for blur or a confirm attempt, then follows every change. */
   const [trialTouched, setTrialTouched] = useState(false)
   const trialRef = useRef<HTMLInputElement>(null)
-  const [approved, setApproved] = useState<{ out: SignupRequest; trialDays: number } | null>(null)
+  /** `trialDays` null: the backend default was used. */
+  const [approved, setApproved] = useState<{ out: SignupRequest; trialDays: number | null } | null>(null)
   const trialId = useId()
 
   // A fresh dialog each time it opens.
   const requestId = request?.id
   useEffect(() => {
     if (!open) return
-    setTrial(String(TRIAL_DAYS_DEFAULT))
+    setTrial('')
     setTrialTouched(false)
     setApproved(null)
     approve.reset()
@@ -59,7 +62,7 @@ export function ApproveDialog({
     }
     approve.mutate(
       { id: request.id, body: toApproveBody(parsed) },
-      { onSuccess: (out) => setApproved({ out, trialDays: parsed ?? TRIAL_DAYS_DEFAULT }) },
+      { onSuccess: (out) => setApproved({ out, trialDays: parsed }) },
     )
   }
 
@@ -76,12 +79,15 @@ export function ApproveDialog({
               <DialogTitle>Approve {request.brand_name}?</DialogTitle>
               <DialogDescription>
                 This creates a trial workspace for the brand and makes {request.owner_name} its owner. They can sign in right
-                away with the email and password they applied with.
+                away {signInWith(request)}.
               </DialogDescription>
             </DialogHeader>
             <dl className="divide-y rounded-lg border text-sm">
               <Row label="Owner">
                 <span className="truncate">{request.email}</span>
+              </Row>
+              <Row label="Signed up with">
+                <span data-testid="approve-verified-via">{request.verified_via === 'google' ? 'Google (email verified)' : 'Email and password'}</span>
               </Row>
               <Row label="Requested">
                 <TimeAgo iso={request.created_at} />
@@ -97,6 +103,7 @@ export function ApproveDialog({
                   inputMode="numeric"
                   autoComplete="off"
                   maxLength={String(TRIAL_DAYS_MAX).length}
+                  placeholder="Default"
                   className="w-24 tabular-nums"
                   value={trial}
                   {...filterInput({ onChange: (e) => setTrial(e.target.value), ref: trialRef }, digitsOnly)}
@@ -114,7 +121,7 @@ export function ApproveDialog({
                     Enter a whole number of days from {TRIAL_DAYS_MIN} to {TRIAL_DAYS_MAX}, or leave it empty for the default.
                   </FieldError>
                 ) : (
-                  <FieldDescription className="text-xs">Leave empty for the default ({TRIAL_DAYS_DEFAULT} days).</FieldDescription>
+                  <FieldDescription className="text-xs">Leave empty for the standard trial length.</FieldDescription>
                 )}
               </div>
             </Field>
@@ -140,7 +147,12 @@ export function ApproveDialog({
   )
 }
 
-function Approved({ out, trialDays, onDone }: { out: SignupRequest; trialDays: number; onDone: () => void }) {
+/** How the new owner signs in: Google applicants have no Kuinn password. */
+function signInWith(r: Pick<SignupRequest, 'verified_via'>) {
+  return r.verified_via === 'google' ? 'with Google, using the Google account they applied with' : 'with the email and password they applied with'
+}
+
+function Approved({ out, trialDays, onDone }: { out: SignupRequest; trialDays: number | null; onDone: () => void }) {
   const loginUrl = `${window.location.origin}/login`
   return (
     <>
@@ -150,7 +162,8 @@ function Approved({ out, trialDays, onDone }: { out: SignupRequest; trialDays: n
           Workspace created
         </DialogTitle>
         <DialogDescription>
-          {out.brand_name} is on a {trialDays}-day trial. Let {out.owner_name} know they can sign in now.
+          {out.brand_name} is on {trialDays === null ? 'the standard trial' : `a ${trialDays}-day trial`}. Let {out.owner_name} know they can sign
+          in now, {signInWith(out)}.
         </DialogDescription>
       </DialogHeader>
       <dl className="divide-y rounded-lg border text-sm" data-testid="approve-result">

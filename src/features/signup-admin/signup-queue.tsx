@@ -70,8 +70,15 @@ const ownerColumn = col.accessor('owner_name', {
             <span className="font-medium">{r.owner_name}</span>
             {r.phone ? <span className="text-muted-foreground"> · {r.phone}</span> : null}
           </div>
-          <div className="max-w-64 truncate text-xs text-muted-foreground" title={r.email}>
-            {r.email}
+          <div className="flex max-w-64 min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="truncate" title={r.email}>
+              {r.email}
+            </span>
+            {r.verified_via === 'google' ? (
+              <Badge variant="muted" className="shrink-0" title="Google verified this email" data-testid="signup-row-google">
+                Google<span className="sr-only"> verified this email</span>
+              </Badge>
+            ) : null}
           </div>
         </div>
       </div>
