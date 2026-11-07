@@ -81,21 +81,22 @@ design source is `docs/design-reference/listing-agent-hifi-handoff.html` (18 scr
 | Photo facts (SI3) | "From photos" on product details (confirm, reject); photo questions in the Inbox; Home counts them as not blocking | `PATCH /products/{id}` (`confirm_attributes`, `attributes: {key: null}`), `POST /tasks/{id}/answer` |
 | Products and add (07-10, 17) | Products table/cards, product detail tabs with the product editor, add chooser, guided form (all ten seller inputs: style number, SKU, fabric type and composition, colour, size chart, manufacturer, MRP, selling price, photos), bulk upload, variants and media | `/products`, `PATCH /products/{id}` (If-Match), `/products/bulk`, `/imports/*`, `/jobs/{id}`, `/images/*`, `/brand-profile`, `POST /listings/generate` |
 | Listing flow (12-15) | Agent run, review and approve, field mapping, live confirmation | `/jobs/{id}`, `/listings/{id}` (+ `/content`, `/regenerate`, `/preview`, `/history`, `/submissions`, `/status`, `/refresh-status`, `/publish/retry-fields`), `/listings/approve`, `/listings/validate`, `/listings/publish`, `/rules` |
-| Marketplaces and settings (18, Autonomy) | Marketplaces, autonomy, brand profile (with the default manufacturer), compliance, team, rules, imports, account, activity, sign-up requests (platform admins) | `/marketplaces/*`, `/tenants/me`, `/brand-profile`, `/brand/documents`, `/members`, `/rules*`, `/admin/signup-requests*` |
+| Marketplaces and settings (18, Autonomy) | Marketplaces, autonomy, brand profile (with the default manufacturer), compliance, team, rules, imports, account, activity, sign-up requests and brands (platform admins: activate, extend a trial) | `/marketplaces/*`, `/tenants/me`, `/brand-profile`, `/brand/documents`, `/members`, `/rules*`, `/admin/signup-requests*`, `/admin/tenants*` |
+| Team access (SI5) | Team: invite a teammate (link shown once, open invites, cancel), a reset link per member; public `/invite` (new account with a password or Google, an existing account's own password, or sign in and join) and `/reset-password` | `/invites*`, `/members/{id}/password-reset`, `/auth/password/reset` |
 | Extras | Listing reports, diagnostics | `/analytics*`, `/readyz` |
 
 Approval is always on (maker-checker): nothing is sent to a marketplace until a person approves it.
 
 ### Routes
 
-Public: `/`, `/login`, `/signup`, `/signup/status`, `/privacy`.
+Public: `/`, `/login`, `/signup`, `/signup/status`, `/privacy`, `/invite`, `/reset-password`.
 Setup frame: `/setup/brand`, `/setup/manufacturer`, `/setup/marketplaces` (`/setup/compliance` redirects to `/setup/manufacturer`).
 App: `/home`, `/inbox`, `/issues/$issueId`, `/products`, `/products/$productId`, `/products/new` (redirects to `/add/guided`),
 `/add`, `/add/guided` (`?start=photos` opens on Images), `/add/bulk`, `/add/variants`, `/runs/$runId`, `/listings/$listingId/review`,
 `/listings/$listingId/mapping`, `/listings/$listingId/live`, `/marketplaces`, `/marketplaces/connected`,
 `/activity`, `/analytics`, `/about`, `/imports`, `/imports/new`, `/imports/$importId`, `/jobs/$jobId`.
 Settings: `/settings`, `/settings/compliance`, `/settings/imports`, `/brand`, `/team`, `/rules`,
-`/rules/check`, `/account`, `/settings/security`, `/admin/signups`.
+`/rules/check`, `/account`, `/settings/security`, `/admin/signups`, `/admin/brands`.
 
 ### Sign in with Google
 
@@ -130,6 +131,14 @@ as a disabled control with a reason tooltip (`UnavailableButton`, reasons in `NO
 - Answering questions other than missing or conflicting facts (a refused publish's account tasks take no answer: they show the marketplace's words with Open listing, Edit product, Open issue and Generate again); "Choose category" on issues (a listing keeps its category)
 - Autonomous submit and every auto-fix toggle, retry limit, notification channels (Autonomy shows approval mode only)
 - Notifications and the audit log in the settings sub-nav
+
+### Invite and reset links
+
+Kuinn sends no email yet, so an owner or admin copies each link to the person. Links carry the token after `#`
+(`/invite#token=…`, `/reset-password#token=…`), so it never reaches a server log. The page reads it once, takes it
+out of the address bar and keeps it in this tab's `sessionStorage` until the link is used or refused (it survives a
+reload, a sign-in and a Google round trip). An invite works once for 7 days, a reset link once for 24 hours. Reset
+links need `MFA_ENFORCEMENT=all` and a member of this brand alone with an authenticator; anyone else is Kuinn support's.
 
 Support has no in-app channel: "Contact support" (user menu), "Ask support" (issue detail) and the
 sign-in and Security hints open an email to `support@kuinn.in` (`src/lib/support.ts`).

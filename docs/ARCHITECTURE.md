@@ -125,6 +125,7 @@ keys.issues.list({ status, listingId, source, errorCode, marketplace })   keys.i
 keys.tasks.list(status)           keys.analytics.summary({ from, to })   keys.analytics.all()
 keys.brand.profile()              keys.brand.documents()        keys.brand.all()
 keys.images.report(imageId)       keys.signups.list('pending' | null)    keys.signups.all()
+keys.invites.list('pending' | null)   keys.invites.all()   keys.adminTenants.list(status | null)   keys.adminTenants.all()
 ```
 
 Invalidate every key a mutation affects. For example, after a bulk-import job ends:
