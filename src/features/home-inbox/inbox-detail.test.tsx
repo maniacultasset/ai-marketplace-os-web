@@ -74,8 +74,20 @@ describe('Inbox issue pane', () => {
   })
 
   it('labels an AI rewrite of the field', () => {
-    show({ ...base, status: 'auto_fixed', resolution: 'ai_correction', resolved_at: '2026-11-07T09:00:01Z', action_taken: 'Rewrote the title to fit.' })
+    // An AI rewrite closes as resolved (the database allows auto_fixed only for code fixes).
+    show({ ...base, status: 'resolved', resolution: 'ai_correction', resolved_at: '2026-11-07T09:00:01Z', action_taken: 'Rewrote the title to fit.' })
+    const pane = screen.getByTestId('issue-pane')
     expect(screen.getByTestId('issue-fix-trail').textContent).toContain('Rewritten by the agent')
+    expect(pane.textContent).toContain('Auto-fixed')
+    expect(pane.textContent).toContain('Nothing. Kuinn fixed this on its own.')
+  })
+
+  it('keeps "In plain language" for a dismissed warning', () => {
+    show({ ...base, status: 'dismissed', resolution: 'accepted_warning', plain_message: 'The title is a little long.' })
+    const pane = screen.getByTestId('issue-pane')
+    expect(pane.textContent).toContain('In plain language')
+    expect(pane.textContent).not.toContain('What was wrong')
+    expect(screen.queryByTestId('issue-fix-trail')).toBeNull()
   })
 
   it('keeps an open warning as work for a person', () => {

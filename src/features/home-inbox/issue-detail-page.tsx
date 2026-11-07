@@ -26,7 +26,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Skeleton } from '@/components/ui/skeleton'
 import { NOT_YET, UnavailableButton } from '@/components/la/unavailable'
 import { DismissIssueButton } from '@/features/inbox/dismiss-issue'
-import { canDismiss, issueHeadline, MARKETPLACE_LABEL, RESOLUTION_LABEL, SOURCE_LABEL, type Issue } from '@/features/inbox/model'
+import { canDismiss, isAutoFix, issueHeadline, MARKETPLACE_LABEL, RESOLUTION_LABEL, SOURCE_LABEL, type Issue } from '@/features/inbox/model'
 import { useListing, useListingSubmissions } from '@/features/listings/api'
 import { FIXED_FOR_YOU_HASH } from '@/features/listing-flow/auto-fix-model'
 import { ScreenHead } from '@/features/listing-flow/ui'
@@ -41,7 +41,9 @@ import {
   issueClassLine,
   issueFixTrail,
   issueNextStep,
+  issuePlainLabel,
   issueTimeline,
+  issueTrailLink,
   isCategoryIssue,
   issueTitle,
   plural,
@@ -87,6 +89,8 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
   if (!issue) return <IssueNotFound />
 
   const l = listing.data?.data
+  const fixed = isAutoFix(issue)
+  const trailLink = l ? issueTrailLink(issue, l) : null
   const others = issues.data.filter((i) => i.id !== issueId)
   const openCount = issues.data.filter((i) => i.status === 'open').length
   // Only once the attempts have loaded: the banner lands with them, in the same paint.
@@ -136,10 +140,20 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
                 Choose category
               </UnavailableButton>
             ) : null}
-            {issue.status === 'auto_fixed' ? (
+            {/* A fix links to the review only while it belongs to the version there; an older
+                version's fix is history, on the product's Activity tab. */}
+            {!fixed ? null : listing.isPending ? (
+              <Skeleton className="h-9 w-40 rounded-control" />
+            ) : l && trailLink === 'review' ? (
               <Button asChild data-testid="issue-open-review">
                 <Link to="/listings/$listingId/review" params={{ listingId }} hash={FIXED_FOR_YOU_HASH}>
                   See it in the review
+                </Link>
+              </Button>
+            ) : l ? (
+              <Button asChild data-testid="issue-open-activity">
+                <Link to="/products/$productId" params={{ productId: l.product_id }} search={{ tab: 'activity' }}>
+                  See it in Activity
                 </Link>
               </Button>
             ) : null}
@@ -148,7 +162,7 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
             ) : l ? (
               <Button
                 asChild
-                variant={(issue.status === 'open' && isCategoryIssue(issue)) || issue.status === 'auto_fixed' ? 'secondary' : 'primary'}
+                variant={(issue.status === 'open' && isCategoryIssue(issue)) || fixed ? 'secondary' : 'primary'}
                 data-testid="issue-open-product"
               >
                 <Link to="/products/$productId" params={{ productId: l.product_id }}>
@@ -264,7 +278,7 @@ function IssueBody({ issue }: { issue: Issue }) {
       {/* What it means first; the marketplace's own words stay one click away. */}
       {plain ? (
         <div>
-          <div className="text-caption text-ink-3">{issue.status === 'open' ? 'In plain language' : 'What was wrong'}</div>
+          <div className="text-caption text-ink-3">{issuePlainLabel(issue)}</div>
           <p className="mt-1 text-body text-ink" data-testid="issue-plain">
             {plain}
           </p>

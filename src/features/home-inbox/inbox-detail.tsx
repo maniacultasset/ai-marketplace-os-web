@@ -30,6 +30,7 @@ import {
   issueClassLine,
   issueFixTrail,
   issueNextStep,
+  issuePlainLabel,
   issueTitle,
   itemKey,
   parseItemKey,
@@ -329,7 +330,7 @@ function IssuePane({ issue, position }: { issue: Issue; position: string | null 
         </div>
         {plain ? (
           <div>
-            <div className="text-caption text-ink-3">{issue.status === 'open' ? 'In plain language' : 'What was wrong'}</div>
+            <div className="text-caption text-ink-3">{issuePlainLabel(issue)}</div>
             <p className="mt-1 text-body text-ink">{issueHeadline(issue)}</p>
           </div>
         ) : null}
