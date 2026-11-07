@@ -16,6 +16,7 @@ import { factKey, isPhotoQuestion } from '@/features/photo-facts/answer-spec'
 import { factLabel } from '@/features/photo-facts/model'
 import {
   canDismiss,
+  isAccountReviewTask,
   issueHeadline,
   MARKETPLACE_LABEL,
   RESUME_LABEL,
@@ -42,6 +43,7 @@ import {
   type InboxItem,
   type InboxSearch,
 } from './model'
+import { AccountTask } from './account-task'
 import type { ProductsById } from './api'
 import { Ago, CodeBlock, FixTrail, KeyValues } from './parts'
 
@@ -178,6 +180,7 @@ function TaskDetail({
   const open = shown.status === 'open' && outcome?.kind !== 'closed'
   const fact = factKey(task)
   const photo = isPhotoQuestion(task)
+  const account = isAccountReviewTask(task)
   return (
     <article className="flex max-w-[760px] flex-col gap-4" data-testid="task-detail" data-task-id={task.id}>
       <div>
@@ -204,7 +207,12 @@ function TaskDetail({
           ) : (
             <span>
               {/* "One product" only when the product read failed: the SKU and title are unknown. */}
-              {[product ? `${product.sku} · ${product.title}` : task.product_id ? 'One product' : null, fact ? factLabel(fact) : task.target_path, TASK_KIND_LABEL[task.kind]]
+              {[
+                product ? `${product.sku} · ${product.title}` : task.product_id ? 'One product' : null,
+                // An account task's target is an internal path (account.error_review): not shown.
+                fact ? factLabel(fact) : account ? 'Your marketplace account' : task.target_path,
+                TASK_KIND_LABEL[task.kind],
+              ]
                 .filter(Boolean)
                 .join(' · ')}
             </span>
@@ -214,9 +222,11 @@ function TaskDetail({
           Asked <Ago iso={task.created_at} />.{' '}
           {photo
             ? 'This doesn’t block your listing. Answer to improve it.'
-            : fact
-              ? 'Regenerate the listing after you answer to use it.'
-              : `The agent resumes from ${RESUME_LABEL[task.resume_from]} once this is answered.`}
+            : account
+              ? 'Publishing to this marketplace waits until it is sorted.'
+              : fact
+                ? 'Regenerate the listing after you answer to use it.'
+                : `The agent resumes from ${RESUME_LABEL[task.resume_from]} once this is answered.`}
         </p>
       </LaCard>
 
@@ -229,6 +239,8 @@ function TaskDetail({
         </>
       ) : open && task.kind === 'reconnect_account' ? (
         <ReconnectTask task={task} remaining={remaining} />
+      ) : open && isAccountReviewTask(task) ? (
+        <AccountTask task={task} kind={task.kind} remaining={remaining} />
       ) : open ? (
         <>
           <fieldset disabled className="flex flex-col gap-2" aria-describedby={`answer-soon-${task.id}`}>

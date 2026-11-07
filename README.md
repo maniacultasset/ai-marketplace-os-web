@@ -129,7 +129,7 @@ tag, or a "Join waitlist" button that does nothing:
 - "Read my site" (website prefill); legal name, business type, logo, description; compliance defaults (can't be saved yet)
 - Myntra, AJIO, Meesho, Nykaa Fashion (Join waitlist); pickup locations, default shipping; brand authorisation upload; category/brand approvals
 - Add from photos, product page URL, catalog export; PIM/ERP (Later); agent category classification
-- Assigning Inbox questions, and answering questions other than missing or conflicting facts; "Choose category" and "Ask support" on issues
+- Assigning Inbox questions, and answering questions other than missing or conflicting facts (a refused publish's account tasks take no answer: they show the marketplace's words with Open listing, Edit product, Open issue and Generate again); "Choose category" (a listing keeps its category) and "Ask support" on issues
 - Pause, archive, whole-product resubmit, catalog export
 - Autonomous submit and every auto-fix toggle, retry limit, notification channels (Autonomy shows approval mode only)
 - Brand-wide activity feed and audit log; notifications bell; top-bar product search
