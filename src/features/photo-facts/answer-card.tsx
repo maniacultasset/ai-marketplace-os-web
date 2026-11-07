@@ -127,7 +127,7 @@ export function AnswerCard({ task, onOutcome }: { task: Task; onOutcome: (o: Ans
 
       {!allowed ? (
         <Banner tone="neutral" icon="lock">
-          <span data-testid="answer-no-permission">Only people who can edit products can answer this. Ask an owner, admin or operator.</span>
+          <span data-testid="answer-no-permission">Only people who can edit products can answer this. Ask an owner or operator.</span>
         </Banner>
       ) : mode.mode === 'read-only' ? (
         <>
@@ -143,7 +143,19 @@ export function AnswerCard({ task, onOutcome }: { task: Task; onOutcome: (o: Ans
           <Banner tone="neutral" icon="info">
             <span data-testid="answer-read-only">{mode.reason}</span>
           </Banner>
-          <TaskProductLink task={task} />
+          {failure ? (
+            <Banner tone="danger" role="alert" title="Not saved">
+              {failure.message}
+            </Banner>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            {/* The backend takes a skip for every fact question, whatever its answer kind. */}
+            <Button type="button" variant="ghost" disabled={busy} onClick={() => void send({ skip: true })} data-testid="answer-skip">
+              {busy ? <Spinner data-icon="inline-start" aria-hidden /> : null}
+              {busy ? 'Saving…' : 'Skip this question'}
+            </Button>
+            <TaskProductLink task={task} />
+          </div>
         </>
       ) : (
         <form

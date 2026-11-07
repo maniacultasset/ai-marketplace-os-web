@@ -189,17 +189,31 @@ describe('AnswerCard, other kinds', () => {
     expect(bodyOf(0)).toEqual({ skip: true })
   })
 
-  it('multi_enum: read only, with a short note', () => {
-    setup(task({ expected_answer: { kind: 'multi_enum', allowed_values: ['festive', 'party'] }, suggestions: [] }))
+  it('multi_enum: read only, with a short note, and it can still be skipped', async () => {
+    post.mockReturnValueOnce(ok({ ...task(), status: 'applied' }))
+    const { onOutcome } = setup(task({ expected_answer: { kind: 'multi_enum', allowed_values: ['festive', 'party'] }, suggestions: [] }))
     expect(screen.getByTestId('answer-read-only').textContent).toMatch(/can’t be answered here yet/)
     expect(screen.getByText('Festive')).toBeTruthy()
     expect(screen.queryByTestId('answer-submit')).toBeNull()
+    fireEvent.click(screen.getByTestId('answer-skip'))
+    await waitFor(() => expect(onOutcome).toHaveBeenCalled())
+    expect(bodyOf(0)).toEqual({ skip: true })
+  })
+
+  it('an enum without options and an unknown kind can be skipped too', () => {
+    setup(task({ expected_answer: { kind: 'enum', allowed_values: [] }, suggestions: [] }))
+    expect(screen.getByTestId('answer-skip')).toBeTruthy()
+    cleanup()
+    setup(task({ expected_answer: { kind: 'file' }, suggestions: [] }))
+    expect(screen.getByTestId('answer-read-only')).toBeTruthy()
+    expect(screen.getByTestId('answer-skip')).toBeTruthy()
   })
 
   it('without permission: no input and no buttons, with the reason', () => {
     allowed = false
     setup(task())
-    expect(screen.getByTestId('answer-no-permission')).toBeTruthy()
+    // product:import: owners and operators; admins do not hold it.
+    expect(screen.getByTestId('answer-no-permission').textContent).toBe('Only people who can edit products can answer this. Ask an owner or operator.')
     expect(screen.queryByTestId('answer-submit')).toBeNull()
     expect(screen.queryAllByTestId('answer-chip')).toHaveLength(0)
   })
