@@ -89,6 +89,11 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
   const byColour = (product.colourways ?? []).length > 0
   const [colour, setColour] = useState<string>(ALL_COLOURS)
   const colourwayId = byColour && slot !== 'size_chart' && colour !== ALL_COLOURS ? colour : null
+  /** A new colour starts on Main when it has none yet, else on Secondary (as on the variants page). */
+  const pickColour = (key: string) => {
+    setColour(key)
+    setSlot(colourHasMain(product, key === ALL_COLOURS ? null : key) ? 'secondary' : 'main')
+  }
 
   // Object URLs live as long as the card.
   const urls = useRef(new Set<string>())
@@ -206,7 +211,7 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
           hasMain={byColour ? colourHasMain(product, colourwayId) : count > 0}
           colours={byColour && slot !== 'size_chart' ? groups.filter((g) => g.key !== 'other') : null}
           colour={colour}
-          onColour={setColour}
+          onColour={pickColour}
         />
       ) : null}
 

@@ -95,16 +95,28 @@ describe('ProductImagesCard upload', () => {
     expect(screen.queryByText(/replaces the current one/)).toBeNull()
     await user.upload(screen.getByLabelText('Image files'), file())
     await waitFor(() => expect(uploadImage).toHaveBeenCalled())
-    expect(uploadImage.mock.calls[0]![0]).toMatchObject({ productId: P, slot: 'secondary', colourwayId: WHITE })
+    // White has no main yet, so its first photo is its main, like on the variants page.
+    expect(uploadImage.mock.calls[0]![0]).toMatchObject({ productId: P, slot: 'main', colourwayId: WHITE })
+  })
+
+  it('picking a colour that has a main moves the slot to secondary', async () => {
+    const user = userEvent.setup()
+    setup()
+    await user.click(screen.getByTestId('image-colour'))
+    await user.click(await screen.findByRole('option', { name: 'White' }))
+    expect(screen.getByTestId('image-slot').textContent).toBe('Main')
+    await user.click(screen.getByTestId('image-colour'))
+    await user.click(await screen.findByRole('option', { name: 'Black' }))
+    expect(screen.getByTestId('image-slot').textContent).toBe('Secondary')
   })
 
   it('warns that a new main replaces the colour’s current main', async () => {
     const user = userEvent.setup()
     setup()
-    await user.click(screen.getByTestId('image-slot'))
-    await user.click(await screen.findByRole('option', { name: 'Main' }))
     await user.click(screen.getByTestId('image-colour'))
     await user.click(await screen.findByRole('option', { name: 'Black' }))
+    await user.click(screen.getByTestId('image-slot'))
+    await user.click(await screen.findByRole('option', { name: 'Main' }))
     expect(screen.getByText('A new main image replaces the current one for Black.')).toBeTruthy()
   })
 
