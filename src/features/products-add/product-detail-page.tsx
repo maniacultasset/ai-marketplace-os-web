@@ -242,6 +242,9 @@ interface DetailData {
   /** The fix counts are still on their first read: the cards hold their placeholders. */
   autoFixPending: boolean
   listingsPending: boolean
+  /** The listings read failed with nothing loaded: whether the product has one is unknown. */
+  listingsFailed: boolean
+  retryListings: () => void
   /** Open issues: counts show only when 'ready', 'Unknown' on 'error'. */
   issuesState: 'pending' | 'error' | 'ready'
   /** The product walk that finds variants and the parent; nothing says "no variants" before it lands. */
@@ -261,6 +264,7 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
   // Fix counts per listing (current version); a listing re-read keeps the same rows array.
   const autoFix = useFixCounts(listingsQ.data?.rows ?? NO_LISTINGS)
   const refetchAll = all.refetch
+  const refetchListings = listingsQ.refetch
   const tabsRef = useRef<HTMLDivElement>(null)
 
   // Keep the active tab in view when the row scrolls sideways (phones). 'nearest' never moves the page.
@@ -288,13 +292,15 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
       autoFixByListing: autoFix.counts,
       autoFixPending: autoFix.pending,
       listingsPending: listingsQ.isPending,
+      listingsFailed: !listingsQ.data && !!listingsQ.error,
+      retryListings: () => void refetchListings(),
       issuesState: issuesQ.data ? 'ready' : issuesQ.error ? 'error' : 'pending',
       variantsPending: all.isPending,
       variantsError: all.data ? null : all.error,
       retryVariants: () => void refetchAll(),
       isVariant: !!p.parent_product_id,
     }
-  }, [q.data, all.data, all.isPending, all.error, refetchAll, listingsQ.data, listingsQ.isPending, issuesQ.data, issuesQ.error, autoFix])
+  }, [q.data, all.data, all.isPending, all.error, refetchAll, listingsQ.data, listingsQ.isPending, listingsQ.error, refetchListings, issuesQ.data, issuesQ.error, autoFix])
 
   if (q.isPending) return <DetailSkeleton tab={tab} />
   if (q.error || !data) {
@@ -769,7 +775,8 @@ function OverviewTab({ data, session, onEdit }: { data: DetailData; session: Pro
       <div className="max-w-4xl">
         <ProductDetailsEditor
           session={session}
-          categoryLock={data.listingsPending ? 'pending' : listingsIn(data).length ? 'locked' : 'open'}
+          categoryLock={data.listingsPending ? 'pending' : data.listingsFailed ? 'unknown' : listingsIn(data).length ? 'locked' : 'open'}
+          onRetryCategoryLock={data.retryListings}
         />
       </div>
     )

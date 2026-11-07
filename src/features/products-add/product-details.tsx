@@ -242,7 +242,14 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /** Category: a select of the listable categories while the product has no listing, else fixed. */
-function CategoryField({ session, lock }: { session: ProductEditSession; lock: CategoryLock }) {
+const LOCK_HINT: Record<CategoryLock, string> = {
+  open: 'Kurta sets and T-shirts can be listed for now.',
+  locked: 'Fixed once the product has a listing.',
+  pending: 'Checking for listings…',
+  unknown: 'Couldn’t check for listings, so it stays as it is.',
+}
+
+function CategoryField({ session, lock, onRetry }: { session: ProductEditSession; lock: CategoryLock; onRetry?: () => void }) {
   const { d, patch, touch, errors, submitted } = session
   const open = lock === 'open'
   return (
@@ -250,7 +257,14 @@ function CategoryField({ session, lock }: { session: ProductEditSession; lock: C
       label="Category"
       htmlFor="e-category"
       error={errors.category}
-      hint={lock === 'pending' ? 'Checking for listings…' : open ? 'Kurta sets and T-shirts can be listed for now.' : 'Fixed once the product has a listing.'}
+      hint={LOCK_HINT[lock]}
+      hintAction={
+        lock === 'unknown' && onRetry ? (
+          <Button type="button" variant="ghost" size="xs" onClick={onRetry}>
+            Check again
+          </Button>
+        ) : undefined
+      }
       submitCount={submitted}
       confirmFix
     >
@@ -277,7 +291,16 @@ function CategoryField({ session, lock }: { session: ProductEditSession; lock: C
   )
 }
 
-export function ProductDetailsEditor({ session, categoryLock = 'pending' }: { session: ProductEditSession; categoryLock?: CategoryLock }) {
+export function ProductDetailsEditor({
+  session,
+  categoryLock = 'pending',
+  onRetryCategoryLock,
+}: {
+  session: ProductEditSession
+  categoryLock?: CategoryLock
+  /** Re-read the listings after a failed read (`categoryLock` 'unknown'). */
+  onRetryCategoryLock?: () => void
+}) {
   const { d, patch, setAttr, touch, errors, submitted, isVariant, base: product } = session
   const ref = useRef<HTMLFormElement>(null)
   const onSave = async () => {
@@ -350,7 +373,7 @@ export function ProductDetailsEditor({ session, categoryLock = 'pending' }: { se
               submitCount={submitted}
               maxLength={1000}
             />
-            {isVariant ? null : <CategoryField session={session} lock={categoryLock} />}
+            {isVariant ? null : <CategoryField session={session} lock={categoryLock} onRetry={onRetryCategoryLock} />}
             {isVariant ? null : (
               <TextField
                 id="e-style_number"

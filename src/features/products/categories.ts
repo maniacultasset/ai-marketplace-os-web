@@ -1,7 +1,8 @@
 /**
- * The categories a product can be listed under: those with a marketplace template on both Amazon
- * and Flipkart (backend db/seed_data/platform_templates.json). Any other category saves, then fails
- * at generate with CATEGORY_NOT_MAPPED, so the editor offers only these plus the product's own.
+ * The categories the product editor offers. Amazon and Flipkart templates exist for kurta sets,
+ * t-shirts and lamps (backend db/seed_data/platform_templates.json); offering only the apparel
+ * ones is a product choice for the V1 apparel brands, not a backend limit. The product's own
+ * category is always kept in the list, so an existing lamp product still shows its value.
  */
 export interface CategoryChoice {
   value: string
@@ -34,5 +35,8 @@ export function categoryChoices(current: string): CategoryChoice[] {
   return [...APPAREL_CATEGORIES, { value: c, label: categoryLabel(c) }]
 }
 
-/** Whether the product's category may change: the backend refuses once it has a listing. */
-export type CategoryLock = 'open' | 'locked' | 'pending'
+/**
+ * Whether the product's category may change: the backend refuses once it has a listing.
+ * `unknown`: the listings read failed, so it is treated as fixed until a retry answers.
+ */
+export type CategoryLock = 'open' | 'locked' | 'pending' | 'unknown'
