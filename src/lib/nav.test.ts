@@ -46,7 +46,7 @@ describe('nav registry', () => {
     expect(isNavActive(products, '/listings/abc/review')).toBe(true)
   })
   it('highlights the most specific item', () => {
-    expect(activeNavId(NAV_ITEMS, '/products/new')).toBe('add')
+    expect(activeNavId(NAV_ITEMS, '/add/guided')).toBe('add')
     expect(activeNavId(NAV_ITEMS, '/products/123')).toBe('products')
     expect(activeNavId(NAV_ITEMS, '/imports/new')).toBe('add')
     expect(activeNavId(NAV_ITEMS, '/imports/123')).toBe('products')

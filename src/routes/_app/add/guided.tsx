@@ -8,6 +8,8 @@ import { parseListOn } from '@/features/products-add/list-on'
 const searchSchema = z.object({
   /** Marketplaces chosen on /add ("amazon,flipkart"). */
   on: z.string().optional().catch(undefined),
+  /** "photos": open on the Images section ("Photos and basics" on /add and Home). */
+  start: z.enum(['photos']).optional().catch(undefined),
 })
 
 export const Route = createFileRoute('/_app/add/guided')({
@@ -17,10 +19,10 @@ export const Route = createFileRoute('/_app/add/guided')({
 })
 
 function GuidedRoute() {
-  const { on } = Route.useSearch()
+  const { on, start } = Route.useSearch()
   return (
     <RequireAction action="product:import">
-      <GuidedForm listOn={parseListOn(on)} />
+      <GuidedForm listOn={parseListOn(on)} startAt={start === 'photos' ? 'media' : undefined} />
     </RequireAction>
   )
 }

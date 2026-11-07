@@ -36,9 +36,14 @@ test.describe('home', () => {
     if (rows.length === 0) {
       await expect(page.getByRole('heading', { level: 1, name: /^Welcome/ })).toBeVisible()
       await expect(page.getByTestId('setup-card')).toBeVisible()
-      await expect(page.getByTestId('setup-compliance')).toContainText('Later')
-      // Photo intake has no API: the card is disabled, never selectable.
-      await expect(page.getByRole('radio', { name: /Photos and basics/ })).toHaveAttribute('aria-disabled', 'true')
+      // Every step comes from a real read; compliance defaults (no API) are gone.
+      await expect(page.getByTestId('setup-compliance')).toHaveCount(0)
+      await expect(page.getByTestId('setup-manufacturer')).toBeVisible()
+      await expect(page.getByTestId('setup-approver')).toBeVisible()
+      // The first-run buttons open the V1 add screens.
+      await page.getByTestId('route-photos').click()
+      await page.getByTestId('first-run-add').click()
+      await expect(page).toHaveURL(/\/add\/guided\?(.*&)?start=photos/)
       return
     }
     const live = rows.filter((l) => l.marketplace_state === 'live').length

@@ -290,16 +290,14 @@ export function marketplaceCard(account: Pick<Account, 'status'> | null, t: Mark
 /* Home: first run (p05)                                                                           */
 /* ---------------------------------------------------------------------------------------------- */
 
-export type SetupState = 'done' | 'next' | 'todo' | 'later'
+export type SetupState = 'done' | 'next' | 'todo'
 
 export interface SetupStep {
-  id: 'brand' | 'compliance' | 'marketplace' | 'product'
+  id: 'brand' | 'manufacturer' | 'marketplace' | 'approver' | 'product'
   label: string
   state: SetupState
-  /** Chip word ("Done", "Next", "1 of 2", "Later"). */
+  /** Chip word ("Done", "Next", "1 of 2", "To do"). */
   chip: string
-  /** Counts toward the ring (compliance has no API yet, so it never does). */
-  counted: boolean
 }
 
 export function brandProfileDone(t: Pick<Tenant, 'tone' | 'guidelines' | 'glossary'> | undefined): boolean {
@@ -307,21 +305,33 @@ export function brandProfileDone(t: Pick<Tenant, 'tone' | 'guidelines' | 'glossa
   return !!t.tone?.trim() || (t.guidelines?.length ?? 0) > 0 || Object.keys(t.glossary ?? {}).length > 0
 }
 
-export function setupSteps(input: { brandDone: boolean; activeAccounts: number; hasProducts: boolean }): SetupStep[] {
+/**
+ * The first-run checklist, every step from a real read: brand voice (GET /tenants/me), the brand
+ * manufacturer (GET /brand-profile), a connected marketplace (GET /marketplaces/accounts), a second
+ * person who can approve (GET /members, maker-checker) and the first product (GET /products).
+ */
+export function setupSteps(input: {
+  brandDone: boolean
+  manufacturerDone: boolean
+  activeAccounts: number
+  approverDone: boolean
+  hasProducts: boolean
+}): SetupStep[] {
+  const yesNo = (done: boolean) => ({ state: (done ? 'done' : 'todo') as SetupState, chip: done ? 'Done' : 'To do' })
   const steps: SetupStep[] = [
-    { id: 'brand', label: 'Brand profile', state: input.brandDone ? 'done' : 'todo', chip: input.brandDone ? 'Done' : 'To do', counted: true },
-    { id: 'compliance', label: 'Compliance defaults', state: 'later', chip: 'Later', counted: false },
+    { id: 'brand', label: 'Brand profile', ...yesNo(input.brandDone) },
+    { id: 'manufacturer', label: 'Brand manufacturer', ...yesNo(input.manufacturerDone) },
     {
       id: 'marketplace',
       label: 'Connect a marketplace',
       state: input.activeAccounts > 0 ? 'done' : 'todo',
       chip: `${input.activeAccounts} of ${API_MARKETPLACES.length}`,
-      counted: true,
     },
-    { id: 'product', label: 'Add your first product', state: input.hasProducts ? 'done' : 'todo', chip: input.hasProducts ? 'Done' : 'To do', counted: true },
+    { id: 'approver', label: 'Add a teammate who approves', ...yesNo(input.approverDone) },
+    { id: 'product', label: 'Add your first product', ...yesNo(input.hasProducts) },
   ]
-  // The first counted step that is not done is "Next".
-  const next = steps.find((s) => s.counted && s.state === 'todo')
+  // The first step that is not done is "Next".
+  const next = steps.find((s) => s.state === 'todo')
   if (next) {
     next.state = 'next'
     next.chip = next.id === 'marketplace' ? next.chip : 'Next'
@@ -330,10 +340,9 @@ export function setupSteps(input: { brandDone: boolean; activeAccounts: number; 
 }
 
 export function setupProgress(steps: readonly SetupStep[]): { done: number; total: number; line: string } {
-  const counted = steps.filter((s) => s.counted)
-  const done = counted.filter((s) => s.state === 'done').length
-  const left = counted.length - done
-  return { done, total: counted.length, line: left === 0 ? 'All done' : left === 1 ? 'One step left' : `${left} steps left` }
+  const done = steps.filter((s) => s.state === 'done').length
+  const left = steps.length - done
+  return { done, total: steps.length, line: left === 0 ? 'All done' : left === 1 ? 'One step left' : `${left} steps left` }
 }
 
 /* ---------------------------------------------------------------------------------------------- */

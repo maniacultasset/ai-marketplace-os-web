@@ -1,69 +1,38 @@
 /**
- * Add products: choose how (hi-fi p08). Guided form (→ /add/guided, POST /products) and Bulk
- * spreadsheet (→ /add/bulk, POST /products/bulk) are real. Photos, catalog export and product URL
- * intake have no API yet (no `POST /intakes`), so their cards say "Coming soon" with the reason;
- * PIM or ERP is "Later", as designed.
+ * Add products: choose how (hi-fi p08). Three real routes:
+ *   Guided form         → /add/guided (POST /products)
+ *   Bulk spreadsheet    → /add/bulk (POST /products/bulk)
+ *   Photos and basics   → the guided form opened on its Images section; the agent reads facts
+ *                         from the photos when it drafts, and the seller confirms them.
+ * Catalog export, product URL and PIM/ERP intake have no API and no V1 value, so they are not shown.
  */
 import { useNavigate } from '@tanstack/react-router'
 import { useState, type KeyboardEvent } from 'react'
 import { Page, PageHeader } from '@/components/app/page-header'
-import { Banner, ComingSoon, CONCEPT_ICON, FooterBar, IconTile, NOT_YET, TagChip, type IconSource } from '@/components/la'
+import { Banner, CONCEPT_ICON, FooterBar, IconTile, type IconSource } from '@/components/la'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { Marketplace } from './catalog-model'
 import { ListOnPicker, serializeListOn, useConnectedMarketplaces } from './list-on'
 
-type RouteId = 'guided' | 'bulk'
+type RouteId = 'guided' | 'bulk' | 'photos'
 
 interface RouteDef {
-  id: RouteId | 'photos' | 'catalog' | 'url' | 'pim'
+  id: RouteId
   icon: IconSource
   title: string
   body: string
-  /** Why it is not available (cards without a route). */
-  reason?: string
-  later?: boolean
 }
 
 const ROUTES: readonly RouteDef[] = [
   { id: 'guided', icon: CONCEPT_ICON.guidedForm, title: 'Guided form', body: 'One product at a time. We ask only for what a listing needs.' },
   { id: 'bulk', icon: 'table', title: 'Bulk spreadsheet', body: 'Download the template, fill it in, then upload.' },
-  { id: 'photos', icon: 'image', title: 'Photos and basics', body: 'Upload images plus a name and price. We read the rest.', reason: NOT_YET.intakePhotos },
-  { id: 'catalog', icon: 'upload', title: 'Catalog export', body: 'Upload a file from another marketplace or store.', reason: NOT_YET.intakeCatalog },
-  { id: 'url', icon: CONCEPT_ICON.productUrl, title: 'Product page URL', body: 'Paste your own website’s product link.', reason: NOT_YET.intakeUrl },
-  { id: 'pim', icon: CONCEPT_ICON.pim, title: 'PIM or ERP', body: 'Connect a system of record. Not in V1.', reason: NOT_YET.pim, later: true },
+  { id: 'photos', icon: 'image', title: 'Photos and basics', body: 'Start with photos, a name and a SKU. The agent reads fabric, colour and more from the photos, and you confirm.' },
 ]
 
-const LIVE: readonly RouteId[] = ['guided', 'bulk']
+const LIVE: readonly RouteId[] = ROUTES.map((r) => r.id)
 
-function RouteCard({ def, selected, onSelect }: { def: RouteDef; selected: boolean; onSelect?: () => void }) {
-  const tile = <IconTile icon={def.icon} size="lg" tone={selected ? 'brand' : 'neutral'} flat={!!def.reason} className={def.reason ? 'bg-subtle text-ink-3' : undefined} />
-  if (def.reason) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div
-            tabIndex={0}
-            aria-disabled
-            aria-label={`${def.title}: ${def.reason}`}
-            className={cn(
-              'focus-ring flex cursor-not-allowed flex-col rounded-card border p-5',
-              def.later ? 'border-dashed border-line-strong bg-transparent' : 'border-line bg-surface/70',
-            )}
-          >
-            {tile}
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <h3 className={cn('text-h3', def.later ? 'text-ink-2' : 'text-ink')}>{def.title}</h3>
-              {def.later ? <TagChip tone="plain">Later</TagChip> : <ComingSoon />}
-            </div>
-            <p className="mt-1 text-small text-ink-2">{def.body}</p>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>{def.reason}</TooltipContent>
-      </Tooltip>
-    )
-  }
+function RouteCard({ def, selected, onSelect }: { def: RouteDef; selected: boolean; onSelect: () => void }) {
   return (
     <button
       type="button"
@@ -79,7 +48,7 @@ function RouteCard({ def, selected, onSelect }: { def: RouteDef; selected: boole
           : 'lift border-line bg-surface shadow-raised-md hover:border-line-strong active:shadow-pressed',
       )}
     >
-      {tile}
+      <IconTile icon={def.icon} size="lg" tone={selected ? 'brand' : 'neutral'} />
       <h3 className="mt-3 text-h3 text-ink">{def.title}</h3>
       <p className="mt-1 text-small text-ink-2">{def.body}</p>
     </button>
@@ -98,14 +67,16 @@ export function AddChooser() {
   const onKey = (e: KeyboardEvent) => {
     if (!['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(e.key)) return
     e.preventDefault()
-    const next = LIVE[(LIVE.indexOf(route) + 1) % LIVE.length]!
+    const step = e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1
+    const next = LIVE[(LIVE.indexOf(route) + step + LIVE.length) % LIVE.length]!
     setRoute(next)
     ;(e.currentTarget.querySelector(`[data-testid=route-${next}]`) as HTMLElement | null)?.focus()
   }
 
   const go = () => {
     const on = serializeListOn(listOn ?? [])
-    void navigate({ to: route === 'guided' ? '/add/guided' : '/add/bulk', search: on ? { on } : {} })
+    if (route === 'bulk') void navigate({ to: '/add/bulk', search: on ? { on } : {} })
+    else void navigate({ to: '/add/guided', search: { ...(on ? { on } : {}), ...(route === 'photos' ? { start: 'photos' as const } : {}) } })
   }
 
   return (
@@ -114,7 +85,7 @@ export function AddChooser() {
         <PageHeader title="Add products" description="Give us what you have. We ask only for what a listing still needs." />
         <div role="radiogroup" aria-label="How to add products" onKeyDown={onKey} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {ROUTES.map((r) => (
-            <RouteCard key={r.id} def={r} selected={r.id === route} onSelect={LIVE.includes(r.id as RouteId) ? () => setRoute(r.id as RouteId) : undefined} />
+            <RouteCard key={r.id} def={r} selected={r.id === route} onSelect={() => setRoute(r.id)} />
           ))}
         </div>
         <Banner tone="info" className="mt-4">
