@@ -7,8 +7,9 @@
  * chosen marketplace (./generate.ts). The unsent draft is kept in this browser only (localStorage,
  * per brand) so a reload does not lose typing; photos are not kept, and the form says so.
  *
- * Not in the API yet, shown honestly: agent classification and attribute extraction ("Agent's
- * understanding" says so), readiness percentages (shown only after the agent checks a draft).
+ * The side panel ("Before you save") shows the critical facts still missing, the marketplaces
+ * chosen and the category. Readiness is checked only once the agent drafts the listing. The
+ * category is a dropdown of the categories the agent can list (features/products/category-options.ts).
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
@@ -21,7 +22,6 @@ import {
   AttentionCard,
   Banner,
   CONCEPT_ICON,
-  ComingSoon,
   FooterBar,
   Glyph,
   Icon,
@@ -54,7 +54,9 @@ import {
   type PartyField,
   type PartyOut,
 } from '@/features/products/intake-model'
-import { ATTRIBUTE_KEY_SUGGESTIONS, ATTRIBUTE_TEXT_MAX, KNOWN_CATEGORIES, SKU_MAX, TITLE_MAX } from '@/features/products/schema'
+import { ATTRIBUTE_KEY_SUGGESTIONS, ATTRIBUTE_TEXT_MAX, SKU_MAX, TITLE_MAX } from '@/features/products/schema'
+import { categoryLabel } from '@/features/products/categories'
+import { CategorySelect } from '@/features/products/category-select'
 import { invalidateListingWork } from '@/features/listings/api'
 import { useSession } from '@/lib/auth'
 import { OP_ACTION, useCan } from '@/lib/permissions'
@@ -63,7 +65,7 @@ import { toast } from '@/lib/toast'
 import { focusFirstInvalid } from '@/lib/validation'
 import { cn } from '@/lib/utils'
 import { useAllProducts } from './catalog'
-import { humanizeSlug, type Marketplace, type Product } from './catalog-model'
+import type { Marketplace, Product } from './catalog-model'
 import { generateMany, planGenerate } from './generate'
 import {
   ATTR_FIELDS,
@@ -149,7 +151,7 @@ function SectionMark({ state }: { state: SectionState }) {
   )
 }
 
-export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
+export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketplace[]; startAt?: SectionId }) {
   const navigate = useNavigate()
   const keys = useKeys()
   const qc = useQueryClient()
@@ -159,7 +161,7 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
   const [initial] = useState(() => readDraft(draftKey))
   const [values, setValues] = useState<GuidedValues>(() => initial?.values ?? emptyGuided())
   const [savedAt, setSavedAt] = useState<string | null>(initial?.savedAt ?? null)
-  const [section, setSection] = useState<SectionId>('identity')
+  const [section, setSection] = useState<SectionId>(startAt)
   /** Errors from the last save attempt's API response, cleared per field as it is edited. */
   const [serverErrors, setServerErrors] = useState<GuidedErrors>({})
   /** Fields the person has left (blurred): their client errors show from then on. */
@@ -183,10 +185,7 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
   const [conflict, setConflict] = useState<Product | null>(null)
 
   const products = useAllProducts()
-  const categories = useMemo(
-    () => [...new Set<string>([...KNOWN_CATEGORIES, ...(products.data?.rows ?? []).map((p) => p.category)])].sort(),
-    [products.data],
-  )
+  const brandCategories = useMemo(() => (products.data?.rows ?? []).map((p) => p.category), [products.data])
 
   // The brand's default manufacturer: every product inherits it unless it sets its own.
   const brand = useBrandManufacturer()
@@ -568,29 +567,16 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
         )
       case 'category':
         return (
-          <div className="flex flex-col gap-4">
-            <div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
-              <TextField
-                id="g-category"
-                label="Category"
-                value={values.category}
-                onChange={(category) => set({ category })}
-                onBlur={() => touch('category')}
-                error={errors.category}
-                submitCount={submitCount}
-                maxLength={64 + 8}
-                code
-                hint="The catalog category, for example ethnic_wear_kurta_sets."
-                list="g-category-list"
-              />
-            </div>
-            <datalist id="g-category-list">
-              {categories.map((c) => (
-                <option key={c} value={c}>
-                  {humanizeSlug(c)}
-                </option>
-              ))}
-            </datalist>
+          <div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
+            <CategorySelect
+              id="g-category"
+              value={values.category}
+              onChange={(category) => set({ category })}
+              onBlur={() => touch('category')}
+              brandCategories={brandCategories}
+              error={errors.category}
+              submitCount={submitCount}
+            />
           </div>
         )
       case 'fabric':
@@ -726,7 +712,7 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
               {values.title.trim() || 'New product'}
             </h1>
             <p className="mt-1 truncate text-body text-ink-2">
-              {[values.styleNumber.trim(), values.sku.trim(), values.category.trim() ? humanizeSlug(values.category.trim()) : null].filter(Boolean).join(' · ') ||
+              {[values.styleNumber.trim(), values.sku.trim(), values.category.trim() ? categoryLabel(values.category) : null].filter(Boolean).join(' · ') ||
                 'Fill in what you know. Only the name, SKU and category are needed to save.'}
             </p>
           </div>
@@ -797,9 +783,11 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
           </div>
         </section>
 
-        <aside aria-label="Agent's understanding" className="border-t border-line bg-canvas px-4 py-6 lg:border-t-0 lg:border-l">
+        <aside aria-labelledby="g-summary" className="border-t border-line bg-canvas px-4 py-6 lg:border-t-0 lg:border-l">
           <div className="flex flex-col gap-3 lg:sticky lg:top-[calc(var(--topbar-h)+16px)]">
-            <h2 className="font-display text-h3 text-ink">Agent’s understanding</h2>
+            <h2 id="g-summary" className="font-display text-h3 text-ink">
+              Before you save
+            </h2>
             {missing.length ? (
               <AttentionCard pad="sm" className="flex items-start gap-3">
                 <IconTile icon="alert" tone="warn" size="sm" flat />
@@ -835,22 +823,19 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
                 </ul>
               ) : (
                 <p className="mt-2 text-small text-ink-2">
-                  No marketplace chosen.{' '}
+                  No marketplace chosen, so saving starts no draft.{' '}
                   <Link to="/add" className="font-semibold text-brand hover:underline">
-                    Choose on the previous step
+                    Choose marketplaces
                   </Link>
-                  .
                 </p>
               )}
               <p className="mt-3 text-caption text-ink-3">Readiness is checked against each marketplace’s rules once the agent drafts the listing.</p>
             </LaCard>
             <LaCard pad="sm">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-caption text-ink-2">Category</p>
-                <ComingSoon />
-              </div>
-              <p className="mt-1 truncate text-small font-semibold text-ink">{values.category.trim() ? humanizeSlug(values.category.trim()) : 'Not chosen yet'}</p>
-              <p className="mt-0.5 text-caption text-ink-3">The agent will suggest a category later. Choose it yourself for now.</p>
+              <p className="text-caption text-ink-2">Category</p>
+              <p className="mt-1 truncate text-small font-semibold text-ink" data-testid="guided-category-summary">
+                {values.category.trim() ? categoryLabel(values.category) : 'Not chosen yet'}
+              </p>
             </LaCard>
           </div>
         </aside>

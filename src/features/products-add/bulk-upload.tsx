@@ -31,6 +31,7 @@ import { downloadTemplate, formatBytes, MAX_FILE_BYTES, MAX_IMPORT_ROWS, REQUIRE
 import { useImportHistory } from '@/features/imports/history'
 import { useImportReport } from '@/features/imports/import-report'
 import { markJobLive, useImportJob } from '@/features/imports/use-import-job'
+import { CategoryCodes } from '@/features/products/category-select'
 import { useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
 import { cn } from '@/lib/utils'
@@ -105,6 +106,8 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
   const [file, setFile] = useState<File | null>(null)
   const [analysis, setAnalysis] = useState<HeaderAnalysis | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
+  const products = useAllProducts()
+  const brandCategories = products.data ? products.data.rows.map((p) => p.category) : products.isError ? [] : null
 
   const upload = useMutation({
     meta: { toast: false },
@@ -180,6 +183,9 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
               <p className="mt-3 text-small text-ink-2">
                 Required: {REQUIRED_COLUMNS.join(', ')}. Up to {MAX_IMPORT_ROWS.toLocaleString('en-IN')} rows and 10 MB.
               </p>
+              <h3 className="mt-4 text-small font-bold text-ink">Category column</h3>
+              <p className="mt-1 text-small text-ink-2">Use one of these codes. The agent can’t list any other category.</p>
+              <CategoryCodes className="mt-2" brandCategories={brandCategories} />
             </LaCard>
             <LaCard emphasis="tint">
               <CardHead title="How columns are matched" icon={CONCEPT_ICON.columns} />

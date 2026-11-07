@@ -33,11 +33,11 @@ import {
   ATTRIBUTE_KEY_MSG,
   ATTRIBUTE_KEY_PATTERN,
   ATTRIBUTE_TEXT_MAX,
-  categoryProblem,
   codePoints,
   productTitleProblem,
   skuProblem,
 } from '@/features/products/schema'
+import { isMappedCategory } from '@/features/products/category-options'
 import type { Schema } from '@/api/types'
 import { CONTROL_MSG, hasStrayControlChars } from '@/lib/validation'
 
@@ -202,8 +202,9 @@ export function validateGuided(v: GuidedValues): GuidedErrors {
   if (sku) e.sku = sku
   const title = productTitleProblem(v.title, 'the product name')
   if (title) e.title = title
-  const category = categoryProblem(v.category)
-  if (category) e.category = category
+  // A dropdown of mapped categories: any other value (an old draft) would save but never list.
+  if (!v.category.trim()) e.category = 'Choose a category.'
+  else if (!isMappedCategory(v.category)) e.category = 'Choose a category from the list. The agent can’t list this one.'
   const style = v.styleNumber.trim()
   if (style) {
     if (hasStrayControlChars(style)) e.style_number = CONTROL_MSG
