@@ -132,4 +132,10 @@ describe('ProductImagesCard upload', () => {
     await waitFor(() => expect(uploadImage).toHaveBeenCalled())
     expect(uploadImage.mock.calls[0]![0]).toMatchObject({ slot: 'size_chart', colourwayId: null })
   })
+
+  it('names each select by its visible words', () => {
+    setup()
+    expect(screen.getByRole('combobox', { name: 'Colour' })).toBeTruthy()
+    expect(screen.getByRole('combobox', { name: 'Upload as' })).toBeTruthy()
+  })
 })

@@ -11,7 +11,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { api, unwrap } from '@/api/client'
 import { describeError, isApiError } from '@/api/errors'
 import { idempotencyHeader, newIdempotencyKey, useIntentKey } from '@/api/idempotency'
@@ -289,6 +289,7 @@ function ImagesCard({ product, canUpload }: { product: ColourSource & { id: stri
   const groups = colourGroups(product).filter((g) => g.key !== 'other' || g.keys.length)
   const byColour = (product.colourways ?? []).length > 0
   const [colour, setColour] = useState<string>(ALL_COLOURS)
+  const uid = useId()
   const picked = groups.find((g) => g.key === colour) ?? groups[0]!
   const galleryUploads = uploads.filter((u) => u.slot !== 'size_chart')
   const sessionIds = new Set(galleryUploads.flatMap((u) => (u.state.kind === 'accepted' ? [u.state.imageId] : [])))
@@ -309,10 +310,11 @@ function ImagesCard({ product, canUpload }: { product: ColourSource & { id: stri
         }
       />
       {byColour && canUpload ? (
-        <label className="mt-4 flex items-center gap-2 text-small text-ink-2">
-          Add photos for
+        <div className="mt-4 flex items-center gap-2 text-small text-ink-2">
+          {/* The visible words name the select. */}
+          <span id={`${uid}-colour`}>Add photos for</span>
           <Select value={picked.key} onValueChange={(v) => setColour(groups.find((g) => g.key === v)?.key ?? colour)}>
-            <SelectTrigger size="sm" className="w-44" aria-label="Photo colour" data-testid="variants-image-colour">
+            <SelectTrigger size="sm" className="w-44" aria-labelledby={`${uid}-colour`} data-testid="variants-image-colour">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -325,7 +327,7 @@ function ImagesCard({ product, canUpload }: { product: ColourSource & { id: stri
                 ))}
             </SelectContent>
           </Select>
-        </label>
+        </div>
       ) : null}
       {shown.map((g) => {
         const stored = storedIn(g)

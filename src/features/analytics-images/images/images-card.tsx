@@ -1,5 +1,5 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useDropzone, type FileRejection } from 'react-dropzone'
 import { api, unwrap } from '@/api/client'
 import { describeError, isApiError, isNotFound } from '@/api/errors'
@@ -307,6 +307,8 @@ function Dropzone({
   onColour: (key: string) => void
 }) {
   const colourName = colours?.find((g) => g.key === colour)?.label
+  // The visible words name each select: "Colour", "Upload as".
+  const uid = useId()
   const dz = useDropzone({
     onDrop: onFiles,
     multiple: slot !== 'main',
@@ -319,10 +321,10 @@ function Dropzone({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {colours ? (
-            <label className="flex items-center gap-2 text-[0.8125rem] text-muted-foreground">
-              Colour
+            <div className="flex items-center gap-2 text-[0.8125rem] text-muted-foreground">
+              <span id={`${uid}-colour`}>Colour</span>
               <Select value={colour} onValueChange={(v) => onColour(colours.find((g) => g.key === v)?.key ?? colour)}>
-                <SelectTrigger size="sm" className="w-40" aria-label="Image colour" data-testid="image-colour">
+                <SelectTrigger size="sm" className="w-40" aria-labelledby={`${uid}-colour`} data-testid="image-colour">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -333,12 +335,12 @@ function Dropzone({
                   ))}
                 </SelectContent>
               </Select>
-            </label>
+            </div>
           ) : null}
-          <label className="flex items-center gap-2 text-[0.8125rem] text-muted-foreground">
-            Upload as
+          <div className="flex items-center gap-2 text-[0.8125rem] text-muted-foreground">
+            <span id={`${uid}-slot`}>Upload as</span>
             <Select value={slot} onValueChange={(v) => onSlot(slots.find((s) => s === v) ?? slot)}>
-              <SelectTrigger size="sm" className="w-40" aria-label="Image slot" data-testid="image-slot">
+              <SelectTrigger size="sm" className="w-40" aria-labelledby={`${uid}-slot`} data-testid="image-slot">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -349,7 +351,7 @@ function Dropzone({
                 ))}
               </SelectContent>
             </Select>
-          </label>
+          </div>
         </div>
         <span className="text-xs text-muted-foreground">
           {slot === 'main' && hasMain
