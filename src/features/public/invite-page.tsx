@@ -37,6 +37,7 @@ import { acceptInviteWithPassword, joinInvite, lookupOnce, type InvitePreview } 
 import { inviteStash, sameEmail, shortDateTime, takeLinkToken, type LinkToken } from '@/features/team-account/access-model'
 import { ROLE_INFO } from '@/features/team-account/roles'
 import { logout, signIn, switchTenant, useMe, useSession } from '@/lib/auth'
+import { SUPPORT_EMAIL, supportMailto } from '@/lib/support'
 import { toast } from '@/lib/toast'
 import { FORM_VALIDATION_MODE, NAME_MAX, personName } from '@/lib/validation'
 import { AuthCard, AuthFrame, FormAlert } from './auth-frame'
@@ -187,7 +188,7 @@ function Ready({
   let body: ReactNode
   // A session whose account cannot be read counts as signed out here (Join would answer 401).
   const account = signedIn ? me.data : undefined
-  if (signedIn && me.isPending) body = <Spinner className="mx-auto size-5 text-brand" aria-label="Checking who is signed in" />
+  if (signedIn && me.isPending) body = <Spinner role="status" className="mx-auto size-5 text-brand" aria-label="Checking who is signed in" />
   else if (account && !sameEmail(account.email, preview.email)) body = <WrongAccount signedInAs={account.email} invited={preview.email} />
   else if (preview.account === 'existing')
     body = account ? <JoinButton preview={preview} token={token} onInvalid={onInvalid} /> : <SignInToJoin email={preview.email} />
@@ -235,7 +236,7 @@ type NewAccountValues = { display_name: string; password: string; confirm: strin
 /** Shared refusals of POST /invites/accept. Returns true when it handled the error. */
 function useAcceptErrors(onInvalid: () => void) {
   const countdown = useCountdown()
-  const [formError, setFormError] = useState<{ message: string; ref: string | null } | null>(null)
+  const [formError, setFormError] = useState<{ message: ReactNode; ref: string | null } | null>(null)
   const handle = (e: unknown): boolean => {
     if (!isApiError(e)) {
       setFormError({ message: describeError(e), ref: null })
@@ -286,6 +287,21 @@ function NewAccountForm({
       await acceptInviteWithPassword(token, v.password, v.display_name.trim())
     } catch (e) {
       if (errs.handle(e)) return
+      // A new-account accept answers 401 only when the email's account has no password to check:
+      // a Google sign-up still waiting for review.
+      if (isApiError(e) && e.status === 401)
+        return errs.setFormError({
+          message: (
+            <>
+              This email has a Google account that is waiting for review. Contact support at{' '}
+              <a href={supportMailto('Invite for an account waiting for review')} className="font-semibold underline underline-offset-2">
+                {SUPPORT_EMAIL}
+              </a>
+              .
+            </>
+          ),
+          ref: e.correlationId,
+        })
       const rules = ruleMessages(e, 'password')
       if (rules.length) return form.setError('password', { type: 'server', message: rules.join(' ') }, { shouldFocus: true })
       const name = ruleMessages(e, 'display_name')

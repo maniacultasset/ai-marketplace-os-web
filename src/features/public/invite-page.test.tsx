@@ -125,6 +125,30 @@ describe('InvitePage', () => {
     expect(api.acceptInviteWithPassword).not.toHaveBeenCalled()
   })
 
+  it('new account: a 401 means a Google sign-up for this email is waiting for review', async () => {
+    open(`/invite#token=${TOKEN}`)
+    api.lookupOnce.mockResolvedValue(preview('new'))
+    api.acceptInviteWithPassword.mockRejectedValue(apiError(401, 'UNAUTHENTICATED'))
+    render(<InvitePage />)
+    await screen.findByTestId('invite-new-form')
+    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: 'Asha Rao' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'Blue-Mango-2026!' } })
+    fireEvent.change(screen.getByLabelText('Type it again'), { target: { value: 'Blue-Mango-2026!' } })
+    fireEvent.click(screen.getByTestId('invite-new-submit'))
+    await screen.findByText(/This email has a Google account that is waiting for review/)
+    expect(screen.getByRole('link', { name: 'support@kuinn.in' }).getAttribute('href')).toMatch(/^mailto:support@kuinn\.in/)
+    expect(signIn).not.toHaveBeenCalled()
+  })
+
+  it('the signed-in check is announced as a status', async () => {
+    s.session = 'authenticated'
+    s.me = null
+    open(`/invite#token=${TOKEN}`)
+    api.lookupOnce.mockResolvedValue(preview('existing'))
+    render(<InvitePage />)
+    expect((await screen.findByRole('status', { name: 'Checking who is signed in' })).tagName).toBeTruthy()
+  })
+
   it('own_password: only the current password; a wrong one says so', async () => {
     open(`/invite#token=${TOKEN}`)
     api.lookupOnce.mockResolvedValue(preview('own_password'))
