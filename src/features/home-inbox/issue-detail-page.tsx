@@ -26,8 +26,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Skeleton } from '@/components/ui/skeleton'
 import { NOT_YET, UnavailableButton } from '@/components/la/unavailable'
 import { DismissIssueButton } from '@/features/inbox/dismiss-issue'
-import { canDismiss, issueHeadline, MARKETPLACE_LABEL, RESOLUTION_LABEL, SOURCE_LABEL, type Issue } from '@/features/inbox/model'
+import { canDismiss, isAutoFix, issueHeadline, MARKETPLACE_LABEL, RESOLUTION_LABEL, SOURCE_LABEL, type Issue } from '@/features/inbox/model'
 import { useListing, useListingSubmissions } from '@/features/listings/api'
+import { FIXED_FOR_YOU_HASH } from '@/features/listing-flow/auto-fix-model'
 import { ScreenHead } from '@/features/listing-flow/ui'
 import { useProduct } from '@/features/products/api'
 import { listingChip } from '@/lib/listing-chip'
@@ -38,14 +39,17 @@ import {
   issueAffects,
   issueChip,
   issueClassLine,
+  issueFixTrail,
+  issueNextStep,
+  issuePlainLabel,
   issueTimeline,
+  issueTrailLink,
   isCategoryIssue,
   issueTitle,
   plural,
   retriesStopped,
-  RETRY_CLASS_TEXT,
 } from './model'
-import { CodeBlock, KeyValues, Timeline } from './parts'
+import { CodeBlock, FixTrail, KeyValues, Timeline } from './parts'
 
 export function IssueDetailPage({ issueId, listingId }: { issueId: string; listingId: string | undefined }) {
   const find = useFindIssueListing(issueId, !listingId)
@@ -85,6 +89,8 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
   if (!issue) return <IssueNotFound />
 
   const l = listing.data?.data
+  const fixed = isAutoFix(issue)
+  const trailLink = l ? issueTrailLink(issue, l) : null
   const others = issues.data.filter((i) => i.id !== issueId)
   const openCount = issues.data.filter((i) => i.status === 'open').length
   // Only once the attempts have loaded: the banner lands with them, in the same paint.
@@ -134,12 +140,29 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
                 Choose category
               </UnavailableButton>
             ) : null}
+            {/* A fix links to the review only while it belongs to the version there; an older
+                version's fix is history, on the product's Activity tab. */}
+            {!fixed ? null : listing.isPending ? (
+              <Skeleton className="h-9 w-40 rounded-control" />
+            ) : l && trailLink === 'review' ? (
+              <Button asChild data-testid="issue-open-review">
+                <Link to="/listings/$listingId/review" params={{ listingId }} hash={FIXED_FOR_YOU_HASH}>
+                  See it in the review
+                </Link>
+              </Button>
+            ) : l ? (
+              <Button asChild data-testid="issue-open-activity">
+                <Link to="/products/$productId" params={{ productId: l.product_id }} search={{ tab: 'activity' }}>
+                  See it in Activity
+                </Link>
+              </Button>
+            ) : null}
             {listing.isPending ? (
               <Skeleton className="h-9 w-32 rounded-control" />
             ) : l ? (
               <Button
                 asChild
-                variant={issue.status === 'open' && isCategoryIssue(issue) ? 'secondary' : 'primary'}
+                variant={(issue.status === 'open' && isCategoryIssue(issue)) || fixed ? 'secondary' : 'primary'}
                 data-testid="issue-open-product"
               >
                 <Link to="/products/$productId" params={{ productId: l.product_id }}>
@@ -244,16 +267,18 @@ function IssueBody({ issue }: { issue: Issue }) {
   const marketplace = MARKETPLACE_LABEL[issue.marketplace]
   const fromMarketplace = issue.source === 'amazon_adapter' || issue.source === 'flipkart_adapter'
   const plain = issue.plain_message?.trim()
+  const trail = issueFixTrail(issue)
   return (
     <>
       <div className="flex items-start justify-between gap-3">
         <h2 className="font-display text-h3 text-ink">{issueTitle(issue)}</h2>
         <StatusChip status={chip.status}>{chip.label}</StatusChip>
       </div>
+      {trail ? <FixTrail trail={trail} /> : null}
       {/* What it means first; the marketplace's own words stay one click away. */}
       {plain ? (
         <div>
-          <div className="text-caption text-ink-3">In plain language</div>
+          <div className="text-caption text-ink-3">{issuePlainLabel(issue)}</div>
           <p className="mt-1 text-body text-ink" data-testid="issue-plain">
             {plain}
           </p>
@@ -261,7 +286,7 @@ function IssueBody({ issue }: { issue: Issue }) {
       ) : (
         <p className="text-body text-ink">{issue.message}</p>
       )}
-      {issue.suggestion ? (
+      {issue.suggestion && issue.status === 'open' ? (
         <div>
           <div className="text-caption text-ink-3">Suggested fix</div>
           <p className="mt-1 text-body text-ink">{issue.suggestion}</p>
@@ -271,7 +296,7 @@ function IssueBody({ issue }: { issue: Issue }) {
         rows={[
           ['Affects', issueAffects(issue)],
           ['Class', issueClassLine(issue)],
-          ['Next step', RETRY_CLASS_TEXT[issue.retry_class]],
+          ['Next step', issueNextStep(issue)],
           ...(issue.value_submitted ? ([['Value sent', <code key="v" className="font-mono text-caption">{issue.value_submitted}</code>]] as [string, ReactNode][]) : []),
         ]}
       />

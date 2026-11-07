@@ -24,10 +24,12 @@ import { InboxDetail } from './inbox-detail'
 import {
   fmtCount,
   inboxStatuses,
+  issueChip,
   issueTitle,
   itemKey,
   mergeInbox,
   visibleItems,
+  withAiRewrites,
   type InboxItem,
   type InboxSearch,
   type InboxView,
@@ -44,15 +46,20 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
   const openIssues = useIssuesList({})
   const tasks = useTasksList(statuses.task, { enabled: statuses.task !== 'open' })
   const issues = useIssuesList({ status: statuses.issue }, { enabled: statuses.issue !== 'open' })
+  // "Auto-fixed" also lists AI rewrites: they can only close as resolved (ai_correction), and the
+  // API has no resolution filter, so they are picked from the resolved list.
+  const withRewrites = statuses.issue === 'auto_fixed'
+  const rewrites = useIssuesList({ status: 'resolved' }, { enabled: withRewrites })
   const taskList = statuses.task === 'open' ? openTasks : tasks
   const issueList = statuses.issue === 'open' ? openIssues : issues
+  const issueRows = withRewrites ? withAiRewrites(issueList.rows, rewrites.rows) : issueList.rows
 
   const showsTasks = view !== 'issues'
   const showsIssues = view !== 'questions'
-  const lists = [showsTasks && taskList, showsIssues && issueList].filter((x) => !!x)
+  const lists = [showsTasks && taskList, showsIssues && issueList, showsIssues && withRewrites && rewrites].filter((x) => !!x)
   const listsPending = lists.some((l) => l.isPending)
   const error = lists.find((l) => l.error)?.error
-  const items = visibleItems(view, mergeInbox(showsTasks ? taskList.rows : [], showsIssues ? issueList.rows : []))
+  const items = visibleItems(view, mergeInbox(showsTasks ? taskList.rows : [], showsIssues ? issueRows : []))
   const selectedKey = search.item ?? (items[0] ? itemKey(items[0]) : undefined)
 
   const tCount = { n: openTasks.rows.length, more: !!openTasks.hasNextPage }
@@ -201,7 +208,14 @@ function ItemCard({
   const meta =
     item.kind === 'task'
       ? [product?.sku, TASK_KIND_LABEL[item.task.kind]].filter(Boolean).join(' · ')
-      : `${MARKETPLACE_LABEL[item.issue.marketplace]} · ${fieldLabel(item.issue.field_path)}`
+      : // A closed issue says so in words, first so the line's truncation never hides it.
+        [
+          item.issue.status === 'open' ? null : issueChip(item.issue).label,
+          MARKETPLACE_LABEL[item.issue.marketplace],
+          fieldLabel(item.issue.field_path),
+        ]
+          .filter(Boolean)
+          .join(' · ')
   return (
     <Link
       to="/inbox"

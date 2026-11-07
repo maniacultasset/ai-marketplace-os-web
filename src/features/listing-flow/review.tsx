@@ -7,13 +7,15 @@
  *   - quality gates: gates.ts over the latest validation, the rules and the preview; "Run checks"
  *     is POST /listings/validate;
  *   - claim card: only when the checks return UNSUPPORTED_CLAIM;
+ *   - "Fixed for you": what Kuinn fixed on this version (GET /issues?status=auto_fixed&listing_id=),
+ *     next to the gates; it lands with them, and Approve waits for it, so it is seen first;
  *   - Approve / Approve all: POST /listings/approve (Idempotency-Key, `listing_version_id`),
  *     maker-checker explained before the click (makerHint over the history) and per item after;
  *   - Send back with a note: POST /listings/approve `decision: reject` (+ `regenerate`);
  *   - once approved: Publish (POST /listings/publish) opens the publish run.
  */
 import { useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link, useLocation, useNavigate } from '@tanstack/react-router'
 import { useId, useState } from 'react'
 import { BUILT } from '@/api/capabilities'
 import { isApiError, isNotFound, isNotImplemented } from '@/api/errors'
@@ -33,6 +35,7 @@ import { ErrorState } from '@/components/states/error-state'
 import { NotFound } from '@/components/states/not-found'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useFixCounts, useFixTrail } from '@/features/home-inbox/api'
 import { invalidateListingWork, useListingHistory, usePublishListings, useReviewListings, useValidateListing } from '@/features/listings/api'
 import { recallJob, rememberJob } from '@/features/listings/job-memory'
 import {
@@ -55,6 +58,8 @@ import { useKeys } from '@/lib/query-keys'
 import { toast, toastError } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
+import { AutoFixedChip, FixedForYouCard } from './auto-fix'
+import { autoFixTrail, FIXED_FOR_YOU_HASH, siblingFixes, versionRef } from './auto-fix-model'
 import { EditDialog, SendBackDialog } from './dialogs'
 import { clock, fieldLabel, mpName } from './format'
 import { claimFindings, gateCounts, plural, type ErrorItem, type GateResult } from './gates'
@@ -123,6 +128,9 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   const qc = useQueryClient()
   const keys = useKeys()
   const history = useListingHistory(listing.id)
+  const fixesQ = useFixTrail(listing.id)
+  const fixes = autoFixTrail(fixesQ.data ?? [], versionRef(listing))
+  const hash = useLocation({ select: (l) => l.hash })
   const validate = useValidateListing(listing.id)
   const review = useReviewListings()
   const publish = usePublishListings()
@@ -144,7 +152,13 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
     publishBuilt: BUILT['listings.publish'],
   })
   // The server is the authority on maker-checker; until the history is read, say so instead of guessing.
-  const approveState: ActionState = history.isPending && actions.approve.enabled ? { show: true, enabled: false, reason: 'Checking who worked on this version…' } : actions.approve
+  // The reviewer sees what Kuinn fixed before approving: Approve waits for that read too.
+  const approveState: ActionState =
+    history.isPending && actions.approve.enabled
+      ? { show: true, enabled: false, reason: 'Checking who worked on this version…' }
+      : fixesQ.isPending && actions.approve.enabled
+        ? { show: true, enabled: false, reason: 'Checking what Kuinn fixed…' }
+        : actions.approve
   // The product line and tabs land together, once the product and its listings are read.
   const siblingsPending = checks.siblings.isPending
   const topReady = !checks.product.isPending && !siblingsPending
@@ -153,11 +167,17 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   // Until the other marketplaces are read, the footer holds one Approve, so its width never changes.
   const approveShown: ActionState =
     siblingsPending && approveState.show ? { show: true, enabled: false, reason: 'Checking the other marketplaces…' } : approveState
+  // "Approve all" approves the other marketplaces' fixes too: read them, and name them in the footer.
+  const others = allTargets.filter((l) => l.id !== listing.id)
+  const otherFixes = useFixCounts(others)
+  const batchFixes = siblingFixes(others, otherFixes.counts, listing.id)
   // The batch includes this listing, so it is offered only when approving this listing alone is.
   const approveAllState: ActionState =
     allTargets.some((l) => l.id === listing.id) && !approveState.enabled
       ? { show: true, enabled: false, reason: approveState.reason ?? `${mp} can’t be approved yet, so the batch can’t either.` }
-      : { show: true, enabled: true }
+      : otherFixes.pending
+        ? { show: true, enabled: false, reason: 'Checking what Kuinn fixed on the other marketplaces…' }
+        : { show: true, enabled: true }
   const counts = gateCounts(checks.gates)
   const findings = checks.current.findings
   const claims = claimFindings(findings)
@@ -333,7 +353,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
             <div className="flex min-w-0 flex-col gap-4">
               <GatesCard
                 gates={checks.gates}
-                ready={checks.gatesReady}
+                ready={checks.gatesReady && !fixesQ.isPending}
                 neverChecked={!checks.current.checked}
                 listed={otherFindings}
                 rulesCount={checks.rules?.length ?? null}
@@ -342,6 +362,15 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
                 validating={validate.isPending}
                 onValidate={() => validate.mutate(listing.current_version_id ?? null)}
               />
+              {/* Lands with the gates (same ready flag), so it never pushes the cards below it. */}
+              {fixesQ.isPending || !checks.gatesReady ? null : (
+                <FixedForYouCard
+                  fixes={fixes}
+                  error={fixesQ.data ? undefined : fixesQ.error}
+                  onRetry={() => void fixesQ.refetch()}
+                  defaultOpen={hash === FIXED_FOR_YOU_HASH}
+                />
+              )}
               {claims.length ? (
                 <LaCard emphasis="attention" data-testid="claim-card">
                   <b className="text-ink">{plural(claims.length, 'claim')} to check</b>
@@ -367,7 +396,20 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
       </Page>
 
       {listing.content && !busy && (actions.approve.show || actions.reject.show) ? (
-        <FooterBar status={allTargets.length > 1 ? 'Each marketplace is approved as its own listing.' : `Publishing sends ${mp} only.`}>
+        <FooterBar
+          status={
+            allTargets.length > 1 ? (
+              <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span>Each marketplace is approved as its own listing.</span>
+                {batchFixes.map(({ listing: l, count }) => (
+                  <AutoFixedChip key={l.id} listingId={l.id} count={count} label={`${mpName(l.marketplace)}: ${count} fixed`} />
+                ))}
+              </span>
+            ) : (
+              `Publishing sends ${mp} only.`
+            )
+          }
+        >
           <ActionButton state={actions.reject} variant="ghost" onClick={() => setSendBack(true)} data-testid="send-back">
             Send back with a note
           </ActionButton>

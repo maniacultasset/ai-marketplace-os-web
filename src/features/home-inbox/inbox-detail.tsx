@@ -28,16 +28,18 @@ import {
   issueAffects,
   issueChip,
   issueClassLine,
+  issueFixTrail,
+  issueNextStep,
+  issuePlainLabel,
   issueTitle,
   itemKey,
   parseItemKey,
   positionLabel,
-  RETRY_CLASS_TEXT,
   type InboxItem,
   type InboxSearch,
 } from './model'
 import type { ProductsById } from './api'
-import { Ago, CodeBlock, KeyValues } from './parts'
+import { Ago, CodeBlock, FixTrail, KeyValues } from './parts'
 
 /** The sentence the brief asks for, shown next to the disabled answer controls. */
 export const ANSWER_SOON = 'Answering from here is coming soon.'
@@ -306,6 +308,7 @@ function IssuePane({ issue, position }: { issue: Issue; position: string | null 
   const marketplace = MARKETPLACE_LABEL[issue.marketplace]
   const fromMarketplace = issue.source === 'amazon_adapter' || issue.source === 'flipkart_adapter'
   const plain = issue.plain_message?.trim()
+  const trail = issueFixTrail(issue)
   return (
     <article className="flex max-w-[760px] flex-col gap-4" data-testid="issue-pane" data-issue-id={issue.id}>
       <div>
@@ -315,6 +318,7 @@ function IssuePane({ issue, position }: { issue: Issue; position: string | null 
           <StatusChip status={chip.status}>{chip.label}</StatusChip>
         </div>
       </div>
+      {trail ? <FixTrail trail={trail} /> : null}
       <LaCard className="flex flex-col gap-3">
         <div>
           <div className="text-caption text-ink-3">{fromMarketplace ? `What ${marketplace} said (unchanged)` : `What the ${SOURCE_LABEL[issue.source].toLowerCase()} said`}</div>
@@ -326,11 +330,12 @@ function IssuePane({ issue, position }: { issue: Issue; position: string | null 
         </div>
         {plain ? (
           <div>
-            <div className="text-caption text-ink-3">In plain language</div>
+            <div className="text-caption text-ink-3">{issuePlainLabel(issue)}</div>
             <p className="mt-1 text-body text-ink">{issueHeadline(issue)}</p>
           </div>
         ) : null}
-        {issue.suggestion ? (
+        {/* A suggestion is work for a person: only while the issue is open. */}
+        {issue.suggestion && issue.status === 'open' ? (
           <div>
             <div className="text-caption text-ink-3">Suggested fix</div>
             <p className="mt-1 text-body text-ink">{issue.suggestion}</p>
@@ -340,7 +345,7 @@ function IssuePane({ issue, position }: { issue: Issue; position: string | null 
           rows={[
             ['Affects', issueAffects(issue)],
             ['Class', issueClassLine(issue)],
-            ['Next step', RETRY_CLASS_TEXT[issue.retry_class]],
+            ['Next step', issueNextStep(issue)],
             ['Seen', <span key="seen">{issue.occurrences > 1 ? `${issue.occurrences} times, last ` : ''}<Ago iso={issue.last_seen_at} /></span>],
           ]}
         />

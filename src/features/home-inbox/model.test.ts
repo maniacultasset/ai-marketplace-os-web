@@ -13,6 +13,11 @@ import {
   inProgressTile,
   isCategoryIssue,
   issueChip,
+  issueFixTrail,
+  issueNextStep,
+  issuePlainLabel,
+  issueTrailLink,
+  withAiRewrites,
   issueTimeline,
   itemKey,
   listingBucket,
@@ -290,6 +295,67 @@ describe('issues', () => {
       { tone: 'need', title: 'Seen 3 times', at: '2026-10-06T09:00:00Z', detail: 'Latest check' },
       { tone: 'ok', title: 'Fixed automatically', at: '2026-10-06T09:05:00Z', detail: 'Mapped "XXL" to "2XL"' },
     ])
+  })
+})
+
+describe('auto-fixed issues', () => {
+  it('never ask anything of a person', () => {
+    expect(issueNextStep({ status: 'auto_fixed', retry_class: 'user_action' })).toBe('Nothing. Kuinn fixed this on its own.')
+    expect(issueNextStep({ status: 'resolved', resolution: 'human_edit', retry_class: 'user_action' })).toBe('Nothing. This is resolved.')
+    expect(issueNextStep({ status: 'dismissed', retry_class: 'user_action' })).toBe('Nothing. The warning was accepted.')
+    expect(issueNextStep({ status: 'open', retry_class: 'user_action' })).toBe('Needs a person. Retrying alone will not fix it.')
+    expect(issueChip({ status: 'auto_fixed', severity: 'error' }).status).not.toBe('needs-you')
+  })
+  it('carry the trail: what changed, when, and whether the agent rewrote it', () => {
+    const base = issue(6, '2026-11-07T09:00:00Z', { status: 'auto_fixed', resolution: 'deterministic_fix', resolved_at: '2026-11-07T09:00:01Z' })
+    expect(issueFixTrail({ ...base, action_taken: 'Removed 2 repeated terms.' })).toEqual({
+      change: 'Removed 2 repeated terms.',
+      at: '2026-11-07T09:00:01Z',
+      rewritten: false,
+    })
+    expect(issueFixTrail({ ...base, action_taken: null, resolution: 'ai_correction' })).toEqual({
+      change: 'Fixed on its own. No details were recorded.',
+      at: '2026-11-07T09:00:01Z',
+      rewritten: true,
+    })
+    expect(issueFixTrail({ ...base, status: 'open' })).toBeNull()
+    expect(issueFixTrail({ ...base, status: 'resolved', resolution: 'human_edit' })).toBeNull()
+  })
+  it('an AI rewrite (resolved with ai_correction) reads like an auto-fix', () => {
+    const ai = issue(7, '2026-11-07T09:00:00Z', {
+      status: 'resolved',
+      resolution: 'ai_correction',
+      resolved_at: '2026-11-07T09:00:01Z',
+      action_taken: 'Rewrote bullet point 2 to fit.',
+    })
+    expect(issueFixTrail(ai)).toEqual({ change: 'Rewrote bullet point 2 to fit.', at: '2026-11-07T09:00:01Z', rewritten: true })
+    expect(issueNextStep(ai)).toBe('Nothing. Kuinn fixed this on its own.')
+    expect(issueChip(ai)).toEqual({ status: 'live', label: 'Auto-fixed' })
+    expect(issueChip({ ...ai, resolution: 'human_edit' })).toEqual({ status: 'live', label: 'Resolved' })
+  })
+  it('the Auto-fixed list adds AI rewrites and no other resolved row', () => {
+    const fixed = [issue(10, '2026-11-07T09:00:00Z', { status: 'auto_fixed', resolution: 'deterministic_fix' })]
+    const resolved = [
+      issue(11, '2026-11-07T09:00:00Z', { status: 'resolved', resolution: 'ai_correction' }),
+      issue(12, '2026-11-07T09:00:00Z', { status: 'resolved', resolution: 'human_edit' }),
+    ]
+    expect(withAiRewrites(fixed, resolved).map((i) => i.id)).toEqual([U(10), U(11)])
+  })
+  it('names what was wrong only for a fixed issue; open and dismissed keep plain language', () => {
+    expect(issuePlainLabel({ status: 'auto_fixed' })).toBe('What was wrong')
+    expect(issuePlainLabel({ status: 'resolved' })).toBe('What was wrong')
+    expect(issuePlainLabel({ status: 'open' })).toBe('In plain language')
+    expect(issuePlainLabel({ status: 'dismissed' })).toBe('In plain language')
+  })
+  it('links a fix to the review only when it belongs to the current version', () => {
+    const V = U(901)
+    const listing = { current_version_id: V, content: { created_at: '2026-11-07T09:00:00Z' } }
+    const fix = (over: Partial<Issue>) => issue(8, '2026-11-07T09:00:00Z', { status: 'auto_fixed', resolution: 'deterministic_fix', ...over })
+    expect(issueTrailLink(fix({ listing_version_id: V, resolved_at: '2026-11-07T09:00:01Z' }), listing)).toBe('review')
+    // A reused row with an older id, closed during this version's pass.
+    expect(issueTrailLink(fix({ listing_version_id: U(900), resolved_at: '2026-11-07T09:00:01Z' }), listing)).toBe('review')
+    expect(issueTrailLink(fix({ listing_version_id: U(900), resolved_at: '2026-11-07T08:00:00Z' }), listing)).toBe('activity')
+    expect(issueTrailLink(issue(9, '2026-11-07T09:00:00Z'), listing)).toBeNull()
   })
 })
 
