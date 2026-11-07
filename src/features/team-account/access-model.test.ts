@@ -132,13 +132,24 @@ describe('refusals in words', () => {
       .then((body) => toApiError(new Response(null, { status }), body))
   it('invite: a member or the 50 limit lands on email; an owner role on role', async () => {
     expect(inviteErrorMessage(await err(422, 'VALIDATION_FAILED', [{ loc: ['body', 'email'], msg: 'x', type: 'x' }]))?.field).toBe('email')
-    expect(inviteErrorMessage(await err(403, 'PERMISSION_DENIED'))?.field).toBe('role')
-    expect(inviteErrorMessage(await err(429, 'RATE_LIMITED'))?.message).toMatch(/Wait a minute/)
-    expect(inviteErrorMessage(await err(500, 'INTERNAL_ERROR'))).toBeNull()
+    expect(inviteErrorMessage(await err(403, 'PERMISSION_DENIED'), 'owner')).toMatchObject({ field: 'role', message: 'Only an owner can invite an owner.' })
+    expect(inviteErrorMessage(await err(429, 'RATE_LIMITED'), 'reviewer')?.message).toMatch(/Wait a minute/)
+    expect(inviteErrorMessage(await err(500, 'INTERNAL_ERROR'), 'reviewer')).toBeNull()
+  })
+  it('invite: a 403 for any other role is not about owners (the generic sentence)', async () => {
+    expect(inviteErrorMessage(await err(403, 'PERMISSION_DENIED'), 'reviewer')).toBeNull()
   })
   it('reset: a 403 sends the owner to Kuinn support', async () => {
-    expect(resetRefusal(await err(403, 'PERMISSION_DENIED'))).toMatchObject({ support: true })
-    expect(resetRefusal(await err(422, 'VALIDATION_FAILED')).message).toMatch(/Security/)
-    expect(resetRefusal(await err(404, 'NOT_FOUND')).message).toMatch(/no longer in this brand/)
+    expect(resetRefusal(await err(403, 'PERMISSION_DENIED'), { myRole: 'owner', targetRole: 'reviewer' })).toMatchObject({ support: true })
+    expect(resetRefusal(await err(422, 'VALIDATION_FAILED'), { myRole: 'owner', targetRole: 'reviewer' }).message).toMatch(/Security/)
+    expect(resetRefusal(await err(404, 'NOT_FOUND'), { myRole: 'owner', targetRole: 'reviewer' }).message).toMatch(/no longer in this brand/)
+  })
+  it('reset: an admin refused on an owner hears the owner rule, not support', async () => {
+    const r = resetRefusal(await err(403, 'PERMISSION_DENIED'), { myRole: 'admin', targetRole: 'owner' })
+    expect(r.message).toBe('Only an owner can make a reset link for an owner.')
+    expect(r.support).toBeFalsy()
+  })
+  it('reset: a step-up 403 keeps its own sentence', async () => {
+    expect(resetRefusal(await err(403, 'MFA_STEP_UP_REQUIRED'), { myRole: 'owner', targetRole: 'reviewer' }).support).toBeFalsy()
   })
 })

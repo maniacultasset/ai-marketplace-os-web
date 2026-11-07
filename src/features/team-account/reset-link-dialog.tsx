@@ -16,6 +16,7 @@ import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Spinner } from '@/components/ui/spinner'
+import { useMe } from '@/lib/auth'
 import { SUPPORT_EMAIL, supportMailto } from '@/lib/support'
 import { issueResetLink, type ResetLink } from './access-api'
 import { resetRefusal, type ResetRefusal as Refusal } from './access-errors'
@@ -36,6 +37,7 @@ export function ResetLinkDialog({ member, open, onClose }: { member: Member | nu
 }
 
 function ResetBody({ member, onClose, busy, setBusy }: { member: Member | null; onClose: () => void; busy: boolean; setBusy: (b: boolean) => void }) {
+  const { data: me } = useMe()
   const [link, setLink] = useState<ResetLink | null>(null)
   const [refusal, setRefusal] = useState<Refusal | null>(null)
 
@@ -47,7 +49,7 @@ function ResetBody({ member, onClose, busy, setBusy }: { member: Member | null; 
       setLink(await issueResetLink(member.user_id))
     } catch (e) {
       if (isApiError(e) && e.status === 401) return
-      setRefusal(resetRefusal(e))
+      setRefusal(resetRefusal(e, { myRole: me?.role, targetRole: member.role }))
     } finally {
       setBusy(false)
     }

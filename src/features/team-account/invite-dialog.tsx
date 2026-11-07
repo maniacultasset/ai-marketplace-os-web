@@ -99,7 +99,7 @@ function InviteBody({
       void qc.invalidateQueries({ queryKey: keys.invites.all() })
     } catch (e) {
       if (isApiError(e) && e.status === 401) return // session handling redirects
-      const known = inviteErrorMessage(e)
+      const known = inviteErrorMessage(e, v.role as Role)
       if (known?.field) {
         form.setError(known.field, { message: known.message }, { shouldFocus: true })
         return
