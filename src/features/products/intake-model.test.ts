@@ -19,6 +19,7 @@ import {
   sizeChartProblems,
   toPartyIn,
   toSizeChart,
+  SIZE_CHART_REFUSED,
   type SizeChartDraft,
 } from './intake-model'
 
@@ -104,19 +105,27 @@ describe('composition', () => {
 describe('size chart', () => {
   const draft = (rows: SizeChartDraft['rows']): SizeChartDraft => ({ unit: 'in', basis: 'garment', rows })
   it('builds the SizeChart body and skips blank rows', () => {
-    const d = draft([{ ...emptySizeRow('S'), chest: '36', length: '44.5' }, emptySizeRow(), { ...emptySizeRow('M') }])
+    const d = draft([{ ...emptySizeRow('S'), chest: '36', length: '44.5' }, emptySizeRow(), { ...emptySizeRow('M'), waist: '30' }])
     expect(sizeChartProblems(d)).toEqual({})
-    expect(toSizeChart(d)).toEqual({ unit: 'in', basis: 'garment', rows: [{ size: 'S', chest: 36, length: 44.5 }, { size: 'M' }] })
+    expect(toSizeChart(d)).toEqual({ unit: 'in', basis: 'garment', rows: [{ size: 'S', chest: 36, length: 44.5 }, { size: 'M', waist: 30 }] })
     expect(toSizeChart(draft([emptySizeRow()]))).toBeNull()
   })
+  it('needs at least one measurement per size (backend normalize_size_chart)', () => {
+    const e = sizeChartProblems(draft([emptySizeRow('M')]))
+    expect(e['size_chart.rows.0.size']).toMatch(/at least one measurement/)
+  })
+  it('allows at most one decimal in a measurement (backend _measure)', () => {
+    expect(sizeChartProblems(draft([{ ...emptySizeRow('M'), chest: '34.25' }]))['size_chart.rows.0.chest']).toMatch(/one decimal/)
+    expect(sizeChartProblems(draft([{ ...emptySizeRow('M'), chest: '34.5' }]))).toEqual({})
+  })
   it('mirrors the backend limits', () => {
-    const e = sizeChartProblems(draft([{ ...emptySizeRow('S'), chest: '0' }, { ...emptySizeRow('s'), waist: 'abc' }, { ...emptySizeRow(''), hip: '40' }]))
+    const e = sizeChartProblems(draft([{ ...emptySizeRow('S'), chest: '0' }, { ...emptySizeRow('s'), waist: 'abc', hip: '30' }, { ...emptySizeRow(''), hip: '40' }]))
     expect(e['size_chart.rows.0.chest']).toMatch(/above 0/)
     expect(e['size_chart.rows.1.size']).toMatch(/already/)
     expect(e['size_chart.rows.1.waist']).toMatch(/number/)
     expect(e['size_chart.rows.2.size']).toMatch(/Enter the size/)
     expect(sizeChartProblems(draft([{ ...emptySizeRow('L'), chest: '501' }]))['size_chart.rows.0.chest']).toBeDefined()
-    expect(sizeChartProblems(draft(Array.from({ length: 41 }, (_, i) => emptySizeRow(`S${i}`)))).size_chart).toMatch(/40/)
+    expect(sizeChartProblems(draft(Array.from({ length: 41 }, (_, i) => ({ ...emptySizeRow(`S${i}`), chest: '30' })))).size_chart).toMatch(/40/)
   })
   it('reads a stored chart back', () => {
     const d = fromSizeChart({ unit: 'cm', basis: 'body', rows: [{ size: 'M', chest: 96 }] })
@@ -159,5 +168,8 @@ describe('bodyErrorKey', () => {
     expect(bodyErrorKey(['body', 'image_uploads', 0])).toBe('images')
     expect(bodyErrorKey(['body', 'mrp', 'function-after[_money()]'])).toBe('mrp')
     expect(bodyErrorKey(['header', 'If-Match'])).toBeNull()
+  })
+  it('explains a whole-chart refusal', () => {
+    expect(SIZE_CHART_REFUSED).toMatch(/at least one measurement/)
   })
 })

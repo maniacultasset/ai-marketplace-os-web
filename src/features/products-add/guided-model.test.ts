@@ -135,6 +135,9 @@ describe('guided form', () => {
     expect(r.fields['attr.fiber_composition']).toBe('sum')
     expect(r.fields.images).toBeDefined()
     expect(mapCreateErrors({ status: 422, type: 'VALIDATION_FAILED', details: [{ loc: ['body', 'manufacturer', 'city'], msg: 'x' }] }, v).unmapped).toBe(true)
+    // The backend refuses a chart as a whole at `size_chart`: say what to check, in the size section.
+    const whole = mapCreateErrors({ status: 422, type: 'VALIDATION_FAILED', details: [{ loc: ['body', 'size_chart'], msg: 'Invalid value.' }] }, v)
+    expect(whole.fields.size_chart).toMatch(/at least one measurement/)
   })
 
   it('revives an old draft', () => {

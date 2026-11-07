@@ -276,12 +276,20 @@ export function sizeChartProblems(d: SizeChartDraft): Record<string, string> {
     for (const m of MEASURES) {
       const v = r[m].trim()
       if (!v) continue
-      if (!/^[0-9]+(\.[0-9]+)?$/.test(v)) e[`size_chart.rows.${i}.${m}`] = 'Enter a number.'
+      if (/^[0-9]+\.[0-9]{2,}$/.test(v)) e[`size_chart.rows.${i}.${m}`] = 'Use at most one decimal, like 34.5.'
+      else if (!/^[0-9]+(\.[0-9])?$/.test(v)) e[`size_chart.rows.${i}.${m}`] = 'Enter a number.'
       else if (!(Number(v) > 0 && Number(v) <= 500)) e[`size_chart.rows.${i}.${m}`] = 'Use above 0, up to 500.'
     }
+    // Backend normalize_size_chart: "each row has at least one measurement".
+    if (size && !e[`size_chart.rows.${i}.size`] && !MEASURES.some((m) => r[m].trim() !== ''))
+      e[`size_chart.rows.${i}.size`] = `Add at least one measurement for ${size}, or remove the row.`
   }
   return e
 }
+
+/** The backend refuses a chart as a whole (422 at `size_chart`): what to check. */
+export const SIZE_CHART_REFUSED =
+  'Check the size chart: every size needs at least one measurement, each above 0 and up to 500, with at most one decimal.'
 
 /** Draft -> the `SizeChart` to send, or null when no row is filled. Call after `sizeChartProblems` is empty. */
 export function toSizeChart(d: SizeChartDraft): SizeChart | null {

@@ -21,6 +21,7 @@ import {
   partyProblems,
   priceAboveMrp,
   sizeChartCount,
+  SIZE_CHART_REFUSED,
   sizeChartProblems,
   toPartyIn,
   toSizeChart,
@@ -399,6 +400,7 @@ export function mapCreateErrors(
       const draftIndex = sizeRows[Number(i)]
       key = draftIndex === undefined ? 'size_chart' : `size_chart.rows.${draftIndex}.${field}`
     }
+    if (key === 'size_chart') msg = SIZE_CHART_REFUSED
     if (key === 'selling_price' && priceAboveMrp(v.sellingPrice, v.mrp)) msg = SELLING_ABOVE_MRP
     if (key.startsWith('attr.')) {
       const attr = key.slice(5)
