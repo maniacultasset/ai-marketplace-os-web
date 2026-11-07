@@ -11,7 +11,7 @@
  */
 import { useQueries } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api } from '@/api/client'
 import { isNotFound } from '@/api/errors'
 import { unwrapVersioned } from '@/api/etag'
@@ -27,7 +27,6 @@ import {
   MARKETPLACES,
   MarketplaceName,
   NOT_YET,
-  SourceBadge,
   StatusChip,
   TagChip,
   UnavailableButton,
@@ -47,8 +46,8 @@ import { BUSY_REFETCH_MS, useListingHistory } from '@/features/listings/api'
 import { recallJob } from '@/features/listings/job-memory'
 import { historyLabel, isBusy } from '@/features/listings/model'
 import { useProduct, type ProductDetail } from '@/features/products/api'
-import { formatAttributeValue, RelativeTime } from '@/features/products/format'
-import { Can, useCan } from '@/lib/permissions'
+import { RelativeTime } from '@/features/products/format'
+import { Can, OP_ACTION, useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
 import { cn } from '@/lib/utils'
 import { AddMarketplaceDialog } from './add-marketplace-dialog'
@@ -66,7 +65,7 @@ import {
   type Marketplace,
   type Product,
 } from './catalog-model'
-import { ATTR_FIELDS } from './guided-model'
+import { ProductDetailsCard, ProductDetailsEditor } from './product-details'
 import { DETAIL_TABS, type DetailTab } from './detail-tabs'
 import { ProductThumb } from './products-page'
 
@@ -253,6 +252,9 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
   const issuesQ = useOpenIssues()
   const refetchAll = all.refetch
   const tabsRef = useRef<HTMLDivElement>(null)
+  const can = useCan()
+  const canEdit = can(OP_ACTION['PATCH /products/{product_id}'])
+  const [editing, setEditing] = useState(false)
 
   // Keep the active tab in view when the row scrolls sideways (phones). 'nearest' never moves the page.
   useEffect(() => {
@@ -371,10 +373,20 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
             <Icon name="refresh" size={16} />
             Resubmit
           </UnavailableButton>
-          <UnavailableButton variant="ghost" size="sm" reason="Editing a product is not available yet. Upload its SKU again in a spreadsheet to update it.">
-            <IconGlyph icon={CONCEPT_ICON.edit} size={16} />
-            Edit
-          </UnavailableButton>
+          {canEdit && !editing ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setTab('overview')
+                setEditing(true)
+              }}
+              data-testid="header-edit"
+            >
+              <IconGlyph icon={CONCEPT_ICON.edit} size={16} />
+              Edit
+            </Button>
+          ) : null}
           {review ? (
             <Button asChild data-testid="header-review">
               <Link to="/listings/$listingId/review" params={{ listingId: review.id }}>
@@ -395,7 +407,7 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
           ))}
         </TabsList>
         <TabsContent value="overview">
-          <OverviewTab data={data} />
+          <OverviewTab data={data} editing={editing} onEdit={canEdit ? () => setEditing(true) : undefined} onDone={() => setEditing(false)} />
         </TabsContent>
         <TabsContent value="variants">
           <VariantsTab data={data} />
@@ -717,57 +729,21 @@ function MarketplaceCard({
   )
 }
 
-function OverviewTab({ data }: { data: DetailData }) {
+function OverviewTab({ data, editing, onEdit, onDone }: { data: DetailData; editing: boolean; onEdit?: () => void; onDone: () => void }) {
+  if (editing)
+    return (
+      <div className="max-w-4xl">
+        <ProductDetailsEditor key={data.product.id} product={data.product} isVariant={data.isVariant} onDone={onDone} />
+      </div>
+    )
   return (
     <div className="flex flex-col gap-4">
       <MarketplaceCards data={data} />
       <div className="grid gap-4 lg:grid-cols-2">
-        <FactsCard product={data.product} />
+        <ProductDetailsCard product={data.product} isVariant={data.isVariant} onEdit={onEdit} />
         <VariantStatusCard data={data} />
       </div>
     </div>
-  )
-}
-
-/** Attributes shown before "Show all": enough to recognise the product, short enough to scan. */
-const FACTS_VISIBLE = 8
-
-function FactsCard({ product }: { product: ProductDetail }) {
-  const entries = useMemo(
-    () => Object.entries(product.attributes ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
-    [product.attributes],
-  )
-  const [expanded, setExpanded] = useState(false)
-  const listId = useId()
-  const hidden = entries.length - FACTS_VISIBLE
-  return (
-    <LaCard>
-      <CardHead title="Facts we hold about this product" sub="Every value here came from you, through the form or a spreadsheet." />
-      <dl id={listId} className={cn('mt-4 text-small', KV_GRID)} data-testid="product-attributes">
-        <div className="contents">
-          <dt className="whitespace-nowrap text-ink-2">Category</dt>
-          <dd className="flex flex-wrap items-center gap-2 text-ink">
-            {humanizeSlug(product.category)} <SourceBadge source={{ kind: 'you' }} />
-          </dd>
-        </div>
-        {entries.map(([k, v], i) => (
-          <div key={k} className={!expanded && i >= FACTS_VISIBLE ? 'hidden' : 'contents'} data-attr-key={k}>
-            <dt className="whitespace-nowrap text-ink-2">{ATTR_FIELDS.find((f) => f.key === k)?.label ?? humanizeSlug(k)}</dt>
-            <dd className="flex min-w-0 flex-wrap items-center gap-2 break-words text-ink">
-              <span className="min-w-0 tabular-nums">{typeof v === 'string' ? v || '—' : formatAttributeValue(v, product.attribute_literals[k])}</span>
-              <SourceBadge source={{ kind: 'you' }} />
-            </dd>
-          </div>
-        ))}
-      </dl>
-      {hidden > 0 ? (
-        <Button variant="ghost" size="sm" className="mt-3 -ml-3" aria-expanded={expanded} aria-controls={listId} onClick={() => setExpanded((v) => !v)}>
-          {expanded ? 'Show fewer' : `Show all ${entries.length + 1} facts`}
-          <Icon name="chev" size={14} className={cn('motion-safe:transition-transform motion-safe:duration-150 motion-reduce:transition-none', expanded && 'rotate-180')} />
-        </Button>
-      ) : null}
-      {entries.length === 0 ? <p className="mt-3 text-small text-ink-2">No attributes yet. Add them with a spreadsheet import of this SKU.</p> : null}
-    </LaCard>
   )
 }
 
