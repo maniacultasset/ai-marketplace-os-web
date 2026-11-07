@@ -367,6 +367,12 @@
        changes and scroll restores stay instant: no global smooth scrolling. */
     scroll-padding-top: calc(var(--topbar-h) + var(--banner-h, 0px) + 16px);
   }
+  /* A pinned bottom bar (FooterBar, StickyActions) covers the last ~80px of the viewport: keep a
+     focused or scrolled-to control clear of it instead of hidden underneath (e.g. "Add attribute"
+     on a phone). */
+  html:has([data-slot='footer-bar']) {
+    scroll-padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+  }
   body {
     @apply bg-canvas text-body text-ink;
     caret-color: var(--brand);
