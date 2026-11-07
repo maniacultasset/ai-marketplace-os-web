@@ -5,6 +5,7 @@
  *   GET /products (walk)                     its variants (parent_product_id) and parent
  *   GET /listings?product_id=…               its listing per marketplace
  *   GET /issues?status=open (walk)           open issues of those listings
+ *   GET /issues?status=auto_fixed&listing_id= what Kuinn fixed on each listing's current version
  *   GET /listings/{id}                       validation summary (Validation tab)
  *   GET /listings/{id}/history               per-listing history (Activity tab)
  * Writes: POST /listings/generate ("List on …", AddMarketplaceDialog); image upload in the Media tab.
@@ -15,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { api } from '@/api/client'
 import { isNotFound } from '@/api/errors'
 import { unwrapVersioned } from '@/api/etag'
+import type { Schema } from '@/api/types'
 import { Page } from '@/components/app/page-header'
 import {
   AttentionCard,
@@ -42,6 +44,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ProductImagesCard } from '@/features/analytics-images/images/images-card'
+import { autoFixedQuery } from '@/features/inbox/api'
+import { AutoFixedChip } from '@/features/listing-flow/auto-fix'
+import { autoFixedOn } from '@/features/listing-flow/auto-fix-model'
 import { BUSY_REFETCH_MS, useListingHistory } from '@/features/listings/api'
 import { recallJob } from '@/features/listings/job-memory'
 import { historyLabel, isBusy } from '@/features/listings/model'
@@ -236,6 +241,10 @@ interface DetailData {
   variants: Product[]
   listings: Partial<Record<Marketplace, Listing>>
   issuesByListing: Map<string, number>
+  /** Fixes Kuinn made on each listing's current version. A failed read counts none (the chip is extra). */
+  autoFixByListing: Map<string, number>
+  /** The fix counts are still on their first read: the cards hold their placeholders. */
+  autoFixPending: boolean
   listingsPending: boolean
   /** Open issues: counts show only when 'ready', 'Unknown' on 'error'. */
   issuesState: 'pending' | 'error' | 'ready'
@@ -251,6 +260,20 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
   const all = useAllProducts()
   const listingsQ = useAllListings({ productId })
   const issuesQ = useOpenIssues()
+  const keys = useKeys()
+  const listingRows = listingsQ.data?.rows
+  // A stable combine, so the counts keep their identity until a read or the listings change.
+  const combineFixes = useCallback(
+    (rs: { isPending: boolean; data?: Schema<'IssueOut'>[] }[]) => ({
+      pending: rs.some((r) => r.isPending),
+      counts: new Map((listingRows ?? []).map((l, i) => [l.id, autoFixedOn(rs[i]?.data ?? [], l.current_version_id).length] as const)),
+    }),
+    [listingRows],
+  )
+  const autoFix = useQueries({
+    queries: (listingRows ?? []).map((l) => ({ ...autoFixedQuery(keys, l.id), meta: { toast: false }, retry: false })),
+    combine: combineFixes,
+  })
   const refetchAll = all.refetch
   const tabsRef = useRef<HTMLDivElement>(null)
 
@@ -276,6 +299,8 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
       variants: rows.filter((r) => r.parent_product_id === p.id),
       listings,
       issuesByListing,
+      autoFixByListing: autoFix.counts,
+      autoFixPending: autoFix.pending,
       listingsPending: listingsQ.isPending,
       issuesState: issuesQ.data ? 'ready' : issuesQ.error ? 'error' : 'pending',
       variantsPending: all.isPending,
@@ -283,7 +308,7 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
       retryVariants: () => void refetchAll(),
       isVariant: !!p.parent_product_id,
     }
-  }, [q.data, all.data, all.isPending, all.error, refetchAll, listingsQ.data, listingsQ.isPending, issuesQ.data, issuesQ.error])
+  }, [q.data, all.data, all.isPending, all.error, refetchAll, listingsQ.data, listingsQ.isPending, issuesQ.data, issuesQ.error, autoFix])
 
   if (q.isPending) return <DetailSkeleton tab={tab} />
   if (q.error || !data) {
@@ -602,7 +627,7 @@ function MarketplaceCard({
 }) {
   const id = m.id as Marketplace
   // Chip, issues and actions land together.
-  if (data.listingsPending || data.issuesState === 'pending') return <PendingMarketplaceCard m={m} detailed={detailed} />
+  if (data.listingsPending || data.issuesState === 'pending' || data.autoFixPending) return <PendingMarketplaceCard m={m} detailed={detailed} />
   const l = data.listings[id]
   if (!l) {
     return (
@@ -626,6 +651,7 @@ function MarketplaceCard({
   }
   const chip = cellChip(l)
   const issues = data.issuesByListing.get(l.id) ?? 0
+  const fixed = data.autoFixByListing.get(l.id) ?? 0
   const issuesText =
     data.issuesState === 'error' ? (
       <span title="Couldn’t load issues.">Unknown</span>
@@ -659,6 +685,7 @@ function MarketplaceCard({
             ...(busy ? [] : ([['Link', viewLive ?? 'Not yet']] as [string, ReactNode][])),
             ['Updated', <RelativeTime key="s" iso={l.status_changed_at} />],
             ['Issues', issuesText],
+            ...(fixed ? ([['Fixed for you', <AutoFixedChip key="f" listingId={l.id} count={fixed} />]] as [string, ReactNode][]) : []),
             ...(l.status_reason ? ([['Reason', l.status_reason]] as [string, ReactNode][]) : []),
           ]}
         />
@@ -675,6 +702,12 @@ function MarketplaceCard({
               {issues} open {issues === 1 ? 'issue' : 'issues'}
             </span>
           )}
+          {fixed ? (
+            <>
+              <span aria-hidden>·</span>
+              <AutoFixedChip listingId={l.id} count={fixed} />
+            </>
+          ) : null}
           {viewLive ? (
             <>
               <span aria-hidden>·</span>
@@ -1065,9 +1098,12 @@ function ValidationTab({ data }: { data: DetailData }) {
 function HistoryList({
   listing,
   ready,
+  fixed,
   onSettled,
 }: {
   listing: Listing
+  /** Fixes Kuinn made on the current version: a chip to the review's "Fixed for you". */
+  fixed: number
   /** Every listing's history has answered; until then all cards show placeholders. */
   ready: boolean
   onSettled: (listingId: string, settled: boolean) => void
@@ -1078,8 +1114,9 @@ function HistoryList({
   const waiting = !ready || h.isPending
   return (
     <LaCard aria-busy={waiting || undefined}>
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex min-h-[22px] items-center justify-between gap-2">
         <MarketplaceName id={listing.marketplace} />
+        {waiting ? null : <AutoFixedChip listingId={listing.id} count={fixed} />}
       </div>
       {waiting ? (
         <ol className="mt-3 flex flex-col" aria-hidden>
@@ -1124,7 +1161,7 @@ function ActivityTab({ data }: { data: DetailData }) {
     (id: string, v: boolean) => setSettled((prev) => (prev[id] === v ? prev : { ...prev, [id]: v })),
     [],
   )
-  const ready = ls.every((l) => settled[l.id])
+  const ready = ls.every((l) => settled[l.id]) && !data.autoFixPending
   return (
     <div className="flex flex-col gap-4">
       <LaCard>
@@ -1141,7 +1178,7 @@ function ActivityTab({ data }: { data: DetailData }) {
       ) : ls.length ? (
         <div className={cn('grid gap-4', ls.length > 1 && 'md:grid-cols-2')}>
           {ls.map((l) => (
-            <HistoryList key={l.id} listing={l} ready={ready} onSettled={onSettled} />
+            <HistoryList key={l.id} listing={l} ready={ready} fixed={data.autoFixByListing.get(l.id) ?? 0} onSettled={onSettled} />
           ))}
         </div>
       ) : null}
