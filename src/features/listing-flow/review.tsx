@@ -363,7 +363,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
                 onValidate={() => validate.mutate(listing.current_version_id ?? null)}
               />
               {/* Lands with the gates (same ready flag), so it never pushes the cards below it. */}
-              {fixesQ.isPending ? null : (
+              {fixesQ.isPending || !checks.gatesReady ? null : (
                 <FixedForYouCard
                   fixes={fixes}
                   error={fixesQ.data ? undefined : fixesQ.error}
