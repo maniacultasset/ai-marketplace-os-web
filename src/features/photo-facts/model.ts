@@ -153,3 +153,18 @@ export function photoGroupKeys(rows: readonly FactRow[]): Set<string> {
 export function toCheckCount(rows: readonly FactRow[]): number {
   return rows.filter((r) => r.status === 'photo').length
 }
+
+/**
+ * The review screen's photo rows: the values still to check, plus any the person acted on here
+ * (so a confirm shows as Confirmed instead of vanishing). Rows already confirmed before, and the
+ * seller's own values, are not repeated: the product page lists them.
+ */
+export function reviewPhotoRows(rows: readonly FactRow[], acted: ReadonlySet<string>): FactRow[] {
+  return rows.filter((r) => r.status === 'photo' || (r.status === 'confirmed' && acted.has(r.key)))
+}
+
+/** Keys rejected here that the saved product no longer holds as photo values. */
+export function rejectedKeys(rejected: ReadonlySet<string>, facts: readonly Pick<PhotoFact, 'key'>[] | undefined): string[] {
+  const left = new Set((facts ?? []).map((f) => f.key))
+  return [...rejected].filter((k) => !left.has(k))
+}

@@ -11,8 +11,8 @@ export type Source =
   | { kind: 'brand-profile' }
   | { kind: 'rule' }
   | { kind: 'agent'; confidence: number; detail?: string }
-  /** Read from the product photos and not confirmed yet (SI3). */
-  | { kind: 'photo' }
+  /** Read from the product photos and not confirmed yet (SI3). `unconfirmed` says so in words. */
+  | { kind: 'photo'; unconfirmed?: boolean }
   | { kind: 'confirmed' }
   | { kind: 'needed' }
 
@@ -35,7 +35,7 @@ export function sourceLabel(s: Source): string {
     case 'agent':
       return ['Agent', s.detail, formatConfidence(s.confidence)].filter(Boolean).join(' · ')
     case 'photo':
-      return 'From photo'
+      return s.unconfirmed ? 'From photo, not confirmed' : 'From photo'
     case 'confirmed':
       return 'Confirmed'
     case 'needed':
