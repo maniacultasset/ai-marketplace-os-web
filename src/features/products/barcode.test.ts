@@ -155,7 +155,6 @@ describe('styleExemption (from the variants)', () => {
     expect(styleExemption([v({ product_identifier: { type: 'ean', value: EAN13 }, identifier_exemption: true }), v({})]).exemptCount).toBe(0)
   })
 })
-})
 
 describe('server errors', () => {
   it('lands every identifier path on the barcode field', () => {
