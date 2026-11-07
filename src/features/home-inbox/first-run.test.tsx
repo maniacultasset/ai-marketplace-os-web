@@ -82,4 +82,15 @@ describe('FirstRun', () => {
     expect(screen.getByTestId('setup-approver').textContent).toContain('Done')
     expect(screen.getByTestId('setup-product').textContent).toContain('Next')
   })
+
+  it('when only the team can’t be read, just the teammate row says Unknown', () => {
+    s.manufacturer = null
+    s.approver = 'unknown'
+    view()
+    expect(screen.getByTestId('setup-approver').textContent).toContain('Unknown')
+    expect(screen.getByTestId('setup-brand').textContent).toContain('Done')
+    expect(screen.getByTestId('setup-manufacturer').textContent).toContain('Next')
+    expect(screen.getByTestId('setup-line').textContent).toBe('Some steps could not be checked.')
+    s.approver = 'alone'
+  })
 })

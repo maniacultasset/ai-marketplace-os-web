@@ -62,7 +62,9 @@ export function FirstRun({ brand }: { brand: string }) {
   const [route, setRoute] = useState<RouteId>('guided')
 
   const loading = profile.isPending || manufacturer.isPending || accounts.isPending || products.isPending || approver === 'loading'
-  const failed = profile.isError || manufacturer.isError || accounts.isError || products.isError || approver === 'unknown'
+  const failed = profile.isError || manufacturer.isError || accounts.isError || products.isError
+  // GET /members failing leaves only the teammate step unknown.
+  const approverUnknown = approver === 'unknown'
   const connected = accounts.data ? API_MARKETPLACES.filter((m) => accounts.data.live[m]?.status === 'active') : []
   const steps = setupSteps({
     brandDone: brandProfileDone(profile.data?.data),
@@ -72,7 +74,7 @@ export function FirstRun({ brand }: { brand: string }) {
     hasProducts: !!products.data,
   })
   const progress = setupProgress(steps)
-  const setupDone = !loading && !failed && steps.every((s) => s.id === 'product' || s.state === 'done')
+  const setupDone = !loading && !failed && !approverUnknown && steps.every((s) => s.id === 'product' || s.state === 'done')
   const canAdd = can('product:import')
   const selected = ROUTES.find((r) => r.id === route)!
   const on = serializeListOn(connected)
@@ -98,13 +100,13 @@ export function FirstRun({ brand }: { brand: string }) {
                 <div>
                   <h3 className="text-h3 text-ink">Your setup</h3>
                   <p className="text-small text-ink-2" data-testid="setup-line">
-                    {failed ? 'Some steps could not be checked.' : progress.line}
+                    {failed || approverUnknown ? 'Some steps could not be checked.' : progress.line}
                   </p>
                 </div>
               </div>
               <ul className="mt-4 flex flex-col gap-3">
                 {steps.map((s) => (
-                  <SetupRow key={s.id} step={s} unknown={failed} />
+                  <SetupRow key={s.id} step={s} unknown={failed || (approverUnknown && s.id === 'approver')} />
                 ))}
               </ul>
             </>
