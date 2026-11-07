@@ -6,8 +6,8 @@
  * POST /products/bulk and opens its check step (/add/bulk?import=…); "Download spreadsheet"
  * gives the same file to edit offline.
  * Images: POST /images/upload-url → PUT → POST /images/upload (or multipart), then
- * GET /images/{id}/report for the per-marketplace checks. Images attach to the product; per-colour
- * images need `colourway_id`, which no endpoint exposes yet, so the card says so.
+ * GET /images/{id}/report for the per-marketplace checks. A style's saved colours (`colourways`)
+ * each take their own photos (`colourway_id` on the upload); the rest apply to every colour.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
@@ -26,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { imageIdFromKey, marketplaceReports, SLOT_LABEL, validateImageFile, type ImageSlot } from '@/features/analytics-images/images/report'
+import { ALL_COLOURS, colourGroups, type ColourGroup, type ColourSource } from '@/features/analytics-images/images/colour-groups'
 import { uploadImage } from '@/features/analytics-images/images/upload'
 import { useImportHistory } from '@/features/imports/history'
 import { markJobLive } from '@/features/imports/use-import-job'
@@ -224,6 +225,7 @@ interface Upload {
   file: File
   preview: string
   slot: ImageSlot
+  colourwayId: string | null
   state: { kind: 'uploading' } | { kind: 'failed'; error: unknown } | { kind: 'invalid'; message: string } | { kind: 'accepted'; imageId: string }
 }
 
@@ -261,19 +263,19 @@ function useImageUploads(productId: string) {
    */
   const send = (u: Upload) => {
     patch(u.id, { kind: 'uploading' })
-    uploadImage({ file: u.file, productId, slot: u.slot, multipartKey: u.id })
+    uploadImage({ file: u.file, productId, slot: u.slot, colourwayId: u.colourwayId, multipartKey: u.id })
       .then((res) => {
         patch(u.id, { kind: 'accepted', imageId: res.image_id })
         void qc.invalidateQueries({ queryKey: keys.products.detail(productId) })
       })
       .catch((error: unknown) => patch(u.id, { kind: 'failed', error }))
   }
-  const add = (files: File[], slotFor: (i: number) => ImageSlot) => {
+  const add = (files: File[], slotFor: (i: number) => ImageSlot, colourwayId: string | null = null) => {
     const created = files.map((file, i): Upload => {
       const preview = URL.createObjectURL(file)
       urls.current.add(preview)
       const problem = validateImageFile(file)
-      return { id: newIdempotencyKey(), file, preview, slot: slotFor(i), state: problem ? { kind: 'invalid', message: problem } : { kind: 'uploading' } }
+      return { id: newIdempotencyKey(), file, preview, slot: slotFor(i), colourwayId, state: problem ? { kind: 'invalid', message: problem } : { kind: 'uploading' } }
     })
     setUploads((l) => [...l, ...created])
     created.filter((u) => u.state.kind === 'uploading').forEach((u) => send(u))
@@ -281,85 +283,137 @@ function useImageUploads(productId: string) {
   return { uploads, add, retry: (u: Upload) => send(u) }
 }
 
-function ImagesCard({ productId, existing, canUpload }: { productId: string; existing: string[]; canUpload: boolean }) {
-  const { uploads, add, retry } = useImageUploads(productId)
+function ImagesCard({ product, canUpload }: { product: ColourSource & { id: string }; canUpload: boolean }) {
+  const { uploads, add, retry } = useImageUploads(product.id)
   const input = useRef<HTMLInputElement>(null)
+  const groups = colourGroups(product).filter((g) => g.key !== 'other' || g.keys.length)
+  const byColour = (product.colourways ?? []).length > 0
+  const [colour, setColour] = useState<string>(ALL_COLOURS)
+  const picked = groups.find((g) => g.key === colour) ?? groups[0]!
   const galleryUploads = uploads.filter((u) => u.slot !== 'size_chart')
-  const existingIds = existing.map(imageIdFromKey).filter((x): x is string => !!x)
   const sessionIds = new Set(galleryUploads.flatMap((u) => (u.state.kind === 'accepted' ? [u.state.imageId] : [])))
-  const stored = existingIds.filter((id) => !sessionIds.has(id))
-  const count = stored.length + galleryUploads.length
+  const storedIn = (g: ColourGroup) => g.keys.map(imageIdFromKey).filter((x): x is string => !!x && !sessionIds.has(x))
+  const uploadsIn = (g: ColourGroup) => galleryUploads.filter((u) => (u.colourwayId ?? ALL_COLOURS) === g.key)
+  const count = groups.reduce((n, g) => n + storedIn(g).length, 0) + galleryUploads.length
+  // The first photo for a colour (or the product) with no main becomes its main.
+  const pickedHasMain = (product.image_details ? picked.hasMain : storedIn(picked).length > 0) || uploadsIn(picked).some((u) => u.slot === 'main' && u.state.kind !== 'invalid' && u.state.kind !== 'failed')
+  const shown = byColour ? groups : groups.slice(0, 1)
   return (
     <LaCard>
-      <CardHead title="Images for this product" sub="Per-colour images are not available yet; these apply to every variant." />
-      <div className="mt-4 flex flex-wrap gap-2.5">
-        {stored.map((id, i) => (
-          <span key={id} className="relative flex size-20 items-center justify-center rounded-lg border border-line bg-field text-ink-3 shadow-inset-sm">
-            <Icon name="image" size={24} />
-            <span className="absolute bottom-1 left-1 rounded border border-line bg-surface px-1 text-caption font-semibold text-ink">Image {i + 1}</span>
-          </span>
-        ))}
-        {galleryUploads.map((u) => (
-          <span key={u.id} className="relative size-20 overflow-hidden rounded-lg border border-line bg-subtle shadow-raised-sm">
-            <img src={u.preview} alt="" className="size-full object-cover" />
-            <span className="absolute bottom-1 left-1 rounded border border-line bg-surface px-1 text-caption font-semibold text-ink">{SLOT_LABEL[u.slot]}</span>
-            {u.state.kind === 'uploading' ? (
-              <span className="absolute inset-0 flex items-center justify-center bg-surface/70">
-                <Spinner />
-                <span className="sr-only">Uploading…</span>
-              </span>
+      <CardHead
+        title="Images for this product"
+        sub={
+          byColour
+            ? 'Pick a colour to add its own photos. Photos under All colours show for every colour.'
+            : 'These apply to every variant. Save colours as variants first to give each colour its own photos.'
+        }
+      />
+      {byColour && canUpload ? (
+        <label className="mt-4 flex items-center gap-2 text-small text-ink-2">
+          Add photos for
+          <Select value={picked.key} onValueChange={(v) => setColour(groups.find((g) => g.key === v)?.key ?? colour)}>
+            <SelectTrigger size="sm" className="w-44" aria-label="Photo colour" data-testid="variants-image-colour">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {groups
+                .filter((g) => g.key !== 'other')
+                .map((g) => (
+                  <SelectItem key={g.key} value={g.key}>
+                    {g.label}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </label>
+      ) : null}
+      {shown.map((g) => {
+        const stored = storedIn(g)
+        const fresh = uploadsIn(g)
+        const isPicked = g.key === picked.key
+        const empty = stored.length + fresh.length === 0
+        return (
+          <section key={g.key} aria-label={byColour ? `${g.label} photos` : undefined} data-testid="variants-colour-group" data-colour={g.key} className="mt-4">
+            {byColour ? (
+              <h3 className="flex items-baseline justify-between gap-3 font-sans text-small font-semibold text-ink">
+                {g.label}
+                <span className="text-caption font-normal text-ink-3 tabular-nums">
+                  {empty ? 'No photos yet' : `${stored.length + fresh.length} ${stored.length + fresh.length === 1 ? 'photo' : 'photos'}`}
+                </span>
+              </h3>
             ) : null}
-          </span>
-        ))}
-        {canUpload ? (
-          <>
-            <button
-              type="button"
-              onClick={() => input.current?.click()}
-              className="focus-ring tactile flex size-20 items-center justify-center rounded-lg border border-dashed border-line-strong text-ink-2 hover:border-brand hover:bg-brand-bg/50 hover:text-brand active:shadow-pressed"
-              aria-label="Add images"
-            >
-              <Icon name="plus" size={22} />
-            </button>
-            <input
-              ref={input}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              multiple
-              hidden
-              onChange={(e) => {
-                const files = [...(e.target.files ?? [])]
-                e.target.value = ''
-                add(files, (i) => (count === 0 && i === 0 ? 'main' : 'secondary'))
-              }}
-            />
-          </>
-        ) : null}
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2" aria-live="polite">
-        {stored.map((id, i) => (
-          <ReportChip key={id} imageId={id} label={`Image ${i + 1}`} />
-        ))}
-        {galleryUploads.map((u) =>
-          u.state.kind === 'accepted' ? (
-            <ReportChip key={u.id} imageId={u.state.imageId} label={SLOT_LABEL[u.slot]} />
-          ) : u.state.kind === 'invalid' ? (
-            <StatusChip key={u.id} status="error">
-              {u.file.name}: {u.state.message}
-            </StatusChip>
-          ) : u.state.kind === 'failed' ? (
-            <span key={u.id} className="inline-flex items-center gap-2">
-              <StatusChip status="error">
-                {u.file.name}: {describeError(u.state.error)}
-              </StatusChip>
-              <Button variant="ghost" size="xs" onClick={() => retry(u)}>
-                Retry
-              </Button>
-            </span>
-          ) : null,
-        )}
-      </div>
-      {count === 0 ? <p className="mt-2 text-small text-ink-2">No images yet. The first one you add becomes the main image.</p> : null}
+            <div className={cn('flex flex-wrap gap-2.5', byColour && 'mt-2')}>
+              {stored.map((id, i) => (
+                <span key={id} className="relative flex size-20 items-center justify-center rounded-lg border border-line bg-field text-ink-3 shadow-inset-sm">
+                  <Icon name="image" size={24} />
+                  <span className="absolute bottom-1 left-1 rounded border border-line bg-surface px-1 text-caption font-semibold text-ink">Image {i + 1}</span>
+                </span>
+              ))}
+              {fresh.map((u) => (
+                <span key={u.id} className="relative size-20 overflow-hidden rounded-lg border border-line bg-subtle shadow-raised-sm">
+                  <img src={u.preview} alt="" className="size-full object-cover" />
+                  <span className="absolute bottom-1 left-1 rounded border border-line bg-surface px-1 text-caption font-semibold text-ink">{SLOT_LABEL[u.slot]}</span>
+                  {u.state.kind === 'uploading' ? (
+                    <span className="absolute inset-0 flex items-center justify-center bg-surface/70">
+                      <Spinner />
+                      <span className="sr-only">Uploading…</span>
+                    </span>
+                  ) : null}
+                </span>
+              ))}
+              {canUpload && isPicked ? (
+                <button
+                  type="button"
+                  onClick={() => input.current?.click()}
+                  className="focus-ring tactile flex size-20 items-center justify-center rounded-lg border border-dashed border-line-strong text-ink-2 hover:border-brand hover:bg-brand-bg/50 hover:text-brand active:shadow-pressed"
+                  aria-label={byColour ? `Add photos for ${g.label}` : 'Add images'}
+                >
+                  <Icon name="plus" size={22} />
+                </button>
+              ) : null}
+            </div>
+            {byColour && empty && g.colourwayId ? <p className="mt-1.5 text-caption text-ink-3">Uses the photos for all colours until you add its own.</p> : null}
+            <div className="mt-2 flex flex-wrap gap-2 empty:hidden" aria-live="polite">
+              {stored.map((id, i) => (
+                <ReportChip key={id} imageId={id} label={`Image ${i + 1}`} />
+              ))}
+              {fresh.map((u) =>
+                u.state.kind === 'accepted' ? (
+                  <ReportChip key={u.id} imageId={u.state.imageId} label={SLOT_LABEL[u.slot]} />
+                ) : u.state.kind === 'invalid' ? (
+                  <StatusChip key={u.id} status="error">
+                    {u.file.name}: {u.state.message}
+                  </StatusChip>
+                ) : u.state.kind === 'failed' ? (
+                  <span key={u.id} className="inline-flex items-center gap-2">
+                    <StatusChip status="error">
+                      {u.file.name}: {describeError(u.state.error)}
+                    </StatusChip>
+                    <Button variant="ghost" size="xs" onClick={() => retry(u)}>
+                      Retry
+                    </Button>
+                  </span>
+                ) : null,
+              )}
+            </div>
+          </section>
+        )
+      })}
+      {canUpload ? (
+        <input
+          ref={input}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          multiple
+          hidden
+          onChange={(e) => {
+            const files = [...(e.target.files ?? [])]
+            e.target.value = ''
+            add(files, (i) => (!pickedHasMain && i === 0 ? 'main' : 'secondary'), picked.colourwayId)
+          }}
+        />
+      ) : null}
+      {count === 0 && !byColour ? <p className="mt-2 text-small text-ink-2">No images yet. The first one you add becomes the main image.</p> : null}
     </LaCard>
   )
 }
@@ -773,7 +827,7 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
         <div className="mt-4 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
           {imagesLive ? (
             <>
-              <ImagesCard productId={p.id} existing={(p.images ?? []) as string[]} canUpload />
+              <ImagesCard product={p} canUpload />
               <SizeChartCard productId={p.id} canUpload />
             </>
           ) : (

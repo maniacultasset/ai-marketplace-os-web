@@ -1,5 +1,5 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useDropzone, type FileRejection } from 'react-dropzone'
 import { api, unwrap } from '@/api/client'
 import { describeError, isApiError, isNotFound } from '@/api/errors'
@@ -39,9 +39,10 @@ import {
   type ImageSlot,
   type UploadStage,
 } from './report'
+import { ALL_COLOURS, colourGroups, colourHasMain, type ColourGroup, type ColourSource } from './colour-groups'
 import { uploadImage } from './upload'
 
-interface ProductLike {
+interface ProductLike extends ColourSource {
   id: string
   images?: string[]
   parent_product_id?: string | null
@@ -52,6 +53,8 @@ interface SessionUpload {
   file: File
   previewUrl: string
   slot: ImageSlot
+  /** The colour it is filed under, or null for every colour. */
+  colourwayId: string | null
   multipartKey: string
   stage: UploadStage
 }
@@ -81,6 +84,11 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
   const slots = slotsFor(!!product.parent_product_id)
   const [slot, setSlot] = useState<ImageSlot>(defaultSlot(listed.length))
   const [uploads, setUploads] = useState<SessionUpload[]>([])
+  // Per-colour photos: only a style with colourways offers the choice. A size chart is the style's.
+  const groups = colourGroups(product)
+  const byColour = (product.colourways ?? []).length > 0
+  const [colour, setColour] = useState<string>(ALL_COLOURS)
+  const colourwayId = byColour && slot !== 'size_chart' && colour !== ALL_COLOURS ? colour : null
 
   // Object URLs live as long as the card.
   const urls = useRef(new Set<string>())
@@ -103,7 +111,7 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
   const start = (u: SessionUpload) => {
     patch(u.localId, { stage: { kind: 'uploading' } })
     mutation
-      .mutateAsync({ file: u.file, productId: product.id, slot: u.slot, multipartKey: u.multipartKey })
+      .mutateAsync({ file: u.file, productId: product.id, slot: u.slot, colourwayId: u.colourwayId, multipartKey: u.multipartKey })
       .then((res) => {
         patch(u.localId, { stage: { kind: 'accepted', imageId: res.image_id, jobId: res.job_id } })
         void qc.invalidateQueries({ queryKey: keys.products.detail(product.id) })
@@ -129,6 +137,7 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         file,
         previewUrl,
         slot,
+        colourwayId,
         multipartKey: newIdempotencyKey(),
         stage: problem ? { kind: 'invalid', message: problem } : { kind: 'uploading' },
       }
@@ -156,6 +165,26 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
   const reportsQ = useQueries({ queries: rowIds.map((id) => reportQuery(keys, id, live)) })
   const reportsSettled = !live || reportsQ.every((r) => !r.isPending)
 
+  const listedRow = (key: string) => {
+    const id = imageIdFromKey(key)
+    return id ? (
+      <ImageRow
+        key={key}
+        imageId={id}
+        storageKey={key}
+        upload={sessionById.get(id)}
+        live={live}
+        productId={product.id}
+        settled={reportsSettled}
+        onDelete={canDelete ? onDelete : undefined}
+      />
+    ) : (
+      <li key={key} className="truncate px-5 py-3 font-mono text-xs text-muted-foreground" title={key}>
+        {key}
+      </li>
+    )
+  }
+
   return (
     <Card className="gap-0 py-0" data-testid="product-images">
       <CardHeader className="flex h-12 flex-row items-center justify-between gap-3 border-b py-0 [.border-b]:pb-0">
@@ -169,7 +198,16 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
           <Skeleton className="min-h-28 rounded-lg" />
         </div>
       ) : canUpload ? (
-        <Dropzone slot={slot} slots={slots} onSlot={setSlot} onFiles={add} hasImages={count > 0} />
+        <Dropzone
+          slot={slot}
+          slots={slots}
+          onSlot={setSlot}
+          onFiles={add}
+          hasMain={byColour ? colourHasMain(product, colourwayId) : count > 0}
+          colours={byColour && slot !== 'size_chart' ? groups.filter((g) => g.key !== 'other') : null}
+          colour={colour}
+          onColour={setColour}
+        />
       ) : null}
 
       {inFlight.length ? (
@@ -187,35 +225,56 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         </div>
       ) : null}
 
-      {count > 0 ? (
+      {byColour && (count > 0 || canUpload) ? (
+        <div className="border-t" data-testid="image-list">
+          {groups.map((g) => {
+            const fresh = notYetListed.filter((u) => (u.colourwayId ?? ALL_COLOURS) === g.key)
+            if (g.key === 'other' && !g.keys.length) return null
+            return (
+              <ColourSection key={g.key} group={g} count={g.keys.length + fresh.length}>
+                {fresh.map((u) =>
+                  u.stage.kind === 'accepted' ? (
+                    <ImageRow key={u.stage.imageId} imageId={u.stage.imageId} upload={u} live={live} productId={product.id} settled={reportsSettled} onDelete={canDelete ? onDelete : undefined} />
+                  ) : null,
+                )}
+                {g.keys.map((key) => listedRow(key))}
+              </ColourSection>
+            )
+          })}
+        </div>
+      ) : count > 0 ? (
         <ul className="divide-y divide-border/70 border-t" aria-label="Product images" data-testid="image-list">
           {notYetListed.map((u) =>
             u.stage.kind === 'accepted' ? (
               <ImageRow key={u.stage.imageId} imageId={u.stage.imageId} upload={u} live={live} productId={product.id} settled={reportsSettled} onDelete={canDelete ? onDelete : undefined} />
             ) : null,
           )}
-          {listed.map((key) => {
-            const id = imageIdFromKey(key)
-            return id ? (
-              <ImageRow
-                key={key}
-                imageId={id}
-                storageKey={key}
-                upload={sessionById.get(id)}
-                live={live}
-                productId={product.id}
-                settled={reportsSettled}
-                onDelete={canDelete ? onDelete : undefined}
-              />
-            ) : (
-              <li key={key} className="truncate px-5 py-3 font-mono text-xs text-muted-foreground" title={key}>
-                {key}
-              </li>
-            )
-          })}
+          {listed.map((key) => listedRow(key))}
         </ul>
       ) : null}
     </Card>
+  )
+}
+
+/** One colour's images: a quiet heading with its count, then its rows (or a one-line empty note). */
+function ColourSection({ group, count, children }: { group: ColourGroup; count: number; children: ReactNode }) {
+  const empty = count === 0
+  return (
+    <section aria-label={`${group.label} images`} data-testid="colour-group" data-colour={group.key} className="border-b border-border/70 last:border-b-0">
+      <header className="flex items-center justify-between gap-3 bg-sunken px-5 py-2">
+        <h3 className="truncate font-sans text-small font-semibold text-ink">{group.label}</h3>
+        <span className="text-caption text-ink-3 tabular-nums">
+          {empty ? (group.colourwayId ? 'No photos yet' : 'None') : `${count} ${count === 1 ? 'image' : 'images'}`}
+        </span>
+      </header>
+      {empty ? (
+        <p className="px-5 py-3 text-small text-ink-2">
+          {group.colourwayId ? 'Uses the photos for all colours until you add its own.' : 'Photos here show for every colour.'}
+        </p>
+      ) : (
+        <ul className="divide-y divide-border/70">{children}</ul>
+      )}
+    </section>
   )
 }
 
@@ -226,14 +285,23 @@ function Dropzone({
   slots,
   onSlot,
   onFiles,
-  hasImages,
+  hasMain,
+  colours,
+  colour,
+  onColour,
 }: {
   slot: ImageSlot
   slots: readonly ImageSlot[]
   onSlot: (s: ImageSlot) => void
   onFiles: (files: File[], rejected: FileRejection[]) => void
-  hasImages: boolean
+  /** The chosen colour (or the product) already has a main image. */
+  hasMain: boolean
+  /** The colours to file the upload under; null when the product has none. */
+  colours: readonly ColourGroup[] | null
+  colour: string
+  onColour: (key: string) => void
 }) {
+  const colourName = colours?.find((g) => g.key === colour)?.label
   const dz = useDropzone({
     onDrop: onFiles,
     multiple: slot !== 'main',
@@ -244,23 +312,46 @@ function Dropzone({
   return (
     <div className="flex flex-col gap-3 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <label className="flex items-center gap-2 text-[0.8125rem] text-muted-foreground">
-          Upload as
-          <Select value={slot} onValueChange={(v) => onSlot(slots.find((s) => s === v) ?? slot)}>
-            <SelectTrigger size="sm" className="w-40" aria-label="Image slot" data-testid="image-slot">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {slots.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {SLOT_LABEL[s]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </label>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          {colours ? (
+            <label className="flex items-center gap-2 text-[0.8125rem] text-muted-foreground">
+              Colour
+              <Select value={colour} onValueChange={(v) => onColour(colours.find((g) => g.key === v)?.key ?? colour)}>
+                <SelectTrigger size="sm" className="w-40" aria-label="Image colour" data-testid="image-colour">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {colours.map((g) => (
+                    <SelectItem key={g.key} value={g.key}>
+                      {g.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+          ) : null}
+          <label className="flex items-center gap-2 text-[0.8125rem] text-muted-foreground">
+            Upload as
+            <Select value={slot} onValueChange={(v) => onSlot(slots.find((s) => s === v) ?? slot)}>
+              <SelectTrigger size="sm" className="w-40" aria-label="Image slot" data-testid="image-slot">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {slots.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {SLOT_LABEL[s]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+        </div>
         <span className="text-xs text-muted-foreground">
-          {slot === 'main' && hasImages ? 'A new main image replaces the current one.' : 'JPEG, PNG or WebP, up to 10 MB each.'}
+          {slot === 'main' && hasMain
+            ? colours && colour !== ALL_COLOURS
+              ? `A new main image replaces the current one for ${colourName ?? 'this colour'}.`
+              : 'A new main image replaces the current one.'
+            : 'JPEG, PNG or WebP, up to 10 MB each.'}
         </span>
       </div>
       <div
@@ -288,7 +379,7 @@ function Dropzone({
         <div className="text-left">
           <p className="text-sm font-medium">
             {dragging ? (
-              `Drop to upload as ${SLOT_LABEL[slot].toLowerCase()}`
+              `Drop to upload as ${SLOT_LABEL[slot].toLowerCase()}${colours && colourName && slot !== 'size_chart' ? ` for ${colourName === 'All colours' ? 'all colours' : colourName}` : ''}`
             ) : (
               <>
                 Drag {slot === 'main' ? 'an image' : 'images'} here, or <span className="text-brand">click to choose</span>
