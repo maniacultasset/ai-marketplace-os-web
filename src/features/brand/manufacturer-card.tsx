@@ -37,6 +37,8 @@ export function ManufacturerCard({ canEdit }: { canEdit: boolean }) {
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [formEl, setFormEl] = useState<HTMLElement | null>(null)
+  /** The ETag the edit started from: a background refetch must never swap it (silent overwrite). */
+  const [etag, setEtag] = useState<string | null>(null)
 
   const party = q.data?.data.default_manufacturer ?? null
   const editing = draft !== null
@@ -45,6 +47,7 @@ export function ManufacturerCard({ canEdit }: { canEdit: boolean }) {
   for (const [k, v] of Object.entries(client) as [PartyField, string][]) if (submitted > 0 || touched.has(k)) errors[k] ??= v
 
   const start = () => {
+    setEtag(q.data?.etag ?? null)
     setDraft(fromPartyOut(party))
     setTouched(new Set())
     setSubmitted(0)
@@ -61,7 +64,7 @@ export function ManufacturerCard({ canEdit }: { canEdit: boolean }) {
   const submit = async (body: { default_manufacturer: ReturnType<typeof toPartyIn> | null }) => {
     setError(null)
     try {
-      await save.mutateAsync({ body, etag: q.data?.etag ?? null })
+      await save.mutateAsync({ body, etag })
       toast.success(body.default_manufacturer ? 'Manufacturer saved' : 'Manufacturer removed', {
         description: body.default_manufacturer ? 'Every product uses it unless it sets its own.' : 'Products without their own manufacturer now have none.',
       })
@@ -69,7 +72,13 @@ export function ManufacturerCard({ canEdit }: { canEdit: boolean }) {
       stop()
     } catch (err) {
       if (isStaleVersion(err)) {
-        await q.refetch()
+        // Only here does the base move: to the version someone else saved.
+        const fresh = await q.refetch()
+        if (fresh.data) setEtag(fresh.data.etag)
+        else {
+          setError(fresh.error ?? err)
+          return
+        }
         setStale(true)
         setConfirmRemove(false)
         return
