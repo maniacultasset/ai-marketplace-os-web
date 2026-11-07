@@ -12,8 +12,9 @@
 import { z } from 'zod'
 import type { ChipStatus } from '@/components/la/status-chip'
 import type { Schema } from '@/api/types'
-import { humanizeCode, isAutoFix, type Issue, type Task } from '@/features/inbox/model'
+import { humanizeCode, isAutoFix, TASK_KIND_LABEL, type Issue, type Task } from '@/features/inbox/model'
 import { NO_TRAIL_TEXT, onVersion, versionRef } from '@/features/listing-flow/auto-fix-model'
+import { isBlockingTask, isPhotoQuestion } from '@/features/photo-facts/answer-spec'
 
 type Listing = Schema<'ListingOut'>
 type Marketplace = Schema<'Marketplace'>
@@ -167,6 +168,8 @@ export interface TileView {
   caption: string
   /** Why the number is a lower bound or missing; shown as the tooltip on the number. */
   note?: string
+  /** A second, quieter line: work that helps but holds nothing back. */
+  aside?: string
 }
 
 export const SNAPSHOT_NOTE = (cap: number) =>
@@ -193,30 +196,57 @@ export function inProgressTile(s: ListingsSnapshot, cap: number): TileView {
 }
 
 export interface NeedsYouParts {
+  /** Open questions that hold a listing back. */
   tasks: Count
   issues: Count
   approve: number
   publish: number
   snapshotComplete: boolean
+  /** Open photo questions: answering improves a listing, and none of them blocks one. */
+  improve?: Count
+}
+
+/**
+ * Open questions from the first page, split by whether they hold a listing back. A photo question
+ * never blocks by itself (SI3), unless the API says so. When more pages exist, both parts are lower
+ * bounds: the unloaded rows could be either.
+ */
+export function splitTasks(tasks: readonly Task[], more: boolean): { blocking: Count; improve: Count } {
+  const blocking = tasks.filter(isBlockingTask).length
+  return { blocking: { n: blocking, more }, improve: { n: tasks.length - blocking, more } }
+}
+
+/** The second line of a question row: a photo question says what answering does. */
+export function taskMeta(task: Task): string {
+  return isPhotoQuestion(task) && !isBlockingTask(task) ? 'Answer to improve the listing' : TASK_KIND_LABEL[task.kind]
 }
 
 /** "3 questions, 1 listing to approve, 2 issues". Empty parts are left out. */
 export function needsYouCaption(p: NeedsYouParts): string {
   const out: string[] = []
-  if (p.tasks.n || p.tasks.more) out.push(`${fmtCount(p.tasks)} ${plural(p.tasks.n, 'question')}`)
+  // Only questions seen on the loaded page: "0+ questions" would say nothing true.
+  if (p.tasks.n) out.push(`${fmtCount(p.tasks)} ${plural(p.tasks.n, 'question')}`)
   if (p.approve) out.push(`${p.approve} ${plural(p.approve, 'listing')} to approve`)
   if (p.publish) out.push(`${p.publish} ${plural(p.publish, 'listing')} to publish`)
   if (p.issues.n || p.issues.more) out.push(`${fmtCount(p.issues)} ${plural(p.issues.n, 'issue')}`)
-  return out.length ? out.join(', ') : 'Nothing needs you right now.'
+  if (out.length) return out.join(', ')
+  return p.improve?.n ? 'Nothing blocks your listings.' : 'Nothing needs you right now.'
 }
 
+/** "2 photo questions. Answer to improve the listing." Undefined when there are none. */
+export function improveAside(improve: Count | undefined): string | undefined {
+  if (!improve?.n) return undefined
+  return `${fmtCount(improve)} photo ${plural(improve.n, 'question')}. Answer to improve the listing.`
+}
+
+/** The number counts what holds a listing back; photo questions sit on the quieter line. */
 export function needsYouTile(p: NeedsYouParts, cap: number): TileView {
   const n = p.tasks.n + p.issues.n + p.approve + p.publish
   const more = p.tasks.more || p.issues.more || !p.snapshotComplete
   const notes: string[] = []
   if (p.tasks.more || p.issues.more) notes.push('Only the first page of open questions and issues is counted.')
   if (!p.snapshotComplete) notes.push(SNAPSHOT_NOTE(cap))
-  return { value: fmtCount({ n, more }), caption: needsYouCaption(p), note: notes.join(' ') || undefined }
+  return { value: fmtCount({ n, more }), caption: needsYouCaption(p), note: notes.join(' ') || undefined, aside: improveAside(p.improve) }
 }
 
 /* ---------------------------------------------------------------------------------------------- */
@@ -321,13 +351,13 @@ export function parseItemKey(key: string | undefined): { kind: 'task' | 'issue';
 }
 
 /**
- * Questions first (they block a listing until answered), then issues with errors before warnings;
- * newest first inside each group. Stable for equal times.
+ * Questions that block a listing first, then errors, then photo questions (they only improve a
+ * listing), then warnings; newest first inside each group. Stable for equal times.
  */
 export function mergeInbox(tasks: readonly Task[], issues: readonly Issue[]): InboxItem[] {
   const t: InboxItem[] = tasks.map((task) => ({ kind: 'task', id: task.id, at: task.created_at, task }))
   const i: InboxItem[] = issues.map((issue) => ({ kind: 'issue', id: issue.id, at: issue.last_seen_at, issue }))
-  const rank = (x: InboxItem) => (x.kind === 'task' ? 0 : x.issue.severity === 'error' ? 1 : 2)
+  const rank = (x: InboxItem) => (x.kind === 'task' ? (isBlockingTask(x.task) ? 0 : 2) : x.issue.severity === 'error' ? 1 : 3)
   return [...t, ...i]
     .map((x, idx) => ({ x, idx }))
     .sort((a, b) => rank(a.x) - rank(b.x) || b.x.at.localeCompare(a.x.at) || a.idx - b.idx)

@@ -3,12 +3,13 @@
  * and issues (GET /issues); right, the selected item. Below 1024px one pane at a time: the list,
  * or the item with a back link (15b).
  *
- * Answering a question has no API yet (no POST /tasks/{id}/answer): the question, its reason and
- * the suggested answers are shown, and the answer controls are disabled with the reason. Issue
- * dismiss is real (POST /issues/{id}/dismiss with an Idempotency-Key).
+ * Fact questions (missing or conflicting facts, e.g. from the photo check) are answered here with
+ * POST /tasks/{id}/answer; other question kinds keep their answer controls disabled with the reason.
+ * Issue dismiss is real (POST /issues/{id}/dismiss with an Idempotency-Key).
  */
 import { Link } from '@tanstack/react-router'
 import { formatDistanceToNowStrict } from 'date-fns'
+import { useCallback, useState } from 'react'
 import { IconTile } from '@/components/la/icons'
 import { Segmented } from '@/components/la/tabs'
 import { ErrorState } from '@/components/states'
@@ -16,8 +17,9 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useIssuesList, useTasksList } from '@/features/inbox/api'
-import { ISSUE_STATUS_LABEL, MARKETPLACE_LABEL, TASK_KIND_LABEL, TASK_STATUS_LABEL } from '@/features/inbox/model'
+import { ISSUE_STATUS_LABEL, MARKETPLACE_LABEL, TASK_STATUS_LABEL } from '@/features/inbox/model'
 import { fieldLabel } from '@/features/listing-flow/format'
+import type { AnswerOutcome } from '@/features/photo-facts/answer-card'
 import { cn } from '@/lib/utils'
 import { useProductsById } from './api'
 import { InboxDetail } from './inbox-detail'
@@ -28,6 +30,7 @@ import {
   issueTitle,
   itemKey,
   mergeInbox,
+  taskMeta,
   visibleItems,
   withAiRewrites,
   type InboxItem,
@@ -59,7 +62,13 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
   const lists = [showsTasks && taskList, showsIssues && issueList, showsIssues && withRewrites && rewrites].filter((x) => !!x)
   const listsPending = lists.some((l) => l.isPending)
   const error = lists.find((l) => l.error)?.error
-  const items = visibleItems(view, mergeInbox(showsTasks ? taskList.rows : [], showsIssues ? issueRows : []))
+  // A question answered here stays on screen with its result after the open list refreshes
+  // without it, so the seller sees what was saved and can move on.
+  const [outcomes, setOutcomes] = useState<Record<string, AnswerOutcome>>({})
+  const onOutcome = useCallback((o: AnswerOutcome) => setOutcomes((m) => ({ ...m, [o.task.id]: o })), [])
+  const kept = statuses.task === 'open' ? Object.values(outcomes).filter((o) => !taskList.rows.some((t) => t.id === o.task.id)) : []
+  const taskRows = [...taskList.rows, ...kept.map((o) => o.task)]
+  const items = visibleItems(view, mergeInbox(showsTasks ? taskRows : [], showsIssues ? issueRows : []))
   const selectedKey = search.item ?? (items[0] ? itemKey(items[0]) : undefined)
 
   const tCount = { n: openTasks.rows.length, more: !!openTasks.hasNextPage }
@@ -130,7 +139,13 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
           ) : (
             items.map((it) => (
               <li key={itemKey(it)}>
-                <ItemCard item={it} selected={itemKey(it) === selectedKey} search={search} product={it.kind === 'task' && it.task.product_id ? products.map.get(it.task.product_id) : undefined} />
+                <ItemCard
+                  item={it}
+                  selected={itemKey(it) === selectedKey}
+                  search={search}
+                  product={it.kind === 'task' && it.task.product_id ? products.map.get(it.task.product_id) : undefined}
+                  answered={it.kind === 'task' && outcomes[it.task.id] ? outcomes[it.task.id]!.kind : undefined}
+                />
               </li>
             ))
           )}
@@ -155,6 +170,8 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
           pending={listsPending}
           search={search}
           products={products}
+          outcomes={outcomes}
+          onOutcome={onOutcome}
         />
       </section>
     </div>
@@ -198,16 +215,19 @@ function ItemCard({
   selected,
   search,
   product,
+  answered,
 }: {
   item: InboxItem
   selected: boolean
   search: InboxSearch
   product?: { sku: string; title: string }
+  /** Answered (or found closed) on this screen. */
+  answered?: AnswerOutcome['kind']
 }) {
   const title = item.kind === 'task' ? item.task.question : issueTitle(item.issue)
   const meta =
     item.kind === 'task'
-      ? [product?.sku, TASK_KIND_LABEL[item.task.kind]].filter(Boolean).join(' · ')
+      ? [product?.sku, answered === 'answered' ? 'Answered' : answered === 'closed' ? 'Closed' : taskMeta(item.task)].filter(Boolean).join(' · ')
       : // A closed issue says so in words, first so the line's truncation never hides it.
         [
           item.issue.status === 'open' ? null : issueChip(item.issue).label,
@@ -247,3 +267,4 @@ function ItemCard({
     </Link>
   )
 }
+

@@ -2,6 +2,7 @@
  * Inbox right pane (hi-fi 15) and the mobile task screen (15b): the selected question or issue.
  */
 import { Link } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
 import { Banner } from '@/components/la/banner'
 import { LaCard } from '@/components/la/cards'
 import { Icon, IconTile } from '@/components/la/icons'
@@ -10,6 +11,9 @@ import { UnavailableButton } from '@/components/la/unavailable'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DismissIssueButton } from '@/features/inbox/dismiss-issue'
+import { AnswerCard, AnswerResult, type AnswerOutcome } from '@/features/photo-facts/answer-card'
+import { factKey, isPhotoQuestion } from '@/features/photo-facts/answer-spec'
+import { factLabel } from '@/features/photo-facts/model'
 import {
   canDismiss,
   issueHeadline,
@@ -50,12 +54,17 @@ export function InboxDetail({
   pending,
   search,
   products,
+  outcomes = {},
+  onOutcome,
 }: {
   selectedKey: string | undefined
   items: readonly InboxItem[]
   pending: boolean
   search: InboxSearch
   products: ProductsById
+  /** Questions answered (or found closed) on this screen, by task id: kept on screen. */
+  outcomes?: Readonly<Record<string, AnswerOutcome>>
+  onOutcome?: (o: AnswerOutcome) => void
 }) {
   const item = selectedKey ? items.find((i) => itemKey(i) === selectedKey) : undefined
   const idx = item ? items.indexOf(item) : -1
@@ -88,12 +97,29 @@ export function InboxDetail({
             product={item.task.product_id ? products.map.get(item.task.product_id) : undefined}
             productPending={!!item.task.product_id && products.pending}
             remaining={items.length - idx - 1}
+            outcome={outcomes[item.task.id]}
+            onOutcome={onOutcome}
+            next={nextLink(items, idx, search, outcomes)}
           />
         ) : (
           <IssuePane key={item.id} issue={item.issue} position={positionLabel(items, itemKey(item))} />
         )}
       </div>
     </div>
+  )
+}
+
+/** "Next question" once a question is answered: the next item in the list that is still open. */
+function nextLink(items: readonly InboxItem[], idx: number, search: InboxSearch, done: Readonly<Record<string, AnswerOutcome>>) {
+  const next = items.slice(idx + 1).find((i) => i.kind === 'issue' || (i.task.status === 'open' && !done[i.task.id]))
+  if (!next) return undefined
+  return (
+    <Button asChild data-testid="inbox-next">
+      <Link to="/inbox" search={{ ...search, item: itemKey(next) }} replace>
+        {next.kind === 'task' ? 'Next question' : 'Next item'}
+        <Icon name="arrow" size={16} />
+      </Link>
+    </Button>
   )
 }
 
@@ -133,6 +159,9 @@ function TaskDetail({
   product,
   productPending,
   remaining,
+  outcome,
+  onOutcome,
+  next,
 }: {
   task: Task
   position: string | null
@@ -140,9 +169,15 @@ function TaskDetail({
   /** The product is still on its first read: hold its line with a skeleton, never "One product". */
   productPending: boolean
   remaining: number
+  outcome?: AnswerOutcome
+  onOutcome?: (o: AnswerOutcome) => void
+  next?: ReactNode
 }) {
   const suggestions = suggestionTexts(task.suggestions, 6)
-  const open = task.status === 'open'
+  const shown = outcome?.task ?? task
+  const open = shown.status === 'open' && outcome?.kind !== 'closed'
+  const fact = factKey(task)
+  const photo = isPhotoQuestion(task)
   return (
     <article className="flex max-w-[760px] flex-col gap-4" data-testid="task-detail" data-task-id={task.id}>
       <div>
@@ -151,7 +186,9 @@ function TaskDetail({
           <h2 className="font-display text-[22px] leading-7 font-bold text-ink lg:text-[28px] lg:leading-[34px]" data-testid="task-question">
             {task.question}
           </h2>
-          {!open ? <StatusChip status={task.status === 'cancelled' ? 'not-listed' : 'live'}>{TASK_STATUS_LABEL[task.status]}</StatusChip> : null}
+          {!open && outcome?.kind !== 'closed' ? (
+            <StatusChip status={shown.status === 'cancelled' ? 'not-listed' : 'live'}>{outcome ? 'Answered' : TASK_STATUS_LABEL[shown.status]}</StatusChip>
+          ) : null}
         </div>
       </div>
 
@@ -167,18 +204,30 @@ function TaskDetail({
           ) : (
             <span>
               {/* "One product" only when the product read failed: the SKU and title are unknown. */}
-              {[product ? `${product.sku} · ${product.title}` : task.product_id ? 'One product' : null, task.target_path, TASK_KIND_LABEL[task.kind]]
+              {[product ? `${product.sku} · ${product.title}` : task.product_id ? 'One product' : null, fact ? factLabel(fact) : task.target_path, TASK_KIND_LABEL[task.kind]]
                 .filter(Boolean)
                 .join(' · ')}
             </span>
           )}
         </div>
-        <p className="mt-2 text-caption text-ink-2">
-          Asked <Ago iso={task.created_at} />. The agent resumes from {RESUME_LABEL[task.resume_from]} once this is answered.
+        <p className="mt-2 text-caption text-ink-2" data-testid="task-resume">
+          Asked <Ago iso={task.created_at} />.{' '}
+          {photo
+            ? 'This doesn’t block your listing. Answer to improve it.'
+            : fact
+              ? 'Regenerate the listing after you answer to use it.'
+              : `The agent resumes from ${RESUME_LABEL[task.resume_from]} once this is answered.`}
         </p>
       </LaCard>
 
-      {open && task.kind === 'reconnect_account' ? (
+      {outcome ? (
+        <AnswerResult outcome={outcome} next={next} />
+      ) : open && fact && onOutcome ? (
+        <>
+          <AnswerCard task={task} onOutcome={onOutcome} />
+          {remaining > 0 ? <p className="text-center text-small text-ink-3 lg:hidden">{remaining} more after this</p> : null}
+        </>
+      ) : open && task.kind === 'reconnect_account' ? (
         <ReconnectTask task={task} remaining={remaining} />
       ) : open ? (
         <>

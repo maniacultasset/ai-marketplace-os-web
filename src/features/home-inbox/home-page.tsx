@@ -21,7 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useBrandName } from '@/features/brand/api'
 import { useIssuesList, useTasksList } from '@/features/inbox/api'
-import { MARKETPLACE_LABEL, TASK_KIND_LABEL } from '@/features/inbox/model'
+import { MARKETPLACE_LABEL } from '@/features/inbox/model'
 import { useCurrentMarketplaceAccounts } from '@/features/marketplaces/api'
 import { useMe } from '@/lib/auth'
 import { useCan } from '@/lib/permissions'
@@ -39,6 +39,8 @@ import {
   marketplaceCard,
   mergeInbox,
   needsYouTile,
+  splitTasks,
+  taskMeta,
   type ListingsSnapshot,
   type TileView,
 } from './model'
@@ -88,11 +90,13 @@ function DashboardBody({
   const inboxReady = !!tasks.data && !!issues.data
   const tasksCount = { n: tasks.rows.length, more: !!tasks.hasNextPage }
   const issuesCount = { n: issues.rows.length, more: !!issues.hasNextPage }
+  // Photo questions improve a listing but never hold one back: they are not in the number.
+  const split = splitTasks(tasks.rows, tasksCount.more)
 
   const live = liveTile(snapshot, LISTINGS_CAP)
   const working = inProgressTile(snapshot, LISTINGS_CAP)
   const needs = needsYouTile(
-    { tasks: tasksCount, issues: issuesCount, approve: snapshot.approve, publish: snapshot.publish, snapshotComplete: snapshot.complete },
+    { tasks: split.blocking, improve: split.improve, issues: issuesCount, approve: snapshot.approve, publish: snapshot.publish, snapshotComplete: snapshot.complete },
     LISTINGS_CAP,
   )
   const inboxError = tasks.error ?? issues.error
@@ -173,13 +177,23 @@ function DashboardBody({
               className="col-span-2 md:col-span-1"
               chip={<StatusChip status="needs-you" />}
               value={<span data-testid="tile-needs-value"><Value view={needs} /></span>}
-              caption={<span data-testid="tile-needs-caption">{needs.caption}</span>}
+              caption={
+                <>
+                  <span data-testid="tile-needs-caption">{needs.caption}</span>
+                  {needs.aside ? (
+                    <span className="mt-0.5 block text-caption text-ink-3" data-testid="tile-needs-aside">
+                      {needs.aside}
+                    </span>
+                  ) : null}
+                </>
+              }
               action={
                 // The tile counts two places: questions and issues live in the Inbox, listings to
                 // approve or publish live on their product (Products). Link to each part shown.
-                // The main button goes where the work is: the Inbox only when it holds something.
+                // The main button goes where the work is: the Inbox only when it holds something that blocks
+                // a listing (photo questions are reached from Waiting for you).
                 <div className="flex flex-wrap gap-2">
-                  {tasksCount.n + issuesCount.n > 0 || snapshot.approve + snapshot.publish === 0 ? (
+                  {split.blocking.n + issuesCount.n > 0 || snapshot.approve + snapshot.publish === 0 ? (
                     <Button asChild size="sm" variant="warn" data-testid="tile-needs-inbox">
                       <Link to="/inbox">Open Inbox</Link>
                     </Button>
@@ -188,7 +202,7 @@ function DashboardBody({
                     <Button
                       asChild
                       size="sm"
-                      variant={tasksCount.n + issuesCount.n > 0 ? 'secondary' : 'warn'}
+                      variant={split.blocking.n + issuesCount.n > 0 ? 'secondary' : 'warn'}
                       className="min-w-0 max-w-full"
                       data-testid="tile-needs-listings"
                     >
@@ -465,7 +479,7 @@ function WaitingCard({
             const title = it.kind === 'task' ? it.task.question : issueTitle(it.issue)
             const meta =
               it.kind === 'task'
-                ? [product?.sku, TASK_KIND_LABEL[it.task.kind]].filter(Boolean).join(' · ')
+                ? [product?.sku, taskMeta(it.task)].filter(Boolean).join(' · ')
                 : `${MARKETPLACE_LABEL[it.issue.marketplace]} · ${it.issue.severity === 'error' ? 'Error' : 'Warning'} on ${it.issue.field_path}`
             return (
               <TaskRow

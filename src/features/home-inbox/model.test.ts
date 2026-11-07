@@ -31,7 +31,9 @@ import {
   retriesStopped,
   setupProgress,
   setupSteps,
+  splitTasks,
   summarizeListings,
+  taskMeta,
   visibleItems,
 } from './model'
 
@@ -179,6 +181,66 @@ describe('needs you', () => {
     expect(needsYouCaption({ tasks: { n: 0, more: false }, issues: { n: 0, more: false }, approve: 0, publish: 0, snapshotComplete: true })).toBe(
       'Nothing needs you right now.',
     )
+  })
+})
+
+describe('photo questions on Home (never blocking)', () => {
+  const IMG = U(501)
+  const q = (n: number, over: Partial<Task> = {}): Task => ({
+    id: U(n),
+    kind: 'missing_fact',
+    product_id: U(101),
+    target_path: 'facts.attributes.neckline',
+    image_id: IMG,
+    question: 'What is the neckline of this product?',
+    reason: 'r',
+    expected_answer: { kind: 'enum', allowed_values: ['v-neck'] },
+    suggestions: [],
+    status: 'open',
+    resume_from: 'generate',
+    created_at: '2026-10-05T09:30:00Z',
+    updated_at: '2026-10-05T09:30:00Z',
+    ...over,
+  })
+  const reconnect = q(9, { kind: 'reconnect_account', product_id: null, target_path: 'account.x', image_id: null, marketplace_account_id: U(77) })
+
+  it('splits open questions into blocking ones and photo questions', () => {
+    expect(splitTasks([q(1), q(2), reconnect], false)).toEqual({ blocking: { n: 1, more: false }, improve: { n: 2, more: false } })
+    expect(splitTasks([q(1)], true)).toEqual({ blocking: { n: 0, more: true }, improve: { n: 1, more: true } })
+  })
+
+  it('counts only what holds a listing back, and names photo questions on a quieter line', () => {
+    const t = needsYouTile({ tasks: { n: 1, more: false }, improve: { n: 2, more: false }, issues: { n: 0, more: false }, approve: 1, publish: 0, snapshotComplete: true }, 1000)
+    expect(t).toEqual({ value: '2', caption: '1 question, 1 listing to approve', note: undefined, aside: '2 photo questions. Answer to improve the listing.' })
+  })
+
+  it('never says "0+ questions" when the loaded questions are all photo questions', () => {
+    const t = needsYouTile({ tasks: { n: 0, more: true }, improve: { n: 50, more: true }, issues: { n: 1, more: false }, approve: 0, publish: 0, snapshotComplete: true }, 1000)
+    expect(t.caption).toBe('1 issue')
+    expect(t.value).toBe('1+')
+  })
+
+  it('says nothing blocks when photo questions are all there is', () => {
+    const t = needsYouTile({ tasks: { n: 0, more: false }, improve: { n: 1, more: false }, issues: { n: 0, more: false }, approve: 0, publish: 0, snapshotComplete: true }, 1000)
+    expect(t).toEqual({ value: '0', caption: 'Nothing blocks your listings.', note: undefined, aside: '1 photo question. Answer to improve the listing.' })
+  })
+
+  it('a photo question row says what answering does; other rows keep their kind', () => {
+    expect(taskMeta(q(1))).toBe('Answer to improve the listing')
+    expect(taskMeta(q(1, { image_id: null }))).toBe('Missing fact')
+    expect(taskMeta(reconnect)).toBe('Reconnect account')
+  })
+
+  it('the Inbox lists photo questions after errors and before warnings', () => {
+    const issue = (n: number, severity: Issue['severity']) => ({ id: U(n), severity, last_seen_at: '2026-10-05T09:30:00Z' }) as Issue
+    const order = mergeInbox([q(1), reconnect], [issue(3, 'warning'), issue(4, 'error')]).map((i) => i.id)
+    expect(order).toEqual([U(9), U(4), U(1), U(3)])
+  })
+
+  it('the API marking a photo question blocking wins', () => {
+    const blocking = { ...q(1), blocking: true } as Task
+    expect(splitTasks([blocking], false).blocking.n).toBe(1)
+    expect(taskMeta(blocking)).toBe('Missing fact')
   })
 })
 
