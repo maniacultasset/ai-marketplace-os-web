@@ -78,6 +78,11 @@ export const OP_ACTION = {
   'POST /auth/devices/sign-out-all': 'tenant:read',
   'GET /members': 'team:manage',
   'PATCH /members/{user_id}': 'team:manage',
+  'POST /members/{user_id}/password-reset': 'team:manage',
+  'GET /invites': 'team:manage',
+  'POST /invites': 'team:manage',
+  'POST /invites/{invite_id}/revoke': 'team:manage',
+  'POST /invites/join': 'tenant:read',
   'GET /tenants/me': 'tenant:read',
   'PATCH /tenants/me': 'settings:manage',
   'GET /brand/documents': 'tenant:read',
@@ -128,6 +133,9 @@ export const OP_ACTION = {
   'GET /admin/signup-requests': PLATFORM_ADMIN,
   'POST /admin/signup-requests/{request_id}/approve': PLATFORM_ADMIN,
   'POST /admin/signup-requests/{request_id}/reject': PLATFORM_ADMIN,
+  'GET /admin/tenants': PLATFORM_ADMIN,
+  'POST /admin/tenants/{target_tenant_id}/activate': PLATFORM_ADMIN,
+  'POST /admin/tenants/{target_tenant_id}/extend-trial': PLATFORM_ADMIN,
 } as const satisfies Record<string, Policy>
 
 /** Pure check. False for an unknown/absent role (a stale or forged role never grants anything). */

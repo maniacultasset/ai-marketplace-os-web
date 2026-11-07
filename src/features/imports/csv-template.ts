@@ -16,6 +16,10 @@ export interface ColumnGroup {
   columns: readonly string[]
   /** Accepted in the header but not stored; non-blank cells produce a warning. */
   notStored?: boolean
+  /** A short sentence under the group in the column guide. */
+  note?: string
+  /** The columns of this group the "All columns" template holds (default: all of them). */
+  templateColumns?: readonly string[]
   /**
    * Photo links: accepted and kept, but no photo is ever fetched from them. Photos are added on
    * the product's Media tab. Left out of the templates so nobody fills them in for nothing.
@@ -35,9 +39,14 @@ export const COLUMN_GROUPS: readonly ColumnGroup[] = [
       'brand_name',
       'manufacturer_name',
       'manufacturer_address',
-      'product_identifier_type',
-      'product_identifier',
     ],
+  },
+  {
+    label: 'Barcode',
+    // The A.6 pair, then the SI5 one-column aliases and the exemption (headers.py EXTENSION_COLUMNS).
+    columns: ['product_identifier_type', 'product_identifier', 'ean', 'upc', 'gtin', 'barcode', 'identifier_exemption'],
+    note: 'One barcode column per row: ean, upc, gtin, or barcode (the type comes from its length), or the product_identifier_type and product_identifier pair. Put yes in identifier_exemption for a product with no barcode, only if Amazon approved a GTIN exemption for your brand. On a style row it reaches every variant without a barcode.',
+    templateColumns: ['barcode', 'identifier_exemption'],
   },
   { label: 'Classification', columns: ['gender', 'category', 'sub_category', 'product_type'] },
   {
@@ -128,7 +137,7 @@ export const PHOTO_LINK_COLUMNS = COLUMN_GROUPS.filter((g) => g.photoLinks).flat
 export const MINIMAL_HEADER = [...REQUIRED_COLUMNS] as const
 
 /** Header for the full template: every stored column that is used, in the documented order. */
-export const FULL_HEADER = COLUMN_GROUPS.filter((g) => !g.notStored && !g.photoLinks).flatMap((g) => g.columns)
+export const FULL_HEADER = COLUMN_GROUPS.filter((g) => !g.notStored && !g.photoLinks).flatMap((g) => g.templateColumns ?? g.columns)
 
 /** Trigger a browser download of a CSV with only a header line. */
 export function downloadTemplate(kind: 'minimal' | 'full') {

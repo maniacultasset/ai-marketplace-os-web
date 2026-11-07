@@ -20,8 +20,8 @@ describe('nav registry', () => {
       if (i.capability) expect(CAPABILITIES).toContain(i.capability)
     }
   })
-  it('shows the sign-up queue to platform admins only', () => {
-    expect(NAV_ITEMS.filter((i) => i.action === PLATFORM_ADMIN).map((i) => i.id)).toEqual(['signups'])
+  it('shows the sign-up queue and brands to platform admins only', () => {
+    expect(NAV_ITEMS.filter((i) => i.action === PLATFORM_ADMIN).map((i) => i.id)).toEqual(['signups', 'brands'])
   })
   it('follows the hi-fi sidebar order', () => {
     expect(NAV_ITEMS.filter((i) => i.section === 'Main').map((i) => i.label)).toEqual([

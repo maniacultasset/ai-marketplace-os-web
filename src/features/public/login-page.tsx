@@ -214,7 +214,7 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
             submitCount={form.formState.submitCount}
             hint={
               <>
-                Forgot it? Ask your brand owner. Owners, email{' '}
+                Forgot it? Ask your brand owner or admin for a reset link. Owners, email{' '}
                 <a href={supportMailto('Reset my password')} className="font-semibold text-brand underline-offset-4 hover:underline">
                   {SUPPORT_EMAIL}
                 </a>

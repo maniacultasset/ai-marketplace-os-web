@@ -25,6 +25,9 @@ const PUBLIC_PATHS: ReadonlySet<string> = new Set([
   '/auth/google/complete',
   '/auth/google/link',
   '/signup/google',
+  '/invites/lookup',
+  '/invites/accept',
+  '/auth/password/reset',
 ])
 
 const V1_PREFIX = new URL(API_BASE, 'http://x').pathname.replace(/\/+$/, '')

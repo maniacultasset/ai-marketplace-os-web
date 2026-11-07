@@ -85,8 +85,9 @@ test.describe('team and account', () => {
     await expect(page.getByTestId('you-badge')).toHaveCount(1)
     await expect(page.getByTestId('members-count')).toHaveText('4 members · 4 active')
     await expect(page.getByTestId('approvals-note')).toBeVisible()
-    // No invite (no endpoint), no load more (single page).
-    await expect(page.getByRole('button', { name: /invite/i })).toHaveCount(0)
+    // Invites are built: the button and the open-invites card; no load more (single page).
+    await expect(page.getByTestId('invite-open')).toBeVisible()
+    await expect(page.getByTestId('pending-invites')).toBeVisible()
     await expect(page.getByTestId('load-more')).toHaveCount(0)
     expect(await visibleNavIds(page)).toContain('team')
     await page.screenshot({ path: `${SHOTS}/team-account-owner.png`, fullPage: true })
@@ -395,6 +396,49 @@ test.describe('team and account', () => {
     await expect(page.getByRole('alertdialog')).toHaveCount(0)
     await expect(sel).toBeFocused()
     expect((await member(USERS.acme.owner)).role).toBe('owner')
+  })
+
+  test('owner invites a teammate: link shown once, listed open, works until cancelled', async ({ page, browser }) => {
+    const email = `pw-invite-${Date.now()}@acme.test`
+    await loginAs(page, USERS.acme.owner, '/team')
+    await page.getByTestId('invite-open').click()
+    await page.getByTestId('invite-email').fill(email)
+    await page.getByTestId('invite-submit').click()
+    await expect(page.getByText('Invite ready')).toBeVisible()
+    const url = await page.getByTestId('invite-link-url').inputValue()
+    expect(url).toMatch(/\/invite#token=[A-Za-z0-9_-]{43}$/)
+    await expect(page.getByText(/Kuinn does not email it/)).toBeVisible()
+    await page.getByTestId('invite-done').click()
+    const invite = page.getByTestId('invite-row').filter({ hasText: email })
+    await expect(invite).toBeVisible()
+
+    // The link, opened signed out in another browser, offers a new account for that email.
+    const other = await browser.newContext()
+    const guest = await other.newPage()
+    await guest.goto(new URL(new URL(url).pathname + new URL(url).hash, BASE_URL).toString())
+    await expect(guest.getByTestId('invite-new-form')).toBeVisible()
+    await expect(guest.getByTestId('invite-preview-email')).toHaveText(email)
+    await expect(guest).not.toHaveURL(/#token=/)
+
+    // Cancelled: the same link now says it doesn't work.
+    await invite.getByTestId('invite-revoke').click()
+    await page.getByTestId('invite-revoke-confirm').click()
+    await expect(invite).toHaveCount(0)
+    const again = await other.newPage()
+    await again.goto(new URL(new URL(url).pathname + new URL(url).hash, BASE_URL).toString())
+    await expect(again.getByTestId('invite-invalid')).toBeVisible()
+    await other.close()
+  })
+
+  test('reset links are offered per member, never for yourself', async ({ page }) => {
+    await loginAs(page, USERS.acme.owner, '/team')
+    await expect(row(page, USERS.acme.owner).getByTestId('reset-link-button')).toBeDisabled()
+    // The seed backend runs with login codes off (MFA_ENFORCEMENT=off): no reset link for anyone.
+    const sec = await owner.ctx.get('/api/v1/auth/security', { headers: { Authorization: `Bearer ${owner.token}` } })
+    const { enforcement } = (await sec.json()) as { enforcement: 'off' | 'all' }
+    const reviewer = row(page, USERS.acme.reviewer).getByTestId('reset-link-button')
+    if (enforcement === 'off') await expect(reviewer).toBeDisabled()
+    else await expect(reviewer).toBeEnabled()
   })
 
   for (const status of [500, 429, 403] as const) {

@@ -27,6 +27,7 @@ const product: ProductDetail = {
   status: 'active',
   category: 'kurtas',
   created_at: 'x',
+  identifier_exemption: false,
   updated_at: 'x',
   attributes: {},
   attribute_literals: {},
@@ -68,5 +69,34 @@ describe('ProductDetailsEditor', () => {
     act(() => variant.result.current.start())
     render(<ProductDetailsEditor session={variant.result.current} categoryLock="open" />)
     expect(screen.queryByTestId('e-category')).toBeNull()
+  })
+})
+
+describe('a style’s barcode exemption follows its variants', () => {
+  const variant = (id: string, over: Partial<ProductDetail>) => ({ ...product, id, parent_product_id: 'p1', ...over })
+  const variants = [
+    variant('v1', { identifier_exemption: true }),
+    variant('v2', { product_identifier: { type: 'ean', value: '4006381333931' } }),
+    variant('v3', { identifier_exemption: false }),
+  ]
+
+  it('the card counts the exempt variants', async () => {
+    const { ProductDetailsCard } = await import('./product-details')
+    const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query')
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ProductDetailsCard product={product} isVariant={false} isStyle variants={variants} source="brand" />
+      </QueryClientProvider>,
+    )
+    expect(screen.getByTestId('product-barcode').textContent).toBe('1 of 3 variants exempt')
+  })
+
+  it('the switch reads on when every variant without a barcode is exempt, and a re-chosen value is still sent', () => {
+    const all = [variants[0]!, variants[1]!]
+    const { result } = renderHook(() => useProductEditSession(product, false, 'brand', true, all))
+    act(() => result.current.start())
+    expect(result.current.d.barcode.exempt).toBe(true)
+    act(() => result.current.patch({ barcode: { ...result.current.d.barcode, exempt: true, touched: true } }))
+    expect(result.current.dirty).toBe(true)
   })
 })

@@ -19,7 +19,7 @@ let n = 0
 const id = () => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}`
 
 function product(p: Partial<Product> = {}): Product {
-  return { id: id(), sku: `SKU-${n}`, title: `Product ${n}`, category: 'ethnic_wear_kurta_sets', status: 'draft', created_at: T0, updated_at: T0, attributes: {}, images: [], parent_product_id: null, ...p }
+  return { id: id(), sku: `SKU-${n}`, title: `Product ${n}`, category: 'ethnic_wear_kurta_sets', status: 'draft', created_at: T0, identifier_exemption: false, updated_at: T0, attributes: {}, images: [], parent_product_id: null, ...p }
 }
 function listing(productId: string, l: Partial<Listing> = {}): Listing {
   return {

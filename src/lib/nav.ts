@@ -139,6 +139,17 @@ export const NAV_ITEMS: readonly NavItem[] = [
     description: 'Approve or reject brand sign-ups',
   },
   {
+    id: 'brands',
+    section: 'Platform',
+    label: 'Brands',
+    to: '/admin/brands',
+    icon: CONCEPT_ICON.brands,
+    action: 'platform:admin',
+    placement: 'main',
+    keywords: ['admin', 'tenants', 'trial', 'extend', 'activate', 'suspended'],
+    description: 'Activate a brand or extend its trial',
+  },
+  {
     id: 'account',
     label: 'Account',
     to: '/account',

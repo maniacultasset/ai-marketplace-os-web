@@ -5,8 +5,8 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 
 const navigate = vi.fn()
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ to, children, ...rest }: { to: string; children: ReactNode }) => (
-    <a href={to} {...rest}>
+  Link: ({ to, search, children, ...rest }: { to: string; search?: Record<string, string>; children: ReactNode }) => (
+    <a href={search ? `${to}?${new URLSearchParams(search).toString()}` : to} {...rest}>
       {children}
     </a>
   ),
@@ -69,7 +69,7 @@ describe('FirstRun', () => {
     view()
     expect(screen.getByTestId('setup-manufacturer').textContent).toContain('Next')
     expect(screen.getByRole('link', { name: 'Brand manufacturer' }).getAttribute('href')).toBe('/setup/manufacturer')
-    expect(screen.getByRole('link', { name: 'Add a teammate who approves' }).getAttribute('href')).toBe('/team')
+    expect(screen.getByRole('link', { name: 'Add a teammate who approves' }).getAttribute('href')).toBe('/team?invite=1')
     expect(screen.queryByTestId('setup-compliance')).toBeNull()
     expect(screen.getByText('A teammate approves, then it is sent')).toBeTruthy()
   })

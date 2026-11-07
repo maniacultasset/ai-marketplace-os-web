@@ -3,8 +3,9 @@
  *
  * The form covers the client's ten V1 inputs: style number, SKU, fabric type, fabric
  * composition, colour, size chart, manufacturer (the brand default, or this product's own),
- * selling price, MRP and images. Fields map onto `ProductCreate` (backend schemas/products.py):
- * sku, title, category, style_number, mrp, selling_price, size_chart, manufacturer, flat
+ * selling price, MRP and images, plus the barcode (or its exemption). Fields map onto `ProductCreate`
+ * (backend schemas/products.py): sku, title, category, style_number, mrp, selling_price, size_chart,
+ * manufacturer, product_identifier or identifier_exemption, flat
  * `attributes` and, for images uploaded before the product exists, `id` + `image_uploads`.
  * Attribute keys come from the backend attribute dictionary; `critical` mirrors `is_critical`.
  * Rules shared with the product editor live in `@/features/products/intake-model`.
@@ -38,6 +39,17 @@ import {
   skuProblem,
 } from '@/features/products/schema'
 import { isMappedCategory } from '@/features/products/category-options'
+import {
+  BARCODE_KEY,
+  barcodeCreateFields,
+  barcodeProblem,
+  barcodeServerMessage,
+  emptyBarcode,
+  isBarcodeErrorKey,
+  normalizeBarcode,
+  reviveBarcode,
+  type BarcodeDraft,
+} from '@/features/products/barcode'
 import type { Schema } from '@/api/types'
 import { CONTROL_MSG, hasStrayControlChars } from '@/lib/validation'
 
@@ -108,6 +120,8 @@ export interface GuidedValues {
   /** This product has its own manufacturer (else the brand default applies). */
   ownManufacturer: boolean
   manufacturer: PartyDraft
+  /** EAN, UPC or GTIN, or "No barcode (exempt)" (features/products/barcode.ts). */
+  barcode: BarcodeDraft
 }
 
 export const emptyGuided = (): GuidedValues => ({
@@ -123,6 +137,7 @@ export const emptyGuided = (): GuidedValues => ({
   sellingPrice: '',
   ownManufacturer: false,
   manufacturer: emptyParty(),
+  barcode: emptyBarcode(),
 })
 
 /**
@@ -147,6 +162,7 @@ export function reviveGuided(raw: Partial<GuidedValues> & { attrs?: Record<strin
     sizeChart: raw.sizeChart?.rows ? { ...base.sizeChart, ...raw.sizeChart } : base.sizeChart,
     manufacturer: { ...base.manufacturer, ...(raw.manufacturer ?? {}) },
     ownManufacturer: raw.ownManufacturer === true,
+    barcode: reviveBarcode(raw.barcode),
   }
 }
 
@@ -163,7 +179,9 @@ export function isEmptyGuided(v: GuidedValues): boolean {
     !v.composition.some((r) => r.fibre || r.percent) &&
     v.extra.length === 0 &&
     sizeChartCount(v.sizeChart) === 0 &&
-    !v.ownManufacturer
+    !v.ownManufacturer &&
+    !normalizeBarcode(v.barcode.value) &&
+    !v.barcode.exempt
   )
 }
 
@@ -223,6 +241,8 @@ export function validateGuided(v: GuidedValues): GuidedErrors {
   if (price) e.selling_price = price
   else if (!mrp && priceAboveMrp(v.sellingPrice, v.mrp)) e.selling_price = SELLING_ABOVE_MRP
   if (v.ownManufacturer) for (const [k, msg] of Object.entries(partyProblems(v.manufacturer))) e[`manufacturer.${k}`] = msg
+  const barcode = v.barcode.exempt ? null : barcodeProblem(v.barcode.type, v.barcode.value)
+  if (barcode) e[BARCODE_KEY] = barcode
   const seen = new Set([...ATTR_FIELDS.map((f) => f.key), 'fiber_composition', 'fabric_composition', 'size_measurements'])
   v.extra.forEach((x, i) => {
     const key = x.key.trim()
@@ -243,7 +263,7 @@ export function validateGuided(v: GuidedValues): GuidedErrors {
 
 /** The section an error key belongs to (to open it when a save fails). */
 export function sectionOfError(key: string): SectionId {
-  if (key === 'sku' || key === 'title' || key === 'style_number') return 'identity'
+  if (key === 'sku' || key === 'title' || key === 'style_number' || key === BARCODE_KEY) return 'identity'
   if (key === 'category') return 'category'
   if (key === 'mrp' || key === 'selling_price') return 'price'
   if (key.startsWith('size_chart')) return 'size'
@@ -258,6 +278,7 @@ const WITHIN: readonly string[] = [
   'title',
   'style_number',
   'sku',
+  BARCODE_KEY,
   'category',
   'attr.fabric_type',
   'composition',
@@ -318,6 +339,7 @@ export function toProductCreate(v: GuidedValues, uploads?: { id: string; images:
   const chart = toSizeChart(v.sizeChart)
   if (chart) body.size_chart = chart
   if (v.ownManufacturer) body.manufacturer = toPartyIn(v.manufacturer)
+  Object.assign(body, barcodeCreateFields(v.barcode))
   if (uploads && uploads.images.length) {
     body.id = uploads.id
     body.image_uploads = uploads.images
@@ -362,7 +384,7 @@ export function sectionStates(v: GuidedValues, ctx: GuidedContext = noContext, s
   const errs = validateGuided(v)
   const missing = missingCriticalBy(v, ctx)
   const content: Record<SectionId, boolean> = {
-    identity: !!(v.sku.trim() || v.title.trim() || v.styleNumber.trim()),
+    identity: !!(v.sku.trim() || v.title.trim() || v.styleNumber.trim() || normalizeBarcode(v.barcode.value) || v.barcode.exempt),
     category: !!v.category.trim(),
     fabric:
       ATTR_FIELDS.some((f) => f.section === 'fabric' && (v.attrs[f.key] ?? '').trim()) ||
@@ -443,7 +465,11 @@ export function mapCreateErrors(
       continue
     }
     if (key === 'images') msg = 'An image could not be attached. Remove it and add it again.'
-    const known = ['sku', 'title', 'category', 'style_number', 'mrp', 'selling_price', 'size_chart', 'images']
+    if (isBarcodeErrorKey(key)) {
+      key = BARCODE_KEY
+      msg = barcodeServerMessage(err.type, v.barcode)
+    }
+    const known = ['sku', 'title', 'category', 'style_number', 'mrp', 'selling_price', 'size_chart', 'images', BARCODE_KEY]
     if (!(known.includes(key) || /^(attr|extra|size_chart|manufacturer)\./.test(key))) {
       unmapped = true
       continue

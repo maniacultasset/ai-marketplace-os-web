@@ -146,7 +146,8 @@ Concept map. Each meaning has one glyph, and each glyph one meaning family.
 | Variants / column mapping | `grid` / `CONCEPT_ICON.columns` |
 | Review, preview / open outside / next step | `eye` / `external` (trailing) / `arrow` (trailing, "Next: …" only) |
 | Expand | `chev`, rotating 180° when open |
-| Sign-up requests | `CONCEPT_ICON.signups` (UserPlus) |
+| Sign-up requests, invite a teammate | `CONCEPT_ICON.signups` (UserPlus) |
+| Brands on the platform (platform admins) | `CONCEPT_ICON.brands` (Building2) |
 | Account / team / security, forbidden | `user` / `users` / `lock` |
 | Roles: owner, admin, operator, reviewer | `CONCEPT_ICON.owner`, `.admin`, `.operator`, `.reviewer` |
 | Audit log / shipping / pricing / reports | `CONCEPT_ICON.auditLog` / `.shipping` / `.pricing` / `.reports` |
@@ -236,7 +237,8 @@ features. The owner restyles them to this system.
 | `/activity` | `routes/_app/activity.tsx` | activity | placeholder (no tenant-wide feed: per-listing history only) |
 | `/settings` (Autonomy) | `routes/_app/_settings/settings/index.tsx` | settings | placeholder (approval always on) |
 | `/brand`, `/team`, `/rules`, `/rules/check` | `routes/_app/_settings/*` | settings | working |
-| `/account`, `/about`, `/admin/signups` | `routes/_app/*` | settings / platform | working |
+| `/account`, `/about`, `/admin/signups`, `/admin/brands` | `routes/_app/*` | settings / platform | working |
+| `/invite`, `/reset-password` | `routes/invite.tsx`, `routes/reset-password.tsx` → `features/public/invite-page.tsx`, `reset-password-page.tsx` | public | built (SI5) |
 
 ## Not in the API yet (honest states)
 

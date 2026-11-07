@@ -7,6 +7,7 @@ import {
   BadgeCheck,
   BarChart3,
   BookOpen,
+  Building2,
   ClipboardList,
   Columns3,
   Crown,
@@ -42,6 +43,8 @@ export const CONCEPT_ICON = {
   rules: ListChecks,
   dryRun: FlaskConical,
   signups: UserPlus,
+  /** Brands on the platform (platform admins). */
+  brands: Building2,
   edit: PenLine,
   agent: 'spark',
   info: 'info',

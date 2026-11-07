@@ -175,3 +175,33 @@ describe('section marks (browser findings)', () => {
     expect(toProductCreate({ ...v, composition: [{ fibre: 'Cotton', percent: '100' }] }).attributes?.fiber_composition).toBe('100% Cotton')
   })
 })
+
+describe('guided barcode', () => {
+  const EAN = '4006381333931'
+
+  it('sends the barcode or the exemption, never both', () => {
+    expect(toProductCreate({ ...filled(), barcode: { type: 'ean', value: ' 4006381 333931 ', exempt: false } }).product_identifier).toEqual({ type: 'ean', value: EAN })
+    const exempt = toProductCreate({ ...filled(), barcode: { type: 'ean', value: EAN, exempt: true } })
+    expect(exempt.identifier_exemption).toBe(true)
+    expect(exempt.product_identifier).toBeUndefined()
+    const blank = toProductCreate(filled())
+    expect('product_identifier' in blank || 'identifier_exemption' in blank).toBe(false)
+  })
+
+  it('checks the barcode in the identity section', () => {
+    const e = validateGuided({ ...filled(), barcode: { type: 'upc', value: EAN, exempt: false } })
+    expect(e.barcode).toMatch(/A UPC has 12 digits/)
+    expect(errorOrder(['category', 'barcode', 'sku'])).toEqual(['sku', 'barcode', 'category'])
+  })
+
+  it('keeps a draft saved before barcodes existed', () => {
+    expect(reviveGuided({ sku: 'A' }).barcode).toEqual({ type: 'ean', value: '', exempt: false })
+  })
+
+  it('maps a refused barcode onto the field', () => {
+    const v = { ...filled(), barcode: { type: 'ean' as const, value: EAN, exempt: false } }
+    const r = mapCreateErrors({ status: 422, type: 'VALIDATION_FAILED', details: [{ loc: ['body', 'product_identifier', 'value'], msg: 'x' }] }, v)
+    expect(r.fields.barcode).toMatch(/already has this barcode/)
+    expect(r.unmapped).toBe(false)
+  })
+})

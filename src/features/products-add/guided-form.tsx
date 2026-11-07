@@ -43,6 +43,7 @@ import { Switch } from '@/components/ui/switch'
 import { type ImageSlot } from '@/features/analytics-images/images/report'
 import { StageUnavailable, stageImageForNewProduct, uploadImage } from '@/features/analytics-images/images/upload'
 import { fetchProduct, useBrandManufacturer } from '@/features/products/api'
+import { BarcodeField } from '@/features/products/barcode-field'
 import { CompositionEditor, MoneyField, PartyFields, PickOrOtherField, SizeChartEditor, TextField } from '@/features/products/intake-fields'
 import {
   bodyErrorKey,
@@ -562,6 +563,15 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               submitCount={submitCount}
               maxLength={SKU_MAX + 8}
               code
+            />
+            <BarcodeField
+              id="g-barcode"
+              value={values.barcode}
+              onChange={(barcode) => set({ barcode })}
+              onBlur={() => touch('barcode')}
+              error={errors.barcode}
+              submitCount={submitCount}
+              className="md:col-span-2"
             />
           </div>
         )

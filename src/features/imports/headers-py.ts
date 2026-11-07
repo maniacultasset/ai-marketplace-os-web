@@ -1,7 +1,7 @@
 /**
  * Reads the CSV header contract out of the backend's apps/api/app/services/imports/headers.py:
  * the lists `A6_COLUMNS`, `EXTENSION_COLUMNS`, `REQUIRED`, `IGNORED_WITH_WARNING` and the
- * `ALIASES` map. Used by scripts/refresh-backend-headers.ts to write
+ * `ALIASES` map (a `*NAME` in a tuple is the keys of the mapping `NAME`). Used by scripts/refresh-backend-headers.ts to write
  * backend-headers.snapshot.json, and by its test. No imports, so Node runs it as is.
  */
 export interface HeadersContract {
@@ -39,12 +39,22 @@ function pyBlock(src: string, name: string): string {
 
 const strings = (block: string) => [...block.matchAll(/"([^"]+)"/g)].map((m) => m[1]!)
 
+/**
+ * A tuple's strings, with `*NAME` expanded in place: the keys of the mapping `NAME`
+ * (`EXTENSION_COLUMNS` spreads `IDENTIFIER_ALIASES`).
+ */
+function tupleStrings(src: string, block: string): string[] {
+  return [...block.matchAll(/"([^"]+)"|\*([A-Z_]+)/g)].flatMap((m) =>
+    m[1] !== undefined ? [m[1]] : [...pyBlock(src, m[2]!).matchAll(/"([^"]+)":/g)].map((k) => k[1]!),
+  )
+}
+
 export function parseHeadersPy(src: string): HeadersContract {
   const grams = /^GRAMS_COLUMN:\s*Final\s*=\s*"([^"]+)"/m.exec(src)?.[1] ?? 'package_weight_g'
   const aliasBlock = pyBlock(src, 'ALIASES').replace(/GRAMS_COLUMN/g, `"${grams}"`)
   return {
     a6: strings(pyBlock(src, 'A6_COLUMNS')),
-    extension: strings(pyBlock(src, 'EXTENSION_COLUMNS')),
+    extension: tupleStrings(src, pyBlock(src, 'EXTENSION_COLUMNS')),
     aliases: Object.fromEntries([...aliasBlock.matchAll(/"([^"]+)":\s*"([^"]+)"/g)].map((m) => [m[1]!, m[2]!])),
     required: strings(pyBlock(src, 'REQUIRED')),
     ignored: strings(pyBlock(src, 'IGNORED_WITH_WARNING')).sort(),

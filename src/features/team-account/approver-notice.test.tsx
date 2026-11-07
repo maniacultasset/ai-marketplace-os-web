@@ -3,8 +3,8 @@ import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ to, children, ...rest }: { to: string; children: ReactNode }) => (
-    <a href={to} {...rest}>
+  Link: ({ to, search, children, ...rest }: { to: string; search?: Record<string, string>; children: ReactNode }) => (
+    <a href={search ? `${to}?${new URLSearchParams(search).toString()}` : to} {...rest}>
       {children}
     </a>
   ),
@@ -27,13 +27,13 @@ const { ApproverNotice } = await import('./approver-notice')
 afterEach(cleanup)
 
 describe('ApproverNotice', () => {
-  it('tells a solo owner someone else must approve, and points to Team and support', () => {
+  it('tells a solo owner someone else must approve, and opens the invite (no support email)', () => {
     state.role = 'owner'
     state.members = [{ user_id: ME, role: 'owner', is_active: true }]
     render(<ApproverNotice />)
     expect(screen.getByText('Someone else must approve')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Open Team' }).getAttribute('href')).toBe('/team')
-    expect(screen.getByRole('link', { name: 'support@kuinn.in' }).getAttribute('href')).toMatch(/^mailto:support@kuinn\.in\?subject=/)
+    expect(screen.getByRole('link', { name: 'Invite a teammate' }).getAttribute('href')).toBe('/team?invite=1')
+    expect(screen.queryByRole('link', { name: 'support@kuinn.in' })).toBeNull()
   })
 
   it('says nothing when a reviewer or second owner exists', () => {

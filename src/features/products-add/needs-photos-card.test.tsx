@@ -28,6 +28,7 @@ const product = (id: string, images: string[] = []): Schema<'ProductOut'> => ({
   status: 'active',
   category: 'kurta_sets',
   created_at: 'x',
+  identifier_exemption: false,
   updated_at: 'x',
   images,
 })
