@@ -1,6 +1,7 @@
 /**
  * Source badge (hi-fi Components → Source badge): where a value came from. Height 18, padding 0 6,
- * radius 5, 11px semibold. Agent-inferred values use the brand tint and always show confidence.
+ * radius 5, 11px semibold. Agent-inferred values use the brand tint and always show confidence;
+ * a value read from the photos is "From photo" until the seller confirms it.
  * A critical fact can never carry an Agent badge without a Confirm action next to it.
  */
 import { cn } from '@/lib/utils'
@@ -10,6 +11,8 @@ export type Source =
   | { kind: 'brand-profile' }
   | { kind: 'rule' }
   | { kind: 'agent'; confidence: number; detail?: string }
+  /** Read from the product photos and not confirmed yet (SI3). */
+  | { kind: 'photo' }
   | { kind: 'confirmed' }
   | { kind: 'needed' }
 
@@ -31,6 +34,8 @@ export function sourceLabel(s: Source): string {
       return 'Rule'
     case 'agent':
       return ['Agent', s.detail, formatConfidence(s.confidence)].filter(Boolean).join(' · ')
+    case 'photo':
+      return 'From photo'
     case 'confirmed':
       return 'Confirmed'
     case 'needed':
@@ -43,6 +48,7 @@ const TONE: Record<Source['kind'], string> = {
   'brand-profile': 'border-line bg-subtle text-ink-2',
   rule: 'border-line bg-subtle text-ink-2',
   agent: 'border-brand-line bg-brand-bg text-brand',
+  photo: 'border-brand-line bg-brand-bg text-brand',
   confirmed: 'border-success-line bg-success-bg text-success',
   needed: 'border-attention-line bg-attention-bg text-attention',
 }

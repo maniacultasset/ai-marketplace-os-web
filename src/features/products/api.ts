@@ -135,6 +135,18 @@ export function useCreateProduct() {
   })
 }
 
+/** PATCH /products/{id} under If-Match; the product as the detail page reads it, with its new ETag. */
+export async function patchProduct(productId: string, body: ProductPatchBody, etag: string | null | undefined): Promise<ProductDetail> {
+  const { data: text, etag: next } = await unwrapVersioned(
+    api.PATCH('/products/{product_id}', {
+      params: { path: { product_id: productId }, header: ifMatchHeader(etag) },
+      body,
+      parseAs: 'text',
+    }),
+  )
+  return { ...parseProductJson(text), etag: next }
+}
+
 /**
  * PATCH /products/{id} with If-Match = the ETag the edit started from (never a newer cached one:
  * that would overwrite someone else's save). 409 STALE_VERSION and 422s are handled inline.
@@ -144,16 +156,7 @@ export function useUpdateProduct(productId: string) {
   const qc = useQueryClient()
   return useMutation({
     meta: { toast: false },
-    mutationFn: async ({ body, etag }: { body: ProductPatchBody; etag: string | null | undefined }) => {
-      const { data: text, etag: next } = await unwrapVersioned(
-        api.PATCH('/products/{product_id}', {
-          params: { path: { product_id: productId }, header: ifMatchHeader(etag) },
-          body,
-          parseAs: 'text',
-        }),
-      )
-      return { ...parseProductJson(text), etag: next } satisfies ProductDetail
-    },
+    mutationFn: ({ body, etag }: { body: ProductPatchBody; etag: string | null | undefined }) => patchProduct(productId, body, etag),
     onSuccess: (product) => {
       qc.setQueryData(productQuery(keys, productId).queryKey, product)
       void qc.invalidateQueries({ queryKey: keys.products.list() })

@@ -27,6 +27,8 @@ import {
   type PartyField,
 } from '@/features/products/intake-model'
 import { formatAttributeValue } from '@/features/products/format'
+import { groupPhotoFacts, photoGroupKeys } from '@/features/photo-facts/model'
+import { PhotoFactsGroup } from '@/features/photo-facts/photo-facts-group'
 import { humanizeSlug } from './catalog-model'
 import type { ProductEditSession } from './product-edit-session'
 import { ATTR_FIELDS, ATTR_LABEL } from './guided-model'
@@ -80,10 +82,14 @@ export function ProductDetailsCard({
   const comp = product.fiber_composition?.length
     ? product.fiber_composition.map((f) => `${f.percent}% ${f.fibre.charAt(0).toLocaleUpperCase('en')}${f.fibre.slice(1)}`).join(' · ')
     : text('fiber_composition')
-  const more = useMemo(
-    () => Object.entries(product.attributes ?? {}).filter(([k]) => !SHOWN.has(k)).sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0)),
-    [product.attributes],
-  )
+  const photoRows = useMemo(() => groupPhotoFacts(product), [product])
+  const more = useMemo(() => {
+    const inPhotos = photoGroupKeys(photoRows)
+    return Object.entries(product.attributes ?? {})
+      .filter(([k]) => !SHOWN.has(k) && !inPhotos.has(k))
+      .sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0))
+  }, [product.attributes, photoRows])
+  const photoColour = product.photo_facts?.find((f) => f.key === 'color')
   const [expanded, setExpanded] = useState(false)
   const mrp = formatMoney(product.mrp)
   const price = formatMoney(product.selling_price)
@@ -125,7 +131,13 @@ export function ProductDetailsCard({
           </Row>
           <Row k="Fabric type" attr="fabric_type">{text('fabric_type') || <Missing critical />}</Row>
           <Row k="Composition" attr="fiber_composition">{comp || <Missing critical />}</Row>
-          {isVariant ? null : <Row k="Colour" attr="color">{text('color') || <Missing />}</Row>}
+          {isVariant ? null : (
+            <Row k="Colour" attr="color">
+              {text('color') || <Missing />}
+              {/* The seller's colour always wins; a photo colour is marked until it is confirmed. */}
+              {text('color') && photoColour && !photoColour.confirmed ? <SourceBadge source={{ kind: 'photo' }} /> : null}
+            </Row>
+          )}
           <Row k="Wash care" attr="wash_care">{text('wash_care') || <Missing critical />}</Row>
           <Row k="Iron care" attr="iron_care">{text('iron_care') || <Missing critical />}</Row>
           <Row k="Manufacturer">
@@ -191,6 +203,7 @@ export function ProductDetailsCard({
             </table>
           </div>
         ) : null}
+        <PhotoFactsGroup product={product} rows={photoRows} />
         {more.length ? (
           <div className="mt-4 border-t border-line pt-4">
             <p className="text-caption font-semibold text-ink-2">More details</p>
