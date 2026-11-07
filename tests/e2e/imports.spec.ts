@@ -205,12 +205,14 @@ test.describe('imports', () => {
     await expect(cats).toContainText('Rows with any other category fail with CATEGORY_NOT_MAPPED.')
     await page.getByRole('button', { name: 'All accepted columns' }).click()
     const groups = page.getByTestId('column-group')
-    await expect(groups.locator('h3')).toContainText(['Identity', 'Classification', 'Attributes', 'Care', 'Compliance', 'Commercial', 'Media', 'Content', 'Marketplace', 'Workflow'])
+    await expect(groups.locator('h3')).toContainText(['Identity', 'Classification', 'Attributes', 'Care', 'Compliance', 'Commercial', 'Media', 'Photo links (not used)', 'Content', 'Marketplace', 'Workflow'])
     await expect(groups.filter({ hasText: 'Content' })).toContainText('bullet_1 … bullet_99')
     await expect(groups.filter({ hasText: 'Content' })).toContainText('accepted, not stored')
     await expect(groups.filter({ hasText: 'Workflow' })).toContainText('human_action_required')
     const aliases = page.getByTestId('column-aliases')
-    for (const a of ['parent_sku', 'mrp_inr', 'price_inr', 'weight_grams', 'package_weight_g']) await expect(aliases).toContainText(a)
+    for (const a of ['parent_sku', 'mrp_inr', 'price_inr', 'weight_grams', 'package_weight_g', 'fabric_composition']) await expect(aliases).toContainText(a)
+    await expect(groups.filter({ hasText: 'Identity' })).toContainText('style_number')
+    await expect(page.getByText('Photos are not read from the file.')).toBeVisible()
   })
 
   test('header errors are listed inline and nothing navigates', async ({ page }) => {

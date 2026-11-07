@@ -158,6 +158,12 @@ test.describe('inbox', () => {
       await expect(detail.getByTestId('reconnect-how')).toBeVisible()
       await expect(detail.getByTestId('task-reconnect')).toBeVisible()
       await expect(detail.getByTestId('task-confirm')).toHaveCount(0)
+    } else if (task!.kind === 'marketplace_error_review' || task!.kind === 'permission_decision') {
+      // A refused publish's account task takes no answer: the marketplace's words and real links.
+      await expect(detail.getByTestId('account-task')).toBeVisible()
+      await expect(detail.getByTestId('account-task-help')).toBeVisible()
+      await expect(detail.getByRole('radio')).toHaveCount(0)
+      await expect(detail.getByTestId('task-confirm')).toHaveCount(0)
     } else {
       await expect(detail.getByTestId('answer-soon')).toContainText('Answering from here is coming soon.')
       await expect(detail.getByTestId('task-confirm')).toHaveAttribute('aria-disabled', 'true')

@@ -233,3 +233,45 @@ export function dismissFailure(err: unknown): { kind: 'info' | 'error'; title: s
 
 /** Short id for display next to a copy affordance: first 8 hex chars. */
 export const shortId = (id: string) => id.slice(0, 8)
+
+/**
+ * Account tasks a refused publish opens (backend publish_outcome.py `_TASKS`): an error with no
+ * mapping (`marketplace_error_review`) or a missing account or category permission
+ * (`permission_decision`). They take no answer (POST /tasks/{id}/answer is for fact questions);
+ * the refused listing's issues point at them through `human_task_id`.
+ */
+export const ACCOUNT_REVIEW_KINDS = ['marketplace_error_review', 'permission_decision'] as const satisfies readonly TaskKind[]
+export type AccountReviewKind = (typeof ACCOUNT_REVIEW_KINDS)[number]
+
+export function isAccountReviewTask(t: Pick<Task, 'kind'>): t is Pick<Task, 'kind'> & { kind: AccountReviewKind } {
+  return (ACCOUNT_REVIEW_KINDS as readonly string[]).includes(t.kind)
+}
+
+/** The issues linked to a task, newest first. */
+export function linkedIssues(taskId: string, issues: readonly Issue[]): Issue[] {
+  return issues.filter((i) => i.human_task_id === taskId).sort((a, b) => Date.parse(b.last_seen_at) - Date.parse(a.last_seen_at))
+}
+
+const SELLER_PORTAL: Record<Issue['marketplace'], string> = { amazon: 'Amazon Seller Central', flipkart: 'Flipkart Seller Hub' }
+
+/** What the person does about an account task, in plain words. */
+export function accountTaskHelp(kind: AccountReviewKind, marketplace: Issue['marketplace'] | null): string {
+  const mp = marketplace ? MARKETPLACE_LABEL[marketplace] : 'The marketplace'
+  if (kind === 'permission_decision')
+    return `${mp} needs an approval on your seller account for this category. Ask for it in ${marketplace ? SELLER_PORTAL[marketplace] : 'your seller account'}. Once it is approved, open the listing to send it again.`
+  return `Kuinn doesn’t know this ${marketplace ? `${mp} ` : ''}error yet, so it can’t fix it on its own. Read what ${marketplace ? mp : 'the marketplace'} said, change the product or the listing, then generate it again.`
+}
+
+/**
+ * One live account task covers every listing the same refusal hit (one per account and kind, or
+ * per category): its issues grouped by listing, in the order given (newest first).
+ */
+export function issuesByListing(issues: readonly Issue[]): { listingId: string; issues: Issue[] }[] {
+  const groups = new Map<string, Issue[]>()
+  for (const i of issues) {
+    const list = groups.get(i.listing_id)
+    if (list) list.push(i)
+    else groups.set(i.listing_id, [i])
+  }
+  return [...groups].map(([listingId, list]) => ({ listingId, issues: list }))
+}

@@ -297,8 +297,7 @@ export function UploadForm() {
             ))}
           </ul>
           <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">
-            Every row also needs an https image URL in <code className={INLINE_CODE}>main_image</code> or{' '}
-            <code className={INLINE_CODE}>additional_images</code>.
+            Photos are not read from the file. Add them on each product’s Media tab after the import.
           </p>
         </section>
 
@@ -334,8 +333,9 @@ export function UploadForm() {
                 <h3 className="text-xs font-medium text-foreground">
                   {g.label}
                   {g.notStored ? <span className="font-normal text-muted-foreground"> · accepted, not stored (warning when filled)</span> : null}
+                  {g.photoLinks ? <span className="font-normal text-muted-foreground"> · accepted, no photo is downloaded from them</span> : null}
                 </h3>
-                <p className={cn('font-mono text-[11px] leading-relaxed break-words', g.notStored ? 'text-muted-foreground' : 'text-foreground/80')}>
+                <p className={cn('font-mono text-[11px] leading-relaxed break-words', g.notStored || g.photoLinks ? 'text-muted-foreground' : 'text-foreground/80')}>
                   {g.columns.join(', ')}
                 </p>
               </div>

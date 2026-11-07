@@ -8,11 +8,13 @@
  */
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { isApiError } from '@/api/errors'
-import { Banner, CardHead, CONCEPT_ICON, Icon, IconGlyph, LaCard, SourceBadge, TagChip } from '@/components/la'
+import { Banner, CardHead, CONCEPT_ICON, fieldHintId, Icon, IconGlyph, LaCard, LaField, SourceBadge, TagChip } from '@/components/la'
 import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { categoryChoices, type CategoryLock } from '@/features/products/categories'
 import { type ProductDetail } from '@/features/products/api'
 import { editableAttrs, type ManufacturerSource } from '@/features/products/edit-model'
 import { CompositionEditor, MoneyField, PartyFields, PickOrOtherField, SizeChartEditor, TextField } from '@/features/products/intake-fields'
@@ -239,7 +241,66 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-export function ProductDetailsEditor({ session }: { session: ProductEditSession }) {
+/** Category: a select of the listable categories while the product has no listing, else fixed. */
+const LOCK_HINT: Record<CategoryLock, string> = {
+  open: 'Kurta sets and T-shirts can be listed for now.',
+  locked: 'Fixed once the product has a listing.',
+  pending: 'Checking for listings…',
+  unknown: 'Couldn’t check for listings, so it stays as it is.',
+}
+
+function CategoryField({ session, lock, onRetry }: { session: ProductEditSession; lock: CategoryLock; onRetry?: () => void }) {
+  const { d, patch, touch, errors, submitted } = session
+  const open = lock === 'open'
+  return (
+    <LaField
+      label="Category"
+      htmlFor="e-category"
+      error={errors.category}
+      hint={LOCK_HINT[lock]}
+      hintAction={
+        lock === 'unknown' && onRetry ? (
+          <Button type="button" variant="ghost" size="xs" onClick={onRetry}>
+            Check again
+          </Button>
+        ) : undefined
+      }
+      submitCount={submitted}
+      confirmFix
+    >
+      <Select
+        value={d.category}
+        disabled={!open}
+        onValueChange={(category) => {
+          patch({ category }, 'category')
+          touch('category')
+        }}
+      >
+        <SelectTrigger id="e-category" className="w-full" aria-invalid={errors.category ? true : undefined} aria-describedby={fieldHintId('e-category')} data-testid="e-category">
+          <SelectValue placeholder="Choose" />
+        </SelectTrigger>
+        <SelectContent>
+          {categoryChoices(session.base.category).map((c) => (
+            <SelectItem key={c.value} value={c.value}>
+              {c.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </LaField>
+  )
+}
+
+export function ProductDetailsEditor({
+  session,
+  categoryLock = 'pending',
+  onRetryCategoryLock,
+}: {
+  session: ProductEditSession
+  categoryLock?: CategoryLock
+  /** Re-read the listings after a failed read (`categoryLock` 'unknown'). */
+  onRetryCategoryLock?: () => void
+}) {
   const { d, patch, setAttr, touch, errors, submitted, isVariant, base: product } = session
   const ref = useRef<HTMLFormElement>(null)
   const onSave = async () => {
@@ -312,6 +373,7 @@ export function ProductDetailsEditor({ session }: { session: ProductEditSession 
               submitCount={submitted}
               maxLength={1000}
             />
+            {isVariant ? null : <CategoryField session={session} lock={categoryLock} onRetry={onRetryCategoryLock} />}
             {isVariant ? null : (
               <TextField
                 id="e-style_number"

@@ -230,7 +230,7 @@ features. The owner restyles them to this system.
 | `/add/bulk` | `routes/_app/add/bulk.tsx` | add | built to p11 (`/imports/*`, `/jobs/$jobId` still work) |
 | `/runs/$runId` (p12; the run id is the listing job id, GET /jobs/{id}) | `routes/_app/runs/$runId.tsx` → `features/listing-flow/agent-run.tsx` | listing-flow | built |
 | `/listings/$listingId/review` (p13), `/listings/$listingId/live` (p14) | `routes/_app/listings/$listingId/*` → `features/listing-flow/review.tsx`, `live.tsx` | listing-flow | built |
-| `/inbox` | `routes/_app/inbox.tsx` → `features/home-inbox/inbox-page.tsx` | home-inbox | built (p15, p15b; fact questions answered with `features/photo-facts/answer-card.tsx`, other kinds disabled) |
+| `/inbox` | `routes/_app/inbox.tsx` → `features/home-inbox/inbox-page.tsx` | home-inbox | built (p15, p15b; fact questions answered with `features/photo-facts/answer-card.tsx`; a refused publish's account tasks show the marketplace's words and real links, `home-inbox/account-task.tsx`; other kinds disabled) |
 | `/issues/$issueId` | `routes/_app/issues/$issueId.tsx` → `features/home-inbox/issue-detail-page.tsx` | home-inbox | built (p16; pass `?listing=<listing_id>` when linking, the API has no GET /issues/{id}) |
 | `/marketplaces`, `/marketplaces/connected` | `routes/_app/marketplaces/*` | marketplaces | working, restyle to p04 |
 | `/activity` | `routes/_app/activity.tsx` | activity | placeholder (no tenant-wide feed: per-listing history only) |

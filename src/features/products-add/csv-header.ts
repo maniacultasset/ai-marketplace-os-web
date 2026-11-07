@@ -4,12 +4,14 @@
  * (after dropping a BOM, trimming and lower-casing), anything else refuses the whole file
  * (HEADER_UNKNOWN_COLUMN), two headers for one column refuse it (HEADER_DUPLICATE_COLUMN), and
  * seller_sku, product_name and category are required. Content, marketplace and workflow columns
- * are accepted but not stored. There is no mapping API, so the screen shows what the server will
- * do with each column before upload, and never offers a mapping it cannot honour.
+ * are accepted but not stored. Photo link columns (main_image, additional_images) are accepted, but
+ * no photo is ever fetched from them, so a row that fills one gets a plain warning here. There is
+ * no mapping API, so the screen shows what the server will do with each column before upload,
+ * and never offers a mapping it cannot honour.
  */
-import { COLUMN_ALIASES, COLUMN_GROUPS, REQUIRED_COLUMNS } from '@/features/imports/csv-template'
+import { COLUMN_ALIASES, COLUMN_GROUPS, PHOTO_LINK_COLUMNS, REQUIRED_COLUMNS } from '@/features/imports/csv-template'
 
-export type ColumnMatch = 'ok' | 'alias' | 'not-stored' | 'unknown' | 'duplicate'
+export type ColumnMatch = 'ok' | 'alias' | 'not-stored' | 'photo-link' | 'unknown' | 'duplicate'
 
 export interface ColumnResult {
   position: number
@@ -25,6 +27,10 @@ export interface HeaderAnalysis {
   missing: string[]
   /** Data rows in the file (records after the header, blank lines skipped). */
   rows: number
+  /** Data rows with a photo link filled in (links are never fetched). */
+  photoLinkRows: number
+  /** Rows the server will fail for a bad link (first problem per row), like row_model `media()`. */
+  linkProblems: LinkProblem[]
   /** The server would refuse the file because of its header. */
   refused: boolean
 }
@@ -32,7 +38,8 @@ export interface HeaderAnalysis {
 const BULLET = /^bullet_[1-9][0-9]?$/
 const NAME_PATTERN = /^[a-z0-9_]+$/
 
-const STORED = new Set(COLUMN_GROUPS.filter((g) => !g.notStored).flatMap((g) => g.columns))
+const STORED = new Set(COLUMN_GROUPS.filter((g) => !g.notStored && !g.photoLinks).flatMap((g) => g.columns))
+const PHOTO_LINKS = new Set(PHOTO_LINK_COLUMNS)
 const NOT_STORED = new Set(
   COLUMN_GROUPS.filter((g) => g.notStored)
     .flatMap((g) => g.columns)
@@ -87,7 +94,55 @@ export function parseCsv(text: string, limit = Infinity): string[][] {
   return out
 }
 
-export function analyzeHeader(header: readonly string[]): Omit<HeaderAnalysis, 'rows'> {
+export interface LinkProblem {
+  /** The CSV record number, header = 1 (the import report's `row_number`). */
+  row: number
+  column: string
+  problem: string
+}
+
+/** row_model.py: `MAX_MEDIA_URLS`, `MAX_URL`, `_URL_SPLIT`. */
+export const MAX_MEDIA_URLS = 9
+export const MAX_URL = 2048
+const URL_SPLIT = /[|,;\s]+/
+
+/** What the server refuses in one link (`_url_ok`: https, a host, no user or password), or null. */
+export function linkProblem(url: string): string | null {
+  if (url.length > MAX_URL) return `longer than ${MAX_URL.toLocaleString('en-IN')} characters`
+  let u: URL | null = null
+  try {
+    u = new URL(url)
+  } catch {
+    u = null
+  }
+  const ok = !!u && /^https:\/\/[^/?#\s]/i.test(url) && u.protocol === 'https:' && !!u.hostname && !u.username && !u.password
+  return ok ? null : 'not https'
+}
+
+const linkMessage = (column: string, problem: string) =>
+  problem === 'not https' ? `${column} must hold https links.` : `A ${column} link is ${problem}.`
+
+/** The row's first link problem, checked in the server's order: each photo link, the count, the size chart. */
+function rowLinkProblem(cells: { column: string; value: string; split: boolean }[]): Omit<LinkProblem, 'row'> | null {
+  let count = 0
+  let countAt: string | null = null
+  for (const c of cells.filter((x) => x.split)) {
+    for (const url of c.value.split(URL_SPLIT).filter(Boolean)) {
+      const p = linkProblem(url)
+      if (p) return { column: c.column, problem: linkMessage(c.column, p) }
+      count++
+      if (count > MAX_MEDIA_URLS) countAt ??= c.column
+    }
+  }
+  if (countAt) return { column: countAt, problem: `At most ${MAX_MEDIA_URLS} photo links per row.` }
+  for (const c of cells.filter((x) => !x.split)) {
+    const p = linkProblem(c.value)
+    if (p) return { column: c.column, problem: linkMessage(c.column, p) }
+  }
+  return null
+}
+
+export function analyzeHeader(header: readonly string[]): Omit<HeaderAnalysis, 'rows' | 'photoLinkRows' | 'linkProblems'> {
   const columns: ColumnResult[] = []
   const seen = new Set<string>()
   const present = new Set<string>()
@@ -98,6 +153,9 @@ export function analyzeHeader(header: readonly string[]): Omit<HeaderAnalysis, '
     if (STORED.has(name)) {
       field = name
       match = 'ok'
+    } else if (PHOTO_LINKS.has(name)) {
+      field = name
+      match = 'photo-link'
     } else if (ALIAS.has(name)) {
       field = ALIAS.get(name)!
       match = 'alias'
@@ -123,13 +181,31 @@ export function analyzeHeader(header: readonly string[]): Omit<HeaderAnalysis, '
 export function analyzeCsv(text: string): HeaderAnalysis {
   const records = parseCsv(text)
   const header = records[0] ?? []
-  return { ...analyzeHeader(header), rows: Math.max(0, records.length - 1) }
+  const analysis = analyzeHeader(header)
+  const linkAt = analysis.columns.filter((c) => c.match === 'photo-link').map((c) => c.position - 1)
+  const photoLinkRows = linkAt.length ? records.slice(1).filter((r) => linkAt.some((i) => (r[i] ?? '').trim() !== '')).length : 0
+  const linkCols = analysis.columns.flatMap((c) =>
+    c.match === 'photo-link' || (c.match === 'ok' && c.field === 'size_chart') ? [{ index: c.position - 1, column: c.field!, split: c.match === 'photo-link' }] : [],
+  )
+  const linkProblems: LinkProblem[] = []
+  if (linkCols.length)
+    records.slice(1).forEach((r, i) => {
+      const cells = linkCols.flatMap((c) => {
+        const value = (r[c.index] ?? '').replace(/\s+/g, ' ').trim()
+        return value ? [{ column: c.column, value, split: c.split }] : []
+      })
+      const p = rowLinkProblem(cells)
+      if (p) linkProblems.push({ row: i + 2, ...p })
+    })
+  return { ...analysis, rows: Math.max(0, records.length - 1), photoLinkRows, linkProblems }
 }
 
 export const MATCH_COPY: Record<ColumnMatch, string> = {
   ok: 'OK',
   alias: 'OK',
   'not-stored': 'Not stored',
+  // Not fetched, but still checked: a bad link fails its row.
+  'photo-link': 'Not used',
   unknown: 'Unknown',
   duplicate: 'Duplicate',
 }

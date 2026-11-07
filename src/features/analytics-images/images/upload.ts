@@ -5,6 +5,8 @@
  *    URL plus the headers to send with it (`Content-Type`, `If-None-Match: *`).
  * 2. PUT the bytes to that URL (no bearer token: it is the object store, not the API).
  * 3. POST /images/upload (multipart, Idempotency-Key) with `storage_key` -> 202 ImageAccepted.
+ *    `colourway_id` (one of a style's `colourways`) files the image under that colour; only this
+ *    step takes it, the upload-url step does not.
  *
  * When the signed step is unavailable (501/5xx, or the browser cannot PUT to the store, e.g. the
  * bucket has no CORS rule for this origin) the file goes up as the multipart `file` part of
@@ -27,6 +29,8 @@ export interface UploadInput {
   file: File
   productId: string
   slot: ImageSlot
+  /** A colourway of this product (a style): the image is that colour's. Absent: every colour's. */
+  colourwayId?: string | null
   /** Idempotency-Key for the multipart path; reused when the same upload is retried. */
   multipartKey: string
 }
@@ -50,40 +54,40 @@ async function putToStore(url: string, headers: Record<string, string>, file: Fi
   if (!res.ok && res.status !== 412) throw new StorePutFailed(`The image store answered ${res.status}.`)
 }
 
-function registerKey(productId: string, slot: ImageSlot, storageKey: string, idemKey: string) {
+/** The multipart form of POST /images/upload (exported for tests). */
+export function uploadForm(b: Schema<'Body_images_upload'>, file?: File): FormData {
+  const fd = new FormData()
+  fd.append('product_id', b.product_id)
+  fd.append('slot', b.slot)
+  if (b.colourway_id) fd.append('colourway_id', b.colourway_id)
+  if (b.storage_key) fd.append('storage_key', b.storage_key)
+  if (file) fd.append('file', file, file.name)
+  return fd
+}
+
+function registerKey(productId: string, slot: ImageSlot, colourwayId: string | null, storageKey: string, idemKey: string) {
   return unwrap(
     api.POST('/images/upload', {
       params: { header: idempotencyHeader(idemKey) },
-      body: { product_id: productId, slot, storage_key: storageKey },
-      bodySerializer: (b) => {
-        const fd = new FormData()
-        fd.append('product_id', b.product_id)
-        fd.append('slot', b.slot)
-        if (b.storage_key) fd.append('storage_key', b.storage_key)
-        return fd
-      },
+      body: { product_id: productId, slot, colourway_id: colourwayId, storage_key: storageKey },
+      bodySerializer: (b) => uploadForm(b),
     }),
   )
 }
 
-function uploadMultipart({ file, productId, slot, multipartKey }: UploadInput) {
+function uploadMultipart({ file, productId, slot, colourwayId, multipartKey }: UploadInput) {
   return unwrap(
     api.POST('/images/upload', {
       params: { header: idempotencyHeader(multipartKey) },
-      body: { product_id: productId, slot },
-      bodySerializer: (b) => {
-        const fd = new FormData()
-        fd.append('product_id', b.product_id)
-        fd.append('slot', b.slot)
-        fd.append('file', file, file.name)
-        return fd
-      },
+      body: { product_id: productId, slot, colourway_id: colourwayId ?? null },
+      bodySerializer: (b) => uploadForm(b, file),
     }),
   )
 }
 
 export async function uploadImage(input: UploadInput): Promise<ImageAccepted> {
   const { file, productId, slot } = input
+  const colourwayId = input.colourwayId ?? null
   if (!signedUnavailable && isImageContentType(file.type)) {
     let minted: Schema<'UploadUrlOut'> | null = null
     try {
@@ -107,7 +111,7 @@ export async function uploadImage(input: UploadInput): Promise<ImageAccepted> {
       }
     }
     // A fresh signed key is a fresh body, so it gets its own Idempotency-Key.
-    if (minted) return registerKey(productId, slot, minted.storage_key, newIdempotencyKey())
+    if (minted) return registerKey(productId, slot, colourwayId, minted.storage_key, newIdempotencyKey())
   }
   return uploadMultipart(input)
 }

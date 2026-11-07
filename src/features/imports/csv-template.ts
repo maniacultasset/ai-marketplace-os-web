@@ -16,6 +16,11 @@ export interface ColumnGroup {
   columns: readonly string[]
   /** Accepted in the header but not stored; non-blank cells produce a warning. */
   notStored?: boolean
+  /**
+   * Photo links: accepted and kept, but no photo is ever fetched from them. Photos are added on
+   * the product's Media tab. Left out of the templates so nobody fills them in for nothing.
+   */
+  photoLinks?: boolean
 }
 
 export const COLUMN_GROUPS: readonly ColumnGroup[] = [
@@ -24,6 +29,8 @@ export const COLUMN_GROUPS: readonly ColumnGroup[] = [
     columns: [
       'seller_sku',
       'parent_style_id',
+      // Not an A.6 name: backend headers.py EXTENSION_COLUMNS.
+      'style_number',
       'product_name',
       'brand_name',
       'manufacturer_name',
@@ -76,7 +83,9 @@ export const COLUMN_GROUPS: readonly ColumnGroup[] = [
       'package_height_cm',
     ],
   },
-  { label: 'Media', columns: ['main_image', 'additional_images', 'size_chart'] },
+  // A size chart link is stored and used (a style's `size_chart_url`).
+  { label: 'Media', columns: ['size_chart'] },
+  { label: 'Photo links (not used)', columns: ['main_image', 'additional_images'], photoLinks: true },
   {
     label: 'Content',
     // `bullet_1_to_n` is the BRD name; one column per bullet (`bullet_1` … `bullet_99`) also works.
@@ -109,13 +118,17 @@ export const COLUMN_ALIASES: readonly { alias: string; column: string; note?: st
   { alias: 'price_inr', column: 'selling_price' },
   { alias: 'weight_grams', column: 'package_weight', note: 'bare grams' },
   { alias: 'package_weight_g', column: 'package_weight', note: 'bare grams' },
+  { alias: 'fabric_composition', column: 'fiber_composition', note: 'for example 60% cotton, 40% viscose' },
 ]
 
-/** Header for the minimal template: required columns + one image column. */
-export const MINIMAL_HEADER = [...REQUIRED_COLUMNS, 'main_image'] as const
+/** Photo link columns: accepted, never fetched (see `ColumnGroup.photoLinks`). */
+export const PHOTO_LINK_COLUMNS = COLUMN_GROUPS.filter((g) => g.photoLinks).flatMap((g) => g.columns)
 
-/** Header for the full template: every stored column, in the documented order. */
-export const FULL_HEADER = COLUMN_GROUPS.filter((g) => !g.notStored).flatMap((g) => g.columns)
+/** Header for the minimal template: the required columns. */
+export const MINIMAL_HEADER = [...REQUIRED_COLUMNS] as const
+
+/** Header for the full template: every stored column that is used, in the documented order. */
+export const FULL_HEADER = COLUMN_GROUPS.filter((g) => !g.notStored && !g.photoLinks).flatMap((g) => g.columns)
 
 /** Trigger a browser download of a CSV with only a header line. */
 export function downloadTemplate(kind: 'minimal' | 'full') {

@@ -85,6 +85,6 @@ export const NOT_YET = {
   productSearch: 'Search is not available yet. Filter the loaded products on the Products page.',
   export: 'Exporting the catalog is not available yet.',
   auditLog: 'A brand-wide audit log is not available yet.',
-  chooseCategory: 'Choosing a category from here is not available yet. Open the product to change its content.',
+  chooseCategory: 'A listing keeps the category it was made with, so it can’t be changed here yet.',
   askSupport: 'Contacting support from the app is not available yet.',
 } as const

@@ -40,6 +40,7 @@ import type { Marketplace } from './catalog-model'
 import { analyzeCsv, MATCH_COPY, type ColumnMatch, type HeaderAnalysis } from './csv-header'
 import { generateMany, planGenerate, type ItemOutcome } from './generate'
 import { ListOnPicker, serializeListOn, useConnectedMarketplaces } from './list-on'
+import { NeedsPhotosCard } from './needs-photos-card'
 
 type ImportRow = Schema<'ImportRowResult'>
 
@@ -54,6 +55,7 @@ const MATCH_CHIP: Record<ColumnMatch, Parameters<typeof StatusChip>[0]['status']
   ok: 'live',
   alias: 'live',
   'not-stored': 'not-listed',
+  'photo-link': 'not-listed',
   unknown: 'error',
   duplicate: 'error',
 }
@@ -89,6 +91,11 @@ function ColumnTable({ analysis }: { analysis: HeaderAnalysis }) {
       </table>
       {analysis.missing.length ? (
         <p className="border-t border-line px-4 py-3 text-small font-semibold text-danger">Missing required: {analysis.missing.join(', ')}</p>
+      ) : null}
+      {analysis.columns.some((c) => c.match === 'photo-link') ? (
+        <p className="border-t border-line px-4 py-3 text-small text-ink-2" data-testid="photo-link-note">
+          Not used. Clear these columns: a bad link still fails the row.
+        </p>
       ) : null}
     </div>
   )
@@ -193,6 +200,7 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
                 <li>By header name, exactly as in the template (any letter case).</li>
                 <li>A column we don’t recognise stops the whole file, so the upload step lists every column first.</li>
                 <li>A SKU that already exists updates that product.</li>
+                <li>Photos are not read from the file. Add them on each product’s Media tab after the import.</li>
               </ul>
             </LaCard>
           </div>
@@ -238,6 +246,34 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
             </LaCard>
           </div>
         )}
+
+        {step === 1 && analysis && (analysis.photoLinkRows > 0 || analysis.linkProblems.length > 0) ? (
+          <Banner
+            tone={analysis.linkProblems.length ? 'danger' : 'attention'}
+            role="status"
+            className="mt-4"
+            title={
+              analysis.photoLinkRows > 0
+                ? `${rowsLabel(analysis.photoLinkRows)} ${analysis.photoLinkRows === 1 ? 'has' : 'have'} photo links`
+                : `${rowsLabel(analysis.linkProblems.length)} with a bad link`
+            }
+          >
+            <p>
+              {analysis.photoLinkRows > 0 ? 'Photo links are not used. Clear these columns: a bad link still fails the row. ' : ''}
+              Add photos on each product’s Media tab after the import.
+            </p>
+            {analysis.linkProblems.length ? (
+              <ul className="mt-1.5 flex flex-col gap-0.5 text-small" aria-label="Rows that will fail for a link" data-testid="link-problems">
+                {analysis.linkProblems.slice(0, 5).map((p) => (
+                  <li key={p.row}>
+                    Row {p.row}: {p.problem}
+                  </li>
+                ))}
+                {analysis.linkProblems.length > 5 ? <li>{analysis.linkProblems.length - 5} more rows like this.</li> : null}
+              </ul>
+            ) : null}
+          </Banner>
+        ) : null}
 
         {serverErr ? (
           <Banner tone="danger" role="alert" className="mt-4" title="The file was refused">
@@ -527,6 +563,8 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
             )}
           </LaCard>
         </div>
+
+        {done && importedRows.data && products.data ? <NeedsPhotosCard products={sendable} /> : null}
 
         {done ? <ListOnPicker className="mt-6" value={listOn} onChange={setListOn} connected={connected} /> : null}
 
