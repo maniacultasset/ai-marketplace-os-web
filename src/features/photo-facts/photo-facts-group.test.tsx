@@ -5,10 +5,12 @@ import { ApiError } from '@/api/errors'
 import type { ProductDetail } from '@/features/products/api'
 
 const patchProduct = vi.fn()
+const fetchProduct = vi.fn()
 let allowed = true
 vi.mock('@/features/products/api', async (orig) => ({
   ...(await orig<typeof import('@/features/products/api')>()),
   patchProduct: (...a: unknown[]) => patchProduct(...a),
+  fetchProduct: (...a: unknown[]) => fetchProduct(...a),
 }))
 vi.mock('@/lib/auth', async (orig) => ({ ...(await orig<typeof import('@/lib/auth')>()), useSession: () => ({ tenantId: 't1' }) }))
 vi.mock('@/lib/permissions', async (orig) => ({ ...(await orig<typeof import('@/lib/permissions')>()), useCan: () => () => allowed }))
@@ -70,6 +72,7 @@ function deferred<T>() {
 beforeEach(() => {
   allowed = true
   patchProduct.mockReset()
+  fetchProduct.mockReset()
 })
 afterEach(cleanup)
 
@@ -121,16 +124,41 @@ describe('From photos', () => {
     expect(within(row('fit')!).getByRole('alert').textContent).toBe('Couldn’t remove this. Try again.')
   })
 
-  it('sends two quick confirms one after another, the second with the first one’s ETag', async () => {
+  it('sends each action with the ETag it was clicked over, re-reading on a stale version', async () => {
     const first = deferred<ProductDetail>()
-    patchProduct.mockReturnValueOnce(first.promise).mockResolvedValueOnce({ ...base, etag: '"v3"' })
+    const stale = new ApiError({ type: 'STALE_VERSION', status: 409, message: 'stale' })
+    patchProduct.mockReturnValueOnce(first.promise).mockRejectedValueOnce(stale).mockResolvedValueOnce({ ...base, etag: '"v4"' })
+    fetchProduct.mockResolvedValueOnce({ ...base, etag: '"v3"' })
     setup()
     fireEvent.click(within(row('neckline')!).getByTestId('photo-fact-confirm'))
     fireEvent.click(within(row('fit')!).getByTestId('photo-fact-confirm'))
     await waitFor(() => expect(patchProduct).toHaveBeenCalledTimes(1))
     await act(async () => first.resolve({ ...base, etag: '"v2"' }))
-    await waitFor(() => expect(patchProduct).toHaveBeenCalledTimes(2))
-    expect(patchProduct.mock.calls[1]).toEqual(['p1', { confirm_attributes: ['fit'] }, '"v2"'])
+    await waitFor(() => expect(patchProduct).toHaveBeenCalledTimes(3))
+    // The second click was made over v1; after the 409 it re-reads (v3), checks, and sends once more.
+    expect(patchProduct.mock.calls[1]).toEqual(['p1', { confirm_attributes: ['fit'] }, '"v1"'])
+    expect(fetchProduct).toHaveBeenCalledWith('p1')
+    expect(patchProduct.mock.calls[2]).toEqual(['p1', { confirm_attributes: ['fit'] }, '"v3"'])
+  })
+
+  it('drops a queued reject when a teammate set that value meanwhile, so theirs is never deleted', async () => {
+    const first = deferred<ProductDetail>()
+    patchProduct.mockReturnValueOnce(first.promise)
+    setup()
+    fireEvent.click(within(row('neckline')!).getByTestId('photo-fact-confirm'))
+    fireEvent.click(within(row('fit')!).getByTestId('photo-fact-reject'))
+    await waitFor(() => expect(patchProduct).toHaveBeenCalledTimes(1))
+    // The first save's answer carries the teammate's own fit: no photo fit any more.
+    const theirs: ProductDetail = {
+      ...base,
+      attributes: { ...base.attributes, fit: 'regular fit' },
+      photo_facts: [{ ...base.photo_facts![0]!, confirmed: true }],
+      etag: '"v2"',
+    }
+    await act(async () => first.resolve(theirs))
+    await waitFor(() => expect(row('fit')!.dataset.factStatus).toBe('you'))
+    expect(patchProduct).toHaveBeenCalledTimes(1)
+    expect(within(row('fit')!).getByTestId('photo-fact-value').textContent).toBe('Regular fit')
   })
 
   it('hides Confirm and Reject without permission to edit products', () => {
