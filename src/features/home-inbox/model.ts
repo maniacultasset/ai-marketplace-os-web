@@ -223,7 +223,8 @@ export function taskMeta(task: Task): string {
 /** "3 questions, 1 listing to approve, 2 issues". Empty parts are left out. */
 export function needsYouCaption(p: NeedsYouParts): string {
   const out: string[] = []
-  if (p.tasks.n || p.tasks.more) out.push(`${fmtCount(p.tasks)} ${plural(p.tasks.n, 'question')}`)
+  // Only questions seen on the loaded page: "0+ questions" would say nothing true.
+  if (p.tasks.n) out.push(`${fmtCount(p.tasks)} ${plural(p.tasks.n, 'question')}`)
   if (p.approve) out.push(`${p.approve} ${plural(p.approve, 'listing')} to approve`)
   if (p.publish) out.push(`${p.publish} ${plural(p.publish, 'listing')} to publish`)
   if (p.issues.n || p.issues.more) out.push(`${fmtCount(p.issues)} ${plural(p.issues.n, 'issue')}`)

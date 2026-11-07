@@ -209,6 +209,12 @@ describe('photo questions on Home (never blocking)', () => {
     expect(t).toEqual({ value: '2', caption: '1 question, 1 listing to approve', note: undefined, aside: '2 photo questions. Answer to improve the listing.' })
   })
 
+  it('never says "0+ questions" when the loaded questions are all photo questions', () => {
+    const t = needsYouTile({ tasks: { n: 0, more: true }, improve: { n: 50, more: true }, issues: { n: 1, more: false }, approve: 0, publish: 0, snapshotComplete: true }, 1000)
+    expect(t.caption).toBe('1 issue')
+    expect(t.value).toBe('1+')
+  })
+
   it('says nothing blocks when photo questions are all there is', () => {
     const t = needsYouTile({ tasks: { n: 0, more: false }, improve: { n: 1, more: false }, issues: { n: 0, more: false }, approve: 0, publish: 0, snapshotComplete: true }, 1000)
     expect(t).toEqual({ value: '0', caption: 'Nothing blocks your listings.', note: undefined, aside: '1 photo question. Answer to improve the listing.' })

@@ -190,9 +190,10 @@ function DashboardBody({
               action={
                 // The tile counts two places: questions and issues live in the Inbox, listings to
                 // approve or publish live on their product (Products). Link to each part shown.
-                // The main button goes where the work is: the Inbox only when it holds something.
+                // The main button goes where the work is: the Inbox only when it holds something that blocks
+                // a listing (photo questions are reached from Waiting for you).
                 <div className="flex flex-wrap gap-2">
-                  {tasksCount.n + issuesCount.n > 0 || snapshot.approve + snapshot.publish === 0 ? (
+                  {split.blocking.n + issuesCount.n > 0 || snapshot.approve + snapshot.publish === 0 ? (
                     <Button asChild size="sm" variant="warn" data-testid="tile-needs-inbox">
                       <Link to="/inbox">Open Inbox</Link>
                     </Button>
@@ -201,7 +202,7 @@ function DashboardBody({
                     <Button
                       asChild
                       size="sm"
-                      variant={tasksCount.n + issuesCount.n > 0 ? 'secondary' : 'warn'}
+                      variant={split.blocking.n + issuesCount.n > 0 ? 'secondary' : 'warn'}
                       className="min-w-0 max-w-full"
                       data-testid="tile-needs-listings"
                     >
