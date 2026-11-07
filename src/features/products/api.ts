@@ -157,9 +157,11 @@ export function useUpdateProduct(productId: string) {
   return useMutation({
     meta: { toast: false },
     mutationFn: ({ body, etag }: { body: ProductPatchBody; etag: string | null | undefined }) => patchProduct(productId, body, etag),
-    onSuccess: (product) => {
+    onSuccess: (product, { body }) => {
       qc.setQueryData(productQuery(keys, productId).queryKey, product)
       void qc.invalidateQueries({ queryKey: keys.products.list() })
+      // A seller value for a key cancels that key's open fact question (superseded).
+      if (body.attributes && Object.keys(body.attributes).length) void qc.invalidateQueries({ queryKey: keys.tasks.all() })
     },
   })
 }

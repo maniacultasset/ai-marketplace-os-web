@@ -83,8 +83,12 @@ export function usePhotoFactActions(product: ProductDetail) {
           setOps((o) => (o[key] ? { ...o, [key]: { op, over } } : o))
           qc.setQueryData(query.queryKey, next)
           void qc.invalidateQueries({ queryKey: keys.products.list() })
-          // A removed value changes the facts the listings were made from.
-          if (op === 'reject') void qc.invalidateQueries({ queryKey: keys.listings.lists() })
+          // A removed value changes the facts the listings were made from, and an attribute write
+          // may close that key's open question.
+          if (op === 'reject') {
+            void qc.invalidateQueries({ queryKey: keys.listings.lists() })
+            void qc.invalidateQueries({ queryKey: keys.tasks.all() })
+          }
         } catch (err) {
           setOps((o) => omit(o, key))
           setErrors((e) => ({ ...e, [key]: actionError(err, op) }))
