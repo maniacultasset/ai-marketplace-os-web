@@ -777,7 +777,10 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
               </p>
               <h2 className="mt-0.5 text-h3 text-ink">{sectionLabel}</h2>
             </div>
-            {body}
+            {/* Locked while saving: an edit made now would be lost (the draft is cleared on save). */}
+            <fieldset disabled={isPending} aria-busy={isPending || undefined} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" data-testid="guided-fields">
+              {body}
+            </fieldset>
           </div>
         </section>
 
