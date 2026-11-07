@@ -134,6 +134,10 @@ test.describe('product detail (p17)', () => {
     await expect(editor).toBeVisible()
     const save = page.getByTestId('product-save')
     await expect(save).toBeDisabled()
+    // The category is fixed once the product has a listing (PATCH refuses it), open before.
+    const listings = await walk<{ id: string }>(page.request, tokens.access_token, '/listings', { product_id: style!.id })
+    if (listings.length) await expect(page.getByTestId('e-category')).toBeDisabled()
+    else await expect(page.getByTestId('e-category')).toBeEnabled()
     await page.getByLabel('Product name').fill(`${style!.title} edited`)
     await expect(save).toBeEnabled()
     // Cancel with a change asks first; discarding closes the editor without saving.

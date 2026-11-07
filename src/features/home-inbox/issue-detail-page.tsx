@@ -10,7 +10,10 @@
  *   banner      this open issue's error came back on the newest submission of its version, and
  *               that error report says the attempts are used up or the error is not retryable
  *   actions     p16 "Choose category" (only for category issues) and "Ask support" have no API:
- *               shown disabled with the reason; "Open product" is the real way to change content
+ *               shown disabled with the reason; "Open product" is the real way to change content.
+ *               A category picker cannot work here: an issue belongs to a listing, a listing keeps
+ *               the category it was made with (generation.py), and PATCH /products refuses a new
+ *               category once the product has any listing (product_edit.py)
  *   dismiss     POST /issues/{id}/dismiss (open warnings, listing:approve)
  */
 import { Link } from '@tanstack/react-router'

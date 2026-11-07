@@ -5,7 +5,9 @@
  * Backend rules (schemas/products.py `ProductPatch`, services/product_edit.py): `sku` is
  * immutable; `title` cannot be cleared; on a variant, style-owned fields (style number, size
  * chart, colour) are 422 FACT_LEVEL_INVALID, so the editor hides them; `manufacturer: null` goes
- * back to the inherited one; an attribute set to `null` is removed.
+ * back to the inherited one; an attribute set to `null` is removed. `category` changes only while
+ * the product has no listing (422 at `category` after that); the editor offers it on a style or
+ * standalone product only, since a variant is listed through its style.
  */
 import type { Schema } from '@/api/types'
 import { CONTROL_MSG, hasStrayControlChars } from '@/lib/validation'
@@ -43,6 +45,7 @@ const STYLE_ONLY_ATTRS: readonly EditAttr[] = ['color']
 
 export interface EditDraft {
   title: string
+  category: string
   styleNumber: string
   attrs: Record<EditAttr, string>
   composition: FibreRow[]
@@ -78,6 +81,7 @@ export function toEditDraft(p: Product, source: ManufacturerSource = manufacture
   const comp = p.attributes?.fiber_composition
   return {
     title: p.title,
+    category: p.category,
     styleNumber: p.style_number ?? '',
     attrs,
     composition: compositionRows(typeof comp === 'string' ? comp : null, p.fiber_composition),
@@ -96,11 +100,15 @@ export function editableAttrs(isVariant: boolean): readonly EditAttr[] {
 
 export type EditErrors = Partial<Record<string, string>>
 
+/** The 422 at `category`: the product has a listing, so its category is fixed. */
+export const CATEGORY_LOCKED_MSG = 'The category can’t change once the product has a listing.'
+
 /** Same keys as the guided form: title, style_number, mrp, selling_price, attr.<k>, composition.*, size_chart*, manufacturer.*. */
 export function validateEdit(d: EditDraft, isVariant: boolean): EditErrors {
   const e: EditErrors = {}
   const title = productTitleProblem(d.title, 'the product name')
   if (title) e.title = title
+  if (!isVariant && !d.category.trim()) e.category = 'Choose a category.'
   if (!isVariant) {
     const style = d.styleNumber.trim()
     if (style && hasStrayControlChars(style)) e.style_number = CONTROL_MSG
@@ -135,6 +143,7 @@ const sameMoney = (a: string, b: string) => {
 export function buildPatch(base: EditDraft, d: EditDraft, isVariant: boolean): ProductPatchBody {
   const body: ProductPatchBody = {}
   if (d.title.trim() !== base.title.trim()) body.title = d.title.trim()
+  if (!isVariant && d.category.trim() && d.category.trim() !== base.category.trim()) body.category = d.category.trim()
   if (!isVariant && d.styleNumber.trim() !== base.styleNumber.trim()) body.style_number = d.styleNumber.trim() || null
   if (!sameMoney(d.mrp, base.mrp)) body.mrp = d.mrp.trim() ? normalizeMoney(d.mrp) : null
   if (!sameMoney(d.sellingPrice, base.sellingPrice)) body.selling_price = d.sellingPrice.trim() ? normalizeMoney(d.sellingPrice) : null
@@ -179,7 +188,8 @@ export function mapPatchErrors(
     if (err.type === 'UNKNOWN_FACT_KEY') msg = 'Unknown attribute.'
     if (key === 'size_chart') msg = SIZE_CHART_REFUSED
     if (key === 'selling_price' && priceAboveMrp(d.sellingPrice, d.mrp)) msg = 'Keep the selling price at or below the MRP.'
-    if (!/^(title|style_number|mrp|selling_price|size_chart|attr\.|manufacturer\.)/.test(key)) {
+    if (key === 'category') msg = CATEGORY_LOCKED_MSG
+    if (!/^(title|category|style_number|mrp|selling_price|size_chart|attr\.|manufacturer\.)/.test(key)) {
       unmapped = true
       continue
     }
@@ -196,6 +206,7 @@ export function mapPatchErrors(
 export function rebaseDraft(original: EditDraft, mine: EditDraft, fresh: EditDraft): EditDraft {
   const out: EditDraft = { ...fresh, attrs: { ...fresh.attrs } }
   if (mine.title.trim() !== original.title.trim()) out.title = mine.title
+  if (mine.category.trim() !== original.category.trim()) out.category = mine.category
   if (mine.styleNumber.trim() !== original.styleNumber.trim()) out.styleNumber = mine.styleNumber
   if (!sameMoney(mine.mrp, original.mrp)) out.mrp = mine.mrp
   if (!sameMoney(mine.sellingPrice, original.sellingPrice)) out.sellingPrice = mine.sellingPrice

@@ -136,3 +136,27 @@ describe('changedOnServer', () => {
     expect(changedOnServer(product(), product({ manufacturer: { ...product().manufacturer!, id: 'm2' } }), false)).toBe(true)
   })
 })
+
+describe('category edit', () => {
+  it('sends a changed category on a style or standalone product, never on a variant', () => {
+    const base = toEditDraft(product({ category: 'ethnic_wear_kurta_sets' }))
+    expect(buildPatch(base, { ...base, category: 'tshirts' }, false)).toEqual({ category: 'tshirts' })
+    expect(buildPatch(base, { ...base, category: 'tshirts' }, true)).toEqual({})
+    expect(buildPatch(base, base, false)).toEqual({})
+  })
+
+  it('maps the 422 at category to the listing rule', () => {
+    const d = toEditDraft(product())
+    const out = mapPatchErrors({ type: 'VALIDATION_FAILED', details: [{ loc: ['body', 'category'], msg: 'Value error' }] }, d)
+    expect(out.fields.category).toBe('The category can’t change once the product has a listing.')
+    expect(out.unmapped).toBe(false)
+  })
+
+  it('keeps the person’s category when someone else saved meanwhile', () => {
+    const original = toEditDraft(product({ category: 'ethnic_wear_kurta_sets' }))
+    const fresh = toEditDraft(product({ category: 'ethnic_wear_kurta_sets', title: 'New title' }))
+    const out = rebaseDraft(original, { ...original, category: 'tshirts' }, fresh)
+    expect(out.category).toBe('tshirts')
+    expect(out.title).toBe('New title')
+  })
+})

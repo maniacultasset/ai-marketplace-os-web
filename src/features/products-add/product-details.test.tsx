@@ -43,4 +43,23 @@ describe('ProductDetailsEditor', () => {
     view.rerender(<ProductDetailsEditor session={result.current} />)
     expect((screen.getByTestId('product-save') as HTMLButtonElement).disabled).toBe(false)
   })
+
+  it('offers the category only while the product has no listing, and never on a variant', () => {
+    const { result } = renderHook(() => useProductEditSession(product, false, 'none'))
+    act(() => result.current.start())
+    const view = render(<ProductDetailsEditor session={result.current} categoryLock="open" />)
+    const trigger = () => screen.getByTestId('e-category') as HTMLButtonElement
+    expect(trigger().disabled).toBe(false)
+    expect(screen.getByText('Kurta sets and T-shirts can be listed for now.')).toBeTruthy()
+    view.rerender(<ProductDetailsEditor session={result.current} categoryLock="locked" />)
+    expect(trigger().disabled).toBe(true)
+    expect(screen.getByText('Fixed once the product has a listing.')).toBeTruthy()
+    view.rerender(<ProductDetailsEditor session={result.current} categoryLock="pending" />)
+    expect(trigger().disabled).toBe(true)
+    cleanup()
+    const variant = renderHook(() => useProductEditSession({ ...product, parent_product_id: 'p0' }, true, 'none'))
+    act(() => variant.result.current.start())
+    render(<ProductDetailsEditor session={variant.result.current} categoryLock="open" />)
+    expect(screen.queryByTestId('e-category')).toBeNull()
+  })
 })

@@ -767,7 +767,10 @@ function OverviewTab({ data, session, onEdit }: { data: DetailData; session: Pro
   if (session.editing)
     return (
       <div className="max-w-4xl">
-        <ProductDetailsEditor session={session} />
+        <ProductDetailsEditor
+          session={session}
+          categoryLock={data.listingsPending ? 'pending' : listingsIn(data).length ? 'locked' : 'open'}
+        />
       </div>
     )
   return (
