@@ -122,6 +122,7 @@ export const OP_ACTION = {
   'GET /issues': 'tenant:read',
   'POST /issues/{issue_id}/dismiss': 'listing:approve',
   'GET /tasks': 'tenant:read',
+  'POST /tasks/{task_id}/answer': 'product:import',
   'GET /analytics': 'analytics:read',
   'GET /analytics/summary': 'analytics:read',
   'GET /admin/signup-requests': PLATFORM_ADMIN,
