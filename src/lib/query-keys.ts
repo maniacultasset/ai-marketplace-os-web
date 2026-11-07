@@ -47,6 +47,10 @@ export interface AnalyticsRange {
 }
 /** GET /admin/signup-requests `status`; the backend default (absent) lists every status. */
 export type SignupStatus = NonNullable<QueryOf<'/admin/signup-requests'>['status']>
+/** GET /invites `status`; absent lists every status. */
+export type InviteStatus = NonNullable<QueryOf<'/invites'>['status']>
+/** GET /admin/tenants `status`; absent lists every tenant. */
+export type TenantStatus = NonNullable<QueryOf<'/admin/tenants'>['status']>
 
 export function keysFor(tid: string) {
   const T = ['t', tid] as const
@@ -87,6 +91,11 @@ export function keysFor(tid: string) {
       all: () => [...T, 'rules'] as const,
       list: (filters: RulesFilters = {}) =>
         [...T, 'rules', { marketplace: filters.marketplace ?? null, category: filters.category ?? null }] as const,
+    },
+    /** GET /invites (team:manage). */
+    invites: {
+      all: () => [...T, 'invites'] as const,
+      list: (status: InviteStatus | null) => [...T, 'invites', { status }] as const,
     },
     members: {
       all: () => [...T, 'members'] as const,
@@ -155,6 +164,11 @@ export function keysFor(tid: string) {
       all: () => [...T, 'admin', 'signups'] as const,
       /** `list('pending')` is the review queue; `list(null)` every request (the backend default). */
       list: (status: SignupStatus | null) => [...T, 'admin', 'signups', { status }] as const,
+    },
+    /** GET /admin/tenants (platform admins): every brand, its status and trial end. */
+    adminTenants: {
+      all: () => [...T, 'admin', 'tenants'] as const,
+      list: (status: TenantStatus | null) => [...T, 'admin', 'tenants', { status }] as const,
     },
   }
 }

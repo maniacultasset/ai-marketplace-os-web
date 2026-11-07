@@ -17,9 +17,9 @@ const patchMember = () => unwrap(api.PATCH('/members/{user_id}', { params: { pat
 
 describe('public paths (exact match under /api/v1)', () => {
   it('lists the sign-in challenge routes, not the bearer MFA routes', () => {
-    for (const p of ['/auth/login', '/auth/login/mfa', '/auth/login/mfa/enroll', '/auth/login/mfa/confirm', '/auth/password/expired', '/signup', '/signup/status'])
+    for (const p of ['/auth/login', '/auth/login/mfa', '/auth/login/mfa/enroll', '/auth/login/mfa/confirm', '/auth/password/expired', '/signup', '/signup/status', '/invites/lookup', '/invites/accept', '/auth/password/reset'])
       expect(isPublicPath(`/api/v1${p}`), p).toBe(true)
-    for (const p of ['/auth/password', '/auth/mfa/totp/enroll', '/auth/mfa/totp/confirm', '/auth/mfa/step-up', '/auth/security', '/admin/signup'])
+    for (const p of ['/auth/password', '/auth/mfa/totp/enroll', '/auth/mfa/totp/confirm', '/auth/mfa/step-up', '/auth/security', '/admin/signup', '/invites', '/invites/join'])
       expect(isPublicPath(`/api/v1${p}`), p).toBe(false)
   })
 })
