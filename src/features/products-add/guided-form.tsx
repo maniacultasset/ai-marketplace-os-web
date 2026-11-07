@@ -292,9 +292,14 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
   const clientErrors = useMemo(() => validateGuided(values), [values])
   const errors = useMemo<GuidedErrors>(() => {
     const out: GuidedErrors = {}
-    for (const [k, msg] of Object.entries(clientErrors)) if (submitCount > 0 || touched.has(k)) out[k] = msg
+    for (const [k, msg] of Object.entries(clientErrors)) {
+      // A required field left empty is flagged only once a save is tried, never just for losing
+      // focus (calm first visit: the autofocused name would turn red as soon as the page blurs).
+      const emptyRequired = (k === 'title' || k === 'sku' || k === 'category') && !values[k].trim()
+      if (submitCount > 0 || (touched.has(k) && !emptyRequired)) out[k] = msg
+    }
     return { ...out, ...serverErrors }
-  }, [clientErrors, serverErrors, touched, submitCount])
+  }, [clientErrors, serverErrors, touched, submitCount, values])
   const touch = (key: string) => setTouched((t) => (t.has(key) ? t : new Set(t).add(key)))
   useEffect(() => {
     if (focusTick) focusFirstInvalid(bodyRef.current)

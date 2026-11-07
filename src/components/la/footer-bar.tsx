@@ -25,7 +25,7 @@ export function FooterBar({
       <div className="min-w-0 flex-1 text-small text-ink-2" aria-live="polite">
         {status}
       </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-2">{children}</div>
+      <div className="flex min-w-0 flex-wrap items-center gap-2 md:shrink-0">{children}</div>
     </>
   )
   return (
