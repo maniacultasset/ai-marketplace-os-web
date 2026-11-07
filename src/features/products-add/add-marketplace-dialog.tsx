@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Spinner } from '@/components/ui/spinner'
 import { invalidateListingWork } from '@/features/listings/api'
+import { openForDrafts } from '@/features/marketplaces/meta'
 import { useKeys } from '@/lib/query-keys'
 import type { Listing, Marketplace, Product } from './catalog-model'
 import { ListOnPicker, useConnectedMarketplaces } from './list-on'
@@ -40,8 +41,11 @@ export function AddMarketplaceDialog({
   const [results, setResults] = useState<ItemOutcome[] | null>(null)
   const { connected } = useConnectedMarketplaces()
   const contentRef = useRef<HTMLDivElement>(null)
+  // Only marketplaces drafts can start for: a Flipkart preset is dropped while Flipkart is not
+  // connected, because the picker hides its checkbox and it could not be unticked.
+  const draftable = useMemo(() => openForDrafts(chosen, connected), [chosen, connected])
 
-  const plan = useMemo(() => planGenerate(products, chosen, listingsOf), [products, chosen, listingsOf])
+  const plan = useMemo(() => planGenerate(products, draftable, listingsOf), [products, draftable, listingsOf])
 
   const run = async (items: readonly GenerateItem[]) => {
     setSending({ done: 0, total: items.length })
@@ -145,9 +149,9 @@ export function AddMarketplaceDialog({
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            <ListOnPicker value={chosen} onChange={setChosen} connected={connected} />
+            <ListOnPicker value={draftable} onChange={setChosen} connected={connected} />
             <div className="rounded-banner border border-line bg-subtle px-4 py-3 text-small text-ink-2" aria-live="polite">
-              {chosen.length === 0 ? (
+              {draftable.length === 0 ? (
                 'Choose at least one marketplace.'
               ) : (
                 <>

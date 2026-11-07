@@ -33,6 +33,11 @@ export function draftOpen(m: Marketplace, connected: readonly Marketplace[] | nu
   return DRAFTS_BEFORE_CONNECT[m] || !!connected?.includes(m)
 }
 
+/** The marketplaces in `ms` that drafts can be started for now. */
+export function openForDrafts(ms: readonly Marketplace[], connected: readonly Marketplace[] | null | undefined): Marketplace[] {
+  return ms.filter((m) => draftOpen(m, connected))
+}
+
 /** Why drafts for `m` can't start yet. */
 export const draftClosedReason = (m: Marketplace) =>
   `Connecting ${MARKETPLACE_META[m].name} is coming soon. ${MARKETPLACE_META[m].name} drafts open once it is connected.`

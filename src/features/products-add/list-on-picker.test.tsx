@@ -1,7 +1,8 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { DRAFTS_BEFORE_CONNECT, draftClosedReason, draftOpen } from '@/features/marketplaces/meta'
+import { DRAFTS_BEFORE_CONNECT, draftClosedReason, draftOpen, openForDrafts } from '@/features/marketplaces/meta'
+import { firstListable } from './catalog-model'
 import { ListOnPicker } from './list-on'
 
 afterEach(cleanup)
@@ -43,5 +44,18 @@ describe('ListOnPicker', () => {
   it('still offers Amazon before it is connected', () => {
     picker([])
     expect(screen.getByRole('checkbox', { name: 'Amazon (not connected)' })).toBeTruthy()
+  })
+})
+
+describe('openForDrafts and firstListable', () => {
+  it('drops Flipkart from a choice while it is not connected', () => {
+    expect(openForDrafts(['amazon', 'flipkart'], ['amazon'])).toEqual(['amazon'])
+    expect(openForDrafts(['flipkart'], null)).toEqual([])
+    expect(openForDrafts(['flipkart'], ['flipkart'])).toEqual(['flipkart'])
+  })
+  it('the header "List on" never offers Flipkart before it is connected', () => {
+    expect(firstListable({}, [])).toBe('amazon')
+    expect(firstListable({ amazon: {} }, [])).toBeNull()
+    expect(firstListable({ amazon: {} }, ['flipkart'])).toBe('flipkart')
   })
 })
