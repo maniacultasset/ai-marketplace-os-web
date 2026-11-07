@@ -22,6 +22,8 @@ describe('STEP_UP_OPS', () => {
         'POST /marketplaces/connect',
         'POST /marketplaces/accounts/{account_id}/revoke',
         'PATCH /members/{user_id}',
+        'POST /invites',
+        'POST /members/{user_id}/password-reset',
         'POST /auth/mfa/totp/enroll',
         'POST /auth/mfa/totp/confirm',
         'POST /auth/mfa/recovery-codes',
@@ -31,8 +33,10 @@ describe('STEP_UP_OPS', () => {
     expect(Object.keys(STEP_UP_OPS).some((op) => op.includes('/admin/'))).toBe(false)
   })
 
-  it('maps a concrete request to its mode (TOTP only for the account revoke)', () => {
+  it('maps a concrete request to its mode (TOTP only for the account revoke and a reset link)', () => {
     expect(stepUpModeFor('POST', '/marketplaces/accounts/0b1c/revoke')).toBe('otp')
+    expect(stepUpModeFor('POST', '/members/u1/password-reset')).toBe('otp')
+    expect(stepUpModeFor('POST', '/invites')).toBe('any')
     // The sign-up decisions are not step-up ops any more: a stray 403 would still get a dialog.
     expect(stepUpModeFor('post', '/admin/signup-requests/abc/approve')).toBe('any')
     expect(stepUpModeFor('POST', '/admin/signup-requests/abc/reject')).toBe('any')
