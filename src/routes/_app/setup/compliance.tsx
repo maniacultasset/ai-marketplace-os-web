@@ -1,8 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { ComplianceStep } from '@/features/onboarding/compliance'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
-/** Setup step 2 of 3, hi-fi 03 (owner: onboarding). */
+/** Retired: compliance defaults had no API. Setup step 2 is now the brand manufacturer. */
 export const Route = createFileRoute('/_app/setup/compliance')({
-  staticData: { title: 'Set up', solo: true },
-  component: ComplianceStep,
+  beforeLoad: () => {
+    throw redirect({ to: '/setup/manufacturer', replace: true })
+  },
 })

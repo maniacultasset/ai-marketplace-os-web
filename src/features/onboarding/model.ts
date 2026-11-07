@@ -8,14 +8,12 @@ import { brandProfileDone } from '@/features/home-inbox/model'
 
 type Account = Schema<'MarketplaceAccountOut'>
 
+/** Only steps that save something real. Compliance defaults had no API and were cut. */
 export const SETUP_STEPS = [
-  { label: 'Brand and business', to: '/setup/brand' },
-  { label: 'Compliance defaults', to: '/setup/compliance' },
+  { label: 'Brand', to: '/setup/brand' },
+  { label: 'Manufacturer', to: '/setup/manufacturer' },
   { label: 'Connect marketplaces', to: '/setup/marketplaces' },
 ] as const
-
-/** One sentence used wherever a designed field has no API to save it yet. */
-export const NEEDS_BACKEND = 'Saving this needs a backend update — coming soon.'
 
 /** Accounts that can publish now (`active`). `needs_reconnect` and `revoked` do not count. */
 export function activeAccounts(accounts: readonly (Account | null | undefined)[]): Account[] {
@@ -29,9 +27,12 @@ export function savedClock(d: Date): string {
 
 /**
  * Real completion per setup step, for the stepper. Same rules as the Home checklist: the brand
- * step is done when the profile has a voice, guidelines or glossary; compliance defaults never
- * (nothing on that step can be saved yet); the last step is never behind the current one.
+ * step is done when the profile has a voice, guidelines or glossary; the manufacturer step when
+ * the brand manufacturer is saved; the last step is never behind the current one.
  */
-export function setupStepsDone(tenant: Parameters<typeof brandProfileDone>[0]): [boolean, boolean, boolean] {
-  return [brandProfileDone(tenant), false, false]
+export function setupStepsDone(
+  tenant: Parameters<typeof brandProfileDone>[0],
+  manufacturerSet = false,
+): [boolean, boolean, boolean] {
+  return [brandProfileDone(tenant), manufacturerSet, false]
 }

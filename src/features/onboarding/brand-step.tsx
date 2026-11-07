@@ -3,12 +3,11 @@
  *
  * Saved through PATCH /tenants/me (If-Match: the ETag from GET; backend routers/tenants.py,
  * schemas/tenants.py TenantPatch). TenantOut/TenantPatch carry `name`, `tone`, `guidelines` and
- * `glossary` only, so:
- *   Brand name   → `name`  (live, autosaves on blur)
- *   Brand voice  → `tone`  (live, autosaves on blur; this is what the agent writes in)
- * Legal business name, extra brand names, "You are the", website, logo and the short description
- * have no API: they render where the design puts them, disabled, under one banner.
- * "Read my site" is Coming soon.
+ * `glossary` only, so the step asks for just two things:
+ *   Brand name   → `name`  (autosaves on blur)
+ *   Brand voice  → `tone`  (autosaves on blur; this is what the agent writes in)
+ * The design's legal name, business type, website, logo, description and "Read my site" have no
+ * API and no V1 use, so they are not shown.
  *
  * STALE_VERSION: re-read, lay this person's own changes on top (profile-model `rebase`), say so,
  * and let them save again. Never retry blindly. While both people changed the same field, blur
@@ -27,9 +26,7 @@ import { useSoloExit } from '@/components/app/solo-exit'
 import { Banner } from '@/components/la/banner'
 import { LaCard } from '@/components/la/cards'
 import { fieldHintId, LaField } from '@/components/la/field'
-import { CardHead } from '@/components/la/cards'
-import { Icon, IconTile } from '@/components/la/icons'
-import { ComingSoon, NOT_YET, UnavailableButton } from '@/components/la/unavailable'
+import { IconTile } from '@/components/la/icons'
 import { ReferenceId } from '@/components/states/reference-id'
 import { ErrorState } from '@/components/states/error-state'
 import { Button } from '@/components/ui/button'
@@ -56,15 +53,13 @@ import { useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
 import { focusFirstInvalid } from '@/lib/validation'
 import { cn } from '@/lib/utils'
-import { NEEDS_BACKEND, savedClock } from './model'
+import { savedClock } from './model'
 import { SetupBody, SetupColumns, SetupFooter, SetupHeading } from './setup-frame'
 
 type SaveSource = 'blur' | 'explicit'
 
 /** Read-only look for a value the viewer cannot change: muted fill and text, no hover cue. */
 const READ_ONLY_CONTROL = 'bg-subtle text-ink-2 border-line shadow-none cursor-default'
-
-const OWNER_TYPES = ['Brand owner', 'Manufacturer', 'Reseller', 'Distributor', 'Trader'] as const
 
 export function BrandStep() {
   const profile = useBrandProfile()
@@ -205,7 +200,7 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
     setContinuing(true)
     const ok = await saveNow('explicit')
     setContinuing(false)
-    if (ok) await navigate({ to: '/setup/compliance' })
+    if (ok) await navigate({ to: '/setup/manufacturer' })
     else requestAnimationFrame(() => focusFirstInvalid(document.querySelector('[data-setup-form]')))
     // A stale-version banner focuses itself (see doSave).
   }
@@ -225,7 +220,7 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
         <SetupColumns
           main={
             <LaCard className="flex flex-col gap-4" data-setup-form>
-              <SetupHeading title="Tell us about your brand once" sub="We reuse this on every product and marketplace." />
+              <SetupHeading title="Tell us about your brand once" sub="Your brand name and how listings should sound. We reuse them on every product." />
 
               {stale ? (
                 <div id="setup-stale" tabIndex={-1} className="rounded-banner outline-none">
@@ -250,43 +245,7 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
                 </Banner>
               ) : null}
 
-              {/* "Read my site": designed, not in the API. */}
-              <div className="flex items-start gap-3 rounded-tile border border-brand-line bg-brand-bg px-4 py-3 text-brand-ink">
-                <IconTile icon="globe" tone="brand" size="sm" className="-mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <p className="flex flex-wrap items-center gap-2 font-bold">
-                    Start from your website <ComingSoon />
-                  </p>
-                  <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                    <Input
-                      aria-label="Your website, to read"
-                      type="url"
-                      inputMode="url"
-                      spellCheck={false}
-                      placeholder="https://yourbrand.in"
-                      disabled
-                      className="sm:flex-1"
-                      aria-describedby="read-site-reason"
-                    />
-                    <UnavailableButton reason={NOT_YET.readSite} className="h-10">
-                      Read my site
-                    </UnavailableButton>
-                  </div>
-                  <p id="read-site-reason" className="mt-2 text-caption">
-                    We will pre-fill what we find and you confirm each field. Until then, fill the fields yourself.
-                  </p>
-                </div>
-              </div>
-
-              <Banner tone="neutral" icon="alert" title="Some fields can’t be saved yet">
-                Brand name and brand voice save now. Saving legal name, extra brand names, business type, website, logo
-                and description needs a backend update — coming soon.
-              </Banner>
-
               <div className="grid gap-4 md:grid-cols-2">
-                <LaField label="Legal business name" htmlFor="legal-name">
-                  <Input id="legal-name" autoComplete="organization" disabled placeholder="Your company’s registered name" />
-                </LaField>
                 <LaField
                   label="Brand name"
                   htmlFor="brand-name"
@@ -295,12 +254,6 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
                   submitCount={attempts}
                   confirmFix
                   source={canEdit && touched.has('name') && draft.name.trim() ? { kind: 'you' } : undefined}
-                  hintAction={
-                    <UnavailableButton variant="secondary" size="xs" reason={`Adding more brand names: ${NEEDS_BACKEND}`}>
-                      <Icon name="plus" size={14} />
-                      Add another name
-                    </UnavailableButton>
-                  }
                   required
                 >
                   <Input
@@ -324,54 +277,6 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
                   />
                 </LaField>
               </div>
-
-              <fieldset className="min-w-0">
-                <legend id="owner-type-label" className="mb-1.5 block text-small font-bold text-ink">
-                  You are the
-                </legend>
-                <div
-                  role="radiogroup"
-                  aria-labelledby="owner-type-label"
-                  aria-disabled
-                  aria-describedby="owner-type-hint" className="flex flex-wrap gap-2">
-                  {OWNER_TYPES.map((t) => (
-                    <span
-                      key={t}
-                      role="radio"
-                      aria-checked={false}
-                      aria-disabled
-                      className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-control border border-dashed border-line-strong bg-subtle px-3.5 text-ink-3"
-                    >
-                      <span aria-hidden className="size-4 rounded-full border-[1.5px] border-line-strong bg-field shadow-inset-sm" />
-                      {t}
-                    </span>
-                  ))}
-                </div>
-                <p id="owner-type-hint" className="mt-1.5 text-caption text-ink-3">
-                  This decides which proof marketplaces may ask for.
-                </p>
-              </fieldset>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <LaField label="Brand website" htmlFor="website">
-                  <Input id="website" type="url" inputMode="url" autoComplete="url" spellCheck={false} disabled placeholder="https://yourbrand.in" />
-                </LaField>
-                <div className="min-w-0">
-                  <p className="mb-1.5 text-small font-bold text-ink">Logo</p>
-                  <div className="flex h-10 items-center gap-3">
-                    <span aria-hidden className="inline-flex size-10 items-center justify-center rounded-control border border-dashed border-line-strong bg-subtle text-ink-3">
-                      <Icon name="image" size={18} />
-                    </span>
-                    <UnavailableButton variant="secondary" size="sm" reason={NEEDS_BACKEND}>
-                      Upload logo
-                    </UnavailableButton>
-                  </div>
-                </div>
-              </div>
-
-              <LaField label="Short brand description" htmlFor="description" hint="Up to 300 characters. Factual, no claims.">
-                <Textarea id="description" maxLength={300} disabled placeholder="What you make, in one line" className="min-h-[64px]" />
-              </LaField>
 
               <LaField
                 label="Brand voice"
@@ -410,14 +315,6 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
           }
           aside={
             <>
-              <LaCard pad="sm">
-                <CardHead title="What we found on your site" icon="search" />
-                <ComingSoon className="mt-3" />
-                <p className="mt-2 text-small text-ink-2">
-                  Once we can read your site, each value we find shows here with a Check chip until you confirm it.
-                  Nothing on this page is filled in for you today.
-                </p>
-              </LaCard>
               <LaCard emphasis="tint" pad="sm">
                 <div className="flex items-start gap-3">
                   <IconTile icon="users" size="sm" />
@@ -435,9 +332,6 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
         />
       </SetupBody>
       <SetupFooter status={<SaveStatus state={state} dirty={dirty} canEdit={canEdit} conflict={!!stale?.conflicts.length} />}>
-        <UnavailableButton variant="secondary" reason="This is the first setup step. Use Save and exit to leave setup.">
-          Back
-        </UnavailableButton>
         <Button onClick={() => void onContinue()} disabled={continuing} data-testid="setup-continue">
           {!canEdit ? 'Continue' : continuing ? 'Saving…' : 'Save and continue'}
         </Button>
@@ -469,20 +363,21 @@ function BrandStepSkeleton() {
           <LaCard className="flex flex-col gap-4" aria-busy="true" aria-label="Loading your brand profile">
             <Skeleton className="h-6 w-72" />
             <Skeleton className="h-4 w-80" />
-            <Skeleton className="h-[108px] w-full rounded-tile" />
             <div className="grid gap-4 md:grid-cols-2">
-              {[0, 1].map((i) => (
-                <div key={i} className="space-y-1.5">
-                  <Skeleton className="h-4 w-36" />
-                  <Skeleton className="h-10 w-full" />
-                </div>
-              ))}
+              <div className="space-y-1.5">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-3 w-56" />
+              </div>
             </div>
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-16 w-full" />
+            <div className="space-y-1.5">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-3 w-72" />
+            </div>
           </LaCard>
         }
-        aside={<Skeleton className={cn('h-40 w-full rounded-card')} />}
+        aside={<Skeleton className="h-28 w-full rounded-card" />}
       />
     </SetupBody>
   )

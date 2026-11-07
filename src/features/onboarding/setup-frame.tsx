@@ -4,20 +4,22 @@
  * footer bar (68 high).
  *
  * The stepper only checks a step that is really complete, from the same data as the Home
- * checklist: "Brand and business" when the brand profile has a voice, guidelines or glossary
- * (`brandProfileDone`); "Compliance defaults" never, because nothing on it can be saved yet.
+ * checklist: "Brand" when the brand profile has a voice, guidelines or glossary
+ * (`brandProfileDone`); "Manufacturer" when the brand manufacturer is saved (GET /brand-profile).
  */
 import type { ReactNode } from 'react'
 import { SETUP_CONTAINER } from '@/components/app/solo-shell'
 import { FooterBar } from '@/components/la/footer-bar'
 import { Stepper } from '@/components/la/progress'
 import { useBrandProfile } from '@/features/brand/api'
+import { useBrandManufacturer } from '@/features/products/api'
 import { cn } from '@/lib/utils'
 import { SETUP_STEPS, setupStepsDone } from './model'
 
 export function SetupBody({ step, children }: { step: 0 | 1 | 2; children: ReactNode }) {
   const profile = useBrandProfile()
-  const done = setupStepsDone(profile.data?.data)
+  const manufacturer = useBrandManufacturer()
+  const done = setupStepsDone(profile.data?.data, !!manufacturer.data?.data.default_manufacturer)
   return (
     <div className="flex flex-1 flex-col">
       <div className={cn(SETUP_CONTAINER, 'flex-1 pt-7 pb-10')}>
