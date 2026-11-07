@@ -57,9 +57,22 @@ describe('FixedForYouCard', () => {
     expect(items[1]!.textContent).toContain('Rewritten by the agent')
   })
 
-  it('opens at once when linked to from a chip', () => {
+  it('says which fixes are safe, and that facts are never made up', async () => {
+    render(<FixedForYouCard fixes={[fix(1)]} />)
+    await userEvent.click(screen.getByTestId('fixed-for-you-toggle'))
+    expect(screen.getByTestId('fixed-for-you').textContent).toContain(
+      'Kuinn fixes only safe things, like length, repeated keywords and value formats. It never makes up a product fact.',
+    )
+  })
+
+  it('opens at once when linked to from a chip, with focus on its toggle and no extra scroll', () => {
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus')
     render(<FixedForYouCard fixes={[fix(1)]} defaultOpen />)
-    expect(screen.getByTestId('fixed-for-you-toggle').getAttribute('aria-expanded')).toBe('true')
+    const toggle = screen.getByTestId('fixed-for-you-toggle')
+    expect(document.activeElement).toBe(toggle)
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true })
+    focus.mockRestore()
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByTestId('fixed-for-you-summary').textContent).toBe('1 issue fixed for you')
     expect(screen.getByTestId('fixed-for-you').id).toBe('fixed-for-you')
   })
@@ -85,5 +98,10 @@ describe('AutoFixedChip', () => {
     expect(chip.textContent).toBe('2 auto-fixed')
     expect(chip.getAttribute('href')).toBe('/listings/l1/review#fixed-for-you')
     expect(chip.getAttribute('aria-label')).toBe('2 issues fixed for you. See what changed.')
+  })
+
+  it('takes a marketplace label next to Approve all', () => {
+    render(<AutoFixedChip listingId="l2" count={2} label="Flipkart: 2 fixed" />)
+    expect(screen.getByTestId('auto-fixed-chip').textContent).toBe('Flipkart: 2 fixed')
   })
 })

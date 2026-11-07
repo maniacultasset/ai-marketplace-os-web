@@ -28,9 +28,13 @@ export function FixedForYouCard({
   const [open, setOpen] = useState(defaultOpen)
   const panelId = useId()
   const ref = useRef<HTMLDivElement>(null)
+  const toggleRef = useRef<HTMLButtonElement>(null)
   const shown = fixes.length > 0
+  // Opened from a link: bring it into view, and move focus to its toggle without a second jump.
   useEffect(() => {
-    if (defaultOpen && shown) ref.current?.scrollIntoView?.({ block: 'start' })
+    if (!defaultOpen || !shown) return
+    ref.current?.scrollIntoView?.({ block: 'start' })
+    toggleRef.current?.focus({ preventScroll: true })
   }, [defaultOpen, shown])
 
   if (error)
@@ -43,6 +47,7 @@ export function FixedForYouCard({
   return (
     <LaCard pad="none" ref={ref} id={FIXED_FOR_YOU_HASH} className="scroll-mt-20" data-testid="fixed-for-you">
       <button
+        ref={toggleRef}
         type="button"
         className="focus-ring flex min-h-12 w-full items-center gap-2.5 rounded-card px-4 py-3 text-left transition-colors duration-150 hover:bg-hover"
         aria-expanded={open}
@@ -92,7 +97,7 @@ export function FixedForYouCard({
             </li>
           ))}
         </ul>
-        <p className="mt-1 text-caption text-ink-3">Kuinn fixes only safe things, like length and spelling. It never makes up a product fact.</p>
+        <p className="mt-1 text-caption text-ink-3">Kuinn fixes only safe things, like length, repeated keywords and value formats. It never makes up a product fact.</p>
       </div>
     </LaCard>
   )
