@@ -17,7 +17,9 @@ import type { Schema } from '@/api/types'
 export type BarcodeType = Schema<'ProductIdentifierIn'>['type']
 type ProductCreate = Schema<'ProductCreate'>
 type ProductPatch = Schema<'ProductPatch'>
-type Product = Pick<Schema<'ProductOut'>, 'product_identifier' | 'identifier_exemption'>
+/** What the barcode rules read from a product or variant. */
+export type BarcodeHolder = Pick<Schema<'ProductOut'>, 'product_identifier' | 'identifier_exemption'>
+type Product = BarcodeHolder
 
 export const BARCODE_TYPES: readonly { value: BarcodeType; label: string }[] = [
   { value: 'ean', label: 'EAN' },
@@ -79,6 +81,8 @@ export interface BarcodeDraft {
   value: string
   /** "No barcode (exempt)": the brand declares a GTIN exemption for this product. */
   exempt: boolean
+  /** A style's switch was set by the person: its value is sent even when it matches what was read. */
+  touched?: boolean
 }
 
 export const emptyBarcode = (): BarcodeDraft => ({ type: 'ean', value: '', exempt: false })
@@ -96,6 +100,20 @@ export function reviveBarcode(raw: unknown): BarcodeDraft {
   return { type, value: typeof r.value === 'string' ? r.value : '', exempt: r.exempt === true }
 }
 
+/**
+ * A style's exemption as its variants hold it (the backend reads a style exempt only when every
+ * live variant is, and a variant with a barcode is never exempt). The switch is on when every
+ * variant without a barcode is exempt; `exemptCount` of `total` is shown on the detail card.
+ */
+export function styleExemption(variants: readonly Product[]): { exempt: boolean; exemptCount: number; total: number } {
+  const without = variants.filter((v) => !v.product_identifier)
+  const exemptCount = without.filter((v) => v.identifier_exemption === true).length
+  return { exempt: without.length > 0 && exemptCount === without.length, exemptCount, total: variants.length }
+}
+
+/** A style's barcode draft: only the exemption, read from its variants. */
+export const styleBarcode = (variants: readonly Product[]): BarcodeDraft => ({ ...emptyBarcode(), exempt: styleExemption(variants).exempt })
+
 /** Where a draft's barcode lives: a style holds only the exemption (it reaches its variants). */
 export type BarcodeLevel = 'item' | 'style'
 
@@ -112,7 +130,7 @@ export function barcodeCreateFields(d: BarcodeDraft, level: BarcodeLevel = 'item
  * fields at once: a barcode replaces an exemption on its own, and an exemption clears a barcode.
  */
 export function barcodePatchFields(base: BarcodeDraft, d: BarcodeDraft, level: BarcodeLevel = 'item'): Pick<ProductPatch, 'product_identifier' | 'identifier_exemption'> {
-  if (level === 'style') return d.exempt !== base.exempt ? { identifier_exemption: d.exempt } : {}
+  if (level === 'style') return d.touched ? { identifier_exemption: d.exempt } : {}
   if (d.exempt) return base.exempt ? {} : { identifier_exemption: true }
   const value = normalizeBarcode(d.value)
   const was = base.exempt ? '' : normalizeBarcode(base.value)
@@ -123,7 +141,8 @@ export function barcodePatchFields(base: BarcodeDraft, d: BarcodeDraft, level: B
 
 /** The same barcode state (for "changed" checks). */
 export const sameBarcode = (a: BarcodeDraft, b: BarcodeDraft) =>
-  a.exempt === b.exempt && (a.exempt || (normalizeBarcode(a.value) === normalizeBarcode(b.value) && (!normalizeBarcode(a.value) || a.type === b.type)))
+  a.exempt === b.exempt &&
+  !!a.touched === !!b.touched && (a.exempt || (normalizeBarcode(a.value) === normalizeBarcode(b.value) && (!normalizeBarcode(a.value) || a.type === b.type)))
 
 /** The form key every barcode error lands on. */
 export const BARCODE_KEY = 'barcode'

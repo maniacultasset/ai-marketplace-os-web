@@ -11,6 +11,7 @@ import {
   isBarcodeErrorKey,
   normalizeBarcode,
   reviveBarcode,
+  styleExemption,
   type BarcodeDraft,
 } from './barcode'
 
@@ -120,10 +121,40 @@ describe('patch body', () => {
     }
   })
   it('on a style sends only the exemption, which reaches its variants', () => {
-    expect(barcodePatchFields(none, exempt, 'style')).toEqual({ identifier_exemption: true })
-    expect(barcodePatchFields(exempt, none, 'style')).toEqual({ identifier_exemption: false })
+    expect(barcodePatchFields(none, { ...exempt, touched: true }, 'style')).toEqual({ identifier_exemption: true })
+    expect(barcodePatchFields(exempt, { ...none, touched: true }, 'style')).toEqual({ identifier_exemption: false })
     expect(barcodePatchFields(none, ean, 'style')).toEqual({})
   })
+  it('on a style sends the chosen value whenever the person set it, even if it matches what was read', () => {
+    // One variant has a barcode, so the style reads not exempt; turning it on again must still send.
+    expect(barcodePatchFields(exempt, { ...exempt, touched: true }, 'style')).toEqual({ identifier_exemption: true })
+    expect(barcodePatchFields(none, { ...none, touched: true }, 'style')).toEqual({ identifier_exemption: false })
+    expect(barcodePatchFields(none, exempt, 'style')).toEqual({})
+  })
+})
+
+describe('styleExemption (from the variants)', () => {
+  const v = (over: { product_identifier?: { type: 'ean'; value: string } | null; identifier_exemption?: boolean }) => ({
+    product_identifier: null,
+    identifier_exemption: false,
+    ...over,
+  })
+  it('is on when every variant without a barcode is exempt', () => {
+    expect(styleExemption([v({ identifier_exemption: true }), v({ product_identifier: { type: 'ean', value: EAN13 } })])).toEqual({
+      exempt: true,
+      exemptCount: 1,
+      total: 2,
+    })
+  })
+  it('is off when any variant without a barcode is not exempt, or none lacks one', () => {
+    expect(styleExemption([v({ identifier_exemption: true }), v({})]).exempt).toBe(false)
+    expect(styleExemption([v({ product_identifier: { type: 'ean', value: EAN13 } })]).exempt).toBe(false)
+    expect(styleExemption([])).toEqual({ exempt: false, exemptCount: 0, total: 0 })
+  })
+  it('never counts a variant with a barcode as exempt', () => {
+    expect(styleExemption([v({ product_identifier: { type: 'ean', value: EAN13 }, identifier_exemption: true }), v({})]).exemptCount).toBe(0)
+  })
+})
 })
 
 describe('server errors', () => {

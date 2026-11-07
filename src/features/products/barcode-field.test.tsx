@@ -51,6 +51,13 @@ describe('BarcodeField', () => {
     expect(screen.getByText(/Each variant has its own barcode/)).toBeTruthy()
     fireEvent.click(screen.getByRole('switch'))
     expect(screen.getByText(/Every variant without a barcode is marked exempt/)).toBeTruthy()
+    // A change on a style is always sent, even when it matches what was read.
+    expect(last.touched).toBe(true)
+  })
+
+  it('the EAN field says how many digits it takes', () => {
+    render(<Harness />)
+    expect(screen.getByPlaceholderText('8 or 13 digits')).toBeTruthy()
   })
 
   it('shows the error in place of the hint and marks the input', () => {

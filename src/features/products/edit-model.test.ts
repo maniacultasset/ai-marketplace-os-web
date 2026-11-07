@@ -180,7 +180,7 @@ describe('barcode edit', () => {
     const base = toEditDraft(product())
     expect(buildPatch(base, { ...base, barcode: { type: 'ean', value: EAN, exempt: false } }, false)).toEqual({ product_identifier: { type: 'ean', value: EAN } })
     expect(buildPatch(base, { ...base, barcode: { type: 'ean', value: EAN, exempt: true } }, false)).toEqual({ identifier_exemption: true })
-    expect(buildPatch(base, { ...base, barcode: { type: 'ean', value: EAN, exempt: true } }, false, 'style')).toEqual({ identifier_exemption: true })
+    expect(buildPatch(base, { ...base, barcode: { type: 'ean', value: EAN, exempt: true, touched: true } }, false, 'style')).toEqual({ identifier_exemption: true })
     expect(buildPatch(base, { ...base, barcode: { type: 'ean', value: EAN, exempt: false } }, false, 'style')).toEqual({})
   })
 

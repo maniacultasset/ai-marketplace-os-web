@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { categoryChoices, type CategoryLock } from '@/features/products/categories'
 import { type ProductDetail } from '@/features/products/api'
-import { formatBarcode } from '@/features/products/barcode'
+import { formatBarcode, styleExemption, type BarcodeHolder } from '@/features/products/barcode'
 import { BarcodeField } from '@/features/products/barcode-field'
 import { editableAttrs, type ManufacturerSource } from '@/features/products/edit-model'
 import { CompositionEditor, MoneyField, PartyFields, PickOrOtherField, SizeChartEditor, TextField } from '@/features/products/intake-fields'
@@ -66,11 +66,23 @@ function Row({ k, attr, children }: { k: string; attr?: string; children: ReactN
   )
 }
 
+/** A style holds no barcode: say how many of its variants are exempt (a variant with one never is). */
+function StyleBarcode({ variants }: { variants: readonly BarcodeHolder[] }) {
+  const { exemptCount, total } = styleExemption(variants)
+  if (!total || !exemptCount) return <span className="text-ink-2">Set on each variant</span>
+  return (
+    <span className="tabular-nums" data-testid="product-barcode">
+      {exemptCount} of {total} {total === 1 ? 'variant' : 'variants'} exempt
+    </span>
+  )
+}
+
 /** The saved values. `onEdit` is absent when the person may not edit (no product:import). */
 export function ProductDetailsCard({
   product,
   isVariant,
   isStyle = false,
+  variants = [],
   source,
   onEdit,
 }: {
@@ -78,6 +90,8 @@ export function ProductDetailsCard({
   isVariant: boolean
   /** The product has variants: each one holds its own barcode. */
   isStyle?: boolean
+  /** A style's variants, for the exemption count. */
+  variants?: readonly BarcodeHolder[]
   source: ManufacturerSource
   onEdit?: () => void
 }) {
@@ -130,10 +144,10 @@ export function ProductDetailsCard({
               <span className="font-mono tabular-nums" data-testid="product-barcode">
                 {formatBarcode(product.product_identifier)}
               </span>
-            ) : product.identifier_exemption ? (
-              <span data-testid="product-barcode">{isStyle ? 'No barcodes (exempt)' : 'No barcode (exempt)'}</span>
             ) : isStyle ? (
-              <span className="text-ink-2">Set on each variant</span>
+              <StyleBarcode variants={variants} />
+            ) : product.identifier_exemption ? (
+              <span data-testid="product-barcode">No barcode (exempt)</span>
             ) : (
               <Missing>Needed for Amazon</Missing>
             )}

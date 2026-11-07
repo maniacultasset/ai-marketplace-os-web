@@ -82,7 +82,7 @@ export function BarcodeField({
               inputMode="numeric"
               autoComplete="off"
               spellCheck={false}
-              placeholder={value.type === 'upc' ? '12 digits' : value.type === 'ean' ? '13 digits' : '8 to 14 digits'}
+              placeholder={value.type === 'upc' ? '12 digits' : value.type === 'ean' ? '8 or 13 digits' : '8 to 14 digits'}
               maxLength={24}
               className="min-w-0 flex-1 font-mono tabular-nums"
               aria-invalid={error ? true : undefined}
@@ -95,7 +95,7 @@ export function BarcodeField({
             id={exemptId}
             checked={value.exempt}
             onCheckedChange={(exempt) => {
-              onChange({ ...value, exempt })
+              onChange(style ? { ...value, exempt, touched: true } : { ...value, exempt })
               onBlur?.()
             }}
             aria-describedby={showDigits ? undefined : fieldHintId(exemptId)}
