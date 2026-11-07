@@ -6,7 +6,6 @@ import { useQueries } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import type { Schema } from '@/api/types'
 import { CardHead, Icon, LaCard } from '@/components/la'
-import { Skeleton } from '@/components/ui/skeleton'
 import { productQuery } from '@/features/products/api'
 import { useKeys } from '@/lib/query-keys'
 import { detailIdsToRead, needsPhotos } from './needs-photos'
@@ -19,13 +18,9 @@ export function NeedsPhotosCard({ products }: { products: readonly Schema<'Produ
   const byId = new Map(ids.map((id, i) => [id, details[i]?.data]))
   const { missing, unknown } = needsPhotos(products, byId)
   const loading = details.some((d) => d.isPending)
-  if (loading)
-    return (
-      <LaCard className="mt-4" aria-busy="true" aria-label="Checking photos">
-        <Skeleton className="h-5 w-40" />
-        <Skeleton className="mt-3 h-4 w-3/4" />
-      </LaCard>
-    )
+  // Nothing until every read has answered: a placeholder that may then vanish (every product
+  // has a main) would move the page below it.
+  if (loading) return null
   if (!missing.length && !unknown) return null
   const shown = missing.slice(0, 20)
   return (

@@ -11,6 +11,8 @@ vi.mock('@tanstack/react-router', () => ({
     </a>
   ),
 }))
+// Unseeded product reads stay in flight.
+vi.mock('@/api/client', async (orig) => ({ ...(await orig<typeof import('@/api/client')>()), api: { GET: () => new Promise(() => {}) } }))
 vi.mock('@/lib/auth', async (orig) => ({ ...(await orig<typeof import('@/lib/auth')>()), useSession: () => ({ tenantId: 't1' }) }))
 
 const { NeedsPhotosCard } = await import('./needs-photos-card')
@@ -57,5 +59,11 @@ describe('NeedsPhotosCard', () => {
     const p = product('b', ['k1'])
     setup([p], { b: { ...p, image_details: [{ image_id: 'i1', slot: 'main', position: 0, status: 'ready', compliance_status: 'passed' }] } })
     expect(screen.queryByTestId('needs-photos')).toBeNull()
+  })
+
+  it('renders nothing while the photo reads are in flight, so nothing appears and then vanishes', () => {
+    setup([product('a'), product('b', ['k1'])])
+    expect(screen.queryByTestId('needs-photos')).toBeNull()
+    expect(screen.queryByLabelText('Checking photos')).toBeNull()
   })
 })
