@@ -391,14 +391,6 @@ function LoadedDetail({ data, tab, tabsRef }: { data: DetailData; tab: DetailTab
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <UnavailableButton variant="ghost" size="sm" reason={NOT_YET.pauseArchive}>
-            <Icon name="pause" size={16} />
-            Pause
-          </UnavailableButton>
-          <UnavailableButton variant="ghost" size="sm" reason="Resubmitting a whole product is not available yet. Open a listing to retry it.">
-            <Icon name="refresh" size={16} />
-            Resubmit
-          </UnavailableButton>
           {canEdit && !editing ? (
             <Button
               variant="ghost"

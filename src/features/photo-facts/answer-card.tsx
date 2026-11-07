@@ -11,7 +11,6 @@
 import { Link } from '@tanstack/react-router'
 import { useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Banner, fieldHintId, Icon, LaField, SourceBadge } from '@/components/la'
-import { UnavailableButton } from '@/components/la/unavailable'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
@@ -196,9 +195,6 @@ export function AnswerCard({ task, onOutcome }: { task: Task; onOutcome: (o: Ans
                 Skip this question
               </Button>
             ) : null}
-            <UnavailableButton reason="Assigning a question to a teammate is not available yet." variant="ghost" size="lg">
-              Ask a teammate
-            </UnavailableButton>
           </div>
           <p className="text-caption text-ink-3">
             {isPhotoQuestion(task)

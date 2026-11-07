@@ -3,7 +3,7 @@
  *   tiles + marketplace cards  GET /listings (walked, capped), GET /tasks, GET /issues,
  *                              GET /marketplaces/accounts
  *   first run                  GET /tenants/me, GET /marketplaces/accounts, GET /products?limit=1
- * "What the agent did" has no API (no tenant-wide activity feed) and says so.
+ * "What the agent did" links to /activity, where each listing's real history opens.
  */
 import { Link } from '@tanstack/react-router'
 import { useEffect, useState, type ReactNode } from 'react'
@@ -14,7 +14,7 @@ import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { Icon, IconGlyph, IconTile } from '@/components/la/icons'
 import { MARKETPLACES, MarketplaceTile, type MarketplaceId } from '@/components/la/marketplace'
 import { StatusChip } from '@/components/la/status-chip'
-import { ComingSoon, NOT_YET, UnavailableButton } from '@/components/la/unavailable'
+import { NOT_YET, UnavailableButton } from '@/components/la/unavailable'
 import { ErrorState } from '@/components/states'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -226,14 +226,13 @@ function DashboardBody({
 
       <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <WaitingCard tasks={tasks} issues={issues} total={fmtCount({ n: tasksCount.n + issuesCount.n, more: tasksCount.more || issuesCount.more })} approve={snapshot.approve} publish={snapshot.publish} />
-        {/* Not built yet: a flat tint card so it recedes behind the live cards. */}
-        <LaCard emphasis="tint" data-testid="agent-feed">
-          <CardHead title="What the agent did" icon="activity" iconTone="neutral" action={<ComingSoon />} />
+        <LaCard data-testid="agent-feed">
+          <CardHead title="What the agent did" icon="activity" iconTone="neutral" />
           <p className="mt-3 max-w-[52ch] text-small text-ink-2">
-            {NOT_YET.activityFeed} Open a product to see what happened to each of its listings, step by step.
+            Each listing keeps its own history: what the agent did, who approved it and what the marketplace said.
           </p>
           <Button asChild variant="secondary" size="sm" className="mt-4">
-            <Link to="/products">Open Products</Link>
+            <Link to="/activity">Open Activity</Link>
           </Button>
         </LaCard>
       </div>

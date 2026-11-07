@@ -409,10 +409,6 @@ export function ProductsPage() {
         description={<span data-testid="products-count">{sub}</span>}
         actions={
           <>
-            <UnavailableButton variant="secondary" reason={NOT_YET.export}>
-              <Icon name="download" size={16} />
-              Export
-            </UnavailableButton>
             <Can action="product:import">
               <Button asChild>
                 <Link to="/add" data-testid="new-product">
@@ -561,15 +557,6 @@ export function ProductsPage() {
         }
         bulkBar={(selected, clearSelection) => (
           <BulkBar count={selected.length} onClear={clearSelection}>
-            <UnavailableButton variant="secondary" size="sm" reason={NOT_YET.pauseArchive}>
-              Pause
-            </UnavailableButton>
-            <UnavailableButton variant="secondary" size="sm" reason="Resubmitting from the catalog is not available yet. Open a listing to retry it.">
-              Resubmit
-            </UnavailableButton>
-            <UnavailableButton variant="secondary" size="sm" reason={NOT_YET.pauseArchive}>
-              Archive
-            </UnavailableButton>
             {canGenerate ? (
               <Button size="sm" onClick={() => setAdding(selected)} data-testid="bulk-add-marketplace">
                 Add marketplace

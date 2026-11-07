@@ -5,7 +5,7 @@
  *   - Marketplaces: the product's listings (GET /listings?product_id=), the job's progress_pct on
  *     its own lane; supported marketplaces with no listing offer "List on <marketplace>";
  *   - Agent log: GET /listings/{id}/history plus the job's own start and finish.
- * Pause is not in the API: disabled with the reason.
+ * Pause has no API and is not shown.
  */
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
@@ -18,15 +18,12 @@ import { Page } from '@/components/app/page-header'
 import {
   Banner,
   CardHead,
-  Icon,
   LaCard,
   MarketplaceTile,
-  NOT_YET,
   ProgressBar,
   Segmented,
   StatusChip,
   SUPPORTED_MARKETPLACES,
-  UnavailableButton,
 } from '@/components/la'
 import { ErrorState } from '@/components/states/error-state'
 import { NotFound } from '@/components/states/not-found'
@@ -202,13 +199,6 @@ function RunBody({
     .filter(Boolean)
     .join(' · ')
 
-  const pause = (
-    <UnavailableButton variant="secondary" reason={NOT_YET.pauseArchive} data-testid="run-pause">
-      <Icon name="pause" size={14} />
-      Pause
-    </UnavailableButton>
-  )
-
   return (
     <Page>
       <ScreenHead
@@ -238,7 +228,6 @@ function RunBody({
                 {cancel.isPending ? 'Cancelling…' : 'Cancel'}
               </Button>
             ) : null}
-            {pause}
             {ready ? (
               <Button asChild data-testid="run-review">
                 <Link to="/listings/$listingId/review" params={{ listingId }}>
