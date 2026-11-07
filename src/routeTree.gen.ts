@@ -11,9 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/_app'
+import { Route as InviteRouteImport } from './routes/invite'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AppSplatRouteImport } from './routes/_app/$'
@@ -33,6 +35,7 @@ import { Route as AppAddIndexRouteImport } from './routes/_app/add/index'
 import { Route as AppAddBulkRouteImport } from './routes/_app/add/bulk'
 import { Route as AppAddGuidedRouteImport } from './routes/_app/add/guided'
 import { Route as AppAddVariantsRouteImport } from './routes/_app/add/variants'
+import { Route as AppAdminBrandsRouteImport } from './routes/_app/admin/brands'
 import { Route as AppAdminSignupsRouteImport } from './routes/_app/admin/signups'
 import { Route as AppImportsIndexRouteImport } from './routes/_app/imports/index'
 import { Route as AppImportsImportIdRouteImport } from './routes/_app/imports/$importId'
@@ -68,6 +71,11 @@ const AppRoute = AppRouteImport.update({
   id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InviteRoute = InviteRouteImport.update({
+  id: '/invite',
+  path: '/invite',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -81,6 +89,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
   id: '/privacy-policy',
   path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignupRoute = SignupRouteImport.update({
@@ -175,6 +188,11 @@ const AppAddGuidedRoute = AppAddGuidedRouteImport.update({
 const AppAddVariantsRoute = AppAddVariantsRouteImport.update({
   id: '/add/variants',
   path: '/add/variants',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAdminBrandsRoute = AppAdminBrandsRouteImport.update({
+  id: '/admin/brands',
+  path: '/admin/brands',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAdminSignupsRoute = AppAdminSignupsRouteImport.update({
@@ -313,9 +331,11 @@ const AppListingsListingIdReviewRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRouteWithChildren
   '/terms': typeof TermsRoute
   '/$': typeof AppSplatRoute
@@ -333,6 +353,7 @@ export interface FileRoutesByFullPath {
   '/add/bulk': typeof AppAddBulkRoute
   '/add/guided': typeof AppAddGuidedRoute
   '/add/variants': typeof AppAddVariantsRoute
+  '/admin/brands': typeof AppAdminBrandsRoute
   '/admin/signups': typeof AppAdminSignupsRoute
   '/imports/$importId': typeof AppImportsImportIdRoute
   '/imports/new': typeof AppImportsNewRoute
@@ -362,9 +383,11 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
   '/$': typeof AppSplatRoute
   '/about': typeof AppAboutRoute
@@ -381,6 +404,7 @@ export interface FileRoutesByTo {
   '/add/bulk': typeof AppAddBulkRoute
   '/add/guided': typeof AppAddGuidedRoute
   '/add/variants': typeof AppAddVariantsRoute
+  '/admin/brands': typeof AppAdminBrandsRoute
   '/admin/signups': typeof AppAdminSignupsRoute
   '/imports/$importId': typeof AppImportsImportIdRoute
   '/imports/new': typeof AppImportsNewRoute
@@ -412,9 +436,11 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
+  '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRouteWithChildren
   '/terms': typeof TermsRoute
   '/_app/$': typeof AppSplatRoute
@@ -433,6 +459,7 @@ export interface FileRoutesById {
   '/_app/add/bulk': typeof AppAddBulkRoute
   '/_app/add/guided': typeof AppAddGuidedRoute
   '/_app/add/variants': typeof AppAddVariantsRoute
+  '/_app/admin/brands': typeof AppAdminBrandsRoute
   '/_app/admin/signups': typeof AppAdminSignupsRoute
   '/_app/imports/$importId': typeof AppImportsImportIdRoute
   '/_app/imports/new': typeof AppImportsNewRoute
@@ -464,9 +491,11 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/invite'
     | '/login'
     | '/privacy'
     | '/privacy-policy'
+    | '/reset-password'
     | '/signup'
     | '/terms'
     | '/$'
@@ -484,6 +513,7 @@ export interface FileRouteTypes {
     | '/add/bulk'
     | '/add/guided'
     | '/add/variants'
+    | '/admin/brands'
     | '/admin/signups'
     | '/imports/$importId'
     | '/imports/new'
@@ -513,9 +543,11 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/invite'
     | '/login'
     | '/privacy'
     | '/privacy-policy'
+    | '/reset-password'
     | '/terms'
     | '/$'
     | '/about'
@@ -532,6 +564,7 @@ export interface FileRouteTypes {
     | '/add/bulk'
     | '/add/guided'
     | '/add/variants'
+    | '/admin/brands'
     | '/admin/signups'
     | '/imports/$importId'
     | '/imports/new'
@@ -562,9 +595,11 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_app'
+    | '/invite'
     | '/login'
     | '/privacy'
     | '/privacy-policy'
+    | '/reset-password'
     | '/signup'
     | '/terms'
     | '/_app/$'
@@ -583,6 +618,7 @@ export interface FileRouteTypes {
     | '/_app/add/bulk'
     | '/_app/add/guided'
     | '/_app/add/variants'
+    | '/_app/admin/brands'
     | '/_app/admin/signups'
     | '/_app/imports/$importId'
     | '/_app/imports/new'
@@ -614,9 +650,11 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
+  InviteRoute: typeof InviteRoute
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRouteWithChildren
   TermsRoute: typeof TermsRoute
   AuthGoogleRoute: typeof AuthGoogleRoute
@@ -638,6 +676,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/invite': {
+      id: '/invite'
+      path: '/invite'
+      fullPath: '/invite'
+      preLoaderRoute: typeof InviteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -657,6 +702,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy-policy'
       fullPath: '/privacy-policy'
       preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/signup': {
@@ -790,6 +842,13 @@ declare module '@tanstack/react-router' {
       path: '/add/variants'
       fullPath: '/add/variants'
       preLoaderRoute: typeof AppAddVariantsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/admin/brands': {
+      id: '/_app/admin/brands'
+      path: '/admin/brands'
+      fullPath: '/admin/brands'
+      preLoaderRoute: typeof AppAdminBrandsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/admin/signups': {
@@ -1009,6 +1068,7 @@ interface AppRouteChildren {
   AppAddBulkRoute: typeof AppAddBulkRoute
   AppAddGuidedRoute: typeof AppAddGuidedRoute
   AppAddVariantsRoute: typeof AppAddVariantsRoute
+  AppAdminBrandsRoute: typeof AppAdminBrandsRoute
   AppAdminSignupsRoute: typeof AppAdminSignupsRoute
   AppImportsImportIdRoute: typeof AppImportsImportIdRoute
   AppImportsNewRoute: typeof AppImportsNewRoute
@@ -1042,6 +1102,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAddBulkRoute: AppAddBulkRoute,
   AppAddGuidedRoute: AppAddGuidedRoute,
   AppAddVariantsRoute: AppAddVariantsRoute,
+  AppAdminBrandsRoute: AppAdminBrandsRoute,
   AppAdminSignupsRoute: AppAdminSignupsRoute,
   AppImportsImportIdRoute: AppImportsImportIdRoute,
   AppImportsNewRoute: AppImportsNewRoute,
@@ -1082,9 +1143,11 @@ const SignupRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
+  InviteRoute: InviteRoute,
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRouteWithChildren,
   TermsRoute: TermsRoute,
   AuthGoogleRoute: AuthGoogleRoute,

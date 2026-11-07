@@ -7,8 +7,10 @@
  * site) is useless in any other browser. The secret never goes in a URL, and it is removed from
  * storage the moment /auth/google reads it; after that it lives in component memory only.
  *
- * The intent (sign in or sign up) is kept here too. It only picks the copy on /auth/google; the
- * server never sees it and it never changes what the server allows.
+ * The intent (sign in, sign up, or accept an invite) is kept here too. It picks the copy on
+ * /auth/google, and for `invite` a new Google account accepts the invite whose token waits in this
+ * tab (features/team-account/access-model.ts `inviteStash`). The server never sees the intent and
+ * it never changes what the server allows.
  */
 import { safeRedirect } from '@/lib/redirect'
 
@@ -16,12 +18,13 @@ const KEY = 'gsi'
 /** Always relative: the API is reached through the same-origin `/api` rewrite, never another host. */
 export const GOOGLE_START_PATH = '/api/v1/auth/google/start'
 
-export type GoogleIntent = 'login' | 'signup'
+export type GoogleIntent = 'login' | 'signup' | 'invite'
 
 /** Google's own button wording for each intent. */
 export const GOOGLE_LABEL: Record<GoogleIntent, string> = {
   login: 'Continue with Google',
   signup: 'Sign up with Google',
+  invite: 'Continue with Google',
 }
 
 export interface GoogleTicket {
@@ -97,7 +100,7 @@ export function takeTicket(): GoogleTicket | null {
     return {
       bind: t.bind,
       returnTo: safeRedirect(t.returnTo),
-      intent: t.intent === 'signup' ? 'signup' : 'login',
+      intent: t.intent === 'signup' || t.intent === 'invite' ? t.intent : 'login',
     }
   } catch {
     return null

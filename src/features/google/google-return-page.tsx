@@ -9,6 +9,9 @@
  *   needs_details  no account yet: a short sign-up form, prefilled from Google
  *   pending        a Google sign-up waiting for review: the status card
  *
+ * Started from an invite (intent `invite`), `needs_details` accepts that invite instead of the
+ * sign-up form (invite-google.tsx).
+ *
  * Every refusal (a Workspace or admin account, a locked account, an unverified identity) is one
  * sentence, so the page never tells anyone which accounts exist.
  */
@@ -40,6 +43,7 @@ import { useCountdown } from '@/features/signup-admin/use-countdown'
 import { collapseSpaces, filterInput, FORM_VALIDATION_MODE, normalizeWebsite, phoneChars } from '@/lib/validation'
 import { linkGoogle, signupGoogle, type GoogleDetails, type GoogleLink, type GoogleSignupFields } from './api'
 import { GoogleButton } from './google-button'
+import { InviteGoogleAccept } from './invite-google'
 import { isCoarsePointer } from '@/lib/pointer'
 import { brandNameFrom, ownerNameFrom } from './prefill'
 import { captureReturn, completeOnce, reasonFor, type GoogleErrorReason } from './return-state'
@@ -57,6 +61,7 @@ type View =
   | { kind: 'steps' }
   | { kind: 'link'; link: GoogleLink }
   | { kind: 'details'; details: GoogleDetails; showForm: boolean }
+  | { kind: 'invite'; details: GoogleDetails }
   | { kind: 'status'; status: SignupStatusOut; sent: boolean }
 
 export function GoogleReturnPage({ search }: { search: { handle?: string; error?: string } }) {
@@ -110,6 +115,7 @@ export function GoogleReturnPage({ search }: { search: { handle?: string; error?
         }
         if (out.outcome === 'needs_details' && out.details) {
           setEmail(out.details.email)
+          if (cap.ticket.intent === 'invite') return setView({ kind: 'invite', details: out.details })
           return setView({ kind: 'details', details: out.details, showForm: cap.ticket.intent === 'signup' })
         }
         if (out.outcome === 'pending' && out.signup) return setView({ kind: 'status', status: out.signup, sent: false })
@@ -153,6 +159,8 @@ export function GoogleReturnPage({ search }: { search: { handle?: string; error?
       )
     case 'status':
       return <GoogleStatus status={view.status} email={email} sent={view.sent} />
+    case 'invite':
+      return <InviteGoogleAccept details={view.details} bind={ticket!.bind} />
   }
 }
 
@@ -165,7 +173,7 @@ function Loading({ intent }: { intent: GoogleIntent }) {
       <AuthCard size="sm" testId="google-loading">
         <div role="status" className="flex flex-col items-center gap-4 py-8 text-center">
           <Spinner className="size-6 text-brand" role="presentation" aria-hidden />
-          <p className="text-body font-semibold text-ink">{intent === 'signup' ? 'Checking your Google account…' : 'Signing you in with Google…'}</p>
+          <p className="text-body font-semibold text-ink">{intent === 'login' ? 'Signing you in with Google…' : 'Checking your Google account…'}</p>
         </div>
       </AuthCard>
     </AuthFrame>
@@ -239,12 +247,21 @@ function ErrorView({ reason, message, reference, intent }: { reason: GoogleError
         </StepHeader>
         {reference ? <FormAlert tone="info" message="If this keeps happening, contact support with this reference." reference={reference} /> : null}
         <div className="flex flex-col gap-3">
-          {retry ? <GoogleButton intent={intent} returnTo={null} /> : null}
-          <Button asChild size="lg" variant={retry ? 'secondary' : 'primary'} className="w-full">
-            <Link to={signup ? '/signup' : '/login'} data-testid="google-error-login">
-              {signup ? 'Sign up with email' : 'Sign in with email'}
-            </Link>
-          </Button>
+          {retry ? <GoogleButton intent={intent} returnTo={intent === 'invite' ? '/invite' : null} /> : null}
+          {intent === 'invite' ? (
+            // The invite still waits in this tab: go back to it (a password works there too).
+            <Button asChild size="lg" variant={retry ? 'secondary' : 'primary'} className="w-full">
+              <Link to="/invite" data-testid="google-error-invite">
+                Back to the invite
+              </Link>
+            </Button>
+          ) : (
+            <Button asChild size="lg" variant={retry ? 'secondary' : 'primary'} className="w-full">
+              <Link to={signup ? '/signup' : '/login'} data-testid="google-error-login">
+                {signup ? 'Sign up with email' : 'Sign in with email'}
+              </Link>
+            </Button>
+          )}
         </div>
       </AuthCard>
     </AuthFrame>

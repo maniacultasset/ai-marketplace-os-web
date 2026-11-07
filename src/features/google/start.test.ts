@@ -68,4 +68,9 @@ describe('startGoogle / takeTicket', () => {
     await expect(startGoogle({ intent: 'login' }, go)).rejects.toBeInstanceOf(StorageBlockedError)
     expect(go).not.toHaveBeenCalled()
   })
+
+  it('keeps the invite intent, so a new Google account accepts the invite', async () => {
+    await startGoogle({ intent: 'invite', returnTo: '/invite' }, vi.fn())
+    expect(takeTicket()).toMatchObject({ intent: 'invite', returnTo: '/invite' })
+  })
 })
