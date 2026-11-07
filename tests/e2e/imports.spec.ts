@@ -201,6 +201,8 @@ test.describe('imports', () => {
     await expect(cats).toContainText('tshirts')
     // The seeded Bharat Home sells a lamp, so lamps are offered to it.
     await expect(cats).toContainText('home_decor_lamps')
+    // The import refuses any other category row by row (services/imports/runner.py).
+    await expect(cats).toContainText('Rows with any other category fail with CATEGORY_NOT_MAPPED.')
     await page.getByRole('button', { name: 'All accepted columns' }).click()
     const groups = page.getByTestId('column-group')
     await expect(groups.locator('h3')).toContainText(['Identity', 'Classification', 'Attributes', 'Care', 'Compliance', 'Commercial', 'Media', 'Content', 'Marketplace', 'Workflow'])

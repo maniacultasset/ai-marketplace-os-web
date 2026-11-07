@@ -306,8 +306,8 @@ export function UploadForm() {
           <h3 className={GUIDE_HEADING}>Categories the agent can list</h3>
           <CategoryCodes brandCategories={brandCategories} />
           <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">
-            Put the code in the <code className={INLINE_CODE}>category</code> column. Rows with any other category import, but the
-            agent can’t list them (<code className={INLINE_CODE}>CATEGORY_NOT_MAPPED</code>).
+            Put the code in the <code className={INLINE_CODE}>category</code> column. Rows with any other category fail with{' '}
+            <code className={INLINE_CODE}>CATEGORY_NOT_MAPPED</code>.
           </p>
         </section>
 

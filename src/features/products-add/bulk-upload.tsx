@@ -184,7 +184,7 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
                 Required: {REQUIRED_COLUMNS.join(', ')}. Up to {MAX_IMPORT_ROWS.toLocaleString('en-IN')} rows and 10 MB.
               </p>
               <h3 className="mt-4 text-small font-bold text-ink">Category column</h3>
-              <p className="mt-1 text-small text-ink-2">Use one of these codes. The agent can’t list any other category.</p>
+              <p className="mt-1 text-small text-ink-2">Use one of these codes. Rows with any other category fail.</p>
               <CategoryCodes className="mt-2" brandCategories={brandCategories} />
             </LaCard>
             <LaCard emphasis="tint">
