@@ -4,7 +4,7 @@
  * chart table and the manufacturer address. They are controlled and stateless about rules: the
  * caller passes the values and the keyed errors from `intake-model` / `guided-model`.
  */
-import { useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { fieldHintId, Icon, LaField, Segmented } from '@/components/la'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -296,6 +296,13 @@ export function CompositionEditor({
 }) {
   const listId = `${id}-fibres`
   const shown = rows.length ? rows : [{ fibre: '', percent: '' }]
+  /** After "Add fibre", the new row's fibre input takes focus once it has rendered. */
+  const focusRow = useRef<number | null>(null)
+  useEffect(() => {
+    if (focusRow.current === null) return
+    document.getElementById(`${id}-${focusRow.current}-fibre`)?.focus()
+    focusRow.current = null
+  })
   const total = compositionTotal(rows)
   const filled = rows.some((r) => r.fibre.trim() || r.percent.trim())
   const set = (i: number, patch: Partial<FibreRow>) => onChange(shown.map((r, j) => (j === i ? { ...r, ...patch } : r)))
@@ -383,7 +390,10 @@ export function CompositionEditor({
             size="sm"
             className="-ml-2"
             disabled={shown.length >= MAX_FIBRES}
-            onClick={() => onChange([...shown, { fibre: '', percent: total < 1000 ? formatTenths(1000 - total) : '' }])}
+            onClick={() => {
+              focusRow.current = shown.length
+              onChange([...shown, { fibre: '', percent: total < 1000 ? formatTenths(1000 - total) : '' }])
+            }}
           >
             <Icon name="plus" size={16} />
             Add fibre

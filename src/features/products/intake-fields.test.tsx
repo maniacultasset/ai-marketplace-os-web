@@ -23,6 +23,8 @@ describe('intake editors', () => {
     fireEvent.click(screen.getByRole('button', { name: /Add fibre/ }))
     expect((screen.getByLabelText('Percent of fibre 2') as HTMLInputElement).value).toBe('40')
     expect(screen.getByText('100% of 100%')).toBeTruthy()
+    // Focus moves to the new row's fibre, ready to type.
+    expect(document.activeElement).toBe(screen.getByLabelText('Fibre 2'))
   })
 
   it('size chart adds a common size once', () => {
