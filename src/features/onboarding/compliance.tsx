@@ -15,9 +15,9 @@ import { OP_ACTION, useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 
 /** The brand manufacturer card, editable with settings:manage (PATCH /brand-profile). */
-export function BrandManufacturer() {
+export function BrandManufacturer({ onEditingChange }: { onEditingChange?: (editing: boolean) => void }) {
   const can = useCan()
-  return <ManufacturerCard canEdit={can(OP_ACTION['PATCH /brand-profile'])} />
+  return <ManufacturerCard canEdit={can(OP_ACTION['PATCH /brand-profile'])} onEditingChange={onEditingChange} />
 }
 
 /** Right column: where each declaration comes from, and the not-legal-advice note. */
