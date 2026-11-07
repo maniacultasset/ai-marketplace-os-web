@@ -166,7 +166,7 @@ The shadcn kit in `src/components/ui` is restyled to the tokens. The Kuinn piece
 | `LaField` | `la/field` | Label 13 bold, hint 12 ink-3, error replaces the hint. `source` puts a badge on the hint line. `needsInput` adds the attention border and tint. `critical` adds the critical-fact star icon. `hintAction` is for the inline Confirm button. |
 | `StatusChip` | `la/status-chip` | `draft working ready live partly-live needs-you blocked error paused not-listed`. Each has a glyph and a word, never colour alone. Pass `iconOnly` with `label` for dense cells (24px, tooltip). `TagChip` is for "Recommended" and "Later". |
 | `listingChip(listing)` | `lib/listing-chip` | The only mapping from `ListingStatus` and `MarketplaceState` to a chip. **Live is shown only when `marketplace_state` is `live`.** |
-| `SourceBadge` | `la/source-badge` | `you`, `brand-profile`, `rule`, `agent` (always shows confidence), `confirmed`, `needed`. An agent badge on a critical fact needs a Confirm action. |
+| `SourceBadge` | `la/source-badge` | `you`, `brand-profile`, `rule`, `agent` (always shows confidence), `photo` ("From photo", until confirmed), `confirmed`, `needed`. An agent badge on a critical fact needs a Confirm action. Photo confidence is said in words before the value ("Looks like V-neck"), never as a bare percent. |
 | `Banner` | `la/banner` | `tone` info, success, attention, danger or neutral; optional `action`. Copy says what happened and the one next action. |
 | `MarketplaceTile`, `MarketplaceName`, `MarketplaceCell`, `VariantCell`, `MARKETPLACES` | `la/marketplace` | All six marketplaces from the design. Only `supported` ones (amazon, flipkart) exist in the API. The cell is an icon-only chip with the listing id in 12px ink-3 under it. The variant cell is 34px, and "not made" cells are dashed. |
 | `LaCard`, `CardHead`, `AttentionCard`, `DashedCard`, `TaskRow`, `MetricTile` | `la/cards` | `emphasis` default, attention, success, selected (raised md), dashed or tint (flat). `CardHead icon=… iconTone=…` adds a 36px icon tile. Never nest cards. |
@@ -229,7 +229,7 @@ features. The owner restyles them to this system.
 | `/add/bulk` | `routes/_app/add/bulk.tsx` | add | built to p11 (`/imports/*`, `/jobs/$jobId` still work) |
 | `/runs/$runId` (p12; the run id is the listing job id, GET /jobs/{id}) | `routes/_app/runs/$runId.tsx` → `features/listing-flow/agent-run.tsx` | listing-flow | built |
 | `/listings/$listingId/review` (p13), `/listings/$listingId/live` (p14) | `routes/_app/listings/$listingId/*` → `features/listing-flow/review.tsx`, `live.tsx` | listing-flow | built |
-| `/inbox` | `routes/_app/inbox.tsx` → `features/home-inbox/inbox-page.tsx` | home-inbox | built (p15, p15b; answering disabled, no API) |
+| `/inbox` | `routes/_app/inbox.tsx` → `features/home-inbox/inbox-page.tsx` | home-inbox | built (p15, p15b; fact questions answered with `features/photo-facts/answer-card.tsx`, other kinds disabled) |
 | `/issues/$issueId` | `routes/_app/issues/$issueId.tsx` → `features/home-inbox/issue-detail-page.tsx` | home-inbox | built (p16; pass `?listing=<listing_id>` when linking, the API has no GET /issues/{id}) |
 | `/marketplaces`, `/marketplaces/connected` | `routes/_app/marketplaces/*` | marketplaces | working, restyle to p04 |
 | `/activity` | `routes/_app/activity.tsx` | activity | placeholder (no tenant-wide feed: per-listing history only) |
@@ -243,7 +243,7 @@ Use `NOT_YET.*` sentences from `la/unavailable`.
 
 - **Disabled with a reason, where the design puts the control:** Google sign-in and email code (p01), "Read my
   site" (p02), pickup locations and brand-authorisation upload (p04), photo, URL and catalog-export intake
-  (p08, "PIM or ERP" shows "Later"), product search, export, pause, archive and resubmit (p07), answering tasks (p15),
+  (p08, "PIM or ERP" shows "Later"), product search, export, pause, archive and resubmit (p07), answering tasks other than fact questions and assigning any (p15),
   the notifications bell, and the Notifications and Audit log settings.
 - **"Join waitlist" disabled, plus a Not available chip:** Myntra, AJIO, Meesho and Nykaa (p04, p06, p17). The
   waitlist API does not exist, so the waitlist cannot capture interest yet.

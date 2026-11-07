@@ -79,7 +79,7 @@ const created = await unwrap(api.POST('/products', { body }))
   BroadcastChannel) and replay are automatic. Never call `/auth/refresh` yourself.
 - Idempotency: every op in `IDEMPOTENT_OPS` (`src/api/idempotency.ts`, unit-tested equal to the contract's
   required `Idempotency-Key` headers): products bulk, import row retry, brand document upload, image upload,
-  listings generate/regenerate/approve/publish/publish retry-fields/refresh-status, issue dismiss, job cancel.
+  listings generate/regenerate/approve/publish/publish retry-fields/refresh-status, issue dismiss, job cancel, task answer.
   ```ts
   const intent = useIntentKey() // stable per user intent; intent.reset() after success / 409 IDEMPOTENCY_KEY_REUSED / new file
   api.POST('/jobs/{job_id}/cancel', { params: { path: { job_id } }, headers: idempotencyHeader(intent.get()) })

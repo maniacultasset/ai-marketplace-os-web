@@ -77,7 +77,8 @@ design source is `docs/design-reference/listing-agent-hifi-handoff.html` (18 scr
 | Public | Landing, sign in (with the login-code, forced enrolment, recovery codes and forced password steps), request access, request status, privacy policy; Continue with Google and its return page `/auth/google` | `/auth/login`, `/auth/login/mfa*`, `/auth/password/expired`, `/signup`, `/signup/status`, `/auth/google/*`, `/signup/google` |
 | Security (DPP-1) | Settings > Security: login codes status, set up or replace the authenticator, new recovery codes, change password; the step-up dialog on every sensitive action | `/auth/security`, `/auth/mfa/*`, `/auth/password` |
 | Setup (02-04) | Brand and business, compliance defaults, connect marketplaces | `PATCH /tenants/me` (If-Match), `/marketplaces/*` |
-| Home and Inbox (05, 06, 11, 16) | Home (first run + working), Inbox, issue detail | `/listings`, `/tasks`, `/issues`, `/issues/{id}/dismiss`, submissions |
+| Home and Inbox (05, 06, 11, 16) | Home (first run + working), Inbox with the answer box for fact questions, issue detail | `/listings`, `/tasks`, `/tasks/{id}/answer`, `/issues`, `/issues/{id}/dismiss`, submissions |
+| Photo facts (SI3) | "From photos" on product details (confirm, reject); photo questions in the Inbox; Home counts them as not blocking | `PATCH /products/{id}` (`confirm_attributes`, `attributes: {key: null}`), `POST /tasks/{id}/answer` |
 | Products and add (07-10, 17) | Products table/cards, product detail tabs with the product editor, add chooser, guided form (all ten seller inputs: style number, SKU, fabric type and composition, colour, size chart, manufacturer, MRP, selling price, photos), bulk upload, variants and media | `/products`, `PATCH /products/{id}` (If-Match), `/products/bulk`, `/imports/*`, `/jobs/{id}`, `/images/*`, `/brand-profile`, `POST /listings/generate` |
 | Listing flow (12-15) | Agent run, review and approve, field mapping, live confirmation | `/jobs/{id}`, `/listings/{id}` (+ `/content`, `/regenerate`, `/preview`, `/history`, `/submissions`, `/status`, `/refresh-status`, `/publish/retry-fields`), `/listings/approve`, `/listings/validate`, `/listings/publish`, `/rules` |
 | Marketplaces and settings (18, Autonomy) | Marketplaces, autonomy, brand profile (with the default manufacturer), compliance, team, rules, imports, account, activity, sign-up requests (platform admins) | `/marketplaces/*`, `/tenants/me`, `/brand-profile`, `/brand/documents`, `/members`, `/rules*`, `/admin/signup-requests*` |
@@ -128,7 +129,7 @@ tag, or a "Join waitlist" button that does nothing:
 - "Read my site" (website prefill); legal name, business type, logo, description; compliance defaults (can't be saved yet)
 - Myntra, AJIO, Meesho, Nykaa Fashion (Join waitlist); pickup locations, default shipping; brand authorisation upload; category/brand approvals
 - Add from photos, product page URL, catalog export; PIM/ERP (Later); agent category classification
-- Answering, skipping or assigning Inbox questions; "Choose category" and "Ask support" on issues
+- Assigning Inbox questions, and answering questions other than missing or conflicting facts; "Choose category" and "Ask support" on issues
 - Pause, archive, whole-product resubmit, catalog export
 - Autonomous submit and every auto-fix toggle, retry limit, notification channels (Autonomy shows approval mode only)
 - Brand-wide activity feed and audit log; notifications bell; top-bar product search

@@ -3,9 +3,9 @@
  * and issues (GET /issues); right, the selected item. Below 1024px one pane at a time: the list,
  * or the item with a back link (15b).
  *
- * Answering a question has no API yet (no POST /tasks/{id}/answer): the question, its reason and
- * the suggested answers are shown, and the answer controls are disabled with the reason. Issue
- * dismiss is real (POST /issues/{id}/dismiss with an Idempotency-Key).
+ * Fact questions (missing or conflicting facts, e.g. from the photo check) are answered here with
+ * POST /tasks/{id}/answer; other question kinds keep their answer controls disabled with the reason.
+ * Issue dismiss is real (POST /issues/{id}/dismiss with an Idempotency-Key).
  */
 import { Link } from '@tanstack/react-router'
 import { formatDistanceToNowStrict } from 'date-fns'
