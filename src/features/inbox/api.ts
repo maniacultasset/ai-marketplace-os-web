@@ -5,12 +5,12 @@
  *                                   409 INVALID_STATUS_TRANSITION unless an open warning; 404 unknown id)
  *   GET  /tasks                     routers/tasks.py tasks_list     (tenant:read; status default 'open')
  */
-import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, unwrap } from '@/api/client'
 import { isApiError } from '@/api/errors'
 import { idempotencyHeader, useIntentKey } from '@/api/idempotency'
 import { PAGE_SIZE, useCursorList } from '@/hooks/use-cursor-list'
-import { useKeys, type IssuesFilters, type QueryKeys, type TaskStatus } from '@/lib/query-keys'
+import { useKeys, type IssuesFilters, type TaskStatus } from '@/lib/query-keys'
 import type { Issue, Task } from './model'
 
 /** Sidebar badge refresh: cheap first-page refetch while the tab is visible. */
@@ -56,39 +56,6 @@ export function useTasksList(status: TaskStatus, opts: { enabled?: boolean; refe
     enabled: opts.enabled,
     refetchInterval: opts.refetchInterval,
   })
-}
-
-/** Largest page GET /issues allows, and how many pages one listing's fix trail may take. */
-const TRAIL_PAGE = 200
-const TRAIL_PAGES = 3
-
-/**
- * Every auto-fixed issue of one listing (GET /issues?status=auto_fixed&listing_id=…), walked up to
- * 600 rows. Under `issues.all()`, so a regenerate, edit or re-check refreshes it with the rest.
- */
-export function autoFixedQuery(keys: QueryKeys, listingId: string) {
-  return queryOptions({
-    queryKey: [...keys.issues.list({ status: 'auto_fixed', listingId }), 'all'] as const,
-    staleTime: 20_000,
-    queryFn: async (): Promise<Issue[]> => {
-      const rows: Issue[] = []
-      let cursor: string | undefined
-      for (let i = 0; i < TRAIL_PAGES; i++) {
-        const page = await unwrap(
-          api.GET('/issues', { params: { query: { status: 'auto_fixed', listing_id: listingId, limit: TRAIL_PAGE, cursor } } }),
-        )
-        rows.push(...page.data)
-        if (!page.page.has_more || !page.page.next_cursor) break
-        cursor = page.page.next_cursor
-      }
-      return rows
-    },
-  })
-}
-
-export function useAutoFixedIssues(listingId: string | undefined) {
-  const keys = useKeys()
-  return useQuery({ ...autoFixedQuery(keys, listingId ?? ''), enabled: !!listingId })
 }
 
 /**

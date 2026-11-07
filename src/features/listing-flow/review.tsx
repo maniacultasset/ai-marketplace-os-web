@@ -35,7 +35,7 @@ import { ErrorState } from '@/components/states/error-state'
 import { NotFound } from '@/components/states/not-found'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useAutoFixedIssues } from '@/features/inbox/api'
+import { useFixTrail } from '@/features/home-inbox/api'
 import { invalidateListingWork, useListingHistory, usePublishListings, useReviewListings, useValidateListing } from '@/features/listings/api'
 import { recallJob, rememberJob } from '@/features/listings/job-memory'
 import {
@@ -59,7 +59,7 @@ import { toast, toastError } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { FixedForYouCard } from './auto-fix'
-import { autoFixTrail, FIXED_FOR_YOU_HASH } from './auto-fix-model'
+import { autoFixTrail, FIXED_FOR_YOU_HASH, versionRef } from './auto-fix-model'
 import { EditDialog, SendBackDialog } from './dialogs'
 import { clock, fieldLabel, mpName } from './format'
 import { claimFindings, gateCounts, plural, type ErrorItem, type GateResult } from './gates'
@@ -128,8 +128,8 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   const qc = useQueryClient()
   const keys = useKeys()
   const history = useListingHistory(listing.id)
-  const fixesQ = useAutoFixedIssues(listing.id)
-  const fixes = autoFixTrail(fixesQ.data ?? [], listing.current_version_id)
+  const fixesQ = useFixTrail(listing.id)
+  const fixes = autoFixTrail(fixesQ.data ?? [], versionRef(listing))
   const hash = useLocation({ select: (l) => l.hash })
   const validate = useValidateListing(listing.id)
   const review = useReviewListings()

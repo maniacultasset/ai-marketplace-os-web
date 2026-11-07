@@ -13,10 +13,7 @@
 import { useQueries } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { api } from '@/api/client'
 import { isNotFound } from '@/api/errors'
-import { unwrapVersioned } from '@/api/etag'
-import type { Schema } from '@/api/types'
 import { Page } from '@/components/app/page-header'
 import {
   AttentionCard,
@@ -44,10 +41,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ProductImagesCard } from '@/features/analytics-images/images/images-card'
-import { autoFixedQuery } from '@/features/inbox/api'
+import { useFixCounts } from '@/features/home-inbox/api'
 import { AutoFixedChip } from '@/features/listing-flow/auto-fix'
-import { autoFixedOn } from '@/features/listing-flow/auto-fix-model'
-import { BUSY_REFETCH_MS, useListingHistory } from '@/features/listings/api'
+import { listingDetailQuery, useListingHistory } from '@/features/listings/api'
 import { recallJob } from '@/features/listings/job-memory'
 import { historyLabel, isBusy } from '@/features/listings/model'
 import { useProduct, type ProductDetail } from '@/features/products/api'
@@ -255,25 +251,15 @@ interface DetailData {
   isVariant: boolean
 }
 
+const NO_LISTINGS: Listing[] = []
+
 export function ProductDetailPage({ productId, tab }: { productId: string; tab: DetailTab }) {
   const q = useProduct(productId)
   const all = useAllProducts()
   const listingsQ = useAllListings({ productId })
   const issuesQ = useOpenIssues()
-  const keys = useKeys()
-  const listingRows = listingsQ.data?.rows
-  // A stable combine, so the counts keep their identity until a read or the listings change.
-  const combineFixes = useCallback(
-    (rs: { isPending: boolean; data?: Schema<'IssueOut'>[] }[]) => ({
-      pending: rs.some((r) => r.isPending),
-      counts: new Map((listingRows ?? []).map((l, i) => [l.id, autoFixedOn(rs[i]?.data ?? [], l.current_version_id).length] as const)),
-    }),
-    [listingRows],
-  )
-  const autoFix = useQueries({
-    queries: (listingRows ?? []).map((l) => ({ ...autoFixedQuery(keys, l.id), meta: { toast: false }, retry: false })),
-    combine: combineFixes,
-  })
+  // Fix counts per listing (current version); a listing re-read keeps the same rows array.
+  const autoFix = useFixCounts(listingsQ.data?.rows ?? NO_LISTINGS)
   const refetchAll = all.refetch
   const tabsRef = useRef<HTMLDivElement>(null)
 
@@ -997,15 +983,7 @@ type ListingDetailQuery = ReturnType<typeof useListingDetails>[number]
  */
 function useListingDetails(listings: readonly Listing[]) {
   const keys = useKeys()
-  return useQueries({
-    queries: listings.map((l) => ({
-      queryKey: keys.listings.detail(l.id),
-      queryFn: () => unwrapVersioned(api.GET('/listings/{listing_id}', { params: { path: { listing_id: l.id } } })),
-      refetchInterval: (q: { state: { data?: { data: { status: Listing['status'] } } } }) =>
-        q.state.data && isBusy(q.state.data.data.status) ? BUSY_REFETCH_MS : false,
-      refetchIntervalInBackground: false,
-    })),
-  })
+  return useQueries({ queries: listings.map((l) => listingDetailQuery(keys, l.id)) })
 }
 
 function ValidationCard({ listing, q, pending }: { listing: Listing; q: ListingDetailQuery; pending: boolean }) {

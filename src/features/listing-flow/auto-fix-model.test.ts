@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { Issue } from '@/features/inbox/model'
-import { autoFixedChipText, autoFixedOn, autoFixTrail, autoFixView, fixedSummary, NO_TRAIL_TEXT } from './auto-fix-model'
+import { autoFixedChipText, autoFixedOn, autoFixTrail, autoFixView, fixedSummary, NO_TRAIL_TEXT, onVersion, siblingFixes, versionRef } from './auto-fix-model'
 
 const V1 = '0b1c2d3e-0000-4000-8000-000000000301'
+/** A fix row closed on version 1, before version 2 was written. */
+const OLD = { listing_version_id: V1, resolved_at: '2026-11-07T08:00:01Z' }
 const V2 = '0b1c2d3e-0000-4000-8000-000000000302'
+/** Version 2 was written at 09:00; version 1 an hour earlier. */
+const ON_V2 = { id: V2, createdAt: '2026-11-07T09:00:00Z' }
 
 function issue(n: number, over: Partial<Issue> = {}): Issue {
   return {
@@ -34,17 +38,48 @@ function issue(n: number, over: Partial<Issue> = {}): Issue {
 
 describe('autoFixedOn', () => {
   it('keeps only auto-fixed rows of the version under review', () => {
-    const rows = [issue(1), issue(2, { listing_version_id: V1 }), issue(3, { status: 'open' }), issue(4, { status: 'resolved' })]
-    expect(autoFixedOn(rows, V2).map((i) => i.id)).toEqual([rows[0]!.id])
+    const rows = [issue(1), issue(2, OLD), issue(3, { status: 'open' }), issue(4, { status: 'resolved' })]
+    expect(autoFixedOn(rows, ON_V2).map((i) => i.id)).toEqual([rows[0]!.id])
+  })
+
+  it('counts an AI rewrite (resolved with ai_correction) as a fix, and no other resolved row', () => {
+    const rows = [
+      issue(1, { status: 'resolved', resolution: 'ai_correction' }),
+      issue(2, { status: 'resolved', resolution: 'human_edit' }),
+      issue(3, { status: 'resolved', resolution: 'regenerated' }),
+      issue(4, { status: 'dismissed', resolution: 'accepted_warning' }),
+    ]
+    expect(autoFixedOn(rows, ON_V2).map((i) => i.id)).toEqual([rows[0]!.id])
   })
 
   it('keeps a row with no version (it cannot be placed, so it is not hidden)', () => {
-    const rows = [issue(1, { listing_version_id: null }), issue(2, { listing_version_id: V1 })]
-    expect(autoFixedOn(rows, V2)).toHaveLength(1)
+    const rows = [issue(1, { listing_version_id: null }), issue(2, OLD)]
+    expect(autoFixedOn(rows, ON_V2)).toHaveLength(1)
   })
 
   it('keeps every auto-fixed row when the listing has no version yet', () => {
-    expect(autoFixedOn([issue(1), issue(2, { listing_version_id: V1 })], null)).toHaveLength(2)
+    expect(autoFixedOn([issue(1), issue(2, { listing_version_id: V1 })], { id: null })).toHaveLength(2)
+  })
+})
+
+describe('onVersion', () => {
+  it('keeps a reused row with an older version id when it was closed during this version’s pass', () => {
+    expect(onVersion({ listing_version_id: V1, resolved_at: '2026-11-07T09:00:00Z' }, ON_V2)).toBe(true)
+    expect(onVersion({ listing_version_id: V1, resolved_at: '2026-11-07T09:00:02Z' }, ON_V2)).toBe(true)
+  })
+
+  it('leaves out a fix of an earlier version', () => {
+    expect(onVersion({ listing_version_id: V1, resolved_at: '2026-11-07T08:00:01Z' }, ON_V2)).toBe(false)
+  })
+
+  it('needs both times to place a row by time', () => {
+    expect(onVersion({ listing_version_id: V1, resolved_at: null }, ON_V2)).toBe(false)
+    expect(onVersion({ listing_version_id: V1, resolved_at: '2026-11-07T09:00:02Z' }, { id: V2 })).toBe(false)
+  })
+
+  it('reads the version from a listing detail', () => {
+    expect(versionRef({ current_version_id: V2, content: { created_at: '2026-11-07T09:00:00Z' } })).toEqual(ON_V2)
+    expect(versionRef({ current_version_id: V2 })).toEqual({ id: V2, createdAt: null })
   })
 })
 
@@ -84,13 +119,29 @@ describe('autoFixTrail', () => {
     const rows = [
       issue(1, { resolved_at: '2026-11-07T09:00:01Z' }),
       issue(2, { resolved_at: '2026-11-07T10:00:00Z', field_path: 'keywords.search_terms' }),
-      issue(3, { listing_version_id: V1 }),
+      issue(3, OLD),
     ]
-    expect(autoFixTrail(rows, V2).map((f) => f.field)).toEqual(['Search terms', 'Title'])
+    expect(autoFixTrail(rows, ON_V2).map((f) => f.field)).toEqual(['Search terms', 'Title'])
   })
 
   it('is empty when nothing was fixed', () => {
-    expect(autoFixTrail([], V2)).toEqual([])
+    expect(autoFixTrail([], ON_V2)).toEqual([])
+  })
+})
+
+describe('siblingFixes', () => {
+  it('lists the other batch listings that carry fixes, by marketplace', () => {
+    const t = [
+      { id: 'a', marketplace: 'amazon' },
+      { id: 'f', marketplace: 'flipkart' },
+      { id: 'm', marketplace: 'meesho' },
+    ]
+    const counts = new Map([
+      ['a', 1],
+      ['f', 2],
+      ['m', 0],
+    ])
+    expect(siblingFixes(t, counts, 'a')).toEqual([{ listing: t[1], count: 2 }])
   })
 })
 
