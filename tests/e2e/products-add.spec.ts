@@ -260,6 +260,33 @@ test.describe('add products (p08-p11)', () => {
     expect(posted).toBe(0)
   })
 
+  test('bulk upload takes style_number and fabric_composition, warns about photo links and lists products that need photos', async ({ page }) => {
+    await loginAs(page, USERS.acme.operator, '/add/bulk')
+    await page.getByTestId('bulk-next').click()
+    const sku = `PW-BP-${RUN}`
+    await page.getByLabel('CSV file', { exact: true }).setInputFiles({
+      name: 'photos.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(
+        `seller_sku,product_name,category,style_number,fabric_composition,main_image\n${sku},PW photo kurta,ethnic_wear_kurta_sets,ST-${RUN},100% cotton,https://cdn.example.com/pw/${RUN}.jpg\n`,
+      ),
+    })
+    const table = page.getByRole('table', { name: 'Column matching' })
+    await expect(table.getByRole('row', { name: /style_number/ })).toContainText('OK')
+    await expect(table.getByRole('row', { name: /fabric_composition/ })).toContainText('OK')
+    await expect(table.getByRole('row', { name: /main_image/ })).toContainText('Not used')
+    await expect(page.getByText('1 row has photo links')).toBeVisible()
+    const accepted = page.waitForResponse((r) => r.url().endsWith('/api/v1/products/bulk') && r.request().method() === 'POST' && r.status() !== 401)
+    await page.getByTestId('bulk-upload').click()
+    expect((await accepted).status()).toBe(202)
+    // Needs the job worker: the list shows once the import has run.
+    const needs = page.getByTestId('needs-photos')
+    await expect(needs).toContainText(sku, { timeout: 30_000 })
+    await needs.getByTestId('needs-photos-row').filter({ hasText: sku }).click()
+    await expect(page).toHaveURL(/\/products\/[0-9a-f-]+\?tab=media/)
+    await expect(page.getByTestId('product-images')).toBeVisible()
+  })
+
   test('bulk upload: check step reads the import report and its rows', async ({ page }) => {
     await loginAs(page, USERS.acme.operator, '/add/bulk')
     await page.getByTestId('bulk-next').click()
