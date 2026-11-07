@@ -14,8 +14,10 @@ describe('otherApproverExists (maker-checker)', () => {
     expect(otherApproverExists([m(me, 'owner'), m(other, 'reviewer')], me, true)).toBe(true)
     expect(otherApproverExists([m(me, 'owner'), m(other, 'owner')], me, true)).toBe(true)
   })
-  it('operators, admins and inactive members cannot approve', () => {
-    expect(otherApproverExists([m(me, 'owner'), m(other, 'operator')], me, true)).toBe(false)
+  it('an operator is enough: they make drafts and the owner approves them', () => {
+    expect(otherApproverExists([m(me, 'owner'), m(other, 'operator')], me, true)).toBe(true)
+  })
+  it('admins and inactive members neither make nor approve drafts', () => {
     expect(otherApproverExists([m(me, 'owner'), m(other, 'admin')], me, true)).toBe(false)
     expect(otherApproverExists([m(me, 'owner'), m(other, 'reviewer', false)], me, true)).toBe(false)
   })
