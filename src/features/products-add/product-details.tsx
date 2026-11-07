@@ -16,6 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { categoryChoices, type CategoryLock } from '@/features/products/categories'
 import { type ProductDetail } from '@/features/products/api'
+import { formatBarcode } from '@/features/products/barcode'
+import { BarcodeField } from '@/features/products/barcode-field'
 import { editableAttrs, type ManufacturerSource } from '@/features/products/edit-model'
 import { CompositionEditor, MoneyField, PartyFields, PickOrOtherField, SizeChartEditor, TextField } from '@/features/products/intake-fields'
 import {
@@ -68,11 +70,14 @@ function Row({ k, attr, children }: { k: string; attr?: string; children: ReactN
 export function ProductDetailsCard({
   product,
   isVariant,
+  isStyle = false,
   source,
   onEdit,
 }: {
   product: ProductDetail
   isVariant: boolean
+  /** The product has variants: each one holds its own barcode. */
+  isStyle?: boolean
   source: ManufacturerSource
   onEdit?: () => void
 }) {
@@ -120,6 +125,19 @@ export function ProductDetailsCard({
             {humanizeSlug(product.category)} <SourceBadge source={{ kind: 'you' }} />
           </Row>
           {isVariant ? null : <Row k="Style number">{product.style_number ? <span className="font-mono">{product.style_number}</span> : <Missing />}</Row>}
+          <Row k="Barcode" attr="identifier">
+            {product.product_identifier ? (
+              <span className="font-mono tabular-nums" data-testid="product-barcode">
+                {formatBarcode(product.product_identifier)}
+              </span>
+            ) : product.identifier_exemption ? (
+              <span data-testid="product-barcode">{isStyle ? 'No barcodes (exempt)' : 'No barcode (exempt)'}</span>
+            ) : isStyle ? (
+              <span className="text-ink-2">Set on each variant</span>
+            ) : (
+              <Missing>Needed for Amazon</Missing>
+            )}
+          </Row>
           <Row k="MRP">{mrp ? <span className="tabular-nums">{mrp}</span> : <Missing critical>Needed to publish</Missing>}</Row>
           <Row k="Selling price">
             {price ? (
@@ -388,6 +406,19 @@ export function ProductDetailsEditor({
                 code
               />
             )}
+          </div>
+        </Group>
+        <Group title="Barcode">
+          <div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
+            <BarcodeField
+              id="e-barcode"
+              level={session.isStyle ? 'style' : 'item'}
+              value={d.barcode}
+              onChange={(barcode) => patch({ barcode }, 'barcode')}
+              onBlur={() => touch('barcode')}
+              error={errors.barcode}
+              submitCount={submitted}
+            />
           </div>
         </Group>
         <Group title="Price">

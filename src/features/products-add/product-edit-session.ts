@@ -28,7 +28,13 @@ import { toast } from '@/lib/toast'
 
 export type SaveOutcome = 'saved' | 'unchanged' | 'invalid' | 'stale' | 'failed'
 
-export function useProductEditSession(product: ProductDetail, isVariant: boolean, source: ManufacturerSource) {
+/**
+ * `isStyle`: the product has variants (a style), so its barcode field is the exemption only. False
+ * while the variants are still loading: a barcode typed on a style then comes back as a 422 on the
+ * field.
+ */
+export function useProductEditSession(product: ProductDetail, isVariant: boolean, source: ManufacturerSource, isStyle = false) {
+  const barcodeLevel = isStyle ? 'style' : 'item'
   const update = useUpdateProduct(product.id)
   const [editing, setEditing] = useState(false)
   /** The version the edit is based on: its ETag goes in If-Match, its values are the diff base. */
@@ -46,7 +52,7 @@ export function useProductEditSession(product: ProductDetail, isVariant: boolean
   const client = useMemo(() => validateEdit(d, isVariant), [d, isVariant])
   const errors: EditErrors = { ...server }
   for (const [k, v] of Object.entries(client)) if (submitted > 0 || touched.has(k)) errors[k] ??= v
-  const body = buildPatch(baseDraft, d, isVariant)
+  const body = buildPatch(baseDraft, d, isVariant, barcodeLevel)
   const dirty = Object.keys(body).length > 0
 
   const start = () => {
@@ -104,7 +110,7 @@ export function useProductEditSession(product: ProductDetail, isVariant: boolean
         on = fresh
         setBase(fresh)
       }
-      const sent = buildPatch(toEditDraft(on, source), d, isVariant)
+      const sent = buildPatch(toEditDraft(on, source), d, isVariant, barcodeLevel)
       const after = await update.mutateAsync({ body: sent, etag: on.etag })
       if (changedOnServer(on, after, isVariant)) toast.success('Product saved', { description: 'Listings made before this change are checked again before they publish.' })
       else toast.info('Nothing changed', { description: 'The product already had these values.' })
@@ -154,6 +160,7 @@ export function useProductEditSession(product: ProductDetail, isVariant: boolean
     saving,
     save,
     isVariant,
+    isStyle,
     source,
   }
 }

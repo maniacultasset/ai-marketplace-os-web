@@ -337,7 +337,7 @@ function LoadedDetail({ data, tab, tabsRef }: { data: DetailData; tab: DetailTab
   // A variant's manufacturer may be its style's: read the style (lists carry no manufacturer).
   const parentQ = useProduct(data.product.parent_product_id)
   const source = manufacturerSource(data.product, data.isVariant ? parentQ.data : null)
-  const session = useProductEditSession(data.product, data.isVariant, source)
+  const session = useProductEditSession(data.product, data.isVariant, source, !data.isVariant && data.variants.length > 0)
   const editing = session.editing
   const p = data.product
   const overall = OVERALL_CHIP[overallStatus(Object.values(data.listings))]
@@ -806,7 +806,7 @@ function OverviewTab({ data, session, onEdit }: { data: DetailData; session: Pro
     <div className="flex flex-col gap-4">
       <MarketplaceCards data={data} />
       <div className="grid gap-4 lg:grid-cols-2">
-        <ProductDetailsCard product={data.product} isVariant={data.isVariant} source={session.source} onEdit={onEdit} />
+        <ProductDetailsCard product={data.product} isVariant={data.isVariant} isStyle={session.isStyle} source={session.source} onEdit={onEdit} />
         <VariantStatusCard data={data} />
       </div>
     </div>

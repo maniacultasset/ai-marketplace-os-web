@@ -161,3 +161,45 @@ describe('category edit', () => {
     expect(out.title).toBe('New title')
   })
 })
+
+describe('barcode edit', () => {
+  const EAN = '4006381333931'
+
+  it('reads the barcode or the exemption into the draft', () => {
+    expect(toEditDraft(product({ product_identifier: { type: 'ean', value: EAN } })).barcode).toEqual({ type: 'ean', value: EAN, exempt: false })
+    expect(toEditDraft(product({ identifier_exemption: true })).barcode.exempt).toBe(true)
+  })
+
+  it('checks the barcode, and not while exempt', () => {
+    const d = toEditDraft(product())
+    expect(validateEdit({ ...d, barcode: { type: 'ean', value: '4006381333932', exempt: false } }, false).barcode).toMatch(/last digit/)
+    expect(validateEdit({ ...d, barcode: { type: 'ean', value: '4006381333932', exempt: true } }, false).barcode).toBeUndefined()
+  })
+
+  it('patches the barcode, never together with the exemption, and only the exemption on a style', () => {
+    const base = toEditDraft(product())
+    expect(buildPatch(base, { ...base, barcode: { type: 'ean', value: EAN, exempt: false } }, false)).toEqual({ product_identifier: { type: 'ean', value: EAN } })
+    expect(buildPatch(base, { ...base, barcode: { type: 'ean', value: EAN, exempt: true } }, false)).toEqual({ identifier_exemption: true })
+    expect(buildPatch(base, { ...base, barcode: { type: 'ean', value: EAN, exempt: true } }, false, 'style')).toEqual({ identifier_exemption: true })
+    expect(buildPatch(base, { ...base, barcode: { type: 'ean', value: EAN, exempt: false } }, false, 'style')).toEqual({})
+  })
+
+  it('maps a refused barcode onto the field', () => {
+    const d = { ...toEditDraft(product()), barcode: { type: 'ean' as const, value: EAN, exempt: false } }
+    expect(mapPatchErrors({ type: 'VALIDATION_FAILED', details: [{ loc: ['body', 'product_identifier', 'value'], msg: 'x' }] }, d).fields).toEqual({
+      barcode: 'Another product in this brand already has this barcode. Check the number.',
+    })
+    const style = mapPatchErrors({ type: 'FACT_LEVEL_INVALID', details: [{ loc: ['body', 'product_identifier'], msg: 'x' }] }, d)
+    expect(style.fields.barcode).toMatch(/each variant/)
+    expect(style.unmapped).toBe(false)
+  })
+
+  it('keeps the person’s barcode change on a stale rebase', () => {
+    const original = toEditDraft(product())
+    const mine = { ...original, barcode: { type: 'upc' as const, value: '036000291452', exempt: false } }
+    const theirs = toEditDraft(product({ title: 'Renamed' }))
+    const out = rebaseDraft(original, mine, theirs)
+    expect(out.barcode).toEqual(mine.barcode)
+    expect(out.title).toBe('Renamed')
+  })
+})

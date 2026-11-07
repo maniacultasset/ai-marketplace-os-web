@@ -7,7 +7,9 @@
  * chart, colour) are 422 FACT_LEVEL_INVALID, so the editor hides them; `manufacturer: null` goes
  * back to the inherited one; an attribute set to `null` is removed. `category` changes only while
  * the product has no listing (422 at `category` after that); the editor offers it on a style or
- * standalone product only, since a variant is listed through its style.
+ * standalone product only, since a variant is listed through its style. A barcode sits on a
+ * variant or a standalone product; a style holds only the exemption, which reaches its variants
+ * (./barcode.ts).
  */
 import type { Schema } from '@/api/types'
 import { CONTROL_MSG, hasStrayControlChars } from '@/lib/validation'
@@ -32,6 +34,17 @@ import {
   type PartyDraft,
   type SizeChartDraft,
 } from './intake-model'
+import {
+  BARCODE_KEY,
+  barcodeFromProduct,
+  barcodePatchFields,
+  barcodeProblem,
+  barcodeServerMessage,
+  isBarcodeErrorKey,
+  sameBarcode,
+  type BarcodeDraft,
+  type BarcodeLevel,
+} from './barcode'
 import { ATTRIBUTE_TEXT_MAX, codePoints, productTitleProblem } from './schema'
 
 type Product = Schema<'ProductOut'>
@@ -54,6 +67,7 @@ export interface EditDraft {
   sellingPrice: string
   ownManufacturer: boolean
   manufacturer: PartyDraft
+  barcode: BarcodeDraft
 }
 
 /**
@@ -90,6 +104,7 @@ export function toEditDraft(p: Product, source: ManufacturerSource = manufacture
     sellingPrice: p.selling_price ?? '',
     ownManufacturer: source === 'own',
     manufacturer: fromPartyOut(p.manufacturer),
+    barcode: barcodeFromProduct(p),
   }
 }
 
@@ -127,6 +142,8 @@ export function validateEdit(d: EditDraft, isVariant: boolean): EditErrors {
   if (price) e.selling_price = price
   else if (!mrp && priceAboveMrp(d.sellingPrice, d.mrp)) e.selling_price = 'Keep the selling price at or below the MRP.'
   if (d.ownManufacturer) for (const [k, msg] of Object.entries(partyProblems(d.manufacturer))) e[`manufacturer.${k}`] = msg
+  const barcode = d.barcode.exempt ? null : barcodeProblem(d.barcode.type, d.barcode.value)
+  if (barcode) e[BARCODE_KEY] = barcode
   return e
 }
 
@@ -140,7 +157,7 @@ const sameMoney = (a: string, b: string) => {
  * The PATCH body: only what changed from `base` (the product as loaded). An emptied field is
  * `null` (cleared). Returns `{}` when nothing changed. Call after `validateEdit` is empty.
  */
-export function buildPatch(base: EditDraft, d: EditDraft, isVariant: boolean): ProductPatchBody {
+export function buildPatch(base: EditDraft, d: EditDraft, isVariant: boolean, barcodeLevel: BarcodeLevel = 'item'): ProductPatchBody {
   const body: ProductPatchBody = {}
   if (d.title.trim() !== base.title.trim()) body.title = d.title.trim()
   if (!isVariant && d.category.trim() && d.category.trim() !== base.category.trim()) body.category = d.category.trim()
@@ -161,6 +178,7 @@ export function buildPatch(base: EditDraft, d: EditDraft, isVariant: boolean): P
   }
   if (d.ownManufacturer && (!base.ownManufacturer || !samePartyDraft(d.manufacturer, base.manufacturer))) body.manufacturer = toPartyIn(d.manufacturer)
   else if (!d.ownManufacturer && base.ownManufacturer) body.manufacturer = null
+  Object.assign(body, barcodePatchFields(base.barcode, d.barcode, barcodeLevel))
   return body
 }
 
@@ -189,7 +207,11 @@ export function mapPatchErrors(
     if (key === 'size_chart') msg = SIZE_CHART_REFUSED
     if (key === 'selling_price' && priceAboveMrp(d.sellingPrice, d.mrp)) msg = 'Keep the selling price at or below the MRP.'
     if (key === 'category') msg = CATEGORY_LOCKED_MSG
-    if (!/^(title|category|style_number|mrp|selling_price|size_chart|attr\.|manufacturer\.)/.test(key)) {
+    if (isBarcodeErrorKey(key)) {
+      key = BARCODE_KEY
+      msg = barcodeServerMessage(err.type, d.barcode)
+    }
+    if (!/^(title|category|style_number|mrp|selling_price|size_chart|barcode$|attr\.|manufacturer\.)/.test(key)) {
       unmapped = true
       continue
     }
@@ -219,6 +241,7 @@ export function rebaseDraft(original: EditDraft, mine: EditDraft, fresh: EditDra
     out.ownManufacturer = mine.ownManufacturer
     out.manufacturer = mine.manufacturer
   }
+  if (!sameBarcode(mine.barcode, original.barcode)) out.barcode = mine.barcode
   return out
 }
 
