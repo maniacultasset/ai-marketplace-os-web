@@ -187,8 +187,9 @@ The shadcn kit in `src/components/ui` is restyled to the tokens. The Kuinn piece
   brand switcher (memberships from `/auth/me`, `POST /auth/switch-tenant`), nav (Home, Products, Add products,
   Inbox with an open-items count hidden at zero — a corner badge on the icon in the collapsed rail — Marketplaces,
   Activity, Settings, and a "Platform" section with Sign-up requests for `is_platform_admin`), an Agent card (listings in `generating` or `publishing`, otherwise "Idle") and a collapse
-  control. The 56px top bar holds the page title, search (disabled because the API has no product search), the bell
-  (Coming soon) and the avatar menu (Account, Diagnostics in dev, Sign out). Below 768px the sidebar becomes a drawer.
+  control. The 56px top bar holds the page title and the avatar menu (Account, Diagnostics in dev, Contact support,
+  Sign out). Product search and notifications have no API, so the bar does not show them. Below 768px the sidebar
+  becomes a drawer.
 - Route metadata goes in `staticData`: `{ title }` is the top-bar title, `{ navCollapsed: true }` starts on the 72px
   rail (Products and Inbox, as in p07 and p15), and `{ solo: true }` uses the setup frame (logo header and
   "Save and exit", no sidebar).
@@ -217,15 +218,15 @@ features. The owner restyles them to this system.
 | `/terms` | `routes/terms.tsx` → `features/public/terms.tsx` | public | built |
 | `/privacy-policy` | `routes/privacy-policy.tsx` (redirects to `/privacy`) | public | built |
 | `/login`, `/signup`, `/signup/status` | `routes/login.tsx`, `routes/signup*` → `features/public/*` (`AuthFrame`) | public | built (p01) |
-| `/setup/brand`, `/setup/compliance`, `/setup/marketplaces` | `routes/_app/setup/*` (solo), `features/onboarding` | setup | built (step 1 saves name + tone; step 2 fields await an API) |
-| `/settings/compliance` | `routes/_app/_settings/settings/compliance.tsx` | setup | built (shares `ComplianceForm`; disabled until an API exists) |
+| `/setup/brand`, `/setup/manufacturer`, `/setup/marketplaces` | `routes/_app/setup/*` (solo), `features/onboarding` | setup | built (step 1 saves name + tone; step 2 the brand manufacturer; `/setup/compliance` redirects) |
+| `/settings/compliance` | `routes/_app/_settings/settings/compliance.tsx` | setup | built (the brand manufacturer and where each other fact is set) |
 | `/home` | `routes/_app/home.tsx` → `features/home-inbox/home-page.tsx` | home-inbox | built (p05 first run when there are no listings, p06 otherwise) |
 | `/analytics` (listing reports, linked from Home) | `routes/_app/analytics.tsx` | home | working |
 | `/products` | `routes/_app/products/index.tsx` | products | built to p07 (`features/products-add`) |
 | `/products/$productId` (tabs Overview, Variants, Media, Content, Marketplaces, Validation, Activity via `?tab=`) | `routes/_app/products/$productId.tsx` | products-detail | built to p17 (`features/products-add`) |
 | `/listings/$listingId/mapping` (p18, on the listing's own marketplace) | `routes/_app/listings/$listingId/mapping.tsx` → `features/listing-flow/mapping-view.tsx` | listing-flow | built |
 | `/add` (chooser) | `routes/_app/add/index.tsx` | add | built to p08 |
-| `/add/guided`, `/add/variants` | `routes/_app/add/*` | add | built to p09, p10 (`/products/new` stays as the single-product form) |
+| `/add/guided`, `/add/variants` | `routes/_app/add/*` | add | built to p09, p10 (`/products/new` redirects to `/add/guided`) |
 | `/add/bulk` | `routes/_app/add/bulk.tsx` | add | built to p11 (`/imports/*`, `/jobs/$jobId` still work) |
 | `/runs/$runId` (p12; the run id is the listing job id, GET /jobs/{id}) | `routes/_app/runs/$runId.tsx` → `features/listing-flow/agent-run.tsx` | listing-flow | built |
 | `/listings/$listingId/review` (p13), `/listings/$listingId/live` (p14) | `routes/_app/listings/$listingId/*` → `features/listing-flow/review.tsx`, `live.tsx` | listing-flow | built |
@@ -241,10 +242,13 @@ features. The owner restyles them to this system.
 
 Use `NOT_YET.*` sentences from `la/unavailable`.
 
-- **Disabled with a reason, where the design puts the control:** Google sign-in and email code (p01), "Read my
-  site" (p02), pickup locations and brand-authorisation upload (p04), photo, URL and catalog-export intake
-  (p08, "PIM or ERP" shows "Later"), product search, export, pause, archive and resubmit (p07), answering tasks other than fact questions and assigning any (p15),
-  the notifications bell, and the Notifications and Audit log settings.
+- **Not shown, because it has no API and no V1 value:** "Read my site" and the brand fields that cannot be saved
+  (p02), compliance defaults (p03; the brand manufacturer is setup step 2), pickup locations and shipping defaults
+  (p04), URL, catalog-export and PIM intake (p08), product search, export, pause, archive and resubmit (p07, p12,
+  p17), skipping and assigning questions (p15), and the notifications bell.
+- **Disabled with a reason, where the design puts the control:** brand-authorisation upload (p04), Flipkart drafts
+  until Flipkart is connected (its connector is off for brands), answering tasks other than fact questions (p15),
+  "Choose category" on issues (p16), and the Notifications and Audit log settings.
 - **"Join waitlist" disabled, plus a Not available chip:** Myntra, AJIO, Meesho and Nykaa (p04, p06, p17). The
   waitlist API does not exist, so the waitlist cannot capture interest yet.
 - **Hidden because showing it would mislead:** the autonomous or approval-mode toggle (p19 shows approval as the
