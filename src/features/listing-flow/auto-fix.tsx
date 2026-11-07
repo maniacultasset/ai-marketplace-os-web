@@ -108,7 +108,18 @@ export function RewrittenBadge() {
 }
 
 /** "✓ 2 auto-fixed" on a listing card: opens that listing's review at "Fixed for you". */
-export function AutoFixedChip({ listingId, count, className }: { listingId: string; count: number; className?: string }) {
+export function AutoFixedChip({
+  listingId,
+  count,
+  label,
+  className,
+}: {
+  listingId: string
+  count: number
+  /** Replaces "N auto-fixed", e.g. "Flipkart: 2 fixed" next to Approve all. */
+  label?: string
+  className?: string
+}) {
   if (count <= 0) return null
   return (
     <Link
@@ -124,7 +135,7 @@ export function AutoFixedChip({ listingId, count, className }: { listingId: stri
       data-testid="auto-fixed-chip"
     >
       <Icon name="check" size={12} aria-hidden />
-      {autoFixedChipText(count)}
+      {label ?? autoFixedChipText(count)}
     </Link>
   )
 }

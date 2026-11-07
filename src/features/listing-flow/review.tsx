@@ -35,7 +35,7 @@ import { ErrorState } from '@/components/states/error-state'
 import { NotFound } from '@/components/states/not-found'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useFixTrail } from '@/features/home-inbox/api'
+import { useFixCounts, useFixTrail } from '@/features/home-inbox/api'
 import { invalidateListingWork, useListingHistory, usePublishListings, useReviewListings, useValidateListing } from '@/features/listings/api'
 import { recallJob, rememberJob } from '@/features/listings/job-memory'
 import {
@@ -58,8 +58,8 @@ import { useKeys } from '@/lib/query-keys'
 import { toast, toastError } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
-import { FixedForYouCard } from './auto-fix'
-import { autoFixTrail, FIXED_FOR_YOU_HASH, versionRef } from './auto-fix-model'
+import { AutoFixedChip, FixedForYouCard } from './auto-fix'
+import { autoFixTrail, FIXED_FOR_YOU_HASH, siblingFixes, versionRef } from './auto-fix-model'
 import { EditDialog, SendBackDialog } from './dialogs'
 import { clock, fieldLabel, mpName } from './format'
 import { claimFindings, gateCounts, plural, type ErrorItem, type GateResult } from './gates'
@@ -167,11 +167,17 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   // Until the other marketplaces are read, the footer holds one Approve, so its width never changes.
   const approveShown: ActionState =
     siblingsPending && approveState.show ? { show: true, enabled: false, reason: 'Checking the other marketplaces…' } : approveState
+  // "Approve all" approves the other marketplaces' fixes too: read them, and name them in the footer.
+  const others = allTargets.filter((l) => l.id !== listing.id)
+  const otherFixes = useFixCounts(others)
+  const batchFixes = siblingFixes(others, otherFixes.counts, listing.id)
   // The batch includes this listing, so it is offered only when approving this listing alone is.
   const approveAllState: ActionState =
     allTargets.some((l) => l.id === listing.id) && !approveState.enabled
       ? { show: true, enabled: false, reason: approveState.reason ?? `${mp} can’t be approved yet, so the batch can’t either.` }
-      : { show: true, enabled: true }
+      : otherFixes.pending
+        ? { show: true, enabled: false, reason: 'Checking what Kuinn fixed on the other marketplaces…' }
+        : { show: true, enabled: true }
   const counts = gateCounts(checks.gates)
   const findings = checks.current.findings
   const claims = claimFindings(findings)
@@ -390,7 +396,20 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
       </Page>
 
       {listing.content && !busy && (actions.approve.show || actions.reject.show) ? (
-        <FooterBar status={allTargets.length > 1 ? 'Each marketplace is approved as its own listing.' : `Publishing sends ${mp} only.`}>
+        <FooterBar
+          status={
+            allTargets.length > 1 ? (
+              <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span>Each marketplace is approved as its own listing.</span>
+                {batchFixes.map(({ listing: l, count }) => (
+                  <AutoFixedChip key={l.id} listingId={l.id} count={count} label={`${mpName(l.marketplace)}: ${count} fixed`} />
+                ))}
+              </span>
+            ) : (
+              `Publishing sends ${mp} only.`
+            )
+          }
+        >
           <ActionButton state={actions.reject} variant="ghost" onClick={() => setSendBack(true)} data-testid="send-back">
             Send back with a note
           </ActionButton>
