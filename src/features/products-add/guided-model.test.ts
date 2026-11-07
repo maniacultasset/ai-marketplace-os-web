@@ -148,3 +148,28 @@ describe('guided form', () => {
     expect(v.ownManufacturer).toBe(false)
   })
 })
+
+describe('section marks (browser findings)', () => {
+  const ctx = { brandManufacturer: true, hasMain: false, imageCount: 0 }
+  it('size chart: done with valid rows, error mark when its errors show, dash when empty', () => {
+    const valid = { ...filled(), sizeChart: { unit: 'in' as const, basis: 'garment' as const, rows: [{ ...emptySizeRow('M'), chest: '40' }] } }
+    expect(sectionStates(valid, ctx).size).toEqual({ kind: 'done' })
+    const bad = { ...filled(), sizeChart: { unit: 'in' as const, basis: 'garment' as const, rows: [{ ...emptySizeRow('M'), chest: '0' }] } }
+    expect(sectionStates(bad, ctx, validateGuided(bad)).size).toEqual({ kind: 'error', count: 1 })
+    // Errors not shown yet (not touched): no error mark, and not done.
+    expect(sectionStates(bad, ctx, {}).size).toEqual({ kind: 'todo' })
+    expect(sectionStates(filled(), ctx).size).toEqual({ kind: 'todo' })
+  })
+  it('price: error mark while its error shows, done when valid', () => {
+    const bad = { ...filled(), mrp: '999', sellingPrice: '1299' }
+    expect(sectionStates(bad, ctx, validateGuided(bad)).price).toEqual({ kind: 'error', count: 1 })
+    expect(sectionStates({ ...filled(), mrp: '1299' }, ctx).price).toEqual({ kind: 'done' })
+  })
+  it('a composition row with a percent and no fibre is incomplete', () => {
+    const v = { ...filled(), attrs: { fabric_type: 'Cotton' }, composition: [{ fibre: 'Cotton', percent: '95' }, { fibre: '', percent: '5' }] }
+    expect(missingCritical(v, ctx)).toContain('Fabric composition')
+    expect(sectionStates(v, ctx).fabric).not.toEqual({ kind: 'done' })
+    expect(validateGuided(v)['composition.rows.1.fibre']).toBeDefined()
+    expect(toProductCreate({ ...v, composition: [{ fibre: 'Cotton', percent: '100' }] }).attributes?.fiber_composition).toBe('100% Cotton')
+  })
+})

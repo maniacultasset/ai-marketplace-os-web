@@ -324,14 +324,20 @@ export function toProductCreate(v: GuidedValues, uploads?: { id: string; images:
   return body
 }
 
-export type SectionState = { kind: 'done' } | { kind: 'missing'; count: number } | { kind: 'todo' }
+export type SectionState = { kind: 'done' } | { kind: 'missing'; count: number } | { kind: 'error'; count: number } | { kind: 'todo' }
+
+/** A composition is complete when some row is filled and every filled row has a fibre and a percent. */
+const compositionComplete = (rows: readonly FibreRow[]) => {
+  const filled = rows.filter((r) => r.fibre.trim() || r.percent.trim())
+  return filled.length > 0 && filled.every((r) => r.fibre.trim() && r.percent.trim())
+}
 
 /** Critical facts still empty, by label and section (p09 "N missing" card and section counts). */
 export function missingCriticalBy(v: GuidedValues, ctx: GuidedContext = noContext): { label: string; section: SectionId }[] {
   const out: { label: string; section: SectionId }[] = []
   const empty = (k: string) => !(v.attrs[k] ?? '').trim()
   if (empty('fabric_type')) out.push({ label: 'Fabric type', section: 'fabric' })
-  if (!v.composition.some((r) => r.fibre.trim() || r.percent.trim())) out.push({ label: 'Fabric composition', section: 'fabric' })
+  if (!compositionComplete(v.composition)) out.push({ label: 'Fabric composition', section: 'fabric' })
   if (!v.mrp.trim()) out.push({ label: 'MRP', section: 'price' })
   if (empty('wash_care')) out.push({ label: 'Wash care', section: 'care' })
   if (empty('iron_care')) out.push({ label: 'Iron care', section: 'care' })
@@ -344,28 +350,45 @@ export function missingCritical(v: GuidedValues, ctx: GuidedContext = noContext)
 }
 
 /**
- * Completeness per section (p09 section list): a dot when done, a number when critical facts are
- * missing, a dash when not started. Variants are added on the next step.
+ * Completeness per section (p09 section list), one rule for all:
+ * - an error mark (with a count) when the section has errors the person can see (`shown`: the
+ *   errors the form displays, after a touch or a save attempt);
+ * - else a number when critical facts are missing;
+ * - else a done dot when the section has content and no errors (seen or not);
+ * - else a dash (empty, or not finished).
  */
-export function sectionStates(v: GuidedValues, ctx: GuidedContext = noContext): Record<SectionId, SectionState> {
+export function sectionStates(v: GuidedValues, ctx: GuidedContext = noContext, shown: GuidedErrors = {}): Record<SectionId, SectionState> {
   const errs = validateGuided(v)
   const missing = missingCriticalBy(v, ctx)
-  const has = (s: SectionId) => Object.keys(errs).some((k) => sectionOfError(k) === s)
-  const facts = (s: SectionId, started: boolean): SectionState => {
-    const n = missing.filter((m) => m.section === s).length
-    if (n) return { kind: 'missing', count: n }
-    return started && !has(s) ? { kind: 'done' } : { kind: 'todo' }
+  const content: Record<SectionId, boolean> = {
+    identity: !!(v.sku.trim() || v.title.trim() || v.styleNumber.trim()),
+    category: !!v.category.trim(),
+    fabric:
+      ATTR_FIELDS.some((f) => f.section === 'fabric' && (v.attrs[f.key] ?? '').trim()) ||
+      v.composition.some((r) => r.fibre.trim() || r.percent.trim()) ||
+      v.extra.some((x) => x.key.trim() || x.value.trim()),
+    size: sizeChartCount(v.sizeChart) > 0,
+    media: ctx.imageCount > 0,
+    price: !!(v.mrp.trim() || v.sellingPrice.trim()),
+    care: ATTR_FIELDS.some((f) => f.section === 'care' && (v.attrs[f.key] ?? '').trim()) || v.ownManufacturer,
+    variants: false,
   }
-  return {
-    identity: v.sku.trim() && v.title.trim() && !has('identity') ? { kind: 'done' } : { kind: 'todo' },
-    category: v.category.trim() && !errs.category ? { kind: 'done' } : { kind: 'todo' },
-    fabric: facts('fabric', true),
-    size: sizeChartCount(v.sizeChart) > 0 && !has('size') ? { kind: 'done' } : { kind: 'todo' },
-    media: ctx.hasMain && !has('media') ? { kind: 'done' } : { kind: 'todo' },
-    price: facts('price', true),
-    care: facts('care', true),
-    variants: { kind: 'todo' },
+  // Identity is complete only with both required fields.
+  const complete: Partial<Record<SectionId, boolean>> = { identity: !!(v.sku.trim() && v.title.trim()) }
+  const out = {} as Record<SectionId, SectionState>
+  for (const { id } of SECTIONS) {
+    const seen = Object.keys(shown).filter((k) => shown[k] && sectionOfError(k) === id).length
+    const n = missing.filter((m) => m.section === id).length
+    const hidden = Object.keys(errs).some((k) => sectionOfError(k) === id)
+    out[id] = seen
+      ? { kind: 'error', count: seen }
+      : n
+        ? { kind: 'missing', count: n }
+        : content[id] && (complete[id] ?? true) && !hidden
+          ? { kind: 'done' }
+          : { kind: 'todo' }
   }
+  return out
 }
 
 /** Indexes of the draft rows that were sent (blank rows are dropped), so a 422 row index maps back. */

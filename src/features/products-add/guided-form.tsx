@@ -119,6 +119,14 @@ function writeDraft(key: string, values: GuidedValues | null): string | null {
 }
 
 function SectionMark({ state }: { state: SectionState }) {
+  if (state.kind === 'error')
+    return (
+      <span className="inline-flex h-[22px] min-w-[22px] items-center justify-center gap-0.5 rounded-full border border-danger-line bg-danger-bg px-1.5 text-caption font-bold text-danger">
+        <Glyph status="error" />
+        {state.count > 1 ? state.count : null}
+        <span className="sr-only"> {state.count === 1 ? 'error' : 'errors'} to fix</span>
+      </span>
+    )
   if (state.kind === 'missing')
     return (
       <span className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full border border-attention-line bg-attention-bg px-1.5 text-caption font-bold text-attention">
@@ -292,7 +300,7 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
     if (focusTick) focusFirstInvalid(bodyRef.current)
   }, [focusTick])
 
-  const states = sectionStates(values, ctx)
+  const states = sectionStates(values, ctx, errors)
   const missing = missingCritical(values, ctx)
 
   /** Server errors for edited fields go away: keys equal to, or under, each prefix. */
