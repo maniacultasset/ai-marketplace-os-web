@@ -277,7 +277,7 @@ function ConnectionDetail({ connection, canConnect, connector }: { connection: C
       {connector.notConfigured ? (
         <Banner tone="neutral" title="Coming soon" icon="alert">
           <span data-testid="not-configured">
-            Connecting {m.short} is coming soon. Drafts for {m.short} still work and publish once it opens.
+            Connecting {m.short} is coming soon. {m.short} drafts open once it is connected.
           </span>
         </Banner>
       ) : null}

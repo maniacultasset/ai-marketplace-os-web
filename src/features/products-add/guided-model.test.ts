@@ -61,8 +61,10 @@ describe('guided form', () => {
     expect(validateGuided({ ...filled(), sku: 'FSH\u0007' }).sku).toMatch(/control character/)
     expect(validateGuided({ ...filled(), title: '12345' }).title).toMatch(/at least one letter/)
     expect(validateGuided({ ...filled(), title: '!!!' }).title).toBeDefined()
-    expect(validateGuided({ ...filled(), category: 'Kurtas' }).category).toBe('Use lowercase letters in the category: kurtas.')
-    expect(validateGuided({ ...filled(), category: 'kurta sets' }).category).toBe('Use _ between words in the category: kurta_sets.')
+    expect(validateGuided({ ...filled(), category: '' }).category).toBe('Choose a category.')
+    expect(validateGuided({ ...filled(), category: 'kurtas' }).category).toMatch(/Choose a category from the list/)
+    expect(validateGuided({ ...filled(), category: 'ethnic_wear_kurta_sets' }).category).toBeUndefined()
+    expect(validateGuided({ ...filled(), category: 'home_decor_lamps' }).category).toBeUndefined()
   })
 
   it('accepts real product names with digits, symbols and any script', () => {

@@ -74,23 +74,21 @@ test.describe('setup wizard', () => {
     expect((await getProfile(request, token)).body.tone).toBe(voice)
 
     await page.getByTestId('setup-continue').click()
-    await expect(page).toHaveURL(/\/setup\/compliance$/)
-    await shot(page, 'compliance')
+    await expect(page).toHaveURL(/\/setup\/manufacturer$/)
+    await shot(page, 'manufacturer')
   })
 
-  test('fields with no API render disabled under one banner', async ({ page }) => {
+  test('setup shows only what saves: no disabled fields, then the brand manufacturer', async ({ page }) => {
     await loginAs(page, USERS.bharat.owner, '/setup/brand')
-    await expect(page.getByText('Some fields can’t be saved yet')).toHaveCount(1)
-    for (const label of ['Legal business name', 'Brand website', 'Short brand description']) {
-      await expect(page.getByLabel(label)).toBeDisabled()
-    }
-    await expect(page.getByRole('button', { name: 'Read my site' })).toHaveAttribute('aria-disabled', 'true')
+    await expect(page.getByText('Some fields can’t be saved yet')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Read my site' })).toHaveCount(0)
+    await expect(page.locator('[data-setup-form] input:disabled, [data-setup-form] textarea:disabled')).toHaveCount(0)
 
+    // The old compliance step redirects to the manufacturer step.
     await page.goto('/setup/compliance')
-    await expect(page.getByText('Compliance defaults can’t be saved yet')).toHaveCount(1)
-    for (const label of ['Customer care email', 'Customer care phone', 'Registered address', 'GST number']) {
-      await expect(page.getByLabel(label)).toBeDisabled()
-    }
+    await expect(page).toHaveURL(/\/setup\/manufacturer$/)
+    await expect(page.getByTestId('brand-manufacturer-card')).toBeVisible()
+    await expect(page.getByText('Compliance defaults can’t be saved yet')).toHaveCount(0)
     await page.getByRole('button', { name: 'Back' }).click()
     await expect(page).toHaveURL(/\/setup\/brand$/)
   })
@@ -160,7 +158,9 @@ test.describe('setup wizard', () => {
       if (r.method() === 'PATCH' && r.url().endsWith('/tenants/me')) patched = true
     })
     await page.getByTestId('setup-continue').click()
-    await expect(page).toHaveURL(/\/setup\/compliance$/)
+    await expect(page).toHaveURL(/\/setup\/manufacturer$/)
+    // The manufacturer card is read-only for a reviewer.
+    await expect(page.getByTestId('manufacturer-edit')).toHaveCount(0)
     expect(patched).toBe(false)
   })
 })

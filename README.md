@@ -76,8 +76,8 @@ design source is `docs/design-reference/listing-agent-hifi-handoff.html` (18 scr
 |---|---|---|
 | Public | Landing, sign in (with the login-code, forced enrolment, recovery codes and forced password steps), request access, request status, privacy policy; Continue with Google and its return page `/auth/google` | `/auth/login`, `/auth/login/mfa*`, `/auth/password/expired`, `/signup`, `/signup/status`, `/auth/google/*`, `/signup/google` |
 | Security (DPP-1) | Settings > Security: login codes status, set up or replace the authenticator, new recovery codes, change password; the step-up dialog on every sensitive action | `/auth/security`, `/auth/mfa/*`, `/auth/password` |
-| Setup (02-04) | Brand and business, compliance defaults, connect marketplaces | `PATCH /tenants/me` (If-Match), `/marketplaces/*` |
-| Home and Inbox (05, 06, 11, 16) | Home (first run + working), Inbox with the answer box for fact questions, issue detail | `/listings`, `/tasks`, `/tasks/{id}/answer`, `/issues`, `/issues/{id}/dismiss`, submissions |
+| Setup (02-04) | Brand name and voice, brand manufacturer, connect marketplaces (only steps that save) | `PATCH /tenants/me` (If-Match), `/brand-profile` (If-Match), `/marketplaces/*` |
+| Home and Inbox (05, 06, 11, 16) | Home (first run with a checklist from real reads, including the brand manufacturer and a teammate who approves; working), Inbox with the answer box for fact questions, issue detail | `/listings`, `/tasks`, `/tasks/{id}/answer`, `/issues`, `/issues/{id}/dismiss`, submissions |
 | Photo facts (SI3) | "From photos" on product details (confirm, reject); photo questions in the Inbox; Home counts them as not blocking | `PATCH /products/{id}` (`confirm_attributes`, `attributes: {key: null}`), `POST /tasks/{id}/answer` |
 | Products and add (07-10, 17) | Products table/cards, product detail tabs with the product editor, add chooser, guided form (all ten seller inputs: style number, SKU, fabric type and composition, colour, size chart, manufacturer, MRP, selling price, photos), bulk upload, variants and media | `/products`, `PATCH /products/{id}` (If-Match), `/products/bulk`, `/imports/*`, `/jobs/{id}`, `/images/*`, `/brand-profile`, `POST /listings/generate` |
 | Listing flow (12-15) | Agent run, review and approve, field mapping, live confirmation | `/jobs/{id}`, `/listings/{id}` (+ `/content`, `/regenerate`, `/preview`, `/history`, `/submissions`, `/status`, `/refresh-status`, `/publish/retry-fields`), `/listings/approve`, `/listings/validate`, `/listings/publish`, `/rules` |
@@ -89,9 +89,9 @@ Approval is always on (maker-checker): nothing is sent to a marketplace until a 
 ### Routes
 
 Public: `/`, `/login`, `/signup`, `/signup/status`, `/privacy`.
-Setup frame: `/setup/brand`, `/setup/compliance`, `/setup/marketplaces`.
-App: `/home`, `/inbox`, `/issues/$issueId`, `/products`, `/products/$productId`, `/products/new`,
-`/add`, `/add/guided`, `/add/bulk`, `/add/variants`, `/runs/$runId`, `/listings/$listingId/review`,
+Setup frame: `/setup/brand`, `/setup/manufacturer`, `/setup/marketplaces` (`/setup/compliance` redirects to `/setup/manufacturer`).
+App: `/home`, `/inbox`, `/issues/$issueId`, `/products`, `/products/$productId`, `/products/new` (redirects to `/add/guided`),
+`/add`, `/add/guided` (`?start=photos` opens on Images), `/add/bulk`, `/add/variants`, `/runs/$runId`, `/listings/$listingId/review`,
 `/listings/$listingId/mapping`, `/listings/$listingId/live`, `/marketplaces`, `/marketplaces/connected`,
 `/activity`, `/analytics`, `/about`, `/imports`, `/imports/new`, `/imports/$importId`, `/jobs/$jobId`.
 Settings: `/settings`, `/settings/compliance`, `/settings/imports`, `/brand`, `/team`, `/rules`,
@@ -121,18 +121,22 @@ the same full-page flow; the intent only picks the copy on the way back.
 
 ### Shown but not in the API yet (honest disabled)
 
-These appear where the design puts them, as a disabled control with a reason tooltip
-(`UnavailableButton`, reasons in `NOT_YET` in `src/components/la/unavailable.tsx`), a "Coming soon"
-tag, or a "Join waitlist" button that does nothing:
+A control with no API and no V1 value is not shown at all. The few the design needs in place appear
+as a disabled control with a reason tooltip (`UnavailableButton`, reasons in `NOT_YET` in
+`src/components/la/unavailable.tsx`), a "Coming soon" tag, or a "Join waitlist" button that does nothing:
 
-- Email verification codes; "What best describes you?" on sign-up
-- "Read my site" (website prefill); legal name, business type, logo, description; compliance defaults (can't be saved yet)
-- Myntra, AJIO, Meesho, Nykaa Fashion (Join waitlist); pickup locations, default shipping; brand authorisation upload; category/brand approvals
-- Add from photos, product page URL, catalog export; PIM/ERP (Later); agent category classification
-- Assigning Inbox questions, and answering questions other than missing or conflicting facts (a refused publish's account tasks take no answer: they show the marketplace's words with Open listing, Edit product, Open issue and Generate again); "Choose category" (a listing keeps its category) and "Ask support" on issues
-- Pause, archive, whole-product resubmit, catalog export
+- Myntra, AJIO, Meesho, Nykaa Fashion (Join waitlist); brand authorisation upload; category/brand approvals
+- Flipkart drafts until Flipkart is connected (its connector is off for brands; `DRAFTS_BEFORE_CONNECT` in `src/features/marketplaces/meta.ts`)
+- Answering questions other than missing or conflicting facts (a refused publish's account tasks take no answer: they show the marketplace's words with Open listing, Edit product, Open issue and Generate again); "Choose category" on issues (a listing keeps its category)
 - Autonomous submit and every auto-fix toggle, retry limit, notification channels (Autonomy shows approval mode only)
-- Brand-wide activity feed and audit log; notifications bell; top-bar product search
+- Notifications and the audit log in the settings sub-nav
+
+Support has no in-app channel: "Contact support" (user menu), "Ask support" (issue detail) and the
+sign-in and Security hints open an email to `support@kuinn.in` (`src/lib/support.ts`).
+
+Categories are a dropdown of the ones with a listing template (`src/features/products/categories.ts` and `category-options.ts`:
+kurta sets and t-shirts; lamps only for a brand that already sells them). There is no GET for them yet,
+so keep that list in step with the backend templates.
 
 ## End-to-end tests
 

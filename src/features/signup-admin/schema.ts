@@ -55,7 +55,6 @@ export const PASSWORD_MAX = 1024
 export const REASON_MAX = 1000
 export const TRIAL_DAYS_MIN = 1
 export const TRIAL_DAYS_MAX = 365
-export const TRIAL_DAYS_DEFAULT = 14
 
 const VISIBLE_ASCII = /^[\x21-\x7E]+$/
 
@@ -137,7 +136,7 @@ export type RejectFormValues = z.infer<typeof rejectFormSchema>
 
 export const toRejectBody = (v: RejectFormValues): SignupRejectBody => ({ reason: v.reason.trim() })
 
-/** `SignupApprove.trial_days`: an integer 1..365, or null for the backend default (14). */
+/** `SignupApprove.trial_days`: an integer 1..365, or null for the backend default (not sent). */
 export function parseTrialDays(input: string): number | null | 'invalid' {
   const v = input.trim()
   if (v === '') return null

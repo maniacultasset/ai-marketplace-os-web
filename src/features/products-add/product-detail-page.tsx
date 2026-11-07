@@ -46,6 +46,7 @@ import { AutoFixedChip } from '@/features/listing-flow/auto-fix'
 import { listingDetailQuery, useListingHistory } from '@/features/listings/api'
 import { recallJob } from '@/features/listings/job-memory'
 import { historyLabel, isBusy } from '@/features/listings/model'
+import { draftClosedReason, draftOpen } from '@/features/marketplaces/meta'
 import { useProduct, type ProductDetail } from '@/features/products/api'
 import { RelativeTime } from '@/features/products/format'
 import { Can, OP_ACTION, useCan } from '@/lib/permissions'
@@ -55,6 +56,7 @@ import { AddMarketplaceDialog } from './add-marketplace-dialog'
 import { useAllListings, useAllProducts, useOpenIssues } from './catalog'
 import {
   cellChip,
+  firstListable,
   humanizeSlug,
   attrText,
   matrixKey,
@@ -66,6 +68,7 @@ import {
   type Marketplace,
   type Product,
 } from './catalog-model'
+import { useConnectedMarketplaces } from './list-on'
 import { ProductDetailsCard, ProductDetailsEditor } from './product-details'
 import { useProductEditSession, type ProductEditSession } from './product-edit-session'
 import { manufacturerSource } from '@/features/products/edit-model'
@@ -397,14 +400,6 @@ function LoadedDetail({ data, tab, tabsRef }: { data: DetailData; tab: DetailTab
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <UnavailableButton variant="ghost" size="sm" reason={NOT_YET.pauseArchive}>
-            <Icon name="pause" size={16} />
-            Pause
-          </UnavailableButton>
-          <UnavailableButton variant="ghost" size="sm" reason="Resubmitting a whole product is not available yet. Open a listing to retry it.">
-            <Icon name="refresh" size={16} />
-            Resubmit
-          </UnavailableButton>
           {canEdit && !editing ? (
             <Button
               variant="ghost"
@@ -488,12 +483,17 @@ function KV({ rows }: { rows: [string, ReactNode][] }) {
 const CARD_ACTIONS = 'mt-auto flex flex-wrap gap-2 pt-3'
 const CARD_FRAME = 'flex h-full flex-col'
 
-/** The first supported marketplace this product has no listing on, if the user may start one. */
+/**
+ * The first supported marketplace this product has no listing on, if the user may start one.
+ * Flipkart only once it is connected (marketplaces/meta `draftOpen`).
+ */
 function useFirstUnlisted(data: DetailData): MarketplaceInfo | 'pending' | null {
   const can = useCan()
+  const { connected } = useConnectedMarketplaces()
   if (!can('listing:generate') || data.isVariant) return null
-  if (data.listingsPending) return 'pending'
-  return MARKETPLACES.find((m) => m.supported && !data.listings[m.id as Marketplace]) ?? null
+  if (data.listingsPending || connected === null) return 'pending'
+  const id = firstListable(data.listings, connected)
+  return id ? (MARKETPLACES.find((m) => m.id === id) ?? null) : null
 }
 
 /** A listing that waits for a person: needs review, blocked, or ready to approve. */
@@ -531,13 +531,21 @@ function HeaderListOn({ data, variant = 'primary' }: { data: DetailData; variant
 
 function MarketplaceCards({ data, detailed }: { data: DetailData; detailed?: boolean }) {
   const can = useCan()
+  const { connected } = useConnectedMarketplaces()
   const [adding, setAdding] = useState<Marketplace | null>(null)
   return (
     <>
       <div className="flex flex-col gap-4">
         <div className="grid gap-4 md:grid-cols-2" data-testid="marketplace-cards">
           {SUPPORTED.map((m) => (
-            <MarketplaceCard key={m.id} m={m} data={data} detailed={detailed} onList={can('listing:generate') && !data.isVariant ? setAdding : null} />
+            <MarketplaceCard
+              key={m.id}
+              m={m}
+              data={data}
+              detailed={detailed}
+              onList={can('listing:generate') && !data.isVariant ? setAdding : null}
+              connected={connected}
+            />
           ))}
         </div>
         <MoreMarketplaces />
@@ -611,11 +619,14 @@ function MarketplaceCard({
   data,
   detailed,
   onList,
+  connected,
 }: {
   m: MarketplaceInfo
   data: DetailData
   detailed?: boolean
   onList: ((m: Marketplace) => void) | null
+  /** Connected marketplaces; null while loading. Flipkart drafts wait for a connection. */
+  connected: readonly Marketplace[] | null
 }) {
   const id = m.id as Marketplace
   // Chip, issues and actions land together.
@@ -633,9 +644,20 @@ function MarketplaceCard({
         </p>
         {onList ? (
           <div className={CARD_ACTIONS}>
-            <Button variant="secondary" size="sm" onClick={() => onList(id)} data-testid={`list-on-${id}`}>
-              List on {m.name}
-            </Button>
+            {draftOpen(id, connected) ? (
+              <Button variant="secondary" size="sm" onClick={() => onList(id)} data-testid={`list-on-${id}`}>
+                List on {m.name}
+              </Button>
+            ) : connected === null ? (
+              // Accounts still loading: same button, held, so the card never changes size.
+              <Button variant="secondary" size="sm" disabled data-testid={`list-on-${id}`}>
+                List on {m.name}
+              </Button>
+            ) : (
+              <UnavailableButton variant="secondary" size="sm" reason={draftClosedReason(id)} data-testid={`list-on-${id}`}>
+                List on {m.name}
+              </UnavailableButton>
+            )}
           </div>
         ) : null}
       </DashedCard>

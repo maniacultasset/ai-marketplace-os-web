@@ -62,6 +62,8 @@ import { useKeys } from '@/lib/query-keys'
 import { toast, toastError } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
+import { useApproverState } from '@/features/team-account/approver'
+import { ApproverNotice } from '@/features/team-account/approver-notice'
 import { AutoFixedChip, FixedForYouCard } from './auto-fix'
 import { autoFixTrail, FIXED_FOR_YOU_HASH, siblingFixes, versionRef } from './auto-fix-model'
 import { EditDialog, SendBackDialog } from './dialogs'
@@ -165,7 +167,8 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
         : actions.approve
   // The product line and tabs land together, once the product and its listings are read.
   const siblingsPending = checks.siblings.isPending
-  const topReady = !checks.product.isPending && !siblingsPending
+  const approver = useApproverState()
+  const topReady = !checks.product.isPending && !siblingsPending && approver !== 'loading'
   const siblings = checks.siblings.rows.length ? checks.siblings.rows : [listing]
   const allTargets = can('listing:approve') && !siblingsPending ? approveAllTargets(siblings) : []
   // Until the other marketplaces are read, the footer holds one Approve, so its width never changes.
@@ -245,11 +248,13 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
     }
   }
 
-  const approvalBanner = (
+  const infoBanner = (
     <Banner tone="info" icon={CONCEPT_ICON.approval} className="mb-4">
       <b>Approval is always on.</b> Nothing is sent to a marketplace until a person approves it.
     </Banner>
   )
+  // A brand where nobody else can approve learns it here, before the click (maker-checker).
+  const approvalBanner = approver === 'alone' && can('listing:approve') ? <ApproverNotice state="alone" className="mb-4" /> : infoBanner
 
   return (
     <div className="flex min-h-[calc(100svh-56px)] flex-col">
@@ -271,7 +276,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
             <MarketplaceTabs siblings={siblings} currentId={listing.id} counts={counts} gatesKnown={checks.gatesReady} />
           </>
         ) : (
-          <ReviewTopSkeleton>{approvalBanner}</ReviewTopSkeleton>
+          <ReviewTopSkeleton>{infoBanner}</ReviewTopSkeleton>
         )}
 
         {busy ? (

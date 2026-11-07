@@ -1,13 +1,15 @@
 /**
  * "List on" (hi-fi p08): which marketplaces the agent drafts for after a product is added.
  * Carried between the add screens in the `on` search param ("amazon,flipkart").
- * Only API marketplaces can be chosen; the others are shown disabled with the reason.
- * Pre-selection comes from the brand's connected accounts (GET /marketplaces/accounts).
+ * Only API marketplaces can be chosen; the others are shown disabled with the reason. Flipkart is
+ * shown as Coming soon, not choosable, until the brand has it connected (marketplaces/meta
+ * `draftOpen`). Pre-selection comes from the brand's connected accounts (GET /marketplaces/accounts).
  */
-import { MARKETPLACES, MarketplaceTile, NOT_YET, UnavailableHint } from '@/components/la'
+import { ComingSoon, MARKETPLACES, MarketplaceTile, NOT_YET, UnavailableHint } from '@/components/la'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCurrentMarketplaceAccounts } from '@/features/marketplaces/api'
+import { draftClosedReason, draftOpen } from '@/features/marketplaces/meta'
 import { cn } from '@/lib/utils'
 import { API_MARKETPLACES, type Marketplace } from './catalog-model'
 
@@ -58,6 +60,17 @@ export function ListOnPicker({
           // Accounts still loading: pre-selection is not known yet, so the choice waits for it.
           if (connected === null) return <Skeleton key={m.id} className="h-11 w-36 rounded-control" />
           const id = m.id as Marketplace
+          if (!draftOpen(id, connected)) {
+            return (
+              <UnavailableHint key={m.id} reason={draftClosedReason(id)}>
+                <span className="flex h-11 items-center gap-2.5 rounded-control border border-dashed border-line-strong pr-3 pl-2 font-medium text-ink-3" data-testid={`list-on-closed-${id}`}>
+                  <MarketplaceTile id={m.id} size="sm" />
+                  {m.name}
+                  <ComingSoon />
+                </span>
+              </UnavailableHint>
+            )
+          }
           const on = value.includes(id)
           const notConnected = connected !== null && !connected.includes(id)
           return (

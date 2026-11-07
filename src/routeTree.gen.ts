@@ -47,6 +47,7 @@ import { Route as AppProductsNewRouteImport } from './routes/_app/products/new'
 import { Route as AppRunsRunIdRouteImport } from './routes/_app/runs/$runId'
 import { Route as AppSetupBrandRouteImport } from './routes/_app/setup/brand'
 import { Route as AppSetupComplianceRouteImport } from './routes/_app/setup/compliance'
+import { Route as AppSetupManufacturerRouteImport } from './routes/_app/setup/manufacturer'
 import { Route as AppSetupMarketplacesRouteImport } from './routes/_app/setup/marketplaces'
 import { Route as AppSettingsRulesIndexRouteImport } from './routes/_app/_settings/rules/index'
 import { Route as AppSettingsRulesCheckRouteImport } from './routes/_app/_settings/rules/check'
@@ -247,6 +248,11 @@ const AppSetupComplianceRoute = AppSetupComplianceRouteImport.update({
   path: '/setup/compliance',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSetupManufacturerRoute = AppSetupManufacturerRouteImport.update({
+  id: '/setup/manufacturer',
+  path: '/setup/manufacturer',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSetupMarketplacesRoute = AppSetupMarketplacesRouteImport.update({
   id: '/setup/marketplaces',
   path: '/setup/marketplaces',
@@ -338,6 +344,7 @@ export interface FileRoutesByFullPath {
   '/runs/$runId': typeof AppRunsRunIdRoute
   '/setup/brand': typeof AppSetupBrandRoute
   '/setup/compliance': typeof AppSetupComplianceRoute
+  '/setup/manufacturer': typeof AppSetupManufacturerRoute
   '/setup/marketplaces': typeof AppSetupMarketplacesRoute
   '/add/': typeof AppAddIndexRoute
   '/imports/': typeof AppImportsIndexRoute
@@ -385,6 +392,7 @@ export interface FileRoutesByTo {
   '/runs/$runId': typeof AppRunsRunIdRoute
   '/setup/brand': typeof AppSetupBrandRoute
   '/setup/compliance': typeof AppSetupComplianceRoute
+  '/setup/manufacturer': typeof AppSetupManufacturerRoute
   '/setup/marketplaces': typeof AppSetupMarketplacesRoute
   '/add': typeof AppAddIndexRoute
   '/imports': typeof AppImportsIndexRoute
@@ -436,6 +444,7 @@ export interface FileRoutesById {
   '/_app/runs/$runId': typeof AppRunsRunIdRoute
   '/_app/setup/brand': typeof AppSetupBrandRoute
   '/_app/setup/compliance': typeof AppSetupComplianceRoute
+  '/_app/setup/manufacturer': typeof AppSetupManufacturerRoute
   '/_app/setup/marketplaces': typeof AppSetupMarketplacesRoute
   '/_app/add/': typeof AppAddIndexRoute
   '/_app/imports/': typeof AppImportsIndexRoute
@@ -486,6 +495,7 @@ export interface FileRouteTypes {
     | '/runs/$runId'
     | '/setup/brand'
     | '/setup/compliance'
+    | '/setup/manufacturer'
     | '/setup/marketplaces'
     | '/add/'
     | '/imports/'
@@ -533,6 +543,7 @@ export interface FileRouteTypes {
     | '/runs/$runId'
     | '/setup/brand'
     | '/setup/compliance'
+    | '/setup/manufacturer'
     | '/setup/marketplaces'
     | '/add'
     | '/imports'
@@ -583,6 +594,7 @@ export interface FileRouteTypes {
     | '/_app/runs/$runId'
     | '/_app/setup/brand'
     | '/_app/setup/compliance'
+    | '/_app/setup/manufacturer'
     | '/_app/setup/marketplaces'
     | '/_app/add/'
     | '/_app/imports/'
@@ -878,6 +890,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSetupComplianceRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/setup/manufacturer': {
+      id: '/_app/setup/manufacturer'
+      path: '/setup/manufacturer'
+      fullPath: '/setup/manufacturer'
+      preLoaderRoute: typeof AppSetupManufacturerRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/setup/marketplaces': {
       id: '/_app/setup/marketplaces'
       path: '/setup/marketplaces'
@@ -1001,6 +1020,7 @@ interface AppRouteChildren {
   AppRunsRunIdRoute: typeof AppRunsRunIdRoute
   AppSetupBrandRoute: typeof AppSetupBrandRoute
   AppSetupComplianceRoute: typeof AppSetupComplianceRoute
+  AppSetupManufacturerRoute: typeof AppSetupManufacturerRoute
   AppSetupMarketplacesRoute: typeof AppSetupMarketplacesRoute
   AppAddIndexRoute: typeof AppAddIndexRoute
   AppImportsIndexRoute: typeof AppImportsIndexRoute
@@ -1033,6 +1053,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppRunsRunIdRoute: AppRunsRunIdRoute,
   AppSetupBrandRoute: AppSetupBrandRoute,
   AppSetupComplianceRoute: AppSetupComplianceRoute,
+  AppSetupManufacturerRoute: AppSetupManufacturerRoute,
   AppSetupMarketplacesRoute: AppSetupMarketplacesRoute,
   AppAddIndexRoute: AppAddIndexRoute,
   AppImportsIndexRoute: AppImportsIndexRoute,

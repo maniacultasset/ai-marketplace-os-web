@@ -20,7 +20,7 @@ import { LaCard } from '@/components/la/cards'
 import { Icon } from '@/components/la/icons'
 import { MARKETPLACES, MarketplaceTile, type MarketplaceId, type MarketplaceInfo } from '@/components/la/marketplace'
 import { StatusChip, TagChip } from '@/components/la/status-chip'
-import { ComingSoon, NOT_YET, UnavailableButton, UnavailableHint } from '@/components/la/unavailable'
+import { NOT_YET, UnavailableButton } from '@/components/la/unavailable'
 import { ErrorState } from '@/components/states/error-state'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -32,6 +32,7 @@ import {
   type MarketplaceAccount,
 } from '@/features/marketplaces/api'
 import { formatDateTime } from '@/features/marketplaces/format'
+import { ApproverNotice } from '@/features/team-account/approver-notice'
 import { rememberConnectOrigin } from '@/features/marketplaces-settings/use-start-connect'
 import { useCan } from '@/lib/permissions'
 import { toastError } from '@/lib/toast'
@@ -81,6 +82,7 @@ export function MarketplacesStep() {
                 ))}
               </ul>
             )}
+            <ApproverNotice className="mt-2" />
           </div>
           <MarketplaceDetail
             key={shown}
@@ -91,7 +93,7 @@ export function MarketplacesStep() {
         </div>
       </SetupBody>
       <SetupFooter status={status}>
-        <Button variant="secondary" onClick={() => void navigate({ to: '/setup/compliance' })}>
+        <Button variant="secondary" onClick={() => void navigate({ to: '/setup/manufacturer' })}>
           Back
         </Button>
         <Button variant="ghost" onClick={() => void navigate({ to: '/home' })} data-testid="setup-skip">
@@ -281,23 +283,10 @@ function MarketplaceDetail({ info, account, loading }: { info: MarketplaceInfo; 
           <dd className="text-ink">
             <time dateTime={account.created_at}>{formatDateTime(account.created_at)}</time>
           </dd>
-          <dt className="text-ink-2">Pickup locations</dt>
-          <dd>
-            <UnavailableHint reason={NOT_YET.pickupLocations}>
-              <ComingSoon />
-            </UnavailableHint>
-          </dd>
-          <dt className="text-ink-2">Default shipping</dt>
-          <dd>
-            <UnavailableHint reason={NOT_YET.pickupLocations}>
-              <ComingSoon />
-            </UnavailableHint>
-          </dd>
         </dl>
       ) : notConfigured ? (
-        <Banner tone="neutral" icon="alert" title="Coming soon" role="status">
-          Connecting {info.name} is coming soon. You can still draft {info.name} listings now; they publish once
-          the connection opens.
+        <Banner tone="neutral" icon="clock" title="Coming soon" role="status">
+          Connecting {info.name} is coming soon. {info.name} drafts open once it is connected.
         </Banner>
       ) : (
         <div className="flex flex-col items-start gap-3">

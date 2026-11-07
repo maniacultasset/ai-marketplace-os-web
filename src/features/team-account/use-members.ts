@@ -11,10 +11,11 @@ import type { Member } from './roles'
 export type MemberPatch = Schema<'MemberPatch'>
 
 /** GET /members (oldest membership first, inactive included), cursor paged. */
-export function useMembersList() {
+export function useMembersList({ enabled }: { enabled?: boolean } = {}) {
   const keys = useKeys()
   return useCursorList<Member>({
     queryKey: keys.members.list(),
+    enabled,
     fetchPage: (cursor) =>
       unwrap(api.GET('/members', { params: { query: { limit: PAGE_SIZE, cursor } } })) as Promise<Page<Member>>,
   })

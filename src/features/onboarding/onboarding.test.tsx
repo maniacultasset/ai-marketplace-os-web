@@ -1,9 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { Schema } from '@/api/types'
-import { TooltipProvider } from '@/components/ui/tooltip'
 import { buildPatch, rebase, toDraft } from '@/features/brand/profile-model'
-import { ComplianceForm } from './compliance'
+import { ComplianceAside } from './compliance'
 import { activeAccounts, savedClock, SETUP_STEPS, setupStepsDone } from './model'
 
 type Account = Schema<'MarketplaceAccountOut'>
@@ -32,15 +31,16 @@ const tenant = (over: Partial<Tenant> = {}): Tenant => ({
 })
 
 describe('setup steps', () => {
-  it('are the three hi-fi steps in order', () => {
-    expect(SETUP_STEPS.map((s) => s.to)).toEqual(['/setup/brand', '/setup/compliance', '/setup/marketplaces'])
+  it('are only the steps that save something: brand, manufacturer, marketplaces', () => {
+    expect(SETUP_STEPS.map((s) => s.to)).toEqual(['/setup/brand', '/setup/manufacturer', '/setup/marketplaces'])
   })
 
-  it('only marks a step done from real data, never compliance', () => {
+  it('only marks a step done from real data', () => {
     expect(setupStepsDone(undefined)).toEqual([false, false, false])
     expect(setupStepsDone(tenant())).toEqual([false, false, false])
     expect(setupStepsDone(tenant({ tone: 'Warm and plain' }))).toEqual([true, false, false])
-    expect(setupStepsDone(tenant({ guidelines: ['No hype'] }))[1]).toBe(false)
+    expect(setupStepsDone(tenant({ guidelines: ['No hype'] }), true)).toEqual([true, true, false])
+    expect(setupStepsDone(tenant(), true)[1]).toBe(true)
   })
 })
 
@@ -76,18 +76,14 @@ describe('brand step patch (TenantPatch)', () => {
   })
 })
 
-describe('ComplianceForm', () => {
-  it('renders every designed field disabled under one honest banner', () => {
-    render(
-      <TooltipProvider>
-        <ComplianceForm />
-      </TooltipProvider>,
-    )
-    expect(screen.getAllByText('Compliance defaults can’t be saved yet')).toHaveLength(1)
-    for (const name of ['Customer care email', 'Customer care phone', 'Registered address', 'Name', 'Address', 'GST number']) {
-      expect((screen.getByLabelText(name) as HTMLInputElement).disabled).toBe(true)
-    }
-    expect((screen.getByRole('switch') as HTMLButtonElement).disabled).toBe(true)
-    expect(screen.getByRole('button', { name: /Add another/ }).getAttribute('aria-disabled')).toBe('true')
+describe('ComplianceAside', () => {
+  it('says where each fact is kept, with no disabled fields and no "can’t be saved" copy', () => {
+    const view = render(<ComplianceAside />)
+    const aside = screen.getByTestId('compliance-aside')
+    expect(aside.textContent).toContain('Manufacturer')
+    expect(aside.textContent).toContain('set once here')
+    expect(screen.getAllByText('per product')).toHaveLength(2)
+    expect(view.container.querySelectorAll('input, textarea, [aria-disabled="true"], button[disabled]')).toHaveLength(0)
+    expect(view.container.textContent).not.toMatch(/can’t be saved|coming soon/i)
   })
 })

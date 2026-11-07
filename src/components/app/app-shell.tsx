@@ -1,14 +1,13 @@
 /**
  * App shell (hi-fi p05-p19): sidebar 232 (72 collapsed) + main column with a 56px white top bar
- * (page title, search, bell, avatar) over the canvas content area. Below 768px the sidebar is a
+ * (page title and avatar) over the canvas content area. Product search and notifications have no
+ * API, so the top bar does not show them. Below 768px the sidebar is a
  * drawer opened from the top bar.
  */
 import { Outlet, useRouterState } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from '@/components/la/icons'
-import { NOT_YET } from '@/components/la/unavailable'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { activeNavId, NAV_ITEMS } from '@/lib/nav'
 import { useRouteMeta } from '@/lib/route-meta'
 import { useScrolled } from '@/lib/use-scrolled'
@@ -59,35 +58,6 @@ function TopBar({ title, onOpenMenu }: { title: string; onOpenMenu: () => void }
           {title}
         </p>
         <div className="ml-auto flex items-center gap-2 md:gap-3.5">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-disabled="true"
-                aria-label="Search products and SKUs (not available yet)"
-                onClick={(e) => e.preventDefault()}
-                className="focus-ring inset-field hidden h-[34px] w-60 cursor-not-allowed items-center gap-2 rounded-tile border px-2.5 text-left text-small text-ink-3 sm:flex"
-              >
-                <Icon name="search" size={16} />
-                <span className="truncate">Search products, SKUs</span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>{NOT_YET.productSearch}</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-disabled
-                aria-label="Notifications (coming soon)"
-                onClick={(e) => e.preventDefault()}
-                className="focus-ring inline-flex size-10 cursor-not-allowed items-center justify-center rounded-tile text-ink-3 md:size-9"
-              >
-                <Icon name="bell" size={20} />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>{NOT_YET.notifications}</TooltipContent>
-          </Tooltip>
           <UserMenu />
         </div>
       </div>

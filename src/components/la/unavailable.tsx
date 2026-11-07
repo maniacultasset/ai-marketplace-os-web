@@ -78,20 +78,9 @@ export function UnavailableHint({ reason, children }: { reason: string; children
 
 /** One sentence per missing backend capability, reused verbatim across screens. */
 export const NOT_YET = {
-  googleSignIn: 'Google sign-in is not available yet. Use your email and password.',
-  emailCode: 'Email codes are not available yet. A person reviews every sign-up instead.',
-  readSite: 'Reading your website is not available yet. Fill the fields yourself.',
   waitlist: 'This marketplace is not supported yet and the waitlist is not open.',
-  intakeUrl: 'Adding a product from a page URL is not available yet.',
-  intakePhotos: 'Adding products from photos is not available yet.',
-  intakeCatalog: 'Importing another marketplace’s catalog export is not available yet.',
-  pim: 'Connecting a PIM or ERP is not part of this version.',
-  autonomy: 'Every listing needs a person’s approval before it is sent. Autonomous mode is not available.',
   pickupLocations: 'Pickup locations and shipping defaults are not available yet.',
   brandAuthorisation: 'Uploading brand authorisation proof is not available yet.',
-  answerTask: 'Answering questions here is not available yet.',
-  pauseArchive: 'Pausing and archiving listings is not available yet.',
-  activityFeed: 'A brand-wide activity feed is not available yet. Each listing keeps its own history.',
   notifications: 'Notifications are not available yet.',
   productSearch: 'Search is not available yet. Filter the loaded products on the Products page.',
   export: 'Exporting the catalog is not available yet.',

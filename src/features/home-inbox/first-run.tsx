@@ -1,10 +1,12 @@
 /**
  * 05 Home, first run: shown while the brand has no listings. The checklist comes from the API:
- *   Brand profile          GET /tenants/me (tone, guidelines or glossary saved)
- *   Compliance defaults    no API yet → "Later", not counted in the ring
- *   Connect a marketplace  GET /marketplaces/accounts (non-revoked accounts, of the 2 the API supports)
- *   Add your first product GET /products?limit=1
- * The route cards go to the screens that work today. Photo intake has no API → Coming soon.
+ *   Brand profile               GET /tenants/me (tone, guidelines or glossary saved)
+ *   Brand manufacturer          GET /brand-profile (default_manufacturer set)
+ *   Connect a marketplace       GET /marketplaces/accounts (active accounts, of the 2 the API supports)
+ *   Add a teammate who approves GET /members (someone else can approve: maker-checker)
+ *   Add your first product      GET /products?limit=1
+ * The route cards open the V1 add screens (guided form, its photo-first start, bulk spreadsheet),
+ * with the brand's connected marketplaces chosen.
  */
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
@@ -13,37 +15,39 @@ import { CardHead, LaCard } from '@/components/la/cards'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { IconTile, type IconSource } from '@/components/la/icons'
 import { ProgressRing, Stepper } from '@/components/la/progress'
-import { StatusChip, TagChip } from '@/components/la/status-chip'
-import { ComingSoon, NOT_YET } from '@/components/la/unavailable'
+import { StatusChip } from '@/components/la/status-chip'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useBrandProfile } from '@/features/brand/api'
 import { useCurrentMarketplaceAccounts } from '@/features/marketplaces/api'
+import { useBrandManufacturer } from '@/features/products/api'
+import { serializeListOn } from '@/features/products-add/list-on'
+import { useApproverState } from '@/features/team-account/approver'
 import { useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { useHasProducts } from './api'
 import { API_MARKETPLACES, brandProfileDone, setupProgress, setupSteps, type SetupStep } from './model'
 
-const COMPLIANCE_REASON = 'Compliance defaults cannot be saved yet. Add manufacturer and origin facts on each product for now.'
-
-const STEP_LINK: Partial<Record<SetupStep['id'], '/setup/brand' | '/marketplaces' | '/add'>> = {
+type StepLink = '/setup/brand' | '/setup/manufacturer' | '/marketplaces' | '/team' | '/add'
+const STEP_LINK: Record<SetupStep['id'], StepLink> = {
   brand: '/setup/brand',
+  manufacturer: '/setup/manufacturer',
   marketplace: '/marketplaces',
+  approver: '/team',
   product: '/add',
 }
 
-type RouteId = 'photos' | 'guided' | 'bulk'
-const ROUTES: readonly { id: RouteId; icon: IconSource; title: string; sub: string; cta?: string; to?: '/products/new' | '/imports/new' }[] = [
-  { id: 'photos', icon: 'image', title: 'Photos and basics', sub: 'Start from product photos.' },
-  { id: 'guided', icon: CONCEPT_ICON.guidedForm, title: 'Guided form', sub: 'One product, step by step.', cta: 'Start guided form', to: '/products/new' },
-  { id: 'bulk', icon: 'table', title: 'Import spreadsheet', sub: 'Many products at once.', cta: 'Upload spreadsheet', to: '/imports/new' },
+type RouteId = 'guided' | 'photos' | 'bulk'
+const ROUTES: readonly { id: RouteId; icon: IconSource; title: string; sub: string; cta: string }[] = [
+  { id: 'guided', icon: CONCEPT_ICON.guidedForm, title: 'Guided form', sub: 'One product, step by step.', cta: 'Start guided form' },
+  { id: 'photos', icon: 'image', title: 'Photos and basics', sub: 'Start from photos. The agent reads the rest.', cta: 'Start with photos' },
+  { id: 'bulk', icon: 'table', title: 'Import spreadsheet', sub: 'Many products at once.', cta: 'Upload spreadsheet' },
 ]
 
 const AFTER_STEPS = [
   { label: 'You add it' },
   { label: 'The agent prepares listings' },
-  { label: 'You approve, then it is sent' },
+  { label: 'A teammate approves, then it is sent' },
   { label: 'We confirm it is live' },
 ] as const
 
@@ -51,22 +55,33 @@ export function FirstRun({ brand }: { brand: string }) {
   const can = useCan()
   const navigate = useNavigate()
   const profile = useBrandProfile()
+  const manufacturer = useBrandManufacturer()
   const accounts = useCurrentMarketplaceAccounts()
   const products = useHasProducts()
+  const approver = useApproverState()
   const [route, setRoute] = useState<RouteId>('guided')
 
-  const loading = profile.isPending || accounts.isPending || products.isPending
-  const failed = profile.isError || accounts.isError || products.isError
-  const activeAccounts = accounts.data ? API_MARKETPLACES.filter((m) => accounts.data.live[m]?.status === 'active').length : 0
+  const loading = profile.isPending || manufacturer.isPending || accounts.isPending || products.isPending || approver === 'loading'
+  const failed = profile.isError || manufacturer.isError || accounts.isError || products.isError
+  // GET /members failing leaves only the teammate step unknown.
+  const approverUnknown = approver === 'unknown'
+  const connected = accounts.data ? API_MARKETPLACES.filter((m) => accounts.data.live[m]?.status === 'active') : []
   const steps = setupSteps({
     brandDone: brandProfileDone(profile.data?.data),
-    activeAccounts,
+    manufacturerDone: !!manufacturer.data?.data.default_manufacturer,
+    activeAccounts: connected.length,
+    approverDone: approver === 'ok',
     hasProducts: !!products.data,
   })
   const progress = setupProgress(steps)
-  const setupDone = !loading && !failed && steps.every((s) => !s.counted || s.id === 'product' || s.state === 'done')
+  const setupDone = !loading && !failed && !approverUnknown && steps.every((s) => s.id === 'product' || s.state === 'done')
   const canAdd = can('product:import')
   const selected = ROUTES.find((r) => r.id === route)!
+  const on = serializeListOn(connected)
+  const go = () => {
+    if (route === 'bulk') void navigate({ to: '/add/bulk', search: on ? { on } : {} })
+    else void navigate({ to: '/add/guided', search: { ...(on ? { on } : {}), ...(route === 'photos' ? { start: 'photos' as const } : {}) } })
+  }
 
   return (
     <Page>
@@ -85,13 +100,13 @@ export function FirstRun({ brand }: { brand: string }) {
                 <div>
                   <h3 className="text-h3 text-ink">Your setup</h3>
                   <p className="text-small text-ink-2" data-testid="setup-line">
-                    {failed ? 'Some steps could not be checked.' : progress.line}
+                    {failed || approverUnknown ? 'Some steps could not be checked.' : progress.line}
                   </p>
                 </div>
               </div>
               <ul className="mt-4 flex flex-col gap-3">
                 {steps.map((s) => (
-                  <SetupRow key={s.id} step={s} unknown={failed && s.id !== 'compliance'} />
+                  <SetupRow key={s.id} step={s} unknown={failed || (approverUnknown && s.id === 'approver')} />
                 ))}
               </ul>
             </>
@@ -102,61 +117,31 @@ export function FirstRun({ brand }: { brand: string }) {
           <h3 className="text-h3 text-ink">Fastest ways to your first listing</h3>
           <div role="radiogroup" aria-label="How to add your first product" className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             {ROUTES.map((r) => {
-              const available = !!r.to
-              const on = route === r.id
-              const body = (
-                <>
-                  <IconTile icon={r.icon} tone={available ? 'brand' : 'neutral'} size="lg" flat={!available} className="size-10 rounded-tile" />
-                  <h4 className="mt-3 text-h3 text-ink">{r.title}</h4>
-                  <p className="mt-1 text-small text-ink-2">{r.sub}</p>
-                  {!available ? <ComingSoon className="mt-2" /> : null}
-                </>
-              )
-              if (!available)
-                return (
-                  <Tooltip key={r.id}>
-                    <TooltipTrigger asChild>
-                      {/* Focusable on purpose (like UnavailableButton) so keyboard and screen-reader
-                          users reach the reason; it cannot be selected. */}
-                      <div
-                        role="radio"
-                        aria-checked={false}
-                        aria-disabled
-                        aria-describedby={`route-${r.id}-reason`}
-                        tabIndex={0}
-                        data-testid={`route-${r.id}`}
-                        className="focus-ring cursor-not-allowed rounded-card border border-dashed border-line-strong bg-canvas p-4 opacity-75"
-                      >
-                        {body}
-                        <span id={`route-${r.id}-reason`} className="sr-only">
-                          {NOT_YET.intakePhotos}
-                        </span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>{NOT_YET.intakePhotos}</TooltipContent>
-                  </Tooltip>
-                )
+              const checked = route === r.id
               return (
                 <button
                   key={r.id}
                   type="button"
                   role="radio"
-                  aria-checked={on}
+                  aria-checked={checked}
                   onClick={() => setRoute(r.id)}
+                  data-testid={`route-${r.id}`}
                   className={cn(
                     'focus-ring tactile rounded-card border p-4 text-left',
-                    on
+                    checked
                       ? 'border-brand bg-brand-bg/60 shadow-selected-inset'
                       : 'lift border-line bg-surface shadow-raised-sm hover:border-line-strong active:shadow-pressed',
                   )}
                 >
-                  {body}
+                  <IconTile icon={r.icon} tone="brand" size="lg" className="size-10 rounded-tile" />
+                  <h4 className="mt-3 text-h3 text-ink">{r.title}</h4>
+                  <p className="mt-1 text-small text-ink-2">{r.sub}</p>
                 </button>
               )
             })}
           </div>
           {canAdd ? (
-            <Button className="mt-4" onClick={() => void navigate({ to: selected.to! })} data-testid="first-run-add">
+            <Button className="mt-4" onClick={go} disabled={accounts.isPending} data-testid="first-run-add">
               {selected.cta}
             </Button>
           ) : (
@@ -169,7 +154,8 @@ export function FirstRun({ brand }: { brand: string }) {
         <CardHead title="What happens after you add a product" />
         <Stepper steps={AFTER_STEPS} current={0} className="mt-4 max-md:flex-col" />
         <p className="mt-3 text-small text-ink-2">
-          You hear from us only if a fact is missing, and every listing waits for your approval before it is sent.
+          You hear from us only if a fact is missing. Every listing waits for a person’s approval before it is sent, and the
+          person who starts a listing can’t approve it.
         </p>
       </LaCard>
     </Page>
@@ -179,26 +165,15 @@ export function FirstRun({ brand }: { brand: string }) {
 function SetupRow({ step, unknown }: { step: SetupStep; unknown: boolean }) {
   const to = STEP_LINK[step.id]
   const label =
-    step.state !== 'done' && to ? (
+    step.state !== 'done' ? (
       <Link to={to} className={cn('rounded-sm underline-offset-4 hover:underline', step.state === 'next' ? 'font-bold text-ink' : 'text-ink')}>
         {step.label}
       </Link>
     ) : (
-      <span className={cn(step.state === 'next' ? 'font-bold' : '', 'text-ink')}>{step.label}</span>
+      <span className="text-ink">{step.label}</span>
     )
   let chip
   if (unknown) chip = <StatusChip status="not-listed">Unknown</StatusChip>
-  else if (step.state === 'later')
-    chip = (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span tabIndex={0} className="rounded-full">
-            <TagChip tone="plain">{step.chip}</TagChip>
-          </span>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-64">{COMPLIANCE_REASON}</TooltipContent>
-      </Tooltip>
-    )
   else if (step.state === 'done') chip = <StatusChip status="live">{step.chip}</StatusChip>
   else if (step.state === 'next') chip = <StatusChip status="working">{step.chip}</StatusChip>
   else chip = <StatusChip status="draft">{step.chip}</StatusChip>
@@ -221,7 +196,7 @@ function SetupSkeleton() {
         </div>
       </div>
       <div className="mt-4 flex flex-col gap-3">
-        {Array.from({ length: 4 }, (_, i) => (
+        {Array.from({ length: 5 }, (_, i) => (
           <div key={i} className="flex items-center justify-between">
             <Skeleton className="h-4 w-40" />
             <Skeleton className="h-[22px] w-14 rounded-full" />

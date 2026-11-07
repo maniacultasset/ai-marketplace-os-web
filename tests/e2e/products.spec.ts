@@ -1,5 +1,5 @@
 import type { APIRequestContext, Page } from '@playwright/test'
-import { apiLogin, expect, fillStable, loginAs, test, USERS } from './fixtures'
+import { apiLogin, expect, loginAs, test, USERS } from './fixtures'
 
 const RUN = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`
 
@@ -28,49 +28,6 @@ async function apiProducts(request: APIRequestContext, token: string) {
   } while (cursor)
   return all
 }
-
-/** POST /products response, skipping a 401 that the client answers with refresh + replay. */
-const isCreateResponse = (r: { url(): string; status(): number; request(): { method(): string } }) =>
-  r.url().endsWith('/api/v1/products') && r.request().method() === 'POST' && r.status() !== 401
-
-async function fillBasics(page: Page, sku: string) {
-  await fillStable(page, 'SKU', sku)
-  await fillStable(page, 'Title', 'PW product')
-  await fillStable(page, 'Category', 'kurtas')
-}
-
-async function addAttribute(page: Page, n: number, key: string, value: string, type?: 'number') {
-  await page.getByRole('button', { name: 'Add attribute' }).click()
-  await page.getByLabel(`Attribute ${n} key`).fill(key)
-  if (type) {
-    await page.getByRole('combobox', { name: `Attribute ${n} type` }).click()
-    await page.getByRole('option', { name: type }).click()
-  }
-  await page.getByLabel(`Attribute ${n} value`).fill(value)
-}
-
-/** Fail the test if the page sends POST /products (client validation must block it). */
-function forbidCreate(page: Page) {
-  const state = { posted: false }
-  page.on('request', (r) => {
-    if (r.method() === 'POST' && r.url().endsWith('/api/v1/products')) state.posted = true
-  })
-  return state
-}
-
-const fulfill422 = (details: { loc: (string | number)[]; msg: string }[]) => ({
-  status: 422,
-  headers: { 'content-type': 'application/json', 'X-Request-ID': 'pw-ref-422' },
-  body: JSON.stringify({
-    error: {
-      type: 'VALIDATION_FAILED',
-      message: 'Request validation failed.',
-      status: 422,
-      correlation_id: 'pw-ref-422',
-      details,
-    },
-  }),
-})
 
 /** The first page the app shows (limit 50, newest first) is exactly the API's first page. */
 async function expectFirstPage(page: Page, token: string) {
@@ -111,127 +68,12 @@ test.describe('products', () => {
       const { access_token } = await loginAs(page, email, '/products')
       await expectFirstPage(page, access_token)
       await expect(page.getByTestId('new-product')).toHaveCount(0)
+      // The old single-product form redirects to the guided form, which needs product:import.
       await page.goto('/products/new')
+      await expect(page).toHaveURL(/\/add\/guided$/)
       await expect(page.getByText("You don't have access to this page")).toBeVisible()
-      // Exact: the header's search button is labelled "Search products and SKUs …".
       await expect(page.getByLabel('SKU', { exact: true })).toHaveCount(0)
     }
-  })
-
-  test('operator creates a product: detail shows canonical attributes and the list updates', async ({ page }) => {
-    const tokens = await loginAs(page, USERS.acme.operator, '/products')
-    await expectFirstPage(page, tokens.access_token)
-    const sku = `PW-${RUN}-1`
-
-    await page.getByTestId('new-product').click()
-    await expect(page).toHaveURL(/\/add$/)
-    await page.goto('/products/new')
-    await fillStable(page, 'SKU', sku)
-    await page.getByLabel('Title').fill('PW Kurta')
-    await page.getByLabel('Category').fill('kurtas')
-    await page.getByRole('button', { name: 'Add attribute' }).click()
-    await page.getByLabel('Attribute 1 key').fill('color')
-    await page.getByLabel('Attribute 1 value').fill('navy blue')
-    await page.getByRole('button', { name: 'Add attribute' }).click()
-    await page.getByLabel('Attribute 2 key').fill('material')
-    await page.getByLabel('Attribute 2 value').fill('organic cotton')
-    await page.getByRole('button', { name: 'Add attribute' }).click()
-    await page.getByLabel('Attribute 3 key').fill('gsm')
-    await page.getByRole('combobox', { name: 'Attribute 3 type' }).click()
-    await page.getByRole('option', { name: 'number' }).click()
-    await page.getByLabel('Attribute 3 value').fill('180')
-
-    const created = page.waitForResponse(isCreateResponse)
-    await page.getByTestId('create-product').click()
-    const res = await created
-    expect(res.status()).toBe(201)
-    const body = (await res.json()) as ProductOut
-    // Aliases come back canonical; the number stays a number.
-    expect(body).toMatchObject({ sku, title: 'PW Kurta', category: 'kurtas', status: 'draft' })
-    expect(body.attributes).toEqual({ color: 'navy blue', fabric_type: 'organic cotton', gsm: 180 })
-
-    await expect(page).toHaveURL(new RegExp(`/products/${body.id}$`))
-    await expect(page.getByTestId('product-title')).toHaveText('PW Kurta')
-    const attrs = page.getByTestId('product-attributes')
-    await expect(attrs.locator('[data-attr-key="color"]')).toContainText('navy blue')
-    await expect(attrs.locator('[data-attr-key="fabric_type"]')).toContainText('organic cotton')
-    await expect(attrs.locator('[data-attr-key="gsm"]')).toContainText('180')
-    await expect(attrs.locator('[data-attr-key="material"]')).toHaveCount(0)
-    await expect(page.getByTestId('no-parent')).toBeVisible()
-
-    // DB-backed: re-read through the API.
-    const fresh = await page.request.get(`/api/v1/products/${body.id}`, {
-      headers: { Authorization: `Bearer ${tokens.access_token}` },
-    })
-    expect(fresh.status()).toBe(200)
-    const stored = (await fresh.json()) as ProductOut
-    expect(stored).toMatchObject({ sku, status: 'draft', category: 'kurtas' })
-    expect(stored.attributes).toEqual({ color: 'navy blue', fabric_type: 'organic cotton', gsm: 180 })
-
-    // List was invalidated: the new SKU is the newest row without a reload.
-    await page.getByRole('link', { name: 'Products' }).first().click()
-    await expect(page).toHaveURL(/\/products$/)
-    const firstRow = page.getByRole('table', { name: 'Products' }).locator('tbody tr').first()
-    await expect(firstRow.getByRole('link', { name: sku, exact: true })).toBeVisible()
-  })
-
-  test('duplicate SKU shows a field error and offers the existing product', async ({ page }) => {
-    await loginAs(page, USERS.acme.operator, '/products/new')
-    await fillStable(page, 'SKU', 'KURTA-001')
-    await page.getByLabel('Title').fill('Duplicate')
-    await page.getByLabel('Category').fill('kurtas')
-    const res = page.waitForResponse(isCreateResponse)
-    await page.getByTestId('create-product').click()
-    expect((await res).status()).toBe(409)
-    await expect(page.getByText('This SKU already exists in this brand.')).toBeVisible()
-    await expect(page.getByLabel('SKU', { exact: true })).toHaveAttribute('aria-invalid', 'true')
-    await page.getByTestId('open-existing').click()
-    await expect(page.getByTestId('product-sku')).toHaveText('KURTA-001')
-  })
-
-  test('unknown attribute key maps the 422 onto that row', async ({ page }) => {
-    await loginAs(page, USERS.acme.operator, '/products/new')
-    await fillStable(page, 'SKU', `PW-${RUN}-unknown`)
-    await page.getByLabel('Title').fill('Unknown attr')
-    await page.getByLabel('Category').fill('kurtas')
-    await page.getByRole('button', { name: 'Add attribute' }).click()
-    await page.getByLabel('Attribute 1 key').fill('color')
-    await page.getByLabel('Attribute 1 value').fill('red')
-    await page.getByRole('button', { name: 'Add attribute' }).click()
-    await page.getByLabel('Attribute 2 key').fill('not_a_fact')
-    await page.getByLabel('Attribute 2 value').fill('x')
-    const res = page.waitForResponse(isCreateResponse)
-    await page.getByTestId('create-product').click()
-    const r = await res
-    expect(r.status()).toBe(422)
-    expect(((await r.json()) as { error: { type: string } }).error.type).toBe('UNKNOWN_FACT_KEY')
-    const row = page.getByTestId('attribute-row-1')
-    await expect(row.getByText('Unknown attribute.')).toBeVisible()
-    await expect(page.getByLabel('Attribute 2 key')).toHaveAttribute('aria-invalid', 'true')
-    await expect(page.getByLabel('Attribute 1 key')).not.toHaveAttribute('aria-invalid', 'true')
-    await expect(page).toHaveURL(/\/products\/new$/)
-  })
-
-  test('client validation blocks bad input without a request', async ({ page }) => {
-    await loginAs(page, USERS.acme.operator, '/products/new')
-    let posted = false
-    page.on('request', (r) => {
-      if (r.method() === 'POST' && r.url().endsWith('/api/v1/products')) posted = true
-    })
-    await fillStable(page, 'SKU', 'HAS SPACE')
-    await page.getByLabel('Category').fill('Kurtas')
-    await page.getByRole('button', { name: 'Add attribute' }).click()
-    await page.getByLabel('Attribute 1 key').fill('Bad-Key')
-    await page.getByRole('combobox', { name: 'Attribute 1 type' }).click()
-    await page.getByRole('option', { name: 'number' }).click()
-    await page.getByLabel('Attribute 1 value').fill('abc')
-    await page.getByTestId('create-product').click()
-    await expect(page.getByText('Remove the spaces from the SKU. Use - or _ to separate words.')).toBeVisible()
-    await expect(page.getByText('Enter the title.')).toBeVisible()
-    await expect(page.getByText('Use lowercase letters in the category: kurtas.')).toBeVisible()
-    await expect(page.getByText(/starting with a letter/)).toBeVisible()
-    await expect(page.getByText('Enter a number, like 42, -5 or 3.5.')).toBeVisible()
-    expect(posted).toBe(false)
   })
 
   test('the table reads every page and counts products and variants from the API', async ({ page }) => {
@@ -284,83 +126,6 @@ test.describe('products', () => {
     await expectFirstPage(page, access_token)
   })
 
-  test('title counter is described by the input, not announced on every keystroke', async ({ page }) => {
-    await loginAs(page, USERS.acme.operator, '/products/new')
-    const title = page.getByLabel('Title')
-    await title.fill('Kurta')
-    const counter = page.locator('#title-count')
-    await expect(counter).toHaveText('5/500')
-    await expect(counter).not.toHaveAttribute('aria-live', /.*/)
-    await expect(page.locator('[aria-live]').filter({ hasText: '/500' })).toHaveCount(0)
-    await expect(title).toHaveAttribute('aria-describedby', /title-count/)
-  })
-
-  test('adding attribute rows back to back adds a row on every click', async ({ page }) => {
-    for (const width of [375, 1280]) {
-      await page.setViewportSize({ width, height: 900 })
-      if (width === 375) await loginAs(page, USERS.acme.operator, '/products/new')
-      else await page.reload()
-      const add = page.getByRole('button', { name: 'Add attribute' })
-      for (let n = 1; n <= 3; n++) {
-        // A real pointer click at the button's current centre (mousedown blurs the focused new key input).
-        await add.scrollIntoViewIfNeeded()
-        const box = (await add.boundingBox())!
-        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
-        await expect(page.getByLabel(`Attribute ${n} key`)).toBeFocused()
-      }
-      await expect(page.locator('[data-testid^="attribute-row-"]')).toHaveCount(3)
-      await expect(page.getByText('3/200')).toBeVisible()
-      // Untouched empty rows are not flagged while the user is still adding rows.
-      await expect(page.getByText('Enter a key.')).toHaveCount(0)
-      // Errors still show on submit.
-      await page.getByTestId('create-product').click()
-      await expect(page.getByTestId('attribute-row-0').getByText('Enter a key.')).toBeVisible()
-    }
-  })
-
-  test('number attributes accept decimals only and keep big integers exact', async ({ page }) => {
-    const tokens = await loginAs(page, USERS.acme.operator, '/products/new')
-    const guard = forbidCreate(page)
-    await fillBasics(page, `PW-${RUN}-num`)
-    await addAttribute(page, 1, 'gsm', '', 'number')
-    // Letters and other non-number characters are refused as they are typed or pasted.
-    await page.getByLabel('Attribute 1 value').pressSequentially('1x2')
-    await expect(page.getByLabel('Attribute 1 value')).toHaveValue('12')
-    await page.getByLabel('Attribute 1 value').fill('Infinity')
-    await expect(page.getByLabel('Attribute 1 value')).toHaveValue('')
-    for (const bad of ['1e400', '+5', '.5', '1..5', '--5', '1e']) {
-      await page.getByLabel('Attribute 1 value').fill(bad)
-      await page.getByTestId('create-product').click()
-      await expect(page.getByTestId('attribute-row-0').getByText('Enter a number, like 42, -5 or 3.5.')).toBeVisible()
-    }
-    expect(guard.posted).toBe(false)
-
-    const big = '12345678901234567890'
-    await page.getByLabel('Attribute 1 value').fill(big)
-    const created = page.waitForResponse(isCreateResponse)
-    await page.getByTestId('create-product').click()
-    const res = await created
-    expect(res.status()).toBe(201)
-    // Sent and stored digit for digit (a JS number would round to 12345678901234567000).
-    // Chromium may not expose a streamed request body (postData null); the stored-text check below
-    // proves the digits reached the backend either way.
-    const sent = res.request().postData()
-    if (sent !== null) expect(sent).toContain(`"gsm":${big}`)
-    const { id } = (await res.json()) as ProductOut
-    const stored = await page.request.get(`/api/v1/products/${id}`, {
-      headers: { Authorization: `Bearer ${tokens.access_token}` },
-    })
-    expect(await stored.text()).toContain(`"gsm":${big}`)
-    // The detail page prints the stored digits, not the rounded JS number (12345678901234567000).
-    await expect(page).toHaveURL(new RegExp(`/products/${id}$`))
-    const gsmRow = page.getByTestId('product-attributes').locator('[data-attr-key="gsm"]')
-    await expect(gsmRow).toContainText(big)
-    // Same after a fresh GET (not the create response seeded into the cache).
-    await page.reload()
-    await expect(gsmRow).toContainText(big)
-    await expect(gsmRow).not.toContainText('12345678901234567000')
-  })
-
   test('detail shows the family: parent link for a variant, variants for a style', async ({ page }) => {
     const tokens = await loginAs(page, USERS.acme.reviewer, '/account')
     const all = await apiProducts(page.request, tokens.access_token)
@@ -387,75 +152,6 @@ test.describe('products', () => {
         await expect(page.getByRole('table', { name: 'Variants' }).getByRole('link', { name: variant.sku, exact: true })).toBeVisible()
       }
     }
-  })
-
-  test('alias and non-attribute keys are reported on the key, not the value', async ({ page }) => {
-    await loginAs(page, USERS.acme.operator, '/products/new')
-    const guard = forbidCreate(page)
-    await fillBasics(page, `PW-${RUN}-alias`)
-    await addAttribute(page, 1, 'material', 'cotton')
-    await addAttribute(page, 2, 'fabric_type', 'silk')
-    await page.getByTestId('create-product').click()
-    const row = page.getByTestId('attribute-row-1')
-    await expect(row.getByText('Same attribute as "material" (both are saved as fabric_type).')).toBeVisible()
-    await expect(page.getByLabel('Attribute 2 key')).toHaveAttribute('aria-invalid', 'true')
-    await expect(page.getByLabel('Attribute 2 value')).not.toHaveAttribute('aria-invalid', 'true')
-    expect(guard.posted).toBe(false)
-
-    // Server-side: a product field (brand_name) is rejected under that key without a union variant.
-    await page.getByRole('button', { name: 'Remove attribute 2' }).click()
-    await page.getByLabel('Attribute 1 key').fill('brand_name')
-    const res = page.waitForResponse(isCreateResponse)
-    await page.getByTestId('create-product').click()
-    const r = await res
-    expect(r.status()).toBe(422)
-    const first = page.getByTestId('attribute-row-0')
-    await expect(first.getByText("This key can't be saved as a product attribute.")).toBeVisible()
-    await expect(page.getByLabel('Attribute 1 key')).toHaveAttribute('aria-invalid', 'true')
-    await expect(page.getByLabel('Attribute 1 value')).not.toHaveAttribute('aria-invalid', 'true')
-    await expect(first.getByText('Invalid value.')).toHaveCount(0)
-  })
-
-  test('422 details with no matching field are still shown', async ({ page }) => {
-    await loginAs(page, USERS.acme.operator, '/products/new')
-    const replies = [
-      fulfill422([{ loc: ['body', 'attributes'], msg: 'Dictionary should have at most 200 items.' }]),
-      fulfill422([{ loc: ['body', 'attributes', 'gsm', 'bool'], msg: 'Input should be a valid boolean' }]),
-    ]
-    await page.route('**/api/v1/products', (route) =>
-      route.request().method() === 'POST' ? route.fulfill(replies.shift()!) : route.continue(),
-    )
-    await fillBasics(page, `PW-${RUN}-422`)
-    await addAttribute(page, 1, 'gsm', '180', 'number')
-
-    await page.getByTestId('create-product').click()
-    await expect(page.getByText('Dictionary should have at most 200 items.')).toBeVisible()
-
-    // A value detail for another union member than the row's type goes to the error box.
-    await page.getByTestId('create-product').click()
-    const box = page.getByTestId('form-error')
-    await expect(box).toContainText('Input should be a valid boolean')
-    await expect(box.getByTestId('error-reference')).toHaveText('pw-ref-422')
-  })
-
-  test('a lost create response still refreshes the products list', async ({ page }) => {
-    const { access_token } = await loginAs(page, USERS.acme.operator, '/products')
-    await expectFirstPage(page, access_token)
-    await page.goto('/products/new')
-    const sku = `PW-${RUN}-lost`
-    await page.route('**/api/v1/products', async (route) => {
-      if (route.request().method() !== 'POST') return route.continue()
-      const res = await route.fetch()
-      expect(res.status()).toBe(201)
-      await route.abort('failed')
-    })
-    await fillBasics(page, sku)
-    await page.getByTestId('create-product').click()
-    await expect(page.getByTestId('form-error')).toContainText("Can't reach the server")
-    await page.unroute('**/api/v1/products')
-    await page.getByRole('link', { name: 'Cancel' }).click()
-    await expect(page).toHaveURL(/\/products$/)
-    await expect(page.getByRole('link', { name: sku, exact: true })).toBeVisible()
   })
 
   test('a finished import refreshes a cached product detail', async ({ page }) => {

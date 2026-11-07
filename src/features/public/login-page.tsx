@@ -22,6 +22,7 @@ import { useGoogleEnabled } from '@/features/google/api'
 import { GoogleEntry } from '@/features/google/google-button'
 import { SubmitButton, TOUCH_TEXT } from '@/features/mfa/components'
 import { RESTART_MESSAGES, TOO_MANY, type RestartReason } from '@/features/mfa/login-flow'
+import { SUPPORT_EMAIL, supportMailto } from '@/lib/support'
 import { signIn, useSession } from '@/lib/auth'
 import { isCoarsePointer } from '@/lib/pointer'
 import { FORM_VALIDATION_MODE } from '@/lib/validation'
@@ -211,7 +212,15 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
             htmlFor="password"
             error={errors.password?.message}
             submitCount={form.formState.submitCount}
-            hint="Forgot it? Ask your brand owner to reset it."
+            hint={
+              <>
+                Forgot it? Ask your brand owner. Owners, email{' '}
+                <a href={supportMailto('Reset my password')} className="font-semibold text-brand underline-offset-4 hover:underline">
+                  {SUPPORT_EMAIL}
+                </a>
+                .
+              </>
+            }
           >
             <PasswordInput
               id="password"

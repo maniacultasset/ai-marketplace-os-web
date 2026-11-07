@@ -42,7 +42,7 @@ async function waitForJob(request: APIRequestContext, token: string, jobId: stri
 }
 
 test.describe('listing flow', () => {
-  test('agent run shows real progress, lanes and an honest Pause', async ({ page }) => {
+  test('agent run shows real progress and lanes, and no Pause (it has no API)', async ({ page }) => {
     const { access_token } = await loginAs(page, USERS.acme.owner, '/home')
     const product = await createProduct(page.request, access_token)
     const { job_id } = await generate(page.request, access_token, product.id, 'amazon')
@@ -50,10 +50,9 @@ test.describe('listing flow', () => {
     await page.goto(`/runs/${job_id}`)
     await expect(page.getByTestId('screen-title')).toHaveText(product.title)
     await expect(page.getByTestId('run-progress').locator('[data-step]')).toHaveCount(6)
-    // Pause is not in the API: focusable, aria-disabled, with the reason.
-    const pause = page.getByTestId('run-pause')
-    await expect(pause).toHaveAttribute('aria-disabled', 'true')
-    // Lanes: the generated marketplace, and Flipkart offered from the same product.
+    await expect(page.getByTestId('run-pause')).toHaveCount(0)
+    // Lanes: the generated marketplace, and Flipkart offered from the same product (Coming soon
+    // until Flipkart is connected).
     const lanes = page.getByTestId('run-marketplaces')
     await expect(lanes.locator('[data-lane="amazon"]')).toBeVisible()
     await expect(lanes.locator('[data-lane="flipkart"]')).toBeVisible()
@@ -64,13 +63,15 @@ test.describe('listing flow', () => {
   test('generate from the run lane opens a new run with an Idempotency-Key', async ({ page }) => {
     const { access_token } = await loginAs(page, USERS.acme.operator, '/home')
     const product = await createProduct(page.request, access_token)
-    const { job_id } = await generate(page.request, access_token, product.id, 'amazon')
+    // Start on Flipkart through the API (the UI keeps Flipkart drafts closed until it is connected),
+    // then the Amazon lane offers "List on Amazon".
+    const { job_id } = await generate(page.request, access_token, product.id, 'flipkart')
     await page.goto(`/runs/${job_id}`)
     const req = page.waitForRequest((r) => r.url().endsWith('/api/v1/listings/generate') && r.method() === 'POST')
-    await page.getByTestId('list-on-flipkart').click()
+    await page.getByTestId('list-on-amazon').click()
     const sent = await req
     expect(sent.headers()['idempotency-key']).toBeTruthy()
-    expect(sent.postDataJSON()).toMatchObject({ product_id: product.id, marketplace: 'flipkart', force_regenerate: false })
+    expect(sent.postDataJSON()).toMatchObject({ product_id: product.id, marketplace: 'amazon', force_regenerate: false })
     await expect(page).toHaveURL(/\/runs\/[0-9a-f-]{36}$/)
     await expect(page).not.toHaveURL(new RegExp(job_id))
   })

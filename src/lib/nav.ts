@@ -77,7 +77,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
     placement: 'main',
     keywords: ['new', 'create', 'upload', 'csv', 'bulk', 'import'],
     description: 'Guided form or bulk spreadsheet',
-    activeFor: ['/products/new', '/imports/new'],
+    // /products/new is retired (it redirects to /add/guided). /imports/new is the Imports area's upload.
+    activeFor: ['/imports/new'],
   },
   {
     id: 'inbox',
@@ -174,7 +175,7 @@ export function isNavActive(item: Pick<NavItem, 'to' | 'activeFor'>, pathname: s
   return matchLength(item, pathname) >= 0
 }
 
-/** The one item to highlight: the most specific match (/products/new → Add products). */
+/** The one item to highlight: the most specific match (/imports/new → Add products). */
 export function activeNavId(items: readonly Pick<NavItem, 'id' | 'to' | 'activeFor'>[], pathname: string): string | null {
   let id: string | null = null
   let best = -1

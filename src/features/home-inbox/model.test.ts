@@ -288,20 +288,27 @@ describe('first run', () => {
     expect(brandProfileDone({ tone: 'Warm', guidelines: [], glossary: {} })).toBe(true)
     expect(brandProfileDone({ tone: null, guidelines: ['No slang'] })).toBe(true)
   })
-  it('compliance is "Later" and never counted; the first open step is Next', () => {
-    const steps = setupSteps({ brandDone: true, activeAccounts: 1, hasProducts: false })
+  const base = { brandDone: true, manufacturerDone: false, activeAccounts: 1, approverDone: false, hasProducts: false }
+  it('every step comes from a real read and is counted; the first open step is Next', () => {
+    const steps = setupSteps(base)
     expect(steps.map((s) => [s.id, s.state, s.chip])).toEqual([
       ['brand', 'done', 'Done'],
-      ['compliance', 'later', 'Later'],
+      ['manufacturer', 'next', 'Next'],
       ['marketplace', 'done', '1 of 2'],
-      ['product', 'next', 'Next'],
+      ['approver', 'todo', 'To do'],
+      ['product', 'todo', 'To do'],
     ])
-    expect(setupProgress(steps)).toEqual({ done: 2, total: 3, line: 'One step left' })
+    expect(setupProgress(steps)).toEqual({ done: 2, total: 5, line: '3 steps left' })
+  })
+  it('a teammate who can approve is its own step', () => {
+    const steps = setupSteps({ ...base, manufacturerDone: true })
+    expect(steps.find((s) => s.id === 'approver')).toMatchObject({ label: 'Add a teammate who approves', state: 'next' })
+    expect(setupProgress(setupSteps({ ...base, manufacturerDone: true, approverDone: true, hasProducts: true })).line).toBe('All done')
   })
   it('marketplace step keeps its count when it is next', () => {
-    const steps = setupSteps({ brandDone: true, activeAccounts: 0, hasProducts: false })
+    const steps = setupSteps({ ...base, manufacturerDone: true, activeAccounts: 0 })
     expect(steps[2]).toMatchObject({ state: 'next', chip: '0 of 2' })
-    expect(setupProgress(steps).line).toBe('2 steps left')
+    expect(setupProgress(steps).line).toBe('3 steps left')
   })
 })
 

@@ -265,12 +265,6 @@ function TaskDetail({
             <UnavailableButton reason={ANSWER_SOON} size="lg" className="max-sm:h-[52px] max-sm:w-full" data-testid="task-confirm">
               Confirm and continue
             </UnavailableButton>
-            <UnavailableButton reason="Skipping questions is not available yet." variant="ghost" size="lg">
-              Skip for now
-            </UnavailableButton>
-            <UnavailableButton reason="Assigning a question to a teammate is not available yet." variant="ghost" size="lg">
-              Ask a teammate
-            </UnavailableButton>
           </div>
           <TaskLinks task={task} />
           {remaining > 0 ? <p className="text-center text-small text-ink-3 lg:hidden">{remaining} more after this</p> : null}

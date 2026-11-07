@@ -36,6 +36,7 @@ import { ScreenHead } from '@/features/listing-flow/ui'
 import { useProduct } from '@/features/products/api'
 import { listingChip } from '@/lib/listing-chip'
 import { useCan } from '@/lib/permissions'
+import { supportMailto } from '@/lib/support'
 import { useFindIssueListing, useListingIssues } from './api'
 import {
   attemptsTimeline,
@@ -174,9 +175,9 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
               </Button>
             ) : null}
             {canDismiss(issue, can('listing:approve')) ? <DismissIssueButton issue={issue} /> : null}
-            <UnavailableButton variant="ghost" reason={NOT_YET.askSupport} data-testid="issue-ask-support">
-              Ask support
-            </UnavailableButton>
+            <Button asChild variant="ghost" data-testid="issue-ask-support">
+              <a href={supportMailto(`Help with ${issue.error_code}`, `Issue ${issue.id}${l ? ` on listing ${l.id}` : ''}.\n\n`)}>Ask support</a>
+            </Button>
           </div>
         </LaCard>
 

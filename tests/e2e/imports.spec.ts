@@ -196,8 +196,13 @@ test.describe('imports', () => {
   test('the upload page lists template categories and every accepted column', async ({ page }) => {
     await loginAs(page, USERS.bharat.operator, '/imports/new')
     const cats = page.getByTestId('template-categories')
+    await expect(cats).toContainText('Kurta sets')
     await expect(cats).toContainText('ethnic_wear_kurta_sets')
+    await expect(cats).toContainText('tshirts')
+    // The seeded Bharat Home sells a lamp, so lamps are offered to it.
     await expect(cats).toContainText('home_decor_lamps')
+    // The import refuses any other category row by row (services/imports/runner.py).
+    await expect(cats).toContainText('Rows with any other category fail with CATEGORY_NOT_MAPPED.')
     await page.getByRole('button', { name: 'All accepted columns' }).click()
     const groups = page.getByTestId('column-group')
     await expect(groups.locator('h3')).toContainText(['Identity', 'Classification', 'Attributes', 'Care', 'Compliance', 'Commercial', 'Media', 'Photo links (not used)', 'Content', 'Marketplace', 'Workflow'])

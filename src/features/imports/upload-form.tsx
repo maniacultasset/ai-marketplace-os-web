@@ -17,7 +17,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
-import { KNOWN_CATEGORIES } from '@/features/products/schema'
+import { CategoryCodes } from '@/features/products/category-select'
+import { useAllProducts } from '@/features/products-add/catalog'
 import {
   COLUMN_ALIASES,
   COLUMN_GROUPS,
@@ -62,6 +63,8 @@ export function UploadForm() {
   const intent = useIntentKey()
   const [file, setFile] = useState<File | null>(null)
   const [problem, setProblem] = useState<Problem | null>(null)
+  const products = useAllProducts()
+  const brandCategories = products.data ? products.data.rows.map((p) => p.category) : products.isError ? [] : null
 
   const upload = useMutation({
     meta: { toast: false },
@@ -299,16 +302,11 @@ export function UploadForm() {
         </section>
 
         <section className="space-y-2 border-t px-5 py-5" data-testid="template-categories">
-          <h3 className={GUIDE_HEADING}>Categories with a marketplace template</h3>
-          <ul className="flex flex-wrap gap-1.5">
-            {KNOWN_CATEGORIES.map((c) => (
-              <li key={c}>
-                <code className={CHIP}>{c}</code>
-              </li>
-            ))}
-          </ul>
+          <h3 className={GUIDE_HEADING}>Categories the agent can list</h3>
+          <CategoryCodes brandCategories={brandCategories} />
           <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">
-            Rows with any other category fail with <code className={INLINE_CODE}>CATEGORY_NOT_MAPPED</code>.
+            Put the code in the <code className={INLINE_CODE}>category</code> column. Rows with any other category fail with{' '}
+            <code className={INLINE_CODE}>CATEGORY_NOT_MAPPED</code>.
           </p>
         </section>
 
@@ -361,7 +359,6 @@ export function UploadForm() {
 }
 
 const GUIDE_HEADING = 'text-xs font-medium text-muted-foreground'
-const CHIP = 'inline-block rounded-md border border-line bg-subtle px-1.5 py-0.5 font-mono text-xs text-foreground'
 /** Categories are labels, not identifiers: Geist, per DESIGN.md. */
 const CATEGORY_CHIP = 'inline-block rounded-md border border-line bg-subtle px-1.5 py-0.5 text-xs text-foreground'
 const INLINE_CODE = 'font-mono text-xs text-foreground'

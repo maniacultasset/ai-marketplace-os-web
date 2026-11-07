@@ -8,7 +8,7 @@
  */
 import type { APIRequestContext, BrowserContext, Page } from '@playwright/test'
 import { API_URL, FAKE_MARKETPLACE_URL } from './env'
-import { apiLogin, expect, fillStable, loginViaUi, test, USERS } from './fixtures'
+import { apiLogin, expect, loginViaUi, test, USERS } from './fixtures'
 
 const FAKE = FAKE_MARKETPLACE_URL
 const RUN = Date.now().toString(36).toUpperCase()
@@ -77,25 +77,33 @@ test.describe('journey', () => {
     const sku = `JRNY-${RUN}-1`
     await nav(page, 'Products').click()
     await expect(page.getByRole('table', { name: 'Products' })).toBeVisible()
-    // "Add products" opens the chooser (/add); the single-product form is /products/new.
+    // "Add products" opens the chooser (/add); Guided form is the single-product form.
     await page.getByTestId('new-product').click()
     await expect(page).toHaveURL(/\/add$/)
-    await page.goto('/products/new')
-    await fillStable(page, 'SKU', sku)
-    await fillStable(page, 'Title', 'Journey cotton kurta')
-    await fillStable(page, 'Category', 'kurtas')
+    await page.getByTestId('route-guided').click()
+    await page.getByTestId('add-continue').click()
+    await expect(page).toHaveURL(/\/add\/guided/)
+    await page.getByLabel('SKU', { exact: true }).fill(sku)
+    await page.getByLabel('Product name').fill('Journey cotton kurta')
+    await page.getByRole('button', { name: /^Category/ }).click()
+    await page.getByTestId('g-category-trigger').click()
+    await page.getByRole('option', { name: 'Kurta sets' }).click()
+    await page.getByRole('button', { name: /^Variants/ }).click()
     const created = page.waitForResponse(
       (r) => r.url().endsWith('/api/v1/products') && r.request().method() === 'POST' && r.status() !== 401,
     )
-    await page.getByTestId('create-product').click()
-    expect((await created).status()).toBe(201)
-    await expect(page.getByTestId('product-title')).toHaveText('Journey cotton kurta')
-    await expect(page.getByTestId('product-sku')).toHaveText(sku)
+    await page.getByTestId('guided-next').click()
+    const res = await created
+    expect(res.status()).toBe(201)
+    const productId = ((await res.json()) as { id: string }).id
+    await expect(page).toHaveURL(new RegExp(`/add/variants\\?product=${productId}`))
 
     // ...and it is in the list (newest first) without a reload.
     await nav(page, 'Products').click()
     const products = page.getByRole('table', { name: 'Products' })
-    await expect(products.getByRole('link', { name: sku, exact: true })).toBeVisible()
+    await products.getByRole('link', { name: sku, exact: true }).click()
+    await expect(page.getByTestId('product-title')).toHaveText('Journey cotton kurta')
+    await expect(page.getByTestId('product-sku')).toHaveText(sku)
 
     // Upload a CSV import and watch the job finish.
     const importSkus = [`JRNY-${RUN}-A`, `JRNY-${RUN}-B`]

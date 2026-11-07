@@ -26,7 +26,14 @@ import {
 import { toast } from '@/lib/toast'
 import { focusFirstInvalid } from '@/lib/validation'
 
-export function ManufacturerCard({ canEdit }: { canEdit: boolean }) {
+export function ManufacturerCard({
+  canEdit,
+  onEditingChange,
+}: {
+  canEdit: boolean
+  /** Told when the edit form opens and closes, so a page can hold navigation over an unsaved draft. */
+  onEditingChange?: (editing: boolean) => void
+}) {
   const q = useBrandManufacturer()
   const save = useSaveBrandManufacturer()
   const [draft, setDraft] = useState<PartyDraft | null>(null)
@@ -54,11 +61,13 @@ export function ManufacturerCard({ canEdit }: { canEdit: boolean }) {
     setServerErrors({})
     setStale(false)
     setError(null)
+    onEditingChange?.(true)
   }
   const stop = () => {
     setDraft(null)
     setStale(false)
     setError(null)
+    onEditingChange?.(false)
   }
 
   const submit = async (body: { default_manufacturer: ReturnType<typeof toPartyIn> | null }) => {

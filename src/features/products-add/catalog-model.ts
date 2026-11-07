@@ -11,6 +11,7 @@
 import type { Schema } from '@/api/types'
 import type { ChipStatus } from '@/components/la/status-chip'
 import { listingChip, type ChipView } from '@/lib/listing-chip'
+import { draftOpen } from '@/features/marketplaces/meta'
 
 export type Product = Schema<'ProductOut'>
 export type Listing = Schema<'ListingOut'>
@@ -18,6 +19,14 @@ export type Issue = Schema<'IssueOut'>
 export type Marketplace = Schema<'Marketplace'>
 
 export const API_MARKETPLACES: readonly Marketplace[] = ['amazon', 'flipkart']
+
+/**
+ * The first marketplace this product has no listing on that a draft can start for now (Flipkart
+ * only once it is connected, marketplaces/meta `draftOpen`), or null.
+ */
+export function firstListable(listings: Partial<Record<Marketplace, unknown>>, connected: readonly Marketplace[] | null): Marketplace | null {
+  return API_MARKETPLACES.find((m) => !listings[m] && draftOpen(m, connected)) ?? null
+}
 
 /** Overall status of a product, from its listings (one word per row, p07 "Overall"). */
 export type Overall = 'live' | 'partly-live' | 'ready' | 'ready-to-list' | 'working' | 'needs-you' | 'error' | 'draft'

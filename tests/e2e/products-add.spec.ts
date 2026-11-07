@@ -65,13 +65,12 @@ test.describe('products table (p07)', () => {
     await expect(table.getByRole('img', { name: /Myntra: Live/ })).toHaveCount(0)
   })
 
-  test('bulk bar: pause, resubmit and archive are unavailable; add marketplace needs listing:generate', async ({ page }) => {
+  test('bulk bar: no controls without an API; add marketplace needs listing:generate', async ({ page }) => {
     await loginAs(page, USERS.acme.reviewer, '/products')
     await page.getByRole('table', { name: 'Products' }).getByRole('checkbox', { name: 'Select row' }).first().click()
     const bar = page.getByRole('region', { name: 'Bulk actions' })
-    for (const name of ['Pause', 'Resubmit', 'Archive', 'Add marketplace']) {
-      await expect(bar.getByRole('button', { name })).toHaveAttribute('aria-disabled', 'true')
-    }
+    for (const name of ['Pause', 'Resubmit', 'Archive']) await expect(bar.getByRole('button', { name })).toHaveCount(0)
+    await expect(bar.getByRole('button', { name: 'Add marketplace' })).toHaveAttribute('aria-disabled', 'true')
     await loginAs(page, USERS.acme.operator, '/products')
     await page.getByRole('table', { name: 'Products' }).getByRole('checkbox', { name: 'Select row' }).first().click()
     await expect(page.getByTestId('bulk-add-marketplace')).toBeEnabled()
@@ -163,14 +162,24 @@ test.describe('product detail (p17)', () => {
 })
 
 test.describe('add products (p08-p11)', () => {
-  test('chooser: guided and bulk are live; photos, catalog export, URL and PIM are not', async ({ page }) => {
+  test('chooser: guided, bulk and photos are live; nothing without an API is shown', async ({ page }) => {
     await loginAs(page, USERS.acme.operator, '/add')
-    for (const name of ['Photos and basics', 'Catalog export', 'Product page URL', 'PIM or ERP']) {
-      await expect(page.getByLabel(new RegExp(`^${name}:`))).toHaveAttribute('aria-disabled', 'true')
-    }
+    for (const name of ['Catalog export', 'Product page URL', 'PIM or ERP']) await expect(page.getByText(name)).toHaveCount(0)
+    await page.getByTestId('route-photos').click()
+    await page.getByTestId('add-continue').click()
+    await expect(page).toHaveURL(/\/add\/guided\?.*start=photos/)
+    await expect(page.getByRole('heading', { name: 'Images', level: 2 })).toBeVisible()
+    await page.goto('/add')
     await page.getByTestId('route-bulk').click()
     await page.getByTestId('add-continue').click()
     await expect(page).toHaveURL(/\/add\/bulk/)
+    await expect(page.getByTestId('category-codes')).toContainText('tshirts')
+  })
+
+  test('the old single-product form is retired: /products/new opens the guided form', async ({ page }) => {
+    await loginAs(page, USERS.acme.operator, '/products/new')
+    await expect(page).toHaveURL(/\/add\/guided$/)
+    await expect(page.getByLabel('SKU', { exact: true })).toBeVisible()
   })
 
   test('reviewer cannot open the add screens', async ({ page }) => {
@@ -184,7 +193,10 @@ test.describe('add products (p08-p11)', () => {
     await page.getByLabel('SKU', { exact: true }).fill(sku)
     await page.getByLabel('Product name').fill('PW guided kurta')
     await page.getByRole('button', { name: /^Category/ }).click()
-    await page.getByLabel('Category', { exact: true }).fill('kurtas')
+    // A dropdown of the categories the agent can list (lamps only because the seed sells one).
+    await page.getByTestId('g-category-trigger').click()
+    await expect(page.getByRole('option', { name: 'T-shirts' })).toBeVisible()
+    await page.getByRole('option', { name: 'Kurta sets' }).click()
     await page.getByRole('button', { name: /^Fabric and colour/ }).click()
     await page.getByRole('combobox', { name: /Fabric type/ }).click()
     await page.getByRole('option', { name: 'Other…' }).click()
@@ -195,7 +207,7 @@ test.describe('add products (p08-p11)', () => {
     const res = await created
     expect(res.status()).toBe(201)
     const body = (await res.json()) as ProductOut & { attributes: Record<string, unknown> }
-    expect(body).toMatchObject({ sku, title: 'PW guided kurta', category: 'kurtas' })
+    expect(body).toMatchObject({ sku, title: 'PW guided kurta', category: 'ethnic_wear_kurta_sets' })
     expect(body.attributes).toEqual({ fabric_type: 'organic cotton' })
     await expect(page).toHaveURL(new RegExp(`/add/variants\\?product=${body.id}`))
     const stored = await page.request.get(`/api/v1/products/${body.id}`, { headers: { Authorization: `Bearer ${tokens.access_token}` } })
@@ -207,7 +219,8 @@ test.describe('add products (p08-p11)', () => {
     await page.getByLabel('SKU', { exact: true }).fill('KURTA-001')
     await page.getByLabel('Product name').fill('Duplicate')
     await page.getByRole('button', { name: /^Category/ }).click()
-    await page.getByLabel('Category', { exact: true }).fill('kurtas')
+    await page.getByTestId('g-category-trigger').click()
+    await page.getByRole('option', { name: 'Kurta sets' }).click()
     await page.getByRole('button', { name: /^Variants/ }).click()
     await page.getByTestId('guided-next').click()
     await expect(page.getByText('This SKU already exists in this brand.')).toBeVisible()
