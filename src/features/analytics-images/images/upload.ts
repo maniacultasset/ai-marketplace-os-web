@@ -111,3 +111,35 @@ export async function uploadImage(input: UploadInput): Promise<ImageAccepted> {
   }
   return uploadMultipart(input)
 }
+
+/** The signed step is not served here: upload this file the usual way once the product exists. */
+export class StageUnavailable extends Error {}
+
+/**
+ * An image for a product that does not exist yet (SI1): POST /images/upload-url without
+ * `product_id` mints a product id; the bytes go straight to the store. The product is then
+ * created with that `id` and `image_uploads: [{storage_key, slot}]`, which registers the image
+ * in the same transaction. The backend mints one id per call and knows no product until create,
+ * so only one image can be staged this way: the rest upload after create (`uploadImage`).
+ */
+export async function stageImageForNewProduct(file: File, slot: ImageSlot): Promise<{ productId: string; storageKey: string }> {
+  if (signedUnavailable || !isImageContentType(file.type)) throw new StageUnavailable('The signed upload is not available.')
+  let minted: Schema<'UploadUrlOut'>
+  try {
+    minted = await unwrap(api.POST('/images/upload-url', { body: { slot, content_type: file.type, bytes: file.size } }))
+  } catch (err) {
+    if (signedStepUnavailable(err)) {
+      signedUnavailable = true
+      throw new StageUnavailable('The signed upload is not available.')
+    }
+    throw err
+  }
+  try {
+    await putToStore(minted.upload_url, minted.headers ?? {}, file)
+  } catch (err) {
+    if (!(err instanceof StorePutFailed)) throw err
+    signedUnavailable = true
+    throw new StageUnavailable(err.message)
+  }
+  return { productId: minted.product_id, storageKey: minted.storage_key }
+}
