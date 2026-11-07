@@ -59,9 +59,18 @@ describe('buildFamilyCsv', () => {
     expect(rows[0]).toContain('parent_style_id')
     expect(rows[1]!.slice(0, 4)).toEqual(['FSH-TEE-001', '', 'Relaxed, Cotton "Tee"', 'tshirts'])
     expect(rows[1]![6]).toBe('alpha')
-    expect(rows[2]).toEqual(['FSH-TEE-001-BLK-S', 'FSH-TEE-001', 'Relaxed, Cotton "Tee"', 'tshirts', 'Black', 'S', '', '1299', '999.50', 'gtin', '4006381333931'])
+    expect(rows[2]).toEqual(['FSH-TEE-001-BLK-S', 'FSH-TEE-001', 'Relaxed, Cotton "Tee"', 'tshirts', 'Black', 'S', '', '1299', '999.50', 'gtin', '4006381333931', ''])
     expect(rows[3]![0]).toBe('FSH-TEE-001-BLK-M')
     expect(rows).toHaveLength(4)
+    // Not exempt: the style row leaves identifier_exemption blank.
+    expect(rows[1]!.at(-1)).toBe('')
+  })
+
+  it('puts "No barcodes (exempt)" on the style row only, so it reaches the variants without one', () => {
+    const rows = parseCsv(buildFamilyCsv({ sku: 'S1', title: 'Tee', category: 'tshirts' }, { ...emptyVariants(), sizes: ['S'], exempt: true }))
+    expect(rows[0]!.at(-1)).toBe('identifier_exemption')
+    expect(rows[1]!.at(-1)).toBe('yes')
+    expect(rows[2]!.at(-1)).toBe('')
   })
 })
 

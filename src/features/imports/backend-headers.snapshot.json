@@ -1,6 +1,6 @@
 {
   "source": "apps/api/app/services/imports/headers.py",
-  "backend_sha": "751863f16e9da5e5d7ec01c33824da3e6e6e0686",
+  "backend_sha": "73ed4e96352a93dc9d884eb8690f27d7d15b376d",
   "a6": [
     "seller_sku",
     "parent_style_id",
@@ -68,7 +68,12 @@
     "last_updated"
   ],
   "extension": [
-    "style_number"
+    "style_number",
+    "identifier_exemption",
+    "ean",
+    "upc",
+    "gtin",
+    "barcode"
   ],
   "aliases": {
     "parent_sku": "parent_style_id",

@@ -8,8 +8,10 @@
  * Validation mirrors services/imports/row_model.py: seller_sku `^[^\]\s]{1,64}$`; size key
  * `[a-z0-9][a-z0-9 ./+-]{0,31}` (lower-cased); colour ≤ 64; money `[0-9]{1,10}(\.[0-9]{1,2})?`
  * (₹, commas and spaces stripped), positive; selling_price ≤ mrp; identifier GTIN-8/12/13/14 with a
- * valid GS1 check digit; at most 40 sizes per family (runner.MAX_SIZE_RUN).
+ * valid GS1 check digit; at most 40 sizes per family (runner.MAX_SIZE_RUN). "No barcodes (exempt)"
+ * goes on the style row as `identifier_exemption`, which reaches every child row without a barcode.
  */
+import { gtinValid } from '@/features/products/barcode'
 import { codePoints } from '@/features/products/schema'
 import { CONTROL_MSG, hasControlChars, money, parseMoney } from '@/lib/validation'
 import { skuProblem } from './guided-model'
@@ -82,6 +84,8 @@ export interface VariantsState {
   commercial: Record<string, Commercial>
   /** SKU overrides per cell (cellKey); otherwise variantSku(). */
   skus: Record<string, string>
+  /** "No barcodes (exempt)": variants left without a barcode are GTIN-exempt. */
+  exempt: boolean
 }
 
 export const cellKey = (colour: string, size: string) => `${colour}\u0000${size}`
@@ -93,6 +97,7 @@ export const emptyVariants = (): VariantsState => ({
   unavailable: [],
   commercial: {},
   skus: {},
+  exempt: false,
 })
 
 const alnum = (s: string) => s.toUpperCase().replace(/[^A-Z0-9 ]+/g, '').trim()
@@ -161,13 +166,7 @@ export function buildVariants(base: string, s: VariantsState): VariantRow[] {
 export const cleanMoney = parseMoney
 
 /** GS1 check digit over GTIN-8/12/13/14 (row_model.gtin_valid). */
-export function gtinValid(value: string): boolean {
-  if (!GTIN_PATTERN.test(value)) return false
-  const digits = value.padStart(14, '0').split('').map(Number)
-  const check = digits.pop()!
-  const sum = digits.reduce((acc, d, i) => acc + d * (i % 2 === 0 ? 3 : 1), 0)
-  return (10 - (sum % 10)) % 10 === check
-}
+export { gtinValid }
 
 export type VariantErrors = Partial<Record<string, string>>
 
@@ -219,6 +218,7 @@ export const FAMILY_HEADER = [
   'selling_price',
   'product_identifier_type',
   'product_identifier',
+  'identifier_exemption',
 ] as const
 
 /**
@@ -227,7 +227,7 @@ export const FAMILY_HEADER = [
  */
 export function buildFamilyCsv(base: { sku: string; title: string; category: string }, s: VariantsState): string {
   const lines: string[][] = [[...FAMILY_HEADER]]
-  lines.push([base.sku, '', base.title, base.category, '', '', s.sizes.length ? s.sizeSystem : '', '', '', '', ''])
+  lines.push([base.sku, '', base.title, base.category, '', '', s.sizes.length ? s.sizeSystem : '', '', '', '', '', s.exempt ? 'yes' : ''])
   for (const r of buildVariants(base.sku, s)) {
     const c = s.commercial[r.key]
     const id = c?.identifier.trim() ?? ''
@@ -243,6 +243,7 @@ export function buildFamilyCsv(base: { sku: string; title: string; category: str
       (c && cleanMoney(c.price)) ?? '',
       id ? 'gtin' : '',
       id,
+      '',
     ])
   }
   return lines.map((l) => l.map(csvCell).join(',')).join('\r\n') + '\r\n'

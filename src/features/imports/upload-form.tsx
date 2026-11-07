@@ -338,6 +338,7 @@ export function UploadForm() {
                 <p className={cn('font-mono text-[11px] leading-relaxed break-words', g.notStored || g.photoLinks ? 'text-muted-foreground' : 'text-foreground/80')}>
                   {g.columns.join(', ')}
                 </p>
+                {g.note ? <p className="text-xs leading-relaxed text-muted-foreground">{g.note}</p> : null}
               </div>
             ))}
             <div className="space-y-1" data-testid="column-aliases">
@@ -366,4 +367,5 @@ const ROW_RULES = [
   'An existing SKU is updated; new SKUs are added as drafts.',
   'Bad rows fail on their own; the rest of the file still imports.',
   'Content and marketplace columns are accepted but not stored (warning).',
+  'Barcodes: one column per row (ean, upc, gtin or barcode), or yes in identifier_exemption.',
 ]

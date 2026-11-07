@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
+import { Switch } from '@/components/ui/switch'
 import { imageIdFromKey, marketplaceReports, SLOT_LABEL, validateImageFile, type ImageSlot } from '@/features/analytics-images/images/report'
 import { ALL_COLOURS, colourGroups, type ColourGroup, type ColourSource } from '@/features/analytics-images/images/colour-groups'
 import { uploadImage } from '@/features/analytics-images/images/upload'
@@ -736,13 +737,13 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
         {rows.length ? (
           <LaCard pad="none" className="mt-4 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-small" aria-label="Variant prices and identifiers">
+              <table className="w-full min-w-[640px] text-small" aria-label="Variant prices and barcodes">
                 <thead>
                   <tr className="h-[38px] bg-sunken text-left text-caption font-bold text-ink-2">
                     <th className="px-4">Variant SKU</th>
                     <th className="w-[130px] px-2">MRP (incl. tax)</th>
                     <th className="w-[130px] px-2">Price</th>
-                    <th className="px-2">Identifier</th>
+                    <th className="px-2">Barcode</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -778,8 +779,8 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
                           <Input
                             id={`gtin-${r.sku}`}
                             name={`gtin-${r.sku}`}
-                            aria-label={`GTIN for ${r.sku}`}
-                            placeholder="GTIN, or blank if exempt"
+                            aria-label={`Barcode for ${r.sku}`}
+                            placeholder={s.exempt ? 'Blank: exempt' : 'EAN, UPC or GTIN'}
                             type="text"
                             inputMode="numeric"
                             autoComplete="off"
@@ -798,6 +799,17 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
                   })}
                 </tbody>
               </table>
+            </div>
+            <div className="flex flex-col gap-1 border-t border-line px-4 py-3">
+              <label className="flex min-h-10 items-center gap-2.5 self-start text-small text-ink-2">
+                <Switch checked={s.exempt} onCheckedChange={(exempt) => change({ exempt })} aria-describedby="v-exempt-hint" data-testid="variants-exempt" />
+                No barcodes (exempt)
+              </label>
+              <p id="v-exempt-hint" className="text-caption text-ink-3">
+                {s.exempt
+                  ? 'Variants left blank are marked exempt. Only if Amazon approved a GTIN exemption for your brand.'
+                  : 'Amazon needs a barcode for each variant unless your brand has a GTIN exemption.'}
+              </p>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-2.5">
               {rows.length > PREVIEW_ROWS ? (
