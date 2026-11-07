@@ -233,7 +233,7 @@ function MarketplaceDetail({ info, account, loading }: { info: MarketplaceInfo; 
           'Not supported yet',
         )}
         <p className="text-body text-ink-2">
-          Kuinn lists on Amazon and Flipkart today. {info.name} needs API access we do not have yet, and the
+          Kuinn lists on Amazon today, with Flipkart coming soon. {info.name} needs API access we do not have yet, and the
           waitlist is not open, so there is nothing to connect here.
         </p>
       </LaCard>
@@ -295,8 +295,9 @@ function MarketplaceDetail({ info, account, loading }: { info: MarketplaceInfo; 
           </dd>
         </dl>
       ) : notConfigured ? (
-        <Banner tone="neutral" icon="alert" title="Not configured on this server" role="status">
-          {info.name} connection settings are missing here, so connecting is not available yet.
+        <Banner tone="neutral" icon="alert" title="Coming soon" role="status">
+          Connecting {info.name} is coming soon. You can still draft {info.name} listings now; they publish once
+          the connection opens.
         </Banner>
       ) : (
         <div className="flex flex-col items-start gap-3">
