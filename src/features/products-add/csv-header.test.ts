@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeCsv, analyzeHeader, parseCsv } from './csv-header'
+import { analyzeCsv, analyzeHeader, linkProblem, parseCsv } from './csv-header'
 
 describe('parseCsv', () => {
   it('handles quotes, commas, CRLF and embedded line breaks', () => {
@@ -27,5 +27,34 @@ describe('analyzeHeader', () => {
     const a = analyzeCsv('seller_sku,product_name,category\nA,Kurta,kurtas\nB,Tee,tees\n')
     expect(a.refused).toBe(false)
     expect(a.rows).toBe(2)
+  })
+})
+
+describe('photo links the server still checks', () => {
+  it('flags non-https, malformed and too many links per row, like row_model media()', () => {
+    const nine = Array.from({ length: 9 }, (_, i) => `https://x.test/${i}.jpg`).join('|')
+    const ten = `${nine}|https://x.test/9.jpg`
+    const csv = [
+      'seller_sku,product_name,category,main_image,additional_images,size_chart',
+      'A,Kurta,kurtas,https://x.test/a.jpg,,',
+      'B,Kurta,kurtas,http://x.test/b.jpg,,',
+      'C,Kurta,kurtas,not a link,,',
+      `D,Kurta,kurtas,,${nine},`,
+      `E,Kurta,kurtas,,${ten},`,
+      'F,Kurta,kurtas,,,ftp://x.test/chart.png',
+      'G,Kurta,kurtas,https://user:pw@x.test/g.jpg,,',
+    ].join('\n')
+    const a = analyzeCsv(csv)
+    expect(a.linkProblems.map((p) => [p.row, p.column])).toEqual([
+      [3, 'main_image'],
+      [4, 'main_image'],
+      [6, 'additional_images'],
+      [7, 'size_chart'],
+      [8, 'main_image'],
+    ])
+    expect(a.linkProblems[0]!.problem).toBe('main_image must hold https links.')
+    expect(a.linkProblems[2]!.problem).toBe('At most 9 photo links per row.')
+    expect(linkProblem('https://x.test/a.jpg')).toBeNull()
+    expect(linkProblem(`https://x.test/${'a'.repeat(2049)}`)).toBe('longer than 2,048 characters')
   })
 })

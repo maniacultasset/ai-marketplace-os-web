@@ -91,6 +91,11 @@ function ColumnTable({ analysis }: { analysis: HeaderAnalysis }) {
       {analysis.missing.length ? (
         <p className="border-t border-line px-4 py-3 text-small font-semibold text-danger">Missing required: {analysis.missing.join(', ')}</p>
       ) : null}
+      {analysis.columns.some((c) => c.match === 'photo-link') ? (
+        <p className="border-t border-line px-4 py-3 text-small text-ink-2" data-testid="photo-link-note">
+          Not used. Clear these columns: a bad link still fails the row.
+        </p>
+      ) : null}
     </div>
   )
 }
@@ -236,9 +241,31 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
           </div>
         )}
 
-        {step === 1 && analysis && analysis.photoLinkRows > 0 ? (
-          <Banner tone="attention" role="status" className="mt-4" title={`${rowsLabel(analysis.photoLinkRows)} ${analysis.photoLinkRows === 1 ? 'has' : 'have'} photo links`}>
-            Kuinn does not download photos from links. The rows still import. Add photos on each product’s Media tab afterwards.
+        {step === 1 && analysis && (analysis.photoLinkRows > 0 || analysis.linkProblems.length > 0) ? (
+          <Banner
+            tone={analysis.linkProblems.length ? 'danger' : 'attention'}
+            role="status"
+            className="mt-4"
+            title={
+              analysis.photoLinkRows > 0
+                ? `${rowsLabel(analysis.photoLinkRows)} ${analysis.photoLinkRows === 1 ? 'has' : 'have'} photo links`
+                : `${rowsLabel(analysis.linkProblems.length)} with a bad link`
+            }
+          >
+            <p>
+              {analysis.photoLinkRows > 0 ? 'Photo links are not used. Clear these columns: a bad link still fails the row. ' : ''}
+              Add photos on each product’s Media tab after the import.
+            </p>
+            {analysis.linkProblems.length ? (
+              <ul className="mt-1.5 flex flex-col gap-0.5 text-small" aria-label="Rows that will fail for a link" data-testid="link-problems">
+                {analysis.linkProblems.slice(0, 5).map((p) => (
+                  <li key={p.row}>
+                    Row {p.row}: {p.problem}
+                  </li>
+                ))}
+                {analysis.linkProblems.length > 5 ? <li>{analysis.linkProblems.length - 5} more rows like this.</li> : null}
+              </ul>
+            ) : null}
           </Banner>
         ) : null}
 

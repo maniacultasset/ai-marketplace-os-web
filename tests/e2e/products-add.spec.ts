@@ -280,6 +280,8 @@ test.describe('add products (p08-p11)', () => {
     await expect(table.getByRole('row', { name: /fabric_composition/ })).toContainText('OK')
     await expect(table.getByRole('row', { name: /main_image/ })).toContainText('Not used')
     await expect(page.getByText('1 row has photo links')).toBeVisible()
+    await expect(page.getByTestId('photo-link-note').first()).toContainText('a bad link still fails the row')
+    await expect(page.getByTestId('link-problems')).toHaveCount(0)
     const accepted = page.waitForResponse((r) => r.url().endsWith('/api/v1/products/bulk') && r.request().method() === 'POST' && r.status() !== 401)
     await page.getByTestId('bulk-upload').click()
     expect((await accepted).status()).toBe(202)
