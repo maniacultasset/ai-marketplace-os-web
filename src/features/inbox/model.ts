@@ -69,7 +69,7 @@ export const TASK_KIND_LABEL: Record<TaskKind, string> = {
 
 export const RESOLUTION_LABEL: Record<IssueResolution, string> = {
   deterministic_fix: 'Fixed automatically',
-  ai_correction: 'Corrected by AI',
+  ai_correction: 'Rewritten by the agent',
   human_answer: 'Answered by a person',
   human_edit: 'Fixed by an edit',
   regenerated: 'Cleared by regeneration',
@@ -194,6 +194,15 @@ export function issuesMeta(split: SeveritySplit, hasMore: boolean): string {
  */
 export function canDismiss(issue: Pick<Issue, 'status' | 'severity'>, roleAllows: boolean): boolean {
   return roleAllows && issue.status === 'open' && issue.severity === 'warning'
+}
+
+/**
+ * A fix Kuinn made on its own. Code fixes close as `auto_fixed` (`deterministic_fix`); an AI rewrite
+ * of the failed field closes as `resolved` with `ai_correction`, because the database allows
+ * `auto_fixed` only with `deterministic_fix` (ck_listing_issues_auto_fixed). Both are the trail.
+ */
+export function isAutoFix(i: Pick<Issue, 'status' | 'resolution'>): boolean {
+  return i.status === 'auto_fixed' || (i.status === 'resolved' && i.resolution === 'ai_correction')
 }
 
 /** The sentence to lead with: the plain-language version when the backend has one. */

@@ -15,13 +15,16 @@
  * The API has no totals, no dashboard summary and no GET /issues/{id}; this file walks pages with
  * a hard cap and reports whether the walk was complete, so the UI can say "+" honestly.
  */
-import { useQueries, useQuery } from '@tanstack/react-query'
+import { queryOptions, useQueries, useQuery } from '@tanstack/react-query'
+import { useCallback } from 'react'
 import { api, unwrap } from '@/api/client'
 import type { Schema } from '@/api/types'
 import { fetchIssuesPage } from '@/features/inbox/api'
 import type { Issue } from '@/features/inbox/model'
+import { autoFixedOn, versionRef } from '@/features/listing-flow/auto-fix-model'
+import { listingDetailQuery } from '@/features/listings/api'
 import { productQuery } from '@/features/products/api'
-import { useKeys } from '@/lib/query-keys'
+import { useKeys, type QueryKeys } from '@/lib/query-keys'
 import { summarizeListings, type ListingsSnapshot } from './model'
 
 type Listing = Schema<'ListingOut'>
@@ -146,5 +149,59 @@ export function useFindIssueListing(issueId: string, enabled: boolean) {
       }
       return null
     },
+  })
+}
+
+/**
+ * One listing's fix trail: its `auto_fixed` rows (code fixes) and its `resolved` rows closed by an
+ * AI rewrite (`ai_correction`; the API has no resolution filter, so they are picked here). Up to
+ * 4 pages of each. Under `issues.all()`, so a regenerate, edit or re-check refreshes it.
+ */
+export function fixTrailQuery(keys: QueryKeys, listingId: string) {
+  return queryOptions({
+    queryKey: [...keys.issues.all(), 'fix-trail', listingId] as const,
+    staleTime: 20_000,
+    queryFn: async (): Promise<Issue[]> => {
+      const [fixed, resolved] = await Promise.all(
+        (['auto_fixed', 'resolved'] as const).map((status) => walkIssues((cursor) => fetchIssuesPage({ status, listingId }, cursor), 4)),
+      )
+      return [...fixed!, ...resolved!.filter((i) => i.resolution === 'ai_correction')]
+    },
+  })
+}
+
+export function useFixTrail(listingId: string) {
+  const keys = useKeys()
+  return useQuery(fixTrailQuery(keys, listingId))
+}
+
+type FixRef = { id: string; current_version_id?: string | null }
+
+/**
+ * How many fixes each listing's current version carries (for chips and "Approve all"). Reads the
+ * trail and the listing detail (for when the version was written; shared with the review's cache).
+ * A failed trail read counts none; a failed detail read falls back to the version id alone.
+ */
+export function useFixCounts(listings: readonly FixRef[]): { pending: boolean; counts: Map<string, number> } {
+  const keys = useKeys()
+  const combine = useCallback(
+    (rs: { isPending: boolean; data?: unknown }[]) => {
+      const n = listings.length
+      const counts = new Map<string, number>()
+      listings.forEach((l, i) => {
+        const trail = rs[i]?.data as Issue[] | undefined
+        const detail = rs[n + i]?.data as { data: Parameters<typeof versionRef>[0] } | undefined
+        counts.set(l.id, autoFixedOn(trail ?? [], detail ? versionRef(detail.data) : { id: l.current_version_id }).length)
+      })
+      return { pending: rs.some((r) => r.isPending), counts }
+    },
+    [listings],
+  )
+  return useQueries({
+    queries: [
+      ...listings.map((l) => ({ ...fixTrailQuery(keys, l.id), meta: { toast: false }, retry: false })),
+      ...listings.map((l) => ({ ...listingDetailQuery(keys, l.id), meta: { toast: false } })),
+    ],
+    combine,
   })
 }

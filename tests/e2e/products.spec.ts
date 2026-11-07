@@ -113,7 +113,8 @@ test.describe('products', () => {
       await expect(page.getByTestId('new-product')).toHaveCount(0)
       await page.goto('/products/new')
       await expect(page.getByText("You don't have access to this page")).toBeVisible()
-      await expect(page.getByLabel('SKU')).toHaveCount(0)
+      // Exact: the header's search button is labelled "Search products and SKUs …".
+      await expect(page.getByLabel('SKU', { exact: true })).toHaveCount(0)
     }
   })
 
@@ -183,7 +184,7 @@ test.describe('products', () => {
     await page.getByTestId('create-product').click()
     expect((await res).status()).toBe(409)
     await expect(page.getByText('This SKU already exists in this brand.')).toBeVisible()
-    await expect(page.getByLabel('SKU')).toHaveAttribute('aria-invalid', 'true')
+    await expect(page.getByLabel('SKU', { exact: true })).toHaveAttribute('aria-invalid', 'true')
     await page.getByTestId('open-existing').click()
     await expect(page.getByTestId('product-sku')).toHaveText('KURTA-001')
   })
@@ -459,16 +460,28 @@ test.describe('products', () => {
 
   test('a finished import refreshes a cached product detail', async ({ page }) => {
     test.setTimeout(120_000)
-    await loginAs(page, USERS.bharat.operator, '/imports/new')
+    // Spreadsheet import lives under Add products (chooser -> Bulk upload, /add/bulk).
+    await loginAs(page, USERS.bharat.operator, '/add/bulk')
     const sku = `PW-${RUN}-imp`
     const upload = async (title: string) => {
       const csv = `seller_sku,product_name,category,main_image\n${sku},${title},home_decor_lamps,https://cdn.example.com/pw/${RUN}.jpg\n`
+      await page.getByTestId('bulk-next').click()
       await page
         .getByLabel('CSV file', { exact: true })
         .setInputFiles({ name: `pw-${RUN}.csv`, mimeType: 'text/csv', buffer: Buffer.from(csv) })
-      await page.getByRole('button', { name: 'Upload and import' }).click()
-      await expect(page).toHaveURL(/\/imports\/[0-9a-f-]{36}\?job=/)
-      await expect(page.getByTestId('job-progress')).toHaveAttribute('data-status', 'succeeded', { timeout: 60_000 })
+      // The app's own job polling sees the import succeed.
+      const succeeded = page.waitForResponse(
+        async (r) =>
+          /\/api\/v1\/jobs\/[0-9a-f-]{36}$/.test(r.url()) &&
+          r.request().method() === 'GET' &&
+          r.ok() &&
+          ((await r.json()) as { status: string }).status === 'succeeded',
+        { timeout: 60_000 },
+      )
+      await page.getByTestId('bulk-upload').click()
+      await expect(page).toHaveURL(/\/add\/bulk\?import=[0-9a-f-]{36}/)
+      await succeeded
+      await expect(page.getByText('Sending opens once the import has run.')).toHaveCount(0)
     }
     await upload(`PW lamp ${RUN} v1`)
     // Cache the detail page (staleTime 30s), all in-app so the cache survives.
@@ -476,9 +489,10 @@ test.describe('products', () => {
     await page.getByRole('link', { name: sku, exact: true }).click()
     await expect(page.getByTestId('product-title')).toHaveText(`PW lamp ${RUN} v1`)
 
-    await page.getByRole('link', { name: 'Imports' }).first().click()
-    // The imports page's create link (its label is owned by the imports feature).
-    await page.locator('main a[href="/imports/new"]').first().click()
+    await page.getByRole('link', { name: 'Add products' }).first().click()
+    await page.getByTestId('route-bulk').click()
+    await page.getByTestId('add-continue').click()
+    await expect(page).toHaveURL(/\/add\/bulk/)
     await upload(`PW lamp ${RUN} v2`)
     await page.getByRole('link', { name: 'Products' }).first().click()
     await page.getByRole('link', { name: sku, exact: true }).click()
@@ -496,6 +510,10 @@ test.describe('products', () => {
       reached = await page.evaluate(() => document.activeElement?.tagName === 'TIME')
     }
     expect(reached).toBe(true)
-    await expect(page.getByRole('tooltip')).toHaveText(/\d{1,2} \w{3} \d{4}, \d{2}:\d{2}:\d{2}/)
+    // The focused time names its exact time: as its description and as the open tooltip. The
+    // status cells' tooltips passed on the way can still be fading out, so match by text.
+    const exact = /\d{1,2} \w{3} \d{4}, \d{2}:\d{2}:\d{2}/
+    await expect(page.locator('time:focus')).toHaveAccessibleDescription(exact)
+    await expect(page.getByRole('tooltip').filter({ hasText: exact })).toBeVisible()
   })
 })

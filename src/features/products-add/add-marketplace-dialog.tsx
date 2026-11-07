@@ -6,7 +6,7 @@
  */
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Banner } from '@/components/la'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -39,6 +39,7 @@ export function AddMarketplaceDialog({
   const [sending, setSending] = useState<{ done: number; total: number } | null>(null)
   const [results, setResults] = useState<ItemOutcome[] | null>(null)
   const { connected } = useConnectedMarketplaces()
+  const contentRef = useRef<HTMLDivElement>(null)
 
   const plan = useMemo(() => planGenerate(products, chosen, listingsOf), [products, chosen, listingsOf])
 
@@ -73,7 +74,17 @@ export function AddMarketplaceDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="sm:max-w-[560px]">
+      <DialogContent
+        ref={contentRef}
+        className="sm:max-w-[560px]"
+        // Focus the dialog itself, not its first tabbable: while the accounts load, the marketplace
+        // checkboxes are placeholders and the first tabbable is a "not supported" hint whose tooltip
+        // would open on focus and cover the checkboxes. Tab still starts at the first marketplace.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault()
+          contentRef.current?.focus()
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Add marketplace</DialogTitle>
           <DialogDescription>

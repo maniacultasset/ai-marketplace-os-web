@@ -8,9 +8,10 @@ import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { IconTile, type IconSource, type TileTone } from '@/components/la/icons'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { Issue, Task } from '@/features/inbox/model'
+import { RewrittenBadge } from '@/features/listing-flow/auto-fix'
 import { cn } from '@/lib/utils'
 import { issueIcon } from './issue-icon'
-import type { TimelineEntry } from './model'
+import type { issueFixTrail, TimelineEntry } from './model'
 
 const DOT: Record<TimelineEntry['tone'], string> = {
   ok: 'border-success bg-success',
@@ -114,4 +115,25 @@ export function ItemTile({ item }: { item: RowItem }) {
     icon = issueIcon(item.issue)
   }
   return <IconTile icon={icon} tone={tone} size="md" />
+}
+
+/**
+ * An auto-fixed issue's trail: what Kuinn changed and when. Calm success tint, and it says
+ * nothing is needed, so a fixed issue never reads as work for the seller.
+ */
+export function FixTrail({ trail }: { trail: NonNullable<ReturnType<typeof issueFixTrail>> }) {
+  return (
+    <div className="rounded-control border border-success-line bg-success-tint px-3 py-2.5" data-testid="issue-fix-trail">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="text-caption font-semibold text-success">What Kuinn changed</span>
+        {trail.rewritten ? <RewrittenBadge /> : null}
+      </div>
+      <p className="mt-1 text-body text-ink" data-testid="issue-fix-change">
+        {trail.change}
+      </p>
+      <p className="mt-0.5 text-caption text-ink-2">
+        Fixed <Ago iso={trail.at} />. Nothing is needed from you.
+      </p>
+    </div>
+  )
 }

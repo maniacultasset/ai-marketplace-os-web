@@ -16,7 +16,7 @@
  *   POST  /listings/{id}/refresh-status           Idempotency-Key, 202 JobAccepted; 429 within 5 min
  *   POST  /jobs/{id}/cancel                       Idempotency-Key, 200 JobEnvelope
  */
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { api, unwrap } from '@/api/client'
 import { ifMatchHeader, unwrapVersioned, type Versioned } from '@/api/etag'
 import { idempotencyHeader } from '@/api/idempotency'
@@ -71,15 +71,20 @@ export function useListingsList(filters: ListingsFilters) {
 /** While a listing is generating or publishing, re-read it on this cadence (the job may be unknown). */
 export const BUSY_REFETCH_MS = 5_000
 
-export function useListing(listingId: string) {
-  const keys = useKeys()
-  return useQuery({
+/** GET /listings/{id} (body + ETag); re-read while the listing is drafting or publishing. */
+export function listingDetailQuery(keys: QueryKeys, listingId: string) {
+  return queryOptions({
     queryKey: keys.listings.detail(listingId),
     queryFn: () =>
       unwrapVersioned(api.GET('/listings/{listing_id}', { params: { path: { listing_id: listingId } } })),
     refetchInterval: (q) => (q.state.data && isBusy(q.state.data.data.status) ? BUSY_REFETCH_MS : false),
     refetchIntervalInBackground: false,
   })
+}
+
+export function useListing(listingId: string) {
+  const keys = useKeys()
+  return useQuery(listingDetailQuery(keys, listingId))
 }
 
 export function useListingHistory(listingId: string, enabled = true) {

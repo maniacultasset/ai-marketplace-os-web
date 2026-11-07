@@ -52,7 +52,8 @@ test.describe('products table (p07)', () => {
     const table = page.getByRole('table', { name: 'Products' })
     await expect(table.getByRole('link', { name: first!.sku, exact: true })).toBeVisible()
     await page.getByTestId('products-filter').fill(`no-such-${RUN}`)
-    await expect(page.getByText('No products match')).toBeVisible()
+    // The phone card list renders its own (hidden) copy of the empty state; read the table's.
+    await expect(table.getByText('No products match')).toBeVisible()
   })
 
   test('marketplaces outside the API are shown as not supported, never as listed', async ({ page }) => {
@@ -77,6 +78,16 @@ test.describe('products table (p07)', () => {
   })
 
   test('add marketplace starts one generate per product x marketplace with an Idempotency-Key', async ({ page }) => {
+    // Read the JSON bodies in the page: branded Chrome leaves them out of Playwright's postData().
+    await page.addInitScript(() => {
+      const w = window as unknown as { __generateBodies?: string[] }
+      const orig = window.fetch.bind(window)
+      window.fetch = async (input, init) => {
+        const req = new Request(input, init)
+        if (req.method === 'POST' && req.url.endsWith('/api/v1/listings/generate')) (w.__generateBodies ??= []).push(await req.clone().text())
+        return orig(req)
+      }
+    })
     await loginAs(page, USERS.acme.operator, '/products')
     await page.getByRole('table', { name: 'Products' }).getByRole('checkbox', { name: 'Select row' }).first().click()
     await page.getByTestId('bulk-add-marketplace').click()
@@ -88,8 +99,11 @@ test.describe('products table (p07)', () => {
     await start.click()
     const sent = await req
     expect(sent.headers()['idempotency-key']).toMatch(/^[0-9a-f-]{36}$/)
-    expect(sent.postDataJSON()).toMatchObject({ marketplace: 'amazon', force_regenerate: false })
     await expect(dialog.getByTestId('generate-results')).toBeVisible()
+    // One product x one marketplace: exactly one generate.
+    const bodies = await page.evaluate(() => (window as unknown as { __generateBodies?: string[] }).__generateBodies ?? [])
+    expect(bodies).toHaveLength(1)
+    expect(JSON.parse(bodies[0]!)).toMatchObject({ marketplace: 'amazon', force_regenerate: false })
   })
 })
 

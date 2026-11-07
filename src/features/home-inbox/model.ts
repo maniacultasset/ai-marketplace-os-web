@@ -12,7 +12,8 @@
 import { z } from 'zod'
 import type { ChipStatus } from '@/components/la/status-chip'
 import type { Schema } from '@/api/types'
-import { humanizeCode, TASK_KIND_LABEL, type Issue, type Task } from '@/features/inbox/model'
+import { humanizeCode, isAutoFix, TASK_KIND_LABEL, type Issue, type Task } from '@/features/inbox/model'
+import { NO_TRAIL_TEXT, onVersion, versionRef } from '@/features/listing-flow/auto-fix-model'
 import { isBlockingTask, isPhotoQuestion } from '@/features/photo-facts/answer-spec'
 
 type Listing = Schema<'ListingOut'>
@@ -415,12 +416,13 @@ export function positionLabel(items: readonly InboxItem[], key: string): string 
 /** Short title for an issue row: the humanized error code ("Value not allowed"). */
 export const issueTitle = (i: Pick<Issue, 'error_code'>) => humanizeCode(i.error_code)
 
-export function issueChip(i: Pick<Issue, 'status' | 'severity'>): { status: ChipStatus; label: string } {
+export function issueChip(i: Pick<Issue, 'status' | 'severity'> & Partial<Pick<Issue, 'resolution'>>): { status: ChipStatus; label: string } {
   switch (i.status) {
     case 'auto_fixed':
       return { status: 'live', label: 'Auto-fixed' }
     case 'resolved':
-      return { status: 'live', label: 'Resolved' }
+      // An AI rewrite of the field is a fix Kuinn made; it can only close as `resolved`.
+      return { status: 'live', label: i.resolution === 'ai_correction' ? 'Auto-fixed' : 'Resolved' }
     case 'dismissed':
       return { status: 'not-listed', label: 'Dismissed' }
     case 'open':
@@ -433,6 +435,59 @@ export const RETRY_CLASS_TEXT: Record<Issue['retry_class'], string> = {
   ai_correct: 'Content needs a correction, then a new approval.',
   user_action: 'Needs a person. Retrying alone will not fix it.',
   system_failure: 'Our system failed. Nothing is wrong with your listing.',
+}
+
+/**
+ * "Next step" for an issue. Only an open issue asks anything of a person; a closed one says
+ * plainly that nothing is left, so an auto-fixed issue never reads as "needs you".
+ */
+export function issueNextStep(i: Pick<Issue, 'status' | 'retry_class'> & Partial<Pick<Issue, 'resolution'>>): string {
+  if (isAutoFix({ status: i.status, resolution: i.resolution })) return 'Nothing. Kuinn fixed this on its own.'
+  switch (i.status) {
+    case 'open':
+      return RETRY_CLASS_TEXT[i.retry_class]
+    case 'auto_fixed':
+      return 'Nothing. Kuinn fixed this on its own.'
+    case 'resolved':
+      return 'Nothing. This is resolved.'
+    case 'dismissed':
+      return 'Nothing. The warning was accepted.'
+  }
+}
+
+/** What Kuinn changed for an auto-fixed issue, or null when the issue was not auto-fixed. */
+export function issueFixTrail(
+  i: Pick<Issue, 'status' | 'action_taken' | 'resolution' | 'resolved_at' | 'last_seen_at'>,
+): { change: string; at: string; rewritten: boolean } | null {
+  if (!isAutoFix(i)) return null
+  return {
+    change: i.action_taken?.trim() || NO_TRAIL_TEXT,
+    at: i.resolved_at ?? i.last_seen_at,
+    rewritten: i.resolution === 'ai_correction',
+  }
+}
+
+/** The Inbox "Auto-fixed" list: code fixes plus the resolved rows an AI rewrite closed. */
+export function withAiRewrites<T extends Pick<Issue, 'resolution'>>(autoFixed: readonly T[], resolved: readonly T[]): T[] {
+  return [...autoFixed, ...resolved.filter((r) => r.resolution === 'ai_correction')]
+}
+
+/** The label over an issue's plain message: what was wrong once it is fixed, else plain language. */
+export function issuePlainLabel(i: Pick<Issue, 'status'>): string {
+  return i.status === 'auto_fixed' || i.status === 'resolved' ? 'What was wrong' : 'In plain language'
+}
+
+/**
+ * Where a fix's "see it" link goes: the review's Fixed for you section when the fix belongs to the
+ * listing's current version (the same rule as the review), else the product's Activity tab, since
+ * the review no longer shows it. Null for an issue that is not a fix.
+ */
+export function issueTrailLink(
+  i: Pick<Issue, 'status' | 'resolution' | 'listing_version_id' | 'resolved_at'>,
+  listing: Parameters<typeof versionRef>[0],
+): 'review' | 'activity' | null {
+  if (!isAutoFix(i)) return null
+  return onVersion(i, versionRef(listing)) ? 'review' : 'activity'
 }
 
 /** "Unknown error, not auto-fixable" (p16 "Class"). */
