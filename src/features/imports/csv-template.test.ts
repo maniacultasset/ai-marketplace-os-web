@@ -1,46 +1,20 @@
 /**
  * The bulk CSV header list must match the backend's (apps/api/app/services/imports/headers.py).
  *
- * `BACKEND` is a copy of that file's lists, taken at backend main 751863f. The first block checks
- * the FE template against it. The second block re-reads headers.py itself when a backend checkout
- * is given (`BACKEND_DIR` or `E2E_BACKEND_DIR`), so a backend change that is not copied here fails
- * locally: run `BACKEND_DIR=../ai-marketplace-os pnpm test csv-template`.
+ * backend-headers.snapshot.json is generated from headers.py (`BACKEND_DIR=… pnpm gen:headers`)
+ * and names the backend commit it came from. The FE template is always checked against it. When
+ * a backend checkout is given (`BACKEND_DIR` or `E2E_BACKEND_DIR`), the snapshot is also checked
+ * against that checkout's headers.py, so a stale snapshot fails locally.
  */
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { analyzeCsv, analyzeHeader } from '@/features/products-add/csv-header'
+import snapshot from './backend-headers.snapshot.json'
+import { HEADERS_PY_PATH, parseHeadersPy } from './headers-py'
 import { COLUMN_ALIASES, COLUMN_GROUPS, FULL_HEADER, MINIMAL_HEADER, PHOTO_LINK_COLUMNS, REQUIRED_COLUMNS } from './csv-template'
 
-const BACKEND = {
-  a6: [
-    'seller_sku', 'parent_style_id', 'product_name', 'brand_name', 'manufacturer_name', 'manufacturer_address',
-    'product_identifier_type', 'product_identifier', 'gender', 'category', 'sub_category', 'product_type', 'color_name',
-    'normalized_color', 'size_name', 'normalized_size', 'size_system', 'fit', 'pattern', 'fabric_type', 'fiber_composition',
-    'lining', 'stretch', 'neckline', 'collar_type', 'sleeve_type', 'sleeve_length', 'garment_length', 'rise', 'leg_style',
-    'closure', 'pocket_type', 'occasion', 'season', 'wash_care', 'iron_care', 'country_of_origin', 'mrp',
-    'consumer_care_email', 'consumer_care_phone', 'hsn_code', 'selling_price', 'tax_rate', 'package_weight',
-    'package_length_cm', 'package_breadth_cm', 'package_height_cm', 'main_image', 'additional_images', 'size_chart',
-    'title', 'bullet_1_to_n', 'description', 'keywords', 'marketplace_category', 'marketplace_product_type',
-    'marketplace_sku', 'marketplace_listing_id', 'marketplace_status', 'live_url', 'overall_status', 'open_issue_count',
-    'human_action_required', 'last_updated',
-  ],
-  extension: ['style_number'],
-  aliases: {
-    parent_sku: 'parent_style_id',
-    mrp_inr: 'mrp',
-    price_inr: 'selling_price',
-    weight_grams: 'package_weight_g',
-    package_weight_g: 'package_weight_g',
-    fabric_composition: 'fiber_composition',
-  } as Record<string, string>,
-  required: ['seller_sku', 'product_name', 'category'],
-  ignored: [
-    'title', 'bullet_1_to_n', 'description', 'keywords', 'marketplace_category', 'marketplace_product_type',
-    'marketplace_sku', 'marketplace_listing_id', 'marketplace_status', 'live_url', 'overall_status', 'open_issue_count',
-    'human_action_required', 'last_updated',
-  ],
-}
+const BACKEND = snapshot
 
 /** headers.py names `package_weight_g` internally; the FE shows the A.6 column it fills. */
 const shown = (column: string) => (column === 'package_weight_g' ? 'package_weight' : column)
@@ -98,39 +72,18 @@ describe('templates and photo links', () => {
 })
 
 const backendDir = process.env.BACKEND_DIR || process.env.E2E_BACKEND_DIR
-const headersPy = backendDir ? join(backendDir, 'apps/api/app/services/imports/headers.py') : ''
+const headersPy = backendDir ? join(backendDir, HEADERS_PY_PATH) : ''
 
-/** The text of `NAME: ... = (…)` or `{…}` in headers.py, up to its balanced close, comments dropped. */
-function pyBlock(src: string, name: string): string {
-  const start = src.search(new RegExp(`^${name}:`, 'm'))
-  if (start < 0) throw new Error(`${name} not found in headers.py`)
-  const from = start + src.slice(start).search(/= /)
-  const text = src.slice(from).replace(/#.*$/gm, '')
-  let depth = 0
-  let inString = false
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]!
-    if (ch === '"') inString = !inString
-    if (inString) continue
-    if (ch === '(' || ch === '{') depth++
-    else if (ch === ')' || ch === '}') {
-      depth--
-      if (depth === 0) return text.slice(0, i + 1)
-    }
-  }
-  throw new Error(`${name} is not closed in headers.py`)
-}
-const strings = (block: string) => [...block.matchAll(/"([^"]+)"/g)].map((m) => m[1]!)
+describe('the snapshot', () => {
+  it('names the backend commit it came from', () => {
+    expect(snapshot.source).toBe(HEADERS_PY_PATH)
+    expect(snapshot.backend_sha).toMatch(/^[0-9a-f]{40}$/)
+  })
+})
 
-describe.skipIf(!headersPy || !existsSync(headersPy))('the copy above matches the backend checkout', () => {
+describe.skipIf(!headersPy || !existsSync(headersPy))('the snapshot matches the backend checkout', () => {
   it('reads the same lists from headers.py', () => {
-    const src = readFileSync(headersPy, 'utf8')
-    expect(strings(pyBlock(src, 'A6_COLUMNS'))).toEqual(BACKEND.a6)
-    expect(strings(pyBlock(src, 'EXTENSION_COLUMNS'))).toEqual(BACKEND.extension)
-    expect(strings(pyBlock(src, 'REQUIRED'))).toEqual(BACKEND.required)
-    expect(new Set(strings(pyBlock(src, 'IGNORED_WITH_WARNING')))).toEqual(new Set(BACKEND.ignored))
-    const aliasBlock = pyBlock(src, 'ALIASES').replace(/GRAMS_COLUMN/g, '"package_weight_g"')
-    const pairs = [...aliasBlock.matchAll(/"([^"]+)":\s*"([^"]+)"/g)].map((m) => [m[1]!, m[2]!])
-    expect(Object.fromEntries(pairs)).toEqual(BACKEND.aliases)
+    const { a6, extension, aliases, required, ignored } = snapshot
+    expect(parseHeadersPy(readFileSync(headersPy, 'utf8'))).toEqual({ a6, extension, aliases, required, ignored })
   })
 })
