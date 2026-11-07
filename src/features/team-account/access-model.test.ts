@@ -131,7 +131,7 @@ describe('refusals in words', () => {
       .json()
       .then((body) => toApiError(new Response(null, { status }), body))
   it('invite: a member or the 50 limit lands on email; an owner role on role', async () => {
-    expect(inviteErrorMessage(await err(422, 'VALIDATION_FAILED', [{ loc: ['body', 'email'], msg: 'x', type: 'x' }]))?.field).toBe('email')
+    expect(inviteErrorMessage(await err(422, 'VALIDATION_FAILED', [{ loc: ['body', 'email'], msg: 'x', type: 'x' }]), 'reviewer')?.field).toBe('email')
     expect(inviteErrorMessage(await err(403, 'PERMISSION_DENIED'), 'owner')).toMatchObject({ field: 'role', message: 'Only an owner can invite an owner.' })
     expect(inviteErrorMessage(await err(429, 'RATE_LIMITED'), 'reviewer')?.message).toMatch(/Wait a minute/)
     expect(inviteErrorMessage(await err(500, 'INTERNAL_ERROR'), 'reviewer')).toBeNull()
