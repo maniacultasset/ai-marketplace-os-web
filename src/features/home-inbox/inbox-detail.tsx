@@ -97,7 +97,7 @@ export function InboxDetail({
             remaining={items.length - idx - 1}
             outcome={outcomes[item.task.id]}
             onOutcome={onOutcome}
-            next={nextLink(items, idx, search)}
+            next={nextLink(items, idx, search, outcomes)}
           />
         ) : (
           <IssuePane key={item.id} issue={item.issue} position={positionLabel(items, itemKey(item))} />
@@ -108,8 +108,8 @@ export function InboxDetail({
 }
 
 /** "Next question" once a question is answered: the next item in the list that is still open. */
-function nextLink(items: readonly InboxItem[], idx: number, search: InboxSearch) {
-  const next = items.slice(idx + 1).find((i) => i.kind === 'issue' || i.task.status === 'open')
+function nextLink(items: readonly InboxItem[], idx: number, search: InboxSearch, done: Readonly<Record<string, AnswerOutcome>>) {
+  const next = items.slice(idx + 1).find((i) => i.kind === 'issue' || (i.task.status === 'open' && !done[i.task.id]))
   if (!next) return undefined
   return (
     <Button asChild data-testid="inbox-next">
