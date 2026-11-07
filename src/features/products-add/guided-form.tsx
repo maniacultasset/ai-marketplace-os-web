@@ -227,7 +227,11 @@ export function GuidedForm({ listOn }: { listOn: Marketplace[] }) {
       delete next.images
       return next
     })
-    if (!created) for (const a of added) if (a.slot === 'main' && a.stage.kind === 'queued') stage(a)
+    const valid = added.filter((a) => a.stage.kind === 'queued')
+    // Already saved (for example "Continue with it"): photos go straight to the product.
+    if (created) {
+      if (valid.length) void uploadAfterSave(created.id, valid).finally(() => setPhase(null))
+    } else for (const a of valid) if (a.slot === 'main') stage(a)
   }
   const removeImage = (localId: string) =>
     setImages((list) => {
