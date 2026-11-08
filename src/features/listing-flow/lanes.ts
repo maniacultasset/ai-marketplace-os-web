@@ -5,7 +5,11 @@
  *
  * Four groups the seller sees:
  *   Fixed for you   Kuinn's own lanes (a value-format repair, a text fix, an AI rewrite, a retry);
- *                   "Fixed for you" only once the issue is closed, "Kuinn is fixing" while open
+ *                   "Kuinn is fixing" while open. Once closed, "Fixed for you" only when Amazon
+ *                   accepted the corrected version, or when the fix needed no resend (the listing
+ *                   was never sent; a text fix also needs its approval). Otherwise a text fix reads
+ *                   "Fix ready, needs approval" and a resent value fix "Resent, waiting for
+ *                   Amazon". Without the listing's attempts the chip says only "Kuinn changed this".
  *   Needs you       a fact only the seller knows, or a photo
  *   Marketplace     only the marketplace can approve it (brand or category approval)
  *   Kuinn team      our team checks it
@@ -31,6 +35,36 @@ export const LANE_GROUP: Record<Lane, LaneGroup> = {
   staff: 'staff',
 }
 
+/** Where a closed Kuinn fix stands (fixState). */
+export type FixState = 'confirmed' | 'needs_approval' | 'waiting' | 'unknown'
+
+/** What fixState reads: the listing's attempts (resolution read) and whether its current version is approved. */
+export interface FixContext {
+  attempts: readonly { kind: string; at: string; outcome: string }[]
+  /** The listing's current version is approved (approved_version_id === current_version_id). */
+  approved: boolean
+}
+
+const ACCEPTED: ReadonlySet<string> = new Set(['accepted', 'partially_accepted', 'live'])
+const TEXT_LANES: ReadonlySet<string> = new Set(['auto_content', 'ai_field'])
+
+/**
+ * A closed fix is confirmed only when a send at or after the fix was accepted, or when no send was
+ * needed: the listing was never sent (and a text fix was approved). Null context means unknown.
+ */
+export function fixState(lane: string, fixedAt: string | null | undefined, ctx: FixContext | null | undefined): FixState {
+  if (!ctx) return 'unknown'
+  const at = fixedAt ? Date.parse(fixedAt) : Number.NaN
+  const sends = ctx.attempts.filter((a) => a.kind === 'submission')
+  const after = Number.isFinite(at) ? sends.filter((a) => Date.parse(a.at) >= at) : sends
+  if (after.some((a) => ACCEPTED.has(a.outcome))) return 'confirmed'
+  const text = TEXT_LANES.has(lane)
+  if (after.length) return 'waiting'
+  if (text) return !ctx.approved ? 'needs_approval' : sends.length ? 'waiting' : 'confirmed'
+  // A value-format fix: before any send it needed no resend; after a send it waits for one.
+  return sends.length ? 'waiting' : 'confirmed'
+}
+
 export interface LaneView {
   lane: Lane
   group: LaneGroup
@@ -42,14 +76,26 @@ export interface LaneView {
 /** A lane we do not know yet (a newer API) is read as our team's: never as "fixed". */
 const known = (lane: string): lane is Lane => lane in LANE_GROUP
 
-export function laneView(lane: string | null | undefined, opts: { closed: boolean; marketplace: string }): LaneView | null {
+export function laneView(
+  lane: string | null | undefined,
+  opts: { closed: boolean; marketplace: string; fix?: FixState },
+): LaneView | null {
   if (!lane) return null
   const l: Lane = known(lane) ? lane : 'staff'
   const mp = mpName(opts.marketplace)
   const v = (status: ChipStatus, label: string, next: string): LaneView => ({ lane: l, group: LANE_GROUP[l], chip: { status, label }, next })
   if (opts.closed && LANE_GROUP[l] === 'kuinn') {
-    if (l === 'auto_repair' || l === 'retry') return v('live', 'Fixed for you', `Kuinn fixed it. It changed only how the value is sent to ${mp}.`)
-    return v('live', 'Fixed for you', 'Kuinn fixed it. A teammate approves the new text before it is sent.')
+    const text = TEXT_LANES.has(l)
+    switch (opts.fix ?? 'unknown') {
+      case 'confirmed':
+        return v('live', 'Fixed for you', text ? 'Kuinn fixed it and a teammate approved the new text.' : `Kuinn fixed it. It changed only how the value is sent to ${mp}.`)
+      case 'needs_approval':
+        return v('ready', 'Fix ready, needs approval', 'Kuinn changed the text. A teammate who did not make the change approves it, then it is sent.')
+      case 'waiting':
+        return v('working', `Resent, waiting for ${mp}`, `Kuinn sent the corrected listing to ${mp}. Waiting for ${mp} to accept it.`)
+      case 'unknown':
+        return v('draft', 'Kuinn changed this', `Kuinn changed this. Open the issue to see whether ${mp} accepted it.`)
+    }
   }
   switch (l) {
     case 'auto_repair':

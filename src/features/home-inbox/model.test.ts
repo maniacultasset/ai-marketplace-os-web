@@ -12,6 +12,7 @@ import {
   inboxStatuses,
   inProgressTile,
   isCategoryIssue,
+  fixContext,
   issueCause,
   issueChip,
   issueLane,
@@ -567,10 +568,49 @@ describe('SI11 lanes: who settles an issue', () => {
     expect(issueNextStep(open('auto_content'))).toMatch(/A teammate approves the change before it is sent/)
   })
 
-  it('"Fixed for you" once Kuinn closed it', () => {
-    expect(issueChip({ status: 'auto_fixed', severity: 'error', resolution: 'deterministic_fix', lane: 'auto_repair', marketplace: 'amazon' })).toEqual({ status: 'live', label: 'Fixed for you' })
-    expect(issueChip({ status: 'resolved', severity: 'error', resolution: 'ai_correction', lane: 'ai_field', marketplace: 'amazon' }).label).toBe('Fixed for you')
-    expect(issueNextStep({ status: 'resolved', resolution: 'ai_correction', retry_class: 'ai_correct', lane: 'ai_field', marketplace: 'amazon' })).toMatch(/teammate approves the new text/)
+  describe('a closed fix is "Fixed for you" only with proof', () => {
+    const repair = { status: 'auto_fixed' as const, severity: 'error' as const, retry_class: 'user_action' as const, resolution: 'deterministic_fix' as const, lane: 'auto_repair' as const, marketplace: 'amazon' as const, resolved_at: '2026-11-07T09:10:00Z' }
+    const text = { ...repair, status: 'resolved' as const, resolution: 'ai_correction' as const, lane: 'ai_field' as const, retry_class: 'ai_correct' as const }
+    const send = (at: string, outcome: string) => ({ kind: 'submission', at, outcome })
+    const ctx = (attempts: ReturnType<typeof send>[], approved = false) => ({ attempts, approved })
+
+    it('a value-format fix Amazon accepted after the resend', () => {
+      expect(issueChip(repair, ctx([send('2026-11-07T09:00:00Z', 'rejected'), send('2026-11-07T09:11:00Z', 'accepted')]))).toEqual({ status: 'live', label: 'Fixed for you' })
+    })
+
+    it('a value-format fix resent and not confirmed yet', () => {
+      const c = ctx([send('2026-11-07T09:00:00Z', 'rejected'), send('2026-11-07T09:11:00Z', 'pending')])
+      expect(issueChip(repair, c)).toEqual({ status: 'working', label: 'Resent, waiting for Amazon' })
+      // Not resent yet either: still waiting, never "Fixed".
+      expect(issueChip(repair, ctx([send('2026-11-07T09:00:00Z', 'rejected')])).label).toBe('Resent, waiting for Amazon')
+      // An accepted send from before the fix proves nothing.
+      expect(issueChip(repair, ctx([send('2026-11-07T09:00:00Z', 'accepted')])).label).toBe('Resent, waiting for Amazon')
+    })
+
+    it('a value-format fix before any send needed no resend', () => {
+      expect(issueChip(repair, ctx([])).label).toBe('Fixed for you')
+    })
+
+    it('a text fix waits for approval, then for Amazon', () => {
+      expect(issueChip(text, ctx([send('2026-11-07T09:00:00Z', 'rejected')]))).toEqual({ status: 'ready', label: 'Fix ready, needs approval' })
+      expect(issueNextStep(text, ctx([]))).toMatch(/A teammate who did not make the change approves it/)
+      expect(issueChip(text, ctx([send('2026-11-07T09:00:00Z', 'rejected'), send('2026-11-07T09:20:00Z', 'pending')], true)).label).toBe('Resent, waiting for Amazon')
+      expect(issueChip(text, ctx([send('2026-11-07T09:00:00Z', 'rejected'), send('2026-11-07T09:20:00Z', 'live')], true)).label).toBe('Fixed for you')
+      // Never sent: approved is enough, no resend was needed.
+      expect(issueChip(text, ctx([], true)).label).toBe('Fixed for you')
+      expect(issueChip(text, ctx([], false)).label).toBe('Fix ready, needs approval')
+    })
+
+    it('without the listing\'s attempts it never claims "Fixed for you"', () => {
+      expect(issueChip(repair)).toEqual({ status: 'draft', label: 'Kuinn changed this' })
+      expect(issueChip(text, null).label).toBe('Kuinn changed this')
+    })
+
+    it('fixContext reads the approval of the current version', () => {
+      expect(fixContext({ attempts: [] }, { current_version_id: 'v2', approved_version_id: 'v2' })).toEqual({ attempts: [], approved: true })
+      expect(fixContext({ attempts: [] }, { current_version_id: 'v2', approved_version_id: 'v1' })?.approved).toBe(false)
+      expect(fixContext(null, { current_version_id: 'v2' })).toBeNull()
+    })
   })
 
   it('a person closing it keeps today\'s label', () => {

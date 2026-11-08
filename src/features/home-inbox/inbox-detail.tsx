@@ -11,6 +11,8 @@ import { UnavailableButton } from '@/components/la/unavailable'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DismissIssueButton } from '@/features/inbox/dismiss-issue'
+import { useListing } from '@/features/listings/api'
+import { useListingResolution } from '@/features/listing-flow/api'
 import { AnswerCard, AnswerResult, type AnswerOutcome } from '@/features/photo-facts/answer-card'
 import { factKey, isPhotoQuestion } from '@/features/photo-facts/answer-spec'
 import { factLabel } from '@/features/photo-facts/model'
@@ -31,6 +33,7 @@ import { useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import {
   issueAffects,
+  fixContext,
   issueChip,
   issueClassLine,
   issueFixTrail,
@@ -368,7 +371,12 @@ function TaskLinks({ task, photoFixes }: { task: Task; photoFixes: boolean }) {
 
 function IssuePane({ issue, position }: { issue: Issue; position: string | null }) {
   const can = useCan()
-  const chip = issueChip(issue)
+  // A closed Kuinn fix needs the listing's attempts to say "Fixed for you" (SI11 lanes).
+  const closedFix = issue.status !== 'open' && !!issue.lane
+  const listing = useListing(issue.listing_id, { enabled: closedFix })
+  const resolution = useListingResolution(issue.listing_id, { enabled: closedFix && issue.marketplace === 'amazon' })
+  const fix = fixContext(resolution.data, listing.data?.data)
+  const chip = issueChip(issue, fix)
   const marketplace = MARKETPLACE_LABEL[issue.marketplace]
   const fromMarketplace = issue.source === 'amazon_adapter' || issue.source === 'flipkart_adapter'
   const plain = issue.plain_message?.trim()
@@ -409,7 +417,7 @@ function IssuePane({ issue, position }: { issue: Issue; position: string | null 
           rows={[
             ['Affects', issueAffects(issue)],
             ['Class', issueClassLine(issue)],
-            ['Next step', issueNextStep(issue)],
+            ['Next step', issueNextStep(issue, fix)],
             ...(issueCause(issue) ? ([['Cause', issueCause(issue)]] as [string, ReactNode][]) : []),
             ['Seen', <span key="seen">{issue.occurrences > 1 ? `${issue.occurrences} times, last ` : ''}<Ago iso={issue.last_seen_at} /></span>],
           ]}

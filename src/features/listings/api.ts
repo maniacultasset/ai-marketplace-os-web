@@ -82,9 +82,9 @@ export function listingDetailQuery(keys: QueryKeys, listingId: string) {
   })
 }
 
-export function useListing(listingId: string) {
+export function useListing(listingId: string, opts: { enabled?: boolean } = {}) {
   const keys = useKeys()
-  return useQuery(listingDetailQuery(keys, listingId))
+  return useQuery({ ...listingDetailQuery(keys, listingId), enabled: opts.enabled ?? true })
 }
 
 export function useListingHistory(listingId: string, enabled = true) {
