@@ -1,6 +1,6 @@
 /**
  * Pure data and logic for the public pages: the landing page's illustrative finding, the honest
- * marketplace status, the sign-up status chip and the "what describes you" options.
+ * marketplace status, the live features, the sign-up status chip and the "what describes you" options.
  */
 import type { MarketplaceId } from '@/components/la/marketplace'
 import type { ChipStatus } from '@/components/la/status-chip'
@@ -70,36 +70,39 @@ export interface MarketStatus {
 }
 
 /**
- * Honest marketplace status. Kuinn's aim is every marketplace Indian brands sell on, added one at
- * a time behind the same rules and approval step. Amazon is connected in production (SP-API);
- * Flipkart is built but its connection stays off (FLIPKART_ENABLED=false); the other four are not
- * in the API's `Marketplace` enum yet, so they are roadmap only, with no date.
+ * Honest marketplace status. Amazon is connected in production (SP-API); Flipkart is built but its
+ * connection stays off (FLIPKART_ENABLED=false); the other four are not in the API's `Marketplace`
+ * enum yet, so they are roadmap only, with no date.
  */
 export const MARKET_STATUS: readonly MarketStatus[] = [
   {
     ids: ['amazon'],
     name: 'Amazon',
     stage: 'live',
-    body: 'Connect your seller account through Amazon’s Selling Partner API. Kuinn checks each listing against Amazon’s rules and sends it once your team approves.',
+    body: 'Connect your seller account through Amazon’s Selling Partner API. Kuinn checks each listing against Amazon’s rules and sends it after your team approves.',
   },
   {
     ids: ['flipkart'],
     name: 'Flipkart',
     stage: 'soon',
-    body: 'Built on Flipkart’s Seller API, with its own rules and category mapping. The connection stays switched off until our Flipkart access is confirmed.',
+    body: 'The rules and category mapping are built. We switch it on once Flipkart approves our access.',
   },
   {
     ids: ['myntra', 'ajio', 'meesho', 'nykaa'],
     name: 'Myntra, AJIO, Meesho, Nykaa Fashion',
     stage: 'roadmap',
-    body: 'Next on the roadmap, with no date set yet. Each one joins behind the same product record, the same rules and the same approval step.',
+    body: 'Planned next, with no dates yet. Each will use the same catalog and approval step.',
   },
 ]
 
-export const STAGE_CHIP: Record<MarketStage, { status: ChipStatus; label: string }> = {
-  live: { status: 'live', label: 'Live' },
-  soon: { status: 'paused', label: 'Coming soon' },
-  roadmap: { status: 'not-listed', label: 'On the roadmap' },
+/**
+ * The chip for each stage. `glyph` replaces the status glyph on the public pages: a dotted ring for
+ * the roadmap (never a dash) and a half disc for "coming soon" (the paused bars read as stopped).
+ */
+export const STAGE_CHIP: Record<MarketStage, { status: ChipStatus; label: string; short: string; glyph?: string }> = {
+  live: { status: 'live', label: 'Live', short: 'Live' },
+  soon: { status: 'paused', label: 'Coming soon', short: 'Soon', glyph: '◐' },
+  roadmap: { status: 'not-listed', label: 'On the roadmap', short: 'Roadmap', glyph: '◌' },
 }
 
 /** The stage of one marketplace, for the hero strip. */
@@ -113,13 +116,13 @@ export interface Benefit {
   body: string
 }
 
-/** The landing's "What Kuinn does for you" row. Only shipped features, no counts or rates. */
+/** The landing's "What Kuinn does for your team" row. Only shipped features, no counts or rates. */
 export const BENEFITS: readonly Benefit[] = [
-  { id: 'draft', title: 'Listings in your brand’s voice', body: 'Title, bullets, description and keywords, drafted from your product facts.' },
-  { id: 'photos', title: 'Details read from your photos', body: 'Attributes suggested from your product images. You confirm each one.' },
-  { id: 'checks', title: 'Every field checked first', body: 'Each marketplace’s limits, required fields and banned terms, checked before you approve.' },
-  { id: 'fixes', title: 'Safe errors fixed for you', body: 'Small rule errors are corrected on their own and marked “Fixed for you”.' },
-  { id: 'images', title: 'Main photos on clean white', body: 'Your main photo, turned into a clean white-background image. You approve it.' },
+  { id: 'draft', title: 'Written in your voice', body: 'Titles, bullets and descriptions follow your tone, your glossary and the words your brand avoids.' },
+  { id: 'photos', title: 'Read from your photos', body: 'Kuinn suggests product details from your images. You confirm each one before it is used.' },
+  { id: 'checks', title: 'Checked against every rule', body: 'Limits, required fields and banned words are checked for each marketplace before you approve.' },
+  { id: 'fixes', title: 'Fixed for you', body: 'Small rule errors are corrected automatically. Each change is marked “Fixed for you” so nothing happens out of sight.' },
+  { id: 'images', title: 'A clean white main image', body: 'Your main photo is turned into the white-background image marketplaces ask for. You approve it first.' },
 ]
 
 export type SignupState = Schema<'SignupStatusOut'>['status']

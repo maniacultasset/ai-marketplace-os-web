@@ -1,58 +1,144 @@
 /**
- * Public frame for the landing page, legal pages and auth pages: translucent sticky header (mark, links,
- * "Sign in", one primary "Request access"), canvas body, plain footer. Sign-up is a request a
- * person reviews (ADR-0019), so the primary call to action is "Request access", never "Sign up".
+ * Public frame for the landing page and the legal pages: translucent sticky header (mark, the site
+ * sections, "Sign in", one primary "Request access"), canvas body, plain footer. Sign-up is a request
+ * a person reviews (ADR-0019), so the primary call to action is "Request access", never "Sign up".
+ *
+ * The header is one 64px row at every width. The sections sit inline from lg; below lg they move into
+ * a menu sheet with "Sign in", so a phone keeps the wordmark, "Request access" and the menu button.
+ * On the landing page (`inPage`) the section links glide to their section; on other pages they lead
+ * back to the landing page at that section.
  */
 import { Link } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
-import { Wordmark } from '@/components/la/icons'
+import { useRef, useState, type MouseEvent, type ReactNode } from 'react'
+import { IconGlyph, Wordmark } from '@/components/la/icons'
 import { Button } from '@/components/ui/button'
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useScrolled } from '@/lib/use-scrolled'
+import { scrollToSection } from '@/lib/scroll-to-section'
+import { SITE_SECTIONS, type SiteSectionId } from './site-sections'
 import { COMPANY, COMPANY_ADDRESS } from '@/features/public/company'
 import { cn } from '@/lib/utils'
 
-/** `compactLinks`: the same in-page links as a second, scrollable row inside the bar below md. */
-export function PublicHeader({ links, compactLinks }: { links?: ReactNode; compactLinks?: ReactNode }) {
+
+const navLink =
+  'tactile press inline-flex min-h-10 items-center rounded-control px-3 whitespace-nowrap hover:bg-hover hover:text-ink aria-[current=true]:bg-hover aria-[current=true]:text-ink'
+const sheetLink =
+  'tactile press flex min-h-12 items-center rounded-control px-3 text-[17px] font-semibold text-ink hover:bg-hover active:bg-pressed aria-[current=true]:bg-hover'
+
+function SectionLink({ id, label, inPage, className, onNavigate }: { id: SiteSectionId; label: string; inPage: boolean; className: string; onNavigate?: () => void }) {
+  if (!inPage) {
+    return (
+      <Link to="/" hash={id} className={className} onClick={onNavigate}>
+        {label}
+      </Link>
+    )
+  }
+  const onClick = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+    e.preventDefault()
+    if (onNavigate) {
+      // Let the sheet close (and hand focus back) first, then glide to the section.
+      onNavigate()
+      window.setTimeout(() => scrollToSection(id), 0)
+    } else scrollToSection(id)
+  }
+  return (
+    <a href={`#${id}`} data-section-link={id} className={className} onClick={onClick}>
+      {label}
+    </a>
+  )
+}
+
+export function PublicHeader({ inPage = false }: { inPage?: boolean }) {
   const scrolled = useScrolled()
+  const [open, setOpen] = useState(false)
+  // A section picked from the sheet moves focus to that section, so the trigger must not take it back.
+  const navigated = useRef(false)
+  const close = () => {
+    navigated.current = true
+    setOpen(false)
+  }
   return (
     <header data-scrolled={scrolled || undefined} className="material-bar sticky top-0 z-30">
-      <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-3 px-4 md:gap-6 md:px-8">
-        <Link to="/" aria-label="Kuinn home" className="inline-flex min-h-10 shrink-0 items-center">
-          {/* The name stays at phone width; screens under 375px (where the name and both buttons cannot fit) drop to the mark. */}
-          <Wordmark size="lg" className="max-[374px]:[&>span]:hidden" />
+      <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-2 px-4 sm:gap-3 md:px-8 lg:gap-6 2xl:max-w-[1320px]">
+        <Link to="/" aria-label="Kuinn home" className="inline-flex min-h-11 shrink-0 items-center rounded-control">
+          <Wordmark size="lg" />
         </Link>
-        {links ? <nav aria-label="Site" className="hidden items-center gap-6 text-body font-medium text-ink-2 md:flex">{links}</nav> : null}
-        <div className="ml-auto flex items-center gap-1 sm:gap-2">
-          <Button asChild variant="ghost" className="max-sm:px-2.5 max-sm:text-[13px]">
+        <nav aria-label="Site" className="hidden items-center gap-1 text-body font-medium text-ink-2 lg:flex">
+          {SITE_SECTIONS.map((s) => (
+            <SectionLink key={s.id} id={s.id} label={s.label} inPage={inPage} className={navLink} />
+          ))}
+        </nav>
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+          <Button asChild variant="ghost" className="max-sm:hidden [@media(pointer:coarse)]:min-h-11">
             <Link to="/login">Sign in</Link>
           </Button>
-          <Button asChild className="max-sm:px-3 max-sm:text-[13px]">
+          <Button asChild className="max-sm:px-3.5 [@media(pointer:coarse)]:min-h-11">
             <Link to="/signup">Request access</Link>
           </Button>
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="size-11 lg:hidden" aria-label="Open menu" data-testid="public-menu">
+                <IconGlyph icon="menu" size={20} />
+              </Button>
+            </SheetTrigger>
+            <SheetContent
+              side="top"
+              showCloseButton={false}
+              className="gap-0 rounded-b-card bg-surface px-4 pt-2.5 pb-6"
+              onCloseAutoFocus={(e) => {
+                if (navigated.current) e.preventDefault()
+                navigated.current = false
+              }}
+            >
+              <SheetTitle className="sr-only">Menu</SheetTitle>
+              <SheetDescription className="sr-only">Sections of this site, and sign in.</SheetDescription>
+              <div className="flex h-11 items-center justify-between">
+                <Wordmark size="lg" />
+                <SheetClose asChild>
+                  <Button variant="ghost" size="icon" className="size-11" aria-label="Close menu">
+                    <IconGlyph icon="x" size={20} />
+                  </Button>
+                </SheetClose>
+              </div>
+              <nav aria-label="Site" className="mt-4 flex flex-col gap-1">
+                {SITE_SECTIONS.map((s) => (
+                  <SectionLink key={s.id} id={s.id} label={s.label} inPage={inPage} className={sheetLink} onNavigate={close} />
+                ))}
+              </nav>
+              <div className="mt-4 grid grid-cols-2 gap-3 border-t border-line pt-4">
+                <Button asChild variant="secondary" size="lg">
+                  <Link to="/login" onClick={() => setOpen(false)}>
+                    Sign in
+                  </Link>
+                </Button>
+                <Button asChild size="lg">
+                  <Link to="/signup" onClick={() => setOpen(false)}>
+                    Request access
+                  </Link>
+                </Button>
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
-      {compactLinks ? (
-        <nav aria-label="Sections" className="flex gap-1 overflow-x-auto px-4 pb-2 text-small font-medium text-ink-2 [scrollbar-width:none] md:hidden">
-          {compactLinks}
-        </nav>
-      ) : null}
     </header>
   )
 }
 
 const YEAR = new Date().getFullYear()
-const footerLink = 'inline-flex min-h-10 items-center rounded-control hover:text-ink hover:underline underline-offset-4'
+const footerLink = 'inline-flex min-h-11 items-center rounded-control hover:text-ink hover:underline underline-offset-4'
 
 /** Plain footer on every public page. Carries the company name and a direct contact, which Amazon's developer website rules ask for. */
 export function PublicFooter() {
   return (
     <footer className="border-t border-line bg-surface">
-      <div className="mx-auto grid max-w-[1200px] gap-8 px-4 pt-10 pb-8 text-small text-ink-2 md:grid-cols-[minmax(0,1fr)_auto] md:px-8">
+      <div className="mx-auto grid max-w-[1200px] gap-8 px-4 pt-10 pb-8 text-small text-ink-2 md:grid-cols-[minmax(0,1fr)_auto] md:px-8 2xl:max-w-[1320px]">
         <div className="flex max-w-[44ch] flex-col gap-3">
           <Wordmark />
-          <p>One catalog for every marketplace you sell on, checked against each marketplace’s rules and approved by your team.</p>
+          <p>The AI listing agent for Indian fashion brands. Every listing is checked against the marketplace’s rules and approved by your team.</p>
         </div>
-        <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-1 md:justify-end md:self-start">
+        <nav aria-label="Footer" className="grid grid-cols-2 gap-x-6 min-[400px]:grid-cols-3 md:flex md:flex-wrap md:justify-end md:self-start">
           <Link to="/" hash="pricing" className={footerLink}>
             Pricing
           </Link>
@@ -68,6 +154,9 @@ export function PublicFooter() {
           <Link to="/login" className={footerLink}>
             Sign in
           </Link>
+          <Link to="/signup" className={footerLink}>
+            Request access
+          </Link>
         </nav>
         <div className="flex flex-col gap-1 border-t border-line pt-6 text-caption text-ink-3 md:col-span-2 md:flex-row md:justify-between md:gap-6">
           <p>
@@ -80,17 +169,7 @@ export function PublicFooter() {
   )
 }
 
-export function PublicLayout({
-  children,
-  links,
-  compactLinks,
-  className,
-}: {
-  children: ReactNode
-  links?: ReactNode
-  compactLinks?: ReactNode
-  className?: string
-}) {
+export function PublicLayout({ children, inPage, className }: { children: ReactNode; inPage?: boolean; className?: string }) {
   return (
     <div className="flex min-h-svh flex-col bg-canvas">
       <a
@@ -99,8 +178,8 @@ export function PublicLayout({
       >
         Skip to content
       </a>
-      <PublicHeader links={links} compactLinks={compactLinks} />
-      <main id="main" className={cn('flex-1', className)}>
+      <PublicHeader inPage={inPage} />
+      <main id="main" tabIndex={-1} className={cn('flex-1 outline-none', className)}>
         {children}
       </main>
       <PublicFooter />
