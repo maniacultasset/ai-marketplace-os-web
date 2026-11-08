@@ -2,7 +2,8 @@
  * '/' signed out. Structure from the "Aisle" landing (hero with a validation finding, four
  * problems, one workflow, AI proposes / rules decide, bulk band, supported marketplaces, one call
  * to action), styled with the Listing Agent hi-fi tokens and kit. No testimonials, no invented
- * numbers; marketplace status is the honest one from the handover.
+ * numbers. The pitch is every Indian marketplace from one product record; each marketplace's
+ * stage (live, coming soon, roadmap) is the honest one from MARKET_STATUS.
  */
 import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
@@ -16,6 +17,7 @@ import { useReveal } from '@/lib/use-reveal'
 import { cn } from '@/lib/utils'
 import { HeroFinding } from './hero-finding'
 import { HowItWorksDemo } from './how-it-works-demo'
+import { MarketplaceStrip } from './marketplace-strip'
 import { COMPANY } from './company'
 import { MARKET_STATUS, STAGE_CHIP } from './model'
 import { useDocumentTitle } from './use-document-title'
@@ -24,14 +26,14 @@ const PROBLEMS: readonly { icon: IconSource; title: string; body: string; cost: 
   {
     icon: CONCEPT_ICON.rulebook,
     title: 'Every marketplace has its own rulebook',
-    body: 'Amazon and Flipkart use different category trees, required attributes and limits. For a kurta set the title can run to 200 characters on Amazon and 150 on Flipkart.',
-    cost: 'Your team keeps two rulebooks in their heads and still guesses at the edges.',
+    body: 'Amazon, Flipkart, Myntra and the rest each use their own category trees, required attributes and limits. For a kurta set the title can run to 200 characters on Amazon and 150 on Flipkart.',
+    cost: 'Your team keeps a rulebook per marketplace in their heads and still guesses at the edges.',
   },
   {
     icon: CONCEPT_ICON.fit,
-    title: 'One title rarely fits both',
+    title: 'One title rarely fits everywhere',
     body: 'A title that passes on Amazon can be too long for Flipkart. A word like “best” is a promotional claim that both refuse.',
-    cost: 'So the same product gets written twice, by hand, from the same facts.',
+    cost: 'So the same product gets rewritten by hand for every marketplace, from the same facts.',
   },
   {
     icon: CONCEPT_ICON.variants,
@@ -159,11 +161,12 @@ export function Landing() {
                 id="hero-h"
                 className="max-w-[16ch] font-display text-[clamp(2.4rem,5vw,3.75rem)] leading-[1.02] font-bold tracking-[-0.028em] text-ink"
               >
-                Two marketplaces. Two rulebooks. One catalog.
+                One catalog. Every marketplace.
               </h1>
               <p data-reveal style={d(1, 90)} className="mt-6 max-w-[46ch] text-[18px] leading-[1.55] text-ink-2">
-                Kuinn checks every field of your Amazon and Flipkart listings against each marketplace’s rules and waits
-                for someone on your team to approve before anything is sent. Drafting in your brand’s voice is in development.
+                Keep each product as one record. Kuinn turns it into a listing for every marketplace you sell on, checks
+                each field against that marketplace’s rules and waits for someone on your team to approve before anything
+                is sent. Drafting in your brand’s voice is in development.
               </p>
               <div data-reveal style={d(2, 90)} className="mt-8 flex flex-wrap items-center gap-3 sm:gap-4">
                 <Button asChild size="lg">
@@ -181,13 +184,16 @@ export function Landing() {
                 className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-small font-medium text-ink-2"
                 aria-label="At a glance"
               >
-                {['Every request reviewed by a person', 'Amazon and Flipkart', 'Nothing is sent without approval'].map((t) => (
+                {['Every request reviewed by a person', 'Live on Amazon today', 'Nothing is sent without approval'].map((t) => (
                   <li key={t} className="flex items-center gap-1.5">
                     <Icon name="check" size={14} className="text-success" aria-hidden />
                     {t}
                   </li>
                 ))}
               </ul>
+              <div data-reveal style={d(4, 90)} className="mt-8 max-w-[560px] border-t border-line pt-6">
+                <MarketplaceStrip />
+              </div>
             </div>
             <div data-reveal="pop" style={d(2, 90)} className="min-w-0">
               <HeroFinding />
@@ -302,8 +308,8 @@ export function Landing() {
         {/* Marketplaces */}
         <Section
           id="marketplaces"
-          title="Supported marketplaces"
-          lede="Two marketplaces built properly behind one set of rules and one approval step. Here is where each one stands today."
+          title="Built for every marketplace you sell on"
+          lede="One product record, one set of rules and one approval step, with each marketplace added in turn. Here is where each one stands today."
           className="bg-surface"
         >
           <ul className="grid gap-4 md:grid-cols-3">
@@ -317,7 +323,7 @@ export function Landing() {
                   style={d(i, 90)}
                   className={cn(
                     'flex flex-col gap-3 rounded-card border p-5',
-                    m.stage === 'later' ? 'border-dashed border-line-strong bg-transparent' : 'border-line bg-surface shadow-raised-md',
+                    m.stage === 'roadmap' ? 'border-dashed border-line-strong bg-transparent' : 'border-line bg-surface shadow-raised-md',
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -359,7 +365,7 @@ export function Landing() {
               </p>
               <ul className="flex flex-col gap-2.5 text-[15px] text-ink" aria-label="Every plan includes">
                 {[
-                  'Rule checks on every field, for Amazon and Flipkart',
+                  'Rule checks on every field, for each marketplace you connect',
                   'Approval by your team before anything is sent',
                   'CSV import for the whole catalog',
                   'A full history of every draft and approval',
