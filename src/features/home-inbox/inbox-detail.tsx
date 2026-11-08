@@ -346,7 +346,15 @@ function TaskLinks({ task }: { task: Task }) {
           </Link>
         </Button>
       ) : null}
-      {task.product_id ? (
+      {task.product_id && task.kind === 'image_replacement' ? (
+        // The product's Media tab holds the photo fixes (white background, framing).
+        <Button asChild variant="secondary" data-testid="task-open-photos">
+          <Link to="/products/$productId" params={{ productId: task.product_id }} search={{ tab: 'media' }}>
+            <Icon name="image" size={16} />
+            Fix the photo
+          </Link>
+        </Button>
+      ) : task.product_id ? (
         <Button asChild variant="secondary" data-testid="task-open-product">
           <Link to="/products/$productId" params={{ productId: task.product_id }}>
             Open product

@@ -99,3 +99,30 @@ describe('Inbox issue pane', () => {
     expect(screen.getByRole('button', { name: 'Dismiss' })).toBeTruthy()
   })
 })
+
+describe('Inbox image replacement task', () => {
+  it('links to the product photos, where the fixes are', () => {
+    const PRODUCT = '0b1c2d3e-0000-4000-8000-000000000301'
+    const task = {
+      id: ID,
+      kind: 'image_replacement' as const,
+      question: 'Replace the main image',
+      reason: 'The background is not white.',
+      expected_answer: 'none',
+      suggestions: [],
+      status: 'open',
+      resume_from: null,
+      product_id: PRODUCT,
+      created_at: '2026-11-07T09:00:00Z',
+      updated_at: '2026-11-07T09:00:00Z',
+    } as never
+    const item = { kind: 'task' as const, id: ID, at: '2026-11-07T09:00:00Z', task }
+    render(
+      <TooltipProvider>
+        <InboxDetail selectedKey={`task:${ID}`} items={[item]} pending={false} search={{}} products={{ map: new Map(), pending: false }} />
+      </TooltipProvider>,
+    )
+    expect(screen.getByTestId('task-open-photos').textContent).toContain('Fix the photo')
+    expect(screen.queryByTestId('task-open-product')).toBeNull()
+  })
+})
