@@ -82,7 +82,8 @@ describe('hero story', () => {
     // The banned-word check only ticks once "Best" is gone.
     const strike = BEATS.findIndex((b) => b.id === 'strike')
     expect(storyAt(strike - 1).ticked.has('banned')).toBe(false)
-    expect(storyAt(ENTER)).toMatchObject({ ...FINAL, ready: false })
+    // The entrance shows the finished listing, so no card contradicts another while they rise in.
+    expect(storyAt(ENTER)).toEqual(FINAL)
   })
 
   it('uses the seeded rules: "Best" is banned and both titles fit Amazon’s limit', () => {
@@ -102,6 +103,8 @@ describe('hero stage', () => {
     expect(screen.getByText('Example')).toBeTruthy()
     expect(screen.getByText(STORY.caption).id).toBe(fig.getAttribute('aria-labelledby'))
     expect(screen.getByText(STORY.summary).className).toContain('sr-only')
+    // The white-background photo is proposed for the seller's approval, never done for them.
+    expect(STORY.summary).toContain('main photo for you to approve')
     expect(screen.getByTestId('hero-stage').getAttribute('aria-hidden')).toBe('true')
     expect(screen.queryAllByRole('link')).toHaveLength(0)
     expect(screen.getAllByRole('button')).toEqual([screen.getByTestId('hero-play')])
@@ -132,6 +135,8 @@ describe('hero stage', () => {
     vi.stubGlobal('IntersectionObserver', OnScreenObserver)
     render(<Hero />)
     expect(beat()).toBe(String(ENTER))
+    // No field chips travel during the entrance; they belong to the loop.
+    expect(document.querySelector('.hero-chip')).toBeNull()
     act(() => vi.advanceTimersByTime(ENTER_READY_MS))
     expect(beat()).toBe(String(LAST))
     expect(document.querySelector('.hero-ring')).not.toBeNull()

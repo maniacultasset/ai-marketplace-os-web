@@ -1,11 +1,12 @@
 /**
- * The landing's final call to action: list your next collection on Amazon. The panel sits in the
- * hero's light field (from its top left corner) and leads with the real Amazon logo, unchanged, at
- * 64px with a Live chip. From lg an inset well holds three example listing slips.
+ * The landing's final call to action: list your next collection on Amazon. The panel is the page's
+ * last raised surface (canvas only in its far corner) and leads with the real Amazon logo, unchanged,
+ * at 64px with a Live chip. From lg an inset well holds three example listing slips.
  *
- * Motion: the panel uses the page's one reveal (use-reveal.ts). Once it is shown, the slips fan out
- * once from a stack, 70ms apart (`cta-fan` in index.css). Nothing loops. With reduced motion, or
- * before the reveal hook runs, the slips simply rest fanned.
+ * Motion: the panel uses the page's one reveal (use-reveal.ts). Once it is shown, the slips spread
+ * once from a stack, 70ms apart (`cta-fan` in index.css). They are offset, never rotated, so their
+ * text stays crisp. Nothing loops. With reduced motion, or before the reveal hook runs, the slips
+ * simply rest spread.
  */
 import { Link } from '@tanstack/react-router'
 import { useRef, type CSSProperties } from 'react'
@@ -17,9 +18,9 @@ import { cn } from '@/lib/utils'
 import { CTA_SLIPS } from './hero-story'
 
 const FAN = [
-  { r: '-2deg', y: '0px' },
-  { r: '0deg', y: '12px' },
-  { r: '2deg', y: '24px' },
+  { x: '0px', y: '0px' },
+  { x: '8px', y: '12px' },
+  { x: '16px', y: '24px' },
 ] as const
 
 export function FinalCta({ wrap, h2 }: { wrap: string; h2: string }) {
@@ -37,11 +38,11 @@ export function FinalCta({ wrap, h2 }: { wrap: string; h2: string }) {
             {/* The lockup keeps at least 8px of clear space around the logo. */}
             <div className="flex items-center gap-3 md:gap-4" data-testid="cta-lockup">
               <MarketplaceTile id="amazon" size="xl" className="max-md:size-11 max-md:rounded-xl" />
-              <span className="text-h3 text-ink">Amazon</span>
+              <span className="text-[20px] leading-7 font-semibold text-ink md:text-[22px]">Amazon</span>
               <StatusChip status="live" />
             </div>
             <h2 id="cta-h" className={cn(h2, 'mt-6')}>
-              List your next collection on Amazon, in your own voice.
+              List your next collection on Amazon, <span className="whitespace-nowrap">in your own voice.</span>
             </h2>
             <p className="mt-4 max-w-[58ch] text-[17px] leading-[1.55] text-ink">
               Set up your products once. When Flipkart and the next marketplaces go live, they connect to that same catalog.
@@ -59,7 +60,7 @@ export function FinalCta({ wrap, h2 }: { wrap: string; h2: string }) {
             </div>
           </div>
 
-          <div aria-hidden className="flex flex-col gap-4 rounded-card bg-canvas p-6 pb-10 shadow-inset-md max-lg:hidden">
+          <div aria-hidden className="flex flex-col gap-4 rounded-card bg-canvas p-6 pr-10 pb-10 shadow-inset-md max-lg:hidden">
             <TagChip tone="plain" className="self-start">
               Example
             </TagChip>
@@ -67,7 +68,7 @@ export function FinalCta({ wrap, h2 }: { wrap: string; h2: string }) {
               {CTA_SLIPS.map((name, i) => (
                 <li
                   key={name}
-                  style={{ '--i': i, '--r': FAN[i]!.r, '--y': FAN[i]!.y, zIndex: i } as CSSProperties}
+                  style={{ '--i': i, '--x': FAN[i]!.x, '--y': FAN[i]!.y, zIndex: i } as CSSProperties}
                   className="relative flex h-18 min-w-0 items-center gap-3 rounded-tile border border-line bg-surface px-4 shadow-raised-sm"
                 >
                   <MarketplaceTile id="amazon" size="sm" />

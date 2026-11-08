@@ -151,7 +151,7 @@ export function Landing() {
           <div
             className={cn(
               WRAP,
-              'grid grid-cols-1 pt-8 pb-16 md:pt-16 md:pb-24 lg:min-h-[min(calc(100svh-64px),880px)] lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] lg:items-center lg:gap-10 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] xl:gap-16 2xl:min-h-[min(calc(100svh-64px),960px)] 2xl:gap-20',
+              'grid grid-cols-1 pt-8 pb-16 md:pt-16 md:pb-24 lg:pt-8 xl:pt-16 lg:min-h-[min(calc(100svh-64px),880px)] lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] lg:items-center lg:gap-10 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] xl:gap-16 2xl:min-h-[min(calc(100svh-64px),960px)] 2xl:gap-20',
             )}
           >
             <div className="min-w-0 md:max-w-[640px]">

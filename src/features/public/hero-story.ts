@@ -13,11 +13,12 @@ export const STORY = {
   facts: [
     { label: 'Fabric', value: 'Cotton' },
     { label: 'Colour', value: 'Indigo' },
-    { label: 'Sizes', value: 'S, M, L, XL' },
   ],
   /** Read from the photo, then confirmed by the seller. */
   photoFact: { label: 'Neckline', value: 'Round' },
+  /** The cleaned main photo is a proposal: the seller approves it. */
   photoTag: 'White background',
+  photoApproval: 'You approve',
   chips: ['Title', 'Bullets', 'Description'],
   bannedWord: 'Best',
   /** The title after the banned word; the draft is "Best " + this. */
@@ -32,17 +33,20 @@ export const STORY = {
   fixedCaption: 'Removed “Best”, a word Amazon does not allow in titles.',
   checking: 'Checking…',
   ready: 'Ready to approve',
-  ghost: 'Uses this same record when Flipkart goes live.',
   caption: 'An example listing, not real product data.',
   summary:
-    'Example: a kurta set record becomes an Amazon listing. Kuinn writes it in your brand’s voice, cleans the main photo to a white background, checks every field and fixes safe errors. It waits for your approval. Flipkart is next. Myntra, AJIO, Meesho and Nykaa Fashion are on the roadmap.',
+    'Example: a kurta set record becomes an Amazon listing. Kuinn writes it in your brand’s voice, prepares a white-background main photo for you to approve, checks every field and fixes safe errors. The listing waits for your approval. Flipkart is next. Myntra, AJIO, Meesho and Nykaa Fashion are on the roadmap.',
 } as const
 
 export const DRAFT_TITLE = `${STORY.bannedWord} ${STORY.title}`
 
 export type BeatId = 'reset' | 'photo' | 'photoTag' | 'confirm' | 'chips' | 'checks' | 'mark' | 'strike' | 'fixed' | 'banned' | 'ready'
 
-/** One loop of the example, in ms from the loop's start. After the last beat it holds until LOOP_MS. */
+/**
+ * One loop of the example, in ms from the loop's start. After the last beat it holds until LOOP_MS.
+ * The stage dips to 0 for RESET_DIP_MS around the restart (half out, half in), so the reset reads as
+ * one calm fade rather than many small reversals.
+ */
 export const BEATS: readonly { id: BeatId; at: number }[] = [
   { id: 'reset', at: 0 },
   { id: 'photo', at: 600 },
@@ -57,12 +61,14 @@ export const BEATS: readonly { id: BeatId; at: number }[] = [
   { id: 'ready', at: 6200 },
 ]
 export const LOOP_MS = 10_800
+export const RESET_DIP_MS = 300
 export const LAST = BEATS.length - 1
 
 /**
- * The entrance plays once, before the loop. ENTER is its own beat (-1): everything already in its
- * finished state except the Amazon chip, which still says "Checking…" until ENTER_READY_MS. The loop
- * then starts LOOP_START_MS after the page arrives (the entrance settles at about 1.8s, plus 1.6s).
+ * The entrance plays once, before the loop. ENTER is its own beat (-1) and shows the finished listing,
+ * so the cards never contradict each other while they rise in. At ENTER_READY_MS it hands over to the
+ * last beat (the same picture), which rings the live dot once. The loop then starts LOOP_START_MS after
+ * the page arrives (the entrance settles at about 1.8s, plus 1.6s).
  */
 export const ENTER = -1
 export const ENTER_READY_MS = 980
@@ -75,7 +81,6 @@ export const ENTRANCE = {
   trust: 200,
   tray: 120,
   record: 200,
-  chips: [380, 450, 520],
   amazon: 440,
   ghost: 520,
   rail: [600, 670, 740],
@@ -114,7 +119,7 @@ const reached = (beat: number, id: BeatId) => beat >= BEATS.findIndex((b) => b.i
 
 /** What the stage shows at a beat. ENTER and LAST both show the finished listing. */
 export function storyAt(beat: number): StoryState {
-  if (beat === ENTER) return { ...storyAt(LAST), ready: false }
+  if (beat === ENTER) return storyAt(LAST)
   const ticked = new Set<string>()
   if (reached(beat, 'checks')) ticked.add('length').add('required')
   if (reached(beat, 'banned')) ticked.add('banned')

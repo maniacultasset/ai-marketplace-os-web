@@ -152,9 +152,10 @@
   --stagger-hero: 70ms;
   /* The landing's one gradient exception: a neutral light field, surface fading into canvas, lit
      from the top left like the matte shadows. Hero (full bleed) and the final call-to-action panel
-     only; flat canvas under prefers-contrast: more (the hero-field utility). Never coloured. */
+     only; flat under prefers-contrast: more (the hero-field utilities). Never coloured. The corner
+     variant is a raised surface with the canvas showing only in its far (bottom right) corner. */
   --hero-field: radial-gradient(110% 80% at 12% 0%, var(--surface) 0%, var(--canvas) 58%);
-  --hero-field-corner: radial-gradient(110% 80% at 0% 0%, var(--surface) 0%, var(--canvas) 58%);
+  --hero-field-corner: radial-gradient(120% 110% at 100% 100%, var(--canvas) 0%, var(--surface) 60%);
   /* The white a cleaned main photo sits on (the marketplace's white background). */
   --photo-white: #ffffff;
   /* Translucent chrome (sticky bars): canvas or surface at 78% with blur, content scrolls under. */
@@ -712,7 +713,7 @@
   }
 }
 @utility hero-field-corner {
-  background-color: var(--canvas);
+  background-color: var(--surface);
   background-image: var(--hero-field-corner);
   @media (prefers-contrast: more) {
     background-image: none;
@@ -723,7 +724,11 @@
    example turns ready. The element is remounted per ring, so the animation runs once per mount. */
 .hero-ring {
   position: absolute;
-  inset: -1px;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  translate: -50% -50%;
   border-radius: 999px;
   background: currentColor;
   opacity: 0;
@@ -737,10 +742,11 @@
   animation: hero-chip var(--chip-dur, 600ms) var(--ease-out-calm) both;
   animation-delay: var(--chip-delay, 0ms);
 }
-/* Final CTA (final-cta.tsx): three listing slips fanned like a small pile. They rest fanned; only
-   inside a reveal scope do they wait stacked on the first slip, then fan out once (70ms apart). */
+/* Final CTA (final-cta.tsx): three listing slips offset like a small pile. Never rotated, so the
+   text stays crisp. They rest offset; only inside a reveal scope do they wait stacked on the first
+   slip, then spread out once (70ms apart). */
 .cta-fan > * {
-  transform: translateY(var(--y, 0px)) rotate(var(--r, 0deg));
+  transform: translate(var(--x, 0px), var(--y, 0px));
 }
 [data-reveal-scope] .cta-fan:not([data-fanned]) > * {
   transform: translateY(calc(var(--i, 0) * var(--stack, -76px)));
@@ -760,7 +766,7 @@
   }
   .cta-fan > *,
   [data-reveal-scope] .cta-fan:not([data-fanned]) > * {
-    transform: translateY(var(--y, 0px)) rotate(var(--r, 0deg)) !important;
+    transform: translate(var(--x, 0px), var(--y, 0px)) !important;
     transition: none !important;
   }
 }

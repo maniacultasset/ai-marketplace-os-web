@@ -18,15 +18,18 @@ import { MARKET_STATUS, STAGE_CHIP, type MarketStage } from './model'
 
 /**
  * One soft grey for every roadmap marketplace. Grayscale alone turned the dark Meesho and Nykaa
- * icons into heavy blocks next to the light Myntra and AJIO ones. Grey first, then flatten the
- * contrast and lift it, so dark tiles and dark marks settle on the same light grey.
+ * icons into heavy blocks next to the light Myntra and AJIO ones. Grey first, then soften the
+ * contrast and lift it a little, so the tiles sit together and the light marks still read.
  */
-export const MUTED_LOGO = '[&_img]:opacity-55 [&_img]:[filter:grayscale(1)_contrast(0.3)_brightness(1.6)]'
+export const MUTED_LOGO = '[&_img]:opacity-80 [&_img]:[filter:grayscale(1)_contrast(0.6)_brightness(1.25)]'
 
 /** Half lit: the next marketplace keeps its colour, softened, so it sits between live and roadmap. */
 export const NEXT_LOGO = '[&_img]:opacity-80 [&_img]:saturate-[.45]'
 
 const STAGE_INK = { success: 'text-success', neutral: 'text-ink-2', muted: 'text-ink-2' } as const
+
+/** The glyph's own ink: the faint roadmap tone made the ◌ almost vanish, so it takes the word's ink. */
+const GLYPH_INK: Partial<Record<MarketStage, string>> = { roadmap: 'text-ink-2 text-[12px]' }
 
 const TEST_ID: Record<MarketStage, string> = { live: 'rail-live', soon: 'rail-next', roadmap: 'rail-roadmap' }
 
@@ -35,8 +38,9 @@ function Stage({ stage, ring, ringDelay }: { stage: MarketStage; ring?: number; 
   const tone = CHIP_META[chip.status].tone as keyof typeof STAGE_INK
   return (
     <span className={cn('flex items-center gap-1.5 text-caption font-semibold whitespace-nowrap', STAGE_INK[tone] ?? 'text-ink-2')}>
-      <span className="relative inline-flex">
-        <Glyph status={chip.status} glyph={chip.glyph} />
+      {/* A 1em square, so the ring around the dot is a circle, not a line-high capsule. */}
+      <span className={cn('relative inline-grid size-[1em] place-items-center leading-none', GLYPH_INK[stage])}>
+        <Glyph status={chip.status} glyph={chip.glyph} className={GLYPH_INK[stage]} />
         {ring ? <span key={ring} aria-hidden className="hero-ring" style={{ animationDelay: `${ringDelay ?? 0}ms` }} /> : null}
       </span>
       {chip.label}
@@ -47,9 +51,9 @@ function Stage({ stage, ring, ringDelay }: { stage: MarketStage; ring?: number; 
 function Tiles({ ids, stage }: { ids: MarketplaceId[]; stage: MarketStage }) {
   if (stage === 'roadmap') {
     return (
-      <span className="flex shrink-0 -space-x-1.5">
+      <span className="flex shrink-0 gap-1">
         {ids.map((id) => (
-          <MarketplaceTile key={id} id={id} size="xs" className={cn('ring-2 ring-surface', MUTED_LOGO)} />
+          <MarketplaceTile key={id} id={id} size="xs" className={MUTED_LOGO} />
         ))}
       </span>
     )

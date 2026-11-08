@@ -194,29 +194,32 @@ The shadcn kit in `src/components/ui` is restyled to the tokens. The Kuinn piece
 The landing's one bold moment. Everything else on the page stays quiet.
 
 - **Light field.** `hero-field` on the full-bleed hero section, `hero-field-corner` on the final call-to-action
-  panel: `radial-gradient(110% 80% at 12% 0%, surface 0%, canvas 58%)` (corner: at 0% 0%). Neutral, lit from the
-  top left like the matte shadows. It is the only gradient in the product and falls back to flat canvas under
-  `prefers-contrast: more`.
+  panel: `radial-gradient(110% 80% at 12% 0%, surface 0%, canvas 58%)`. The corner variant is a raised surface
+  with canvas only in its far corner (`radial-gradient(120% 110% at 100% 100%, canvas 0%, surface 60%)`), so the
+  closing panel lifts off the page. Neutral, lit from the top left like the matte shadows. It is the only
+  gradient in the product and falls back to flat under `prefers-contrast: more`.
 - **Stage** (`features/public/hero-stage.tsx`, data in `hero-story.ts`). A recessed tray (`bg-canvas`,
   `rounded-stage`, hairline, `shadow-inset-md`, `line-strong` edge under more contrast) holding an example: a record
-  card (raised md), an Amazon card in front (raised lg), a dashed Flipkart ghost behind it (flat, its fill and edge at
+  card led by its photo (edge to edge from md; the white-background photo carries "You approve"), an Amazon card in front (raised lg), a dashed Flipkart ghost behind it (flat, its fill and edge at
   70% so the words keep full contrast) and the marketplace rail. Labelled "Example" with a figcaption; the cards are
   `aria-hidden` and an `sr-only` summary says what they show. No card is a control: no hover lift, no fake Approve.
   From md the stage has a fixed height and every card is absolutely placed; whatever changes is stacked in a
-  reserved cell and only fades or moves, so nothing shifts.
+  reserved cell and only fades or moves (a swap fades out before the other fades in), so nothing shifts. The one
+  exception is the "Fixed for you" band, which opens inside the Amazon card (grid rows 0fr to 1fr). "Checking…"
+  uses a slow spinner, never the ◐ that means Next.
 - **Rail** (`marketplace-rail.tsx`). A real list in three levels: Amazon full colour with ● Live, Flipkart half lit
   (`NEXT_LOGO`) with ◐ Next, the four roadmap marketplaces grey (`MUTED_LOGO`) with ◌ On the roadmap. Only logo
   images are dimmed. It lays out by the tray's width (container queries): one column, two, then one row of three.
 - **Motion.** Transform and opacity only, `--ease-out-calm`, `--dur-enter` 560, `--stagger-hero` 70. The h1 never
-  waits; the copy lines rise 12px at 60/130/200ms. The stage enters once (about 1.8s), then loops every 10.8s while
+  waits; the copy lines rise 12px at 60/130/200ms. The stage enters once (about 1.8s) showing the finished listing, then loops every 10.8s while
   40% of it is on screen and the tab is visible: photo to white, "From photo" to "Confirmed", field chips travel,
-  checks tick, "Best" is marked and removed, "Fixed for you", "Ready to approve", one ring on the live dot. Pause/Play
-  comes first in the figure (44px icon button on phones, "Pause animation"/"Play animation"). Scroll parallax from
+  checks tick, "Best" is marked and removed, "Fixed for you", "Ready to approve", one ring on the live dot. The restart is one 300ms dip of the whole stage, never per-item reversals. Pause/Play
+  comes first in the figure (44px tall at every width, an icon button on phones, "Pause animation"/"Play animation"). Scroll parallax from
   md, pointer parallax from lg with a fine pointer (`use-pointer-parallax.ts`, 2D only, at most 10px). No
   `aria-live`. Reduced motion shows the finished listing at once, with no loop, parallax, ring or toggle.
-- **Final call to action** (`final-cta.tsx`). `rounded-stage` panel in the corner light field, led by the real
-  Amazon logo at 64px with a Live chip. From lg an inset well holds three example slips that fan out once after the
-  panel's reveal (`cta-fan`); with reduced motion they rest fanned.
+- **Final call to action** (`final-cta.tsx`). `rounded-stage` raised panel in the corner light field, led by the real
+  Amazon logo at 64px with a Live chip. From lg an inset well holds three example slips, offset and never rotated, that
+  spread once after the panel's reveal (`cta-fan`); with reduced motion they rest spread.
 - **Sections.** One reveal for every section below the hero (`use-reveal.ts`): the H2, the lede, then top-level
   items, never nested ones, and no scale ("pop") variant.
 
