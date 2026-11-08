@@ -156,12 +156,14 @@ export function Landing() {
                 id="hero-h"
                 className="mt-4 max-w-[18ch] font-display text-[clamp(2.4rem,2.2vw+2.05rem,4.25rem)] leading-[1.02] font-bold tracking-[-0.03em] text-balance text-ink"
               >
-                {/* One sentence per line, so a mid-width screen never strands a word ("voice.") on its own. */}
-                <span className="block">Listings in your brand’s voice.</span> <span className="block">Checked before they go live.</span>
+                {/* One sentence per line, so a mid-width screen never strands a word on its own. */}
+                <span className="block">One catalog.</span> <span className="block">Every Indian marketplace.</span>
               </h1>
               <p data-reveal data-reveal-delay="60" className="mt-6 max-w-[48ch] text-[17px] leading-[1.6] text-ink-2 md:text-[18px]">
-                Kuinn drafts the title, bullets and description for every product from your photos and product details. Each field is checked
-                against the marketplace’s rules before your team sees it.
+                Kuinn drafts every listing in your brand’s voice and checks each field against the marketplace’s rules before your team sees
+                it.
+                {/* Its own line, so the vision above is always read next to what works today. */}
+                <span className="mt-2 block font-semibold text-ink">Live on Amazon today. Flipkart is next.</span>
               </p>
               <div data-reveal data-reveal-delay="120" className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Button asChild size="lg" className="w-full sm:w-auto">
