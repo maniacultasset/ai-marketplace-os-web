@@ -4,8 +4,9 @@
  * retention: proposed, pending counsel), ADR-0018 (token envelope encryption with Cloud KMS),
  * ADR-0019 (sign-up reviewed by a person), core/passwords.py (argon2id), core/observability.py
  * (Sentry with send_default_pii=False and scrubbing), routers/auth.py (IP and user agent on
- * sign-in and refresh, IP only on sign-out), services/embeddings.py (the only model call today:
- * embeddings of the brand profile and documents; drafting is not built), LISTING-AGENT-ANALYSIS §2.8 (no credentials in prompts, signed image URLs
+ * sign-in and refresh, IP only on sign-out), ADR-0024 and core/config.py (LLM_GATEWAY=openrouter in
+ * production: drafting, photo reading, embeddings and image edits all go through OpenRouter with
+ * data collection denied), LISTING-AGENT-ANALYSIS §2.8 (no credentials in prompts, signed image URLs
  * ≤10 min), src/api/session.ts (refresh token in localStorage, access token in memory),
  * ADR-0023 and features/mfa/trusted-device.ts (trusted-browser token: localStorage here, a hash on
  * the server, 30 days or 7 for platform admins, removed with any password or authenticator change).
@@ -215,9 +216,24 @@ export const POLICY_SECTIONS: PolicySection[] = [
                 <td data-label="Where" className="px-4 py-2.5">India, asia-south1 (Mumbai)</td>
               </tr>
               <tr>
-                <td className="px-4 py-2.5 font-semibold">OpenAI (OpenAI, L.L.C.)</td>
-                <td data-label="What for" className="px-4 py-2.5">Text embeddings of your brand profile and brand documents (and, once launched, drafting listing content)</td>
+                <td className="px-4 py-2.5 font-semibold">OpenRouter (OpenRouter, Inc.)</td>
+                <td data-label="What for" className="px-4 py-2.5">Routes AI requests to the model providers below, with data collection turned off</td>
                 <td data-label="Where" className="px-4 py-2.5">United States</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-2.5 font-semibold">DeepSeek models, via OpenRouter</td>
+                <td data-label="What for" className="px-4 py-2.5">Drafting listing titles, bullets, descriptions, attributes and keywords</td>
+                <td data-label="Where" className="px-4 py-2.5">Outside India</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-2.5 font-semibold">OpenAI models (OpenAI, L.L.C.), via OpenRouter</td>
+                <td data-label="What for" className="px-4 py-2.5">Reading details from product photos; text embeddings of your brand profile and brand documents</td>
+                <td data-label="Where" className="px-4 py-2.5">United States</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-2.5 font-semibold">Google Gemini models, via OpenRouter</td>
+                <td data-label="What for" className="px-4 py-2.5">White-background versions of your main photo</td>
+                <td data-label="Where" className="px-4 py-2.5">Outside India</td>
               </tr>
               <tr>
                 <td className="px-4 py-2.5 font-semibold">Sentry (Functional Software, Inc.)</td>

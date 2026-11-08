@@ -24,7 +24,7 @@ import { cn } from '@/lib/utils'
 import { Benefits } from './benefits'
 import { HeroFinding } from './hero-finding'
 import { HowItWorksDemo } from './how-it-works-demo'
-import { MarketplaceStrip } from './marketplace-strip'
+import { MarketplaceStrip, MUTED_LOGO } from './marketplace-strip'
 import { COMPANY } from './company'
 import { MARKET_STATUS, STAGE_CHIP } from './model'
 import { useDocumentTitle } from './use-document-title'
@@ -44,7 +44,7 @@ const PAINS: readonly { icon: IconSource; title: string; body: string }[] = [
   {
     icon: CONCEPT_ICON.fit,
     title: 'Banned words slip through',
-    body: 'One promotional word in a title is enough for a refusal.',
+    body: 'Words like “best” hide easily in a long title, and each marketplace keeps its own list.',
   },
   {
     icon: CONCEPT_ICON.lateRejection,
@@ -56,20 +56,17 @@ const PAINS: readonly { icon: IconSource; title: string; body: string }[] = [
 /** The rules the agent works inside. Each one is enforced by the backend, not by the model. */
 const TRUST: readonly { icon: IconSource; text: string }[] = [
   { icon: CONCEPT_ICON.approval, text: 'Every listing is approved by a person before it is sent.' },
-  { icon: 'users', text: 'The person who edits a listing cannot approve it.' },
+  { icon: 'users', text: 'Whoever starts or edits a listing cannot approve it.' },
   { icon: CONCEPT_ICON.rules, text: 'Character limits, banned words and required fields cannot be overridden.' },
   { icon: CONCEPT_ICON.retry, text: 'After three failed fixes, the agent stops and shows you why.' },
-  { icon: 'lock', text: 'Your marketplace passwords and access tokens stay out of the agent’s reach.' },
+  { icon: 'lock', text: 'Kuinn never asks for your marketplace password. Access tokens are encrypted and never reach the agent.' },
 ]
 
-/** A real sequence, so the steps keep their numbers. */
-const CATALOG_STEPS: readonly { title: string; body: string; icon: IconSource }[] = [
-  { title: 'Upload', icon: 'upload', body: 'Your catalog as a CSV.' },
-  { title: 'Map', icon: CONCEPT_ICON.columns, body: 'Columns become products and variants.' },
-  { title: 'Draft', icon: CONCEPT_ICON.agent, body: 'Every product written in the background.' },
-  { title: 'Check', icon: CONCEPT_ICON.rules, body: 'Results per row for each marketplace.' },
-  { title: 'Review', icon: CONCEPT_ICON.review, body: 'Approve with each error shown beside its field.' },
-  { title: 'Retry', icon: CONCEPT_ICON.retry, body: 'Rerun only the rows that failed.' },
+/** What changes at catalog scale. The demo above already walks the steps, so this never repeats them. */
+const CATALOG_POINTS: readonly { title: string; body: string; icon: IconSource }[] = [
+  { title: 'One CSV for the whole catalog', icon: CONCEPT_ICON.columns, body: 'Your columns become products and variants. Every product is then drafted in the background.' },
+  { title: 'A report for every row', icon: CONCEPT_ICON.rules, body: 'Each row is checked for each marketplace, and every error sits beside its field.' },
+  { title: 'Rerun only what failed', icon: CONCEPT_ICON.retry, body: 'Fix the rows with errors and run just those again. The rest keep moving.' },
 ]
 
 const PRICING_INCLUDES = [
@@ -157,12 +154,13 @@ export function Landing() {
               <p className="text-small font-semibold text-brand">AI listing agent for Indian fashion brands</p>
               <h1
                 id="hero-h"
-                className="mt-4 max-w-[18ch] font-display text-[clamp(2.4rem,2.2vw+2.05rem,4.25rem)] leading-[1.02] font-bold tracking-[-0.03em] text-ink"
+                className="mt-4 max-w-[18ch] font-display text-[clamp(2.4rem,2.2vw+2.05rem,4.25rem)] leading-[1.02] font-bold tracking-[-0.03em] text-balance text-ink"
               >
-                Listings in your brand’s voice. Checked before they go live.
+                {/* One sentence per line, so a mid-width screen never strands a word ("voice.") on its own. */}
+                <span className="block">Listings in your brand’s voice.</span> <span className="block">Checked before they go live.</span>
               </h1>
               <p data-reveal data-reveal-delay="60" className="mt-6 max-w-[48ch] text-[17px] leading-[1.6] text-ink-2 md:text-[18px]">
-                Kuinn drafts the title, bullets and description for every SKU from your photos and product details. Each field is checked
+                Kuinn drafts the title, bullets and description for every product from your photos and product details. Each field is checked
                 against the marketplace’s rules before your team sees it.
               </p>
               <div data-reveal data-reveal-delay="120" className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -173,7 +171,7 @@ export function Landing() {
                 </Button>
                 <Button asChild size="lg" variant="secondary" className="w-full sm:w-auto">
                   <a href="#how" onClick={glideTo('how')}>
-                    See it work
+                    See how it works
                   </a>
                 </Button>
               </div>
@@ -194,10 +192,10 @@ export function Landing() {
         {/* The pain */}
         <Section
           className="bg-surface"
-          title="Your catalog team rewrites the same kurta set again and again."
+          title="Your team rewrites the same kurta set for every marketplace."
           lede={
             <>
-              A title that fits Amazon’s 200 characters breaks Flipkart’s 150. A single “best” gets it refused on both. The rejection names
+              A title that fits Amazon’s 200 characters breaks Flipkart’s 150. A single “best” can get it rejected on both. The rejection names
               the field and leaves the fix to you.
             </>
           }
@@ -220,14 +218,10 @@ export function Landing() {
           <Benefits />
         </Section>
 
-        {/* Trust: the agent writes, fixed rules decide */}
+        {/* Trust: fixed rules judge, a person approves */}
         <Section
           className="bg-surface"
-          title={
-            <>
-              <span className="block">The agent writes.</span> <span className="block">Fixed rules decide what passes.</span>
-            </>
-          }
+          title="Fixed rules judge every draft. Your team approves it."
           lede="Checks run as code against each marketplace’s rules. A model never grades its own draft, and every listing waits for a person."
         >
           <ul className="grid gap-px overflow-hidden rounded-card border border-line bg-line shadow-raised-md md:grid-cols-2">
@@ -255,24 +249,18 @@ export function Landing() {
         <Section
           id="catalogs"
           className="bg-surface"
-          title="A full catalog moves the same way as one kurta set."
-          lede="Every row gets its own checks and its own report. Rows with errors wait while the rest move ahead."
+          title="Your whole catalog takes the same path as one kurta set."
+          lede="Upload the CSV you already keep. Each row moves through the same steps on its own."
         >
-          <ol className="grid gap-px overflow-hidden rounded-card border border-line bg-line shadow-raised-md sm:grid-cols-2 lg:grid-cols-3">
-            {CATALOG_STEPS.map((s, i) => (
-              <li key={s.title} data-reveal className="flex flex-col gap-1.5 bg-surface p-5 md:p-6">
-                <div className="mb-1.5 flex items-center gap-2.5">
-                  <IconTile icon={s.icon} tone={s.icon === CONCEPT_ICON.agent ? 'brand' : 'neutral'} size="sm" />
-                  <span className="text-caption text-ink-3 tabular-nums">
-                    <span className="sr-only">Step </span>
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                </div>
+          <ul className="grid gap-px overflow-hidden rounded-card border border-line bg-line shadow-raised-md md:grid-cols-3">
+            {CATALOG_POINTS.map((s) => (
+              <li key={s.title} data-reveal className="flex flex-col gap-2 bg-surface p-5 md:p-6 lg:p-7">
+                <IconTile icon={s.icon} tone="brand" size="md" className="mb-2" />
                 <h3 className="text-h3 text-ink">{s.title}</h3>
-                <p className="text-small text-ink-2">{s.body}</p>
+                <p className="max-w-[44ch] text-[15px] leading-[1.55] text-ink-2">{s.body}</p>
               </li>
             ))}
-          </ol>
+          </ul>
         </Section>
 
         {/* Marketplaces */}
@@ -296,9 +284,9 @@ export function Landing() {
                   )}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <span className="flex -space-x-1">
+                    <span className="flex gap-1.5">
                       {m.ids.map((id) => (
-                        <MarketplaceTile key={id} id={id} unavailable={!live} className={cn('ring-[3px] ring-canvas', !live && '[&_img]:grayscale')} />
+                        <MarketplaceTile key={id} id={id} unavailable={!live} className={cn(!live && MUTED_LOGO)} />
                       ))}
                     </span>
                     <StatusChip status={chip.status} glyph={chip.glyph}>
@@ -306,7 +294,7 @@ export function Landing() {
                     </StatusChip>
                   </div>
                   <h3 className="text-h3 text-ink">{m.name}</h3>
-                  <p className="max-w-[52ch] text-small text-ink-2">{m.body}</p>
+                  <p className="max-w-[52ch] text-[15px] leading-[1.55] text-ink-2">{m.body}</p>
                 </li>
               )
             })}
@@ -325,7 +313,7 @@ export function Landing() {
               <div className="flex items-center gap-3">
                 <IconTile icon={CONCEPT_ICON.pricing} tone="brand" size="md" />
                 <h3 className="font-display text-[clamp(1.5rem,1.2vw+1.1rem,2rem)] leading-[1.1] font-bold tracking-[-0.02em] text-ink">
-                  Every plan includes
+                  Included for every brand
                 </h3>
               </div>
               <ul className="flex flex-col gap-3 text-[15px] leading-[1.5] text-ink">
@@ -395,10 +383,10 @@ export function Landing() {
                 <IconTile icon="users" tone="brand" size="lg" />
                 <div>
                   <h2 id="cta-h" className={H2}>
-                    Bring your next collection to Amazon with Kuinn.
+                    List your next collection on Amazon, in your own voice.
                   </h2>
                   <p className="mt-4 text-[17px] leading-[1.55] text-ink">
-                    Set up your products once. As each new marketplace goes live, your catalog is ready for it.
+                    Set up your products once. When Flipkart and the next marketplaces go live, they connect to that same catalog.
                   </p>
                   <p className="mt-2 text-[15px] leading-[1.55] text-ink-2">
                     Our team reviews every request. Share your brand and work email to get started.

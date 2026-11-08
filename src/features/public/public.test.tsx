@@ -162,8 +162,9 @@ describe('how it works demo: script', () => {
     expect([...SCENES]).toEqual(['import', 'draft', 'check', 'fix', 'approve', 'publish'])
     expect(RAIL.map((r) => r.title)).toEqual(['Import', 'Draft', 'Check', 'Fix', 'Approve', 'Publish'])
     expect(DRAFT.bullets.length).toBeGreaterThan(0)
-    expect(NARRATION.publish).toMatch(/Live only after Amazon confirms/)
-    expect(NARRATION.fix).toMatch(/Fixed for you/)
+    expect(NARRATION.publish).toMatch(/waits for Amazon to confirm/)
+    expect(RAIL.find((r) => r.id === 'publish')?.body).toMatch(/Live once Amazon confirms/)
+    expect(NARRATION.fix).toMatch(/“Fixed for you”/)
     for (const text of [...Object.values(NARRATION), ...RAIL.map((r) => r.body)]) expect(text).not.toMatch(/Sent to Flipkart|Live on Flipkart/)
   })
 })
@@ -236,8 +237,10 @@ describe('how it works demo', () => {
     render(<HowItWorksDemo />)
     const pause = screen.getByTestId('demo-play')
     const stage = screen.getByTestId('demo-stage')
-    // Reached before the motion in reading order, so a phone does not scroll past it to stop it.
+    // Reached before the motion in reading order, so a phone does not scroll past it to stop it, and
+    // before the six step buttons, so it is the keyboard's first stop in the demo.
     expect(pause.compareDocumentPosition(stage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(pause.compareDocumentPosition(screen.getByTestId('demo-step-import')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // Autoplaying: the control offers Pause, and the narration stays quiet for screen readers.
     expect(pause.getAttribute('aria-label')).toBe('Pause animation')
     expect(screen.getByTestId('demo-narration').getAttribute('aria-live')).toBe('off')
@@ -257,7 +260,7 @@ describe('how it works demo', () => {
     render(<HowItWorksDemo />)
     expect(screen.queryByTestId('demo-play')).toBeNull()
     expect(screen.queryByTestId('demo-replay')).toBeNull()
-    expect(screen.getByText(/reduced motion/)).toBeTruthy()
+    expect(screen.getByText(/Motion is off/)).toBeTruthy()
     fireEvent.click(screen.getByTestId('demo-step-fix'))
     expect(screen.getByTestId('demo-narration').textContent).toBe(NARRATION.fix)
     expect(screen.getByTestId('demo-stage').querySelector('.caret-blink')).toBeNull()

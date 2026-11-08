@@ -1,11 +1,12 @@
 /**
- * "See it work": the landing page's How it works section as one example listing travelling the
+ * "See how it works": the landing page's How it works section as one example listing travelling the
  * workflow (import, draft, check, fix, approve, publish to Amazon), drawn with the real kit. It is
  * labelled as an example and is never app data.
  *
- * Plays only while at least 40% of it is on screen and the tab is visible, and loops with a calm
- * hold on Live. Pause and Replay sit in a toolbar right above the stage (so a phone reaches them
- * before the motion), and Pause freezes everything, the caret included. The narration is announced
+ * Plays only while at least 40% of the moving card is on screen and the tab is visible, and loops
+ * with a calm hold on Live. Pause and Replay sit in a toolbar above the step strip, so they are the
+ * first stop for the keyboard and a phone reaches them before the motion. Pause freezes
+ * everything, the caret included. The narration is announced
  * only after a person picks a step, pauses or replays, never on every autoplay beat. With reduced
  * motion (or no IntersectionObserver) nothing autoplays: it shows the finished state, each step can
  * be viewed on its own and changes are short dissolves. Motion is transform and opacity only.
@@ -39,13 +40,7 @@ import {
   type Pos,
   type SceneId,
 } from './how-it-works-script'
-import { HERO_EXAMPLE, heroFindings } from './model'
-
-/** Plain names for the rule codes on a marketing page; the code stays in the tooltip. */
-const FINDING_LABEL: Record<'FIELD_TOO_LONG' | 'BANNED_TERM', string> = {
-  FIELD_TOO_LONG: 'Title too long',
-  BANNED_TERM: 'Banned word',
-}
+import { FINDING_LABEL, HERO_EXAMPLE, heroFindings } from './model'
 
 /* ------------------------------------------------------------------------------------------------
  * Environment
@@ -244,13 +239,15 @@ function headerChip(scene: SceneId, beat: number): { status: ChipStatus; label: 
   }
 }
 
-/** One panel in the stack. All panels share a grid cell so the stage keeps its height. No scale:
- *  a panel only rises and fades, so its text stays sharp while it moves. */
+/** One panel in the stack. All panels share a grid cell so the stage keeps its height from md up
+ *  (see PanelStack for phones). No scale: a panel only rises and fades, so its text stays sharp
+ *  while it moves. */
 function Panel({ on, children, className }: { on: boolean; children: ReactNode; className?: string }) {
   return (
     <div
       inert={!on}
-      className={cn('col-start-1 row-start-1 min-w-0', SPRING_FADE, on ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-2 opacity-0', className)}
+      data-panel-on={on || undefined}
+      className={cn('col-start-1 row-start-1 min-w-0 self-start', SPRING_FADE, on ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-2 opacity-0', className)}
     >
       {children}
     </div>
@@ -295,14 +292,17 @@ function Stage({ pos, playing }: { pos: Pos; playing: boolean }) {
   const chip = headerChip(scene, b)
 
   return (
-    <div className="overflow-hidden rounded-card border border-line bg-surface shadow-raised-md" aria-hidden data-testid="demo-stage">
+    <div className="min-w-0 overflow-hidden rounded-card border border-line bg-surface shadow-raised-md" aria-hidden data-testid="demo-stage">
       <div className="flex items-center gap-2 border-b border-line bg-sunken px-4 py-2.5">
         <span aria-hidden className="flex gap-1.5 max-sm:hidden">
           <span className="size-2 rounded-full bg-line-strong shadow-inset-sm" />
           <span className="size-2 rounded-full bg-line-strong shadow-inset-sm" />
           <span className="size-2 rounded-full bg-line-strong shadow-inset-sm" />
         </span>
-        <span className="truncate text-caption text-ink-2 sm:ml-2">Listing · {HERO_EXAMPLE.product}</span>
+        <span className="truncate text-caption text-ink-2 sm:ml-2">
+          <span className="max-sm:hidden">Listing · </span>
+          {HERO_EXAMPLE.product}
+        </span>
         <TagChip tone="plain" className="ml-auto">
           Example
         </TagChip>
@@ -314,10 +314,11 @@ function Stage({ pos, playing }: { pos: Pos; playing: boolean }) {
       <div className="flex flex-col gap-4 p-4 md:p-5">
         {/* Product card */}
         <div className="rounded-xl border border-line bg-canvas p-2 shadow-inset-sm">
-          <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto] items-start gap-1">
+          {/* Under sm the marketplace icons move down to the length row, so the SKU keeps its full width. */}
+          <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] items-start gap-1 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto]">
             <CardField label="SKU" filled={filled} scan={scanField === 'sku'} d={0} value={<code className="font-mono text-[12.5px] font-medium text-ink">{DEMO.sku}</code>} />
             <CardField label="Price" filled={filled} scan={scanField === 'price'} d={90} value={<span className="text-small font-semibold text-ink tabular-nums">{DEMO.price}</span>} />
-            <div className="flex gap-1 px-2 pt-2" aria-hidden>
+            <div className="flex gap-1 px-2 pt-2 max-sm:hidden" aria-hidden>
               <MarketplaceTile id="amazon" size="sm" />
               <MarketplaceTile id="flipkart" size="sm" />
             </div>
@@ -343,11 +344,15 @@ function Stage({ pos, playing }: { pos: Pos; playing: boolean }) {
           <div className={cn('mt-1 flex flex-wrap items-center gap-2 px-2.5 pb-1', arrive(filled))} style={delay(filled ? 260 : 0)}>
             <CountChip len={len} judged={judged} />
             <span className="text-caption text-ink-2">{judged ? 'Flipkart’s limit for kurta sets' : 'Title length'}</span>
+            <span className="ml-auto flex gap-1 sm:hidden" aria-hidden>
+              <MarketplaceTile id="amazon" size="xs" />
+              <MarketplaceTile id="flipkart" size="xs" />
+            </span>
           </div>
         </div>
 
         {/* Morphing panel */}
-        <div className="grid">
+        <PanelStack scene={scene}>
           <Panel on={scene === 'import'}>
             <PanelTitle aside={<SourceBadge source={{ kind: 'you', detail: 'CSV' }} />}>Imported from {DEMO.file}</PanelTitle>
             <div className="overflow-hidden rounded-tile border border-line bg-sunken font-mono text-[12px] leading-5">
@@ -406,7 +411,7 @@ function Stage({ pos, playing }: { pos: Pos; playing: boolean }) {
           </Panel>
 
           <Panel on={scene === 'check' || scene === 'fix'}>
-            <div className="grid gap-4 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
               <div>
                 <PanelTitle aside={<SourceBadge source={{ kind: 'rule' }} />}>{scene === 'fix' && b >= FIX_BEATS.recheck ? 'Checks, run again' : 'Checks'}</PanelTitle>
                 <ul className="flex flex-col gap-1">
@@ -557,11 +562,39 @@ function Stage({ pos, playing }: { pos: Pos; playing: boolean }) {
               )}
             >
               <StatusChip status="live">Live on Amazon</StatusChip>
-              <span className="text-caption text-ink-2">Shown as Live only after Amazon confirmed it.</span>
+              <span className="text-caption text-ink-2">Confirmed by Amazon.</span>
             </div>
           </Panel>
-        </div>
+        </PanelStack>
       </div>
+    </div>
+  )
+}
+
+/**
+ * The panels' shared cell. From md up it is as tall as the tallest panel, so the page never moves.
+ * On a phone that left a short step (Import) sitting on a tall empty card, so under md the cell
+ * takes the current panel's height and eases to the next one. Reduced motion jumps instead.
+ */
+function PanelStack({ scene, children }: { scene: SceneId; children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null)
+  const [height, setHeight] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const el = box.current?.querySelector<HTMLElement>('[data-panel-on]')
+    if (!el) return
+    const measure = () => setHeight(el.offsetHeight)
+    measure()
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    ro?.observe(el)
+    return () => ro?.disconnect()
+  }, [scene])
+  return (
+    <div
+      ref={box}
+      style={height === null ? undefined : ({ '--panel-h': `${height}px` } as CSSProperties)}
+      className="grid max-md:h-(--panel-h) max-md:overflow-hidden max-md:transition-[height] max-md:duration-[var(--dur-spring)] max-md:ease-[var(--ease-spring)] motion-reduce:transition-none"
+    >
+      {children}
     </div>
   )
 }
@@ -668,10 +701,11 @@ export function HowItWorksDemo() {
   const shown: Pos = reduced ? { scene: pos.scene, beat: LAST_BEAT[scene] } : pos
 
   useEffect(() => {
-    const el = root.current
+    // Watch the moving card, not the whole demo: on a phone the step strip alone counted as "on
+    // screen", so Import played below the fold and a visitor first saw Draft.
+    const el = root.current?.querySelector('[data-testid="demo-stage"]')
     if (!el || !canObserve) return
-    // 40% of the demo on screen, or half the viewport filled by it: on a short phone or a landscape
-    // screen the stacked demo is taller than 2.5 viewports and would never reach 40%.
+    // 40% of the card on screen, or half the viewport filled by it (a short landscape phone).
     const io = new IntersectionObserver(
       ([e]) => setInView(!!e && e.isIntersecting && (e.intersectionRatio >= 0.4 || e.intersectionRect.height >= window.innerHeight * 0.5)),
       { threshold: Array.from({ length: 21 }, (_, i) => i / 20) },
@@ -713,43 +747,43 @@ export function HowItWorksDemo() {
   const progress = Math.min(1, shown.beat / LAST_BEAT[scene])
 
   return (
-    <figure ref={root} aria-labelledby="demo-caption" className="flex min-w-0 flex-col gap-4 md:gap-5" data-testid="how-demo">
+    <figure ref={root} aria-labelledby="demo-caption" className="flex min-w-0 flex-col gap-3 md:gap-4" data-testid="how-demo">
+      {/* The controls come first, before the step strip and the moving card, so the keyboard and a
+          phone reach Pause before the motion. */}
+      <div className={cn('flex min-h-11 flex-wrap items-center gap-x-4 gap-y-2', !reduced && 'justify-between')}>
+        <p className="text-caption font-semibold text-ink-2 tabular-nums" aria-hidden>
+          Step {stepNo} of {SCENES.length}
+          <span className="font-normal text-ink-3"> · Example listing</span>
+        </p>
+        {reduced ? (
+          <p className="text-caption text-ink-2">Motion is off. Pick a step to see it.</p>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              className="min-h-11 lg:min-h-9"
+              onClick={togglePlay}
+              aria-label={wantsPlay ? 'Pause animation' : 'Play animation'}
+              data-testid="demo-play"
+            >
+              <IconGlyph icon={wantsPlay ? Pause : Play} size={16} />
+              {wantsPlay ? 'Pause' : 'Play'}
+            </Button>
+            <Button type="button" variant="ghost" className="min-h-11 lg:min-h-9" onClick={replay} aria-label="Replay animation" data-testid="demo-replay">
+              <IconGlyph icon={RotateCcw} size={16} />
+              Replay
+            </Button>
+          </div>
+        )}
+      </div>
+
       <Rail current={scene} progress={progress} onPick={pick} playing={playing} />
 
-      <div className="grid min-w-0 gap-4 md:gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="flex min-w-0 flex-col gap-3">
-          {/* The controls sit right above the moving stage, so they are reached before the motion. */}
-          <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-2">
-            <p className="text-caption font-semibold text-ink-2 tabular-nums" aria-hidden>
-              Step {stepNo} of {SCENES.length}
-              <span className="font-normal text-ink-3"> · Example listing</span>
-            </p>
-            {reduced ? (
-              <p className="text-caption text-ink-2">Animation is off because your device asks for reduced motion. Choose a step to see it.</p>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="min-h-11 lg:min-h-9"
-                  onClick={togglePlay}
-                  aria-label={wantsPlay ? 'Pause animation' : 'Play animation'}
-                  data-testid="demo-play"
-                >
-                  <IconGlyph icon={wantsPlay ? Pause : Play} size={16} />
-                  {wantsPlay ? 'Pause' : 'Play'}
-                </Button>
-                <Button type="button" variant="ghost" className="min-h-11 lg:min-h-9" onClick={replay} aria-label="Replay animation" data-testid="demo-replay">
-                  <IconGlyph icon={RotateCcw} size={16} />
-                  Replay
-                </Button>
-              </div>
-            )}
-          </div>
-          <Stage pos={shown} playing={playing} />
-        </div>
+      <div className="mt-1 grid min-w-0 gap-4 md:gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <Stage pos={shown} playing={playing} />
 
-        <div className="flex min-w-0 flex-col gap-4 self-start rounded-card border border-line bg-surface p-5 shadow-raised-md md:p-6 lg:mt-14">
+        <div className="flex min-w-0 flex-col gap-4 self-start rounded-card border border-line bg-surface p-5 shadow-raised-md md:p-6">
           <div key={scene} className="flex flex-col gap-3 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-[320ms]">
             <div className="flex items-center gap-3">
               <IconTile icon={step.icon} tone="brand" />
@@ -775,8 +809,8 @@ export function HowItWorksDemo() {
       </div>
 
       <figcaption id="demo-caption" className="max-w-[70ch] text-caption text-ink-2">
-        An example listing, not real product data. Flipkart is shown so you can compare its rules with Amazon’s. Publishing to Flipkart
-        starts once Flipkart approves our access.
+        An example listing, not real product data. Flipkart is shown so you can compare its rules with Amazon’s. Publishing to Flipkart is
+        not switched on yet.
       </figcaption>
     </figure>
   )

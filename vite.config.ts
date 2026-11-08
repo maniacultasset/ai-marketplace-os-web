@@ -3,7 +3,33 @@ import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
+
+/**
+ * Preloads the two latin web font files the first screen uses, so they arrive with the CSS instead
+ * of after it (index.css also carries size-matched fallbacks). Build only: the hashed names exist
+ * once the bundle is written.
+ */
+function preloadFonts(): Plugin {
+  const wanted = [/^dm-sans-latin-opsz-normal/, /^bricolage-grotesque-latin-opsz-normal/]
+  return {
+    name: 'kuinn-preload-fonts',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'post',
+      handler(_html, ctx) {
+        const files = Object.values(ctx.bundle ?? {})
+          .map((f) => f.fileName)
+          .filter((name) => name.endsWith('.woff2') && wanted.some((re) => re.test(name.split('/').pop() ?? '')))
+        return files.map((name) => ({
+          tag: 'link',
+          attrs: { rel: 'preload', href: `/${name}`, as: 'font', type: 'font/woff2', crossorigin: '' },
+          injectTo: 'head' as const,
+        }))
+      },
+    },
+  }
+}
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -17,6 +43,7 @@ export default defineConfig(({ mode }) => {
       tanstackRouter({ target: 'react', autoCodeSplitting: true }),
       react(),
       tailwindcss(),
+      preloadFonts(),
     ],
     resolve: { alias: { '@': path.resolve(import.meta.dirname, 'src') } },
     test: {

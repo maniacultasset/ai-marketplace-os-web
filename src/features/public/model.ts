@@ -23,6 +23,12 @@ export const HERO_EXAMPLE = {
 
 export const heroTitleLength = () => [...HERO_EXAMPLE.title].length
 
+/** Plain names for the rule codes on a marketing page; the code itself stays in a tooltip. */
+export const FINDING_LABEL: Record<HeroFinding['code'], string> = {
+  FIELD_TOO_LONG: 'Title too long',
+  BANNED_TERM: 'Banned word',
+}
+
 export interface HeroFinding {
   marketplace: 'amazon' | 'flipkart'
   field: string
@@ -85,13 +91,13 @@ export const MARKET_STATUS: readonly MarketStatus[] = [
     ids: ['flipkart'],
     name: 'Flipkart',
     stage: 'soon',
-    body: 'The rules and category mapping are built. We switch it on once Flipkart approves our access.',
+    body: 'The rules and category mapping are built. Publishing to Flipkart is not switched on yet.',
   },
   {
     ids: ['myntra', 'ajio', 'meesho', 'nykaa'],
     name: 'Myntra, AJIO, Meesho, Nykaa Fashion',
     stage: 'roadmap',
-    body: 'Planned next, with no dates yet. Each will use the same catalog and approval step.',
+    body: 'Planned after Flipkart, with no dates yet. Each will use the same catalog and approval step.',
   },
 ]
 
@@ -120,8 +126,8 @@ export interface Benefit {
 export const BENEFITS: readonly Benefit[] = [
   { id: 'draft', title: 'Written in your voice', body: 'Titles, bullets and descriptions follow your tone, your glossary and the words your brand avoids.' },
   { id: 'photos', title: 'Read from your photos', body: 'Kuinn suggests product details from your images. You confirm each one before it is used.' },
-  { id: 'checks', title: 'Checked against every rule', body: 'Limits, required fields and banned words are checked for each marketplace before you approve.' },
-  { id: 'fixes', title: 'Fixed for you', body: 'Small rule errors are corrected automatically. Each change is marked “Fixed for you” so nothing happens out of sight.' },
+  { id: 'checks', title: 'Checked before you approve', body: 'Limits, required fields and banned words are checked for each marketplace before you approve.' },
+  { id: 'fixes', title: 'Fixed for you', body: 'Safe rule errors, like a title a few characters too long, are corrected on their own. You see each change marked “Fixed for you”.' },
   { id: 'images', title: 'A clean white main image', body: 'Your main photo is turned into the white-background image marketplaces ask for. You approve it first.' },
 ]
 

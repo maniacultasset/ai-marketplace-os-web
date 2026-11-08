@@ -1,5 +1,5 @@
 /**
- * The script behind the landing page's "See it work" demo (how-it-works-demo.tsx): one example
+ * The script behind the landing page's "See how it works" demo (how-it-works-demo.tsx): one example
  * listing taken from import to Live, step by step. Pure data and timing so it can be tested on its
  * own. The example is the hero's kurta set (HERO_EXAMPLE), so the limits and the banned term are
  * the real seeded rules and every count is computed from the text, never typed.
@@ -64,11 +64,11 @@ const fixedLen = [...FIXED_TITLE].length
 /** What the example shows at each step. Read out only when a person picks a step. */
 export const NARRATION: Record<SceneId, string> = {
   import: `A row from ${DEMO.file} becomes one product with its SKU, title and price.`,
-  draft: `${DEMO.editor} starts the draft. Kuinn keeps the title from the CSV and writes the bullets and description in your brand’s voice.`,
+  draft: `${DEMO.editor} starts the draft. Kuinn writes the bullets and description in your brand’s voice. This example keeps the title from the CSV, so you can watch the checks catch it.`,
   check: `The rules check each field. The title is ${fullLen} characters, which is over Flipkart’s ${LIMIT}. It also uses the banned word “Best”.`,
-  fix: `Kuinn removes “Best” and the sleeve and occasion words the bullets already cover. Each change is marked Fixed for you. At ${fixedLen} characters, every check passes.`,
+  fix: `Kuinn removes “Best” and the sleeve and occasion words the bullets already cover. Each change is marked “Fixed for you”. At ${fixedLen} characters, every check passes.`,
   approve: `${DEMO.approver} reviews the fixes and approves. ${DEMO.editor} started the draft, so the approval has to come from someone else.`,
-  publish: 'Sent to Amazon. It shows as Live only after Amazon confirms.',
+  publish: 'Kuinn sends the listing to Amazon and waits for Amazon to confirm it.',
 }
 
 /* Timing. A scene is a run of beats; each beat waits its delay, then the next one plays. The last

@@ -127,7 +127,8 @@ export function PublicHeader({ inPage = false }: { inPage?: boolean }) {
 }
 
 const YEAR = new Date().getFullYear()
-const footerLink = 'inline-flex min-h-11 items-center rounded-control hover:text-ink hover:underline underline-offset-4'
+/** Padded so the focus ring sits clear of the text; the negative margin keeps the words aligned. */
+const footerLink = 'inline-flex min-h-11 items-center -mx-2 px-2 rounded-control hover:text-ink hover:underline underline-offset-4'
 
 /** Plain footer on every public page. Carries the company name and a direct contact, which Amazon's developer website rules ask for. */
 export function PublicFooter() {

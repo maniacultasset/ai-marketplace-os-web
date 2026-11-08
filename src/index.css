@@ -8,6 +8,39 @@
 @import "@fontsource-variable/dm-sans/opsz.css";
 @import "@fontsource-variable/bricolage-grotesque/opsz.css";
 
+/* Size-matched stand-ins, drawn while the web fonts load (font-display: swap). Arial scaled to each
+   face's width and line metrics, so the swap no longer reflows the page (it measured CLS 0.10 to
+   0.17 on the landing). Measured in Chrome against the latin opsz files: DM Sans 400 at 16px is
+   1.05x Arial's width (ascent 0.992, descent 0.310); Bricolage 700 at 56px is 0.962x Arial Bold's
+   (ascent 0.930, descent 0.270). The preloads for the two files are added at build (vite.config.ts). */
+@font-face {
+  font-family: "DM Sans Fallback";
+  src: local("Arial"), local("ArialMT"), local("Roboto");
+  font-weight: 100 500;
+  size-adjust: 105%;
+  ascent-override: 94.5%;
+  descent-override: 29.5%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "DM Sans Fallback";
+  src: local("Arial Bold"), local("Arial-BoldMT"), local("Roboto Bold"), local("Roboto-Bold");
+  font-weight: 600 1000;
+  size-adjust: 100.4%;
+  ascent-override: 98.8%;
+  descent-override: 30.9%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Bricolage Fallback";
+  src: local("Arial Bold"), local("Arial-BoldMT"), local("Roboto Bold"), local("Roboto-Bold");
+  font-weight: 100 1000;
+  size-adjust: 96.2%;
+  ascent-override: 96.7%;
+  descent-override: 28.1%;
+  line-gap-override: 0%;
+}
+
 /* The product UI is a fixed light theme (hi-fi "product UI kit"). `dark:` classes never apply. */
 @custom-variant dark (&:is(.dark *));
 
@@ -53,8 +86,8 @@
   --danger-ink: #7a1a11;
 
   /* type */
-  --font-display-family: "Bricolage Grotesque Variable", "Bricolage Grotesque", "DM Sans Variable", system-ui, sans-serif;
-  --font-ui-family: "DM Sans Variable", "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display-family: "Bricolage Grotesque Variable", "Bricolage Grotesque", "Bricolage Fallback", "DM Sans Variable", system-ui, sans-serif;
+  --font-ui-family: "DM Sans Variable", "DM Sans", "DM Sans Fallback", system-ui, -apple-system, "Segoe UI", sans-serif;
 
   /* radius */
   --radius-control: 8px;

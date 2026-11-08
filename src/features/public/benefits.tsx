@@ -41,7 +41,7 @@ export function Benefits({ className }: { className?: string }) {
             <IconTile icon={ICON[b.id]} tone="brand" />
             <div className={cn('flex min-w-0 flex-col gap-1.5', last ? 'lg:gap-2' : 'sm:gap-2')}>
               <h3 className="text-h3 text-ink">{b.title}</h3>
-              <p className="max-w-[48ch] text-small text-ink-2">{b.body}</p>
+              <p className="max-w-[48ch] text-[15px] leading-[1.55] text-ink-2">{b.body}</p>
             </div>
           </li>
         )

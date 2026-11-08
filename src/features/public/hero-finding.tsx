@@ -15,7 +15,7 @@ import { MarketplaceTile } from '@/components/la/marketplace'
 import { SourceBadge } from '@/components/la/source-badge'
 import { StatusChip, TagChip } from '@/components/la/status-chip'
 import { useRevealed } from '@/lib/use-reveal'
-import { HERO_EXAMPLE, heroFindings, heroTitleLength } from './model'
+import { FINDING_LABEL, HERO_EXAMPLE, heroFindings, heroTitleLength } from './model'
 
 export function HeroFinding() {
   const len = heroTitleLength()
@@ -27,12 +27,15 @@ export function HeroFinding() {
     <figure className="relative min-w-0" data-testid="hero-example">
       <div className="overflow-hidden rounded-card border border-line bg-surface shadow-raised-md">
         <div className="flex items-center gap-2 border-b border-line bg-sunken px-4 py-2.5">
-          <span aria-hidden className="flex gap-1.5">
+          <span aria-hidden className="flex gap-1.5 max-sm:hidden">
             <span className="size-2 rounded-full bg-line-strong shadow-inset-sm" />
             <span className="size-2 rounded-full bg-line-strong shadow-inset-sm" />
             <span className="size-2 rounded-full bg-line-strong shadow-inset-sm" />
           </span>
-          <span className="ml-2 truncate text-caption text-ink-2">Review · {HERO_EXAMPLE.product}</span>
+          <span className="truncate text-caption text-ink-2 sm:ml-2">
+            <span className="max-sm:hidden">Review · </span>
+            {HERO_EXAMPLE.product}
+          </span>
           <TagChip tone="plain" className="ml-auto">
             Example
           </TagChip>
@@ -89,8 +92,9 @@ export function HeroFinding() {
                   <div className="flex items-start gap-2">
                     <MarketplaceTile id={f.marketplace} size="xs" className="shadow-none" />
                     <div className="flex min-h-6 min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">
-                      <code className="font-mono text-[11.5px] font-medium text-ink-2">{f.field}</code>
-                      <span className="text-caption font-bold text-danger">{f.code}</span>
+                      <span className="text-caption font-bold text-danger" title={f.code}>
+                        {FINDING_LABEL[f.code]}
+                      </span>
                     </div>
                     <SourceBadge source={{ kind: 'rule' }} className="mt-px shrink-0" />
                   </div>
@@ -100,7 +104,11 @@ export function HeroFinding() {
               </li>
             ))}
           </ul>
-          <div data-reveal data-reveal-delay={380 + findings.length * 100} className="flex items-start gap-3 border-t border-line pt-4">
+          <div
+            data-reveal
+            data-reveal-delay={380 + findings.length * 100}
+            className="flex flex-col items-start gap-2 border-t border-line pt-4 min-[400px]:flex-row min-[400px]:gap-3"
+          >
             <TagChip tone="brand" className="gap-1">
               <Icon name="check" size={14} />
               Fixed for you
@@ -112,7 +120,7 @@ export function HeroFinding() {
         </div>
       </div>
       <figcaption className="mt-3 text-caption text-ink-2">
-        An example listing, not real product data. The limits and the banned word are the real marketplace rules for kurta sets.
+        An example listing, not real product data. The limits and the banned word come from the rules Kuinn checks for kurta sets.
       </figcaption>
     </figure>
   )

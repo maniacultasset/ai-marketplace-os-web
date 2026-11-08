@@ -35,7 +35,7 @@ describe('public copy', () => {
     const copy = ['src/features/public/landing.tsx', 'src/features/public/model.ts', 'src/features/public/how-it-works-script.ts', 'index.html']
       .map(read)
       .join('\n')
-    for (const claim of [/every marketplace you sell/i, /Every marketplace\. One catalog/, /Live on Flipkart/, /Sent to Flipkart/, /Publishing to Flipkart</]) {
+    for (const claim of [/every marketplace you sell/i, /Every marketplace\. One catalog/i, /every marketplace, one catalog/i, /Live on Flipkart/, /Sent to Flipkart/, /Publishing to Flipkart</, /once Flipkart approves/i]) {
       expect(copy).not.toMatch(claim)
     }
     expect(read('index.html')).toMatch(/<title>Kuinn \| AI listing agent for Indian fashion brands<\/title>/)
