@@ -48,9 +48,20 @@ describe('labels and values', () => {
 
 describe('photoSourceLabel', () => {
   it('names the slot, with a number only when the slot has more than one photo', () => {
-    expect(photoSourceLabel(IMG1, details)).toBe('Main photo')
+    expect(photoSourceLabel(IMG1, details)).toBe('Front photo')
     expect(photoSourceLabel(IMG2, details)).toBe('Secondary photo 1')
     expect(photoSourceLabel(IMG3, details)).toBe('Secondary photo 2')
+  })
+  it('names Back and Close-up photos by their role (SI12)', () => {
+    const withRoles = [
+      ...details!,
+      { ...details![1]!, image_id: 'b', role: 'back' as const },
+      { ...details![1]!, image_id: 'c', role: 'close_up' as const },
+    ]
+    expect(photoSourceLabel('b', withRoles)).toBe('Back photo')
+    expect(photoSourceLabel('c', withRoles)).toBe('Close-up photo')
+    // Plain secondaries still count among themselves only.
+    expect(photoSourceLabel(IMG3, withRoles)).toBe('Secondary photo 2')
   })
   it('is null for a photo no longer on the product', () => {
     expect(photoSourceLabel('00000000-0000-4000-8000-000000000999', details)).toBeNull()
@@ -76,7 +87,7 @@ describe('groupPhotoFacts', () => {
       ['occasion', 'confirmed'],
       ['sleeve_length', 'you'],
     ])
-    expect(rows[0]).toMatchObject({ label: 'Neckline', value: 'V-neck', confidence: 0.95, photo: 'Main photo' })
+    expect(rows[0]).toMatchObject({ label: 'Neckline', value: 'V-neck', confidence: 0.95, photo: 'Front photo' })
     // A non-photo key (fabric type) never joins the group.
     expect(rows.some((r) => r.key === 'fabric_type')).toBe(false)
   })

@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { isNotFound } from '@/api/errors'
 import { Page } from '@/components/app/page-header'
 import {
+  ComingSoon,
   AttentionCard,
   CardHead,
   CONCEPT_ICON,
@@ -573,7 +574,7 @@ function MarketplaceCards({ data, detailed }: { data: DetailData; detailed?: boo
  * Marketplaces not supported yet, one quiet row each (DESIGN p17 keeps every marketplace, its chip
  * and its waitlist control). No data needed, so the loading frame shows the same strip.
  */
-function MoreMarketplaces() {
+export function MoreMarketplaces() {
   return (
     <DashedCard pad="sm" data-testid="more-marketplaces">
       <h3 className="text-small font-semibold text-ink">More marketplaces</h3>
@@ -581,12 +582,19 @@ function MoreMarketplaces() {
         {UNSUPPORTED.map((m) => (
           <li key={m.id} className="flex min-h-11 items-center justify-between gap-3 border-b border-line py-1.5 last:border-b-0 md:[&:nth-last-child(2):nth-child(odd)]:border-b-0">
             <MarketplaceName id={m.id} size="xs" className="gap-2 text-small" />
-            <span className="flex shrink-0 items-center gap-3">
-              <StatusChip status="not-listed">Not available</StatusChip>
-              <UnavailableButton variant="link" size="xs" reason={NOT_YET.waitlist}>
-                Join waitlist
-              </UnavailableButton>
-            </span>
+            {m.id === 'meesho' ? (
+              // On the roadmap (client input, 8 Nov): the same "Coming soon" as the Sell on list.
+              <span className="flex shrink-0 items-center" data-testid="more-marketplaces-soon-meesho">
+                <ComingSoon />
+              </span>
+            ) : (
+              <span className="flex shrink-0 items-center gap-3">
+                <StatusChip status="not-listed">Not available</StatusChip>
+                <UnavailableButton variant="link" size="xs" reason={NOT_YET.waitlist}>
+                  Join waitlist
+                </UnavailableButton>
+              </span>
+            )}
           </li>
         ))}
       </ul>
@@ -808,7 +816,14 @@ function MarketplaceCard({
   )
 }
 
+/** SI12 "Sell on" for a saved product: the marketplaces it has a listing on, and the connected ones. */
+function useSellOn(data: DetailData): Marketplace[] {
+  const { connected } = useConnectedMarketplaces()
+  return (['amazon', 'flipkart'] as const).filter((m) => !!data.listings[m] || !!connected?.includes(m))
+}
+
 function OverviewTab({ data, session, onEdit }: { data: DetailData; session: ProductEditSession; onEdit?: () => void }) {
+  const sellOn = useSellOn(data)
   if (session.editing)
     return (
       <div className="max-w-4xl">
@@ -816,6 +831,7 @@ function OverviewTab({ data, session, onEdit }: { data: DetailData; session: Pro
           session={session}
           categoryLock={data.listingsPending ? 'pending' : data.listingsFailed ? 'unknown' : listingsIn(data).length ? 'locked' : 'open'}
           onRetryCategoryLock={data.retryListings}
+          sellOn={sellOn}
         />
       </div>
     )
@@ -829,6 +845,7 @@ function OverviewTab({ data, session, onEdit }: { data: DetailData; session: Pro
           isStyle={session.isStyle}
           variants={data.variants}
           source={session.source}
+          sellOn={sellOn}
           onEdit={onEdit}
           categoryAction={
             // SI9: offered only by a backend that has it (its product read carries photo_read), to

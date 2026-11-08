@@ -19,12 +19,61 @@ export const IMAGE_CONTENT_TYPES: readonly ImageContentType[] = ['image/jpeg', '
 export const SLOTS: readonly ImageSlot[] = ['main', 'secondary', 'lifestyle', 'size_chart', 'packaging_label']
 
 export const SLOT_LABEL: Record<ImageSlot, string> = {
-  main: 'Main',
+  main: 'Front',
   secondary: 'Secondary',
   lifestyle: 'Lifestyle',
   size_chart: 'Size chart',
   packaging_label: 'Packaging label',
 }
+
+/** SI12: a secondary photo's role. Front is the `main` slot; Size chart is `size_chart`. */
+export type ImageRole = NonNullable<Schema<'ImageUploadIn'>['role']>
+
+export const ROLE_LABEL: Record<ImageRole, string> = { back: 'Back', close_up: 'Close-up' }
+
+/** "Back" for a secondary with the back role, else the slot's name. */
+export function imageLabel(slot: ImageSlot, role?: ImageRole | null): string {
+  return slot === 'secondary' && role ? ROLE_LABEL[role] : SLOT_LABEL[slot]
+}
+
+/**
+ * SI12 structured photos (client wireframe, 8 Nov): Front (required) and three recommended tiles,
+ * Back, Close-up and Size chart. Each is its own drop zone and sends its slot and role.
+ */
+export type PhotoSlotId = 'front' | 'back' | 'close_up' | 'size_chart'
+
+export interface PhotoSlotDef {
+  id: PhotoSlotId
+  label: string
+  slot: ImageSlot
+  role: ImageRole | null
+  required: boolean
+  /** What the agent reads from it, in the seller's words. */
+  hint: string
+}
+
+export const PHOTO_SLOTS: readonly PhotoSlotDef[] = [
+  { id: 'front', label: 'Front', slot: 'main', role: null, required: true, hint: 'The main photo. Colour, pattern and neckline are read from it.' },
+  { id: 'back', label: 'Back', slot: 'secondary', role: 'back', required: false, hint: 'Back details, like a print or a yoke.' },
+  { id: 'close_up', label: 'Close-up', slot: 'secondary', role: 'close_up', required: false, hint: 'Texture, print and embroidery up close.' },
+  { id: 'size_chart', label: 'Size chart', slot: 'size_chart', role: null, required: false, hint: 'Sizes and measurements can be read from it.' },
+]
+
+/** The tiles a product shows: a variant has no size chart (it is the style's). */
+export function photoSlotsFor(isVariant: boolean): readonly PhotoSlotDef[] {
+  return isVariant ? PHOTO_SLOTS.filter((s) => s.id !== 'size_chart') : PHOTO_SLOTS
+}
+
+/** Which tile an image fills, or null for a plain secondary, lifestyle or packaging photo. */
+export function photoSlotOf(slot: ImageSlot, role?: ImageRole | null): PhotoSlotId | null {
+  if (slot === 'main') return 'front'
+  if (slot === 'size_chart') return 'size_chart'
+  if (slot === 'secondary' && role) return role
+  return null
+}
+
+/** Slots offered under "More photos": the extra kinds beyond the four tiles. */
+export const MORE_SLOTS: readonly ImageSlot[] = ['secondary', 'lifestyle', 'packaging_label']
 
 /**
  * Slots a product may take. A size chart belongs on a style or a standalone product, never on a

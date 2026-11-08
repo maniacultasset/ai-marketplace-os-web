@@ -45,7 +45,10 @@ describe('guided form', () => {
     expect(s.price).toEqual({ kind: 'missing', count: 1 })
     expect(s.care).toEqual({ kind: 'missing', count: 2 })
     expect(s.size).toEqual({ kind: 'todo' })
-    expect(missingCritical({ ...filled(), attrs: { fabric_type: 'Jersey' } })).toEqual(['Fabric composition', 'MRP', 'Wash care', 'Iron care'])
+    // SI12: the Front photo is required too.
+    expect(s.media).toEqual({ kind: 'missing', count: 1 })
+    expect(missingCritical({ ...filled(), attrs: { fabric_type: 'Jersey' } })).toEqual(['Front photo', 'Fabric composition', 'MRP', 'Wash care', 'Iron care'])
+    expect(missingCritical({ ...filled(), attrs: { fabric_type: 'Jersey' } }, { brandManufacturer: null, hasMain: true, imageCount: 1 })).not.toContain('Front photo')
     // No brand default and no own manufacturer: the manufacturer is missing too.
     const ctx = { brandManufacturer: false, hasMain: true, imageCount: 1 }
     expect(missingCritical(filled(), ctx)).toContain('Manufacturer')
@@ -210,5 +213,27 @@ describe('guided barcode', () => {
     const r = mapCreateErrors({ status: 422, type: 'VALIDATION_FAILED', details: [{ loc: ['body', 'product_identifier', 'value'], msg: 'x' }] }, v)
     expect(r.fields.barcode).toMatch(/already has this barcode/)
     expect(r.unmapped).toBe(false)
+  })
+})
+
+describe('SI12 tax and shipping', () => {
+  it('sends HSN, country and package on create, and leaves them out when empty', () => {
+    expect(toProductCreate(filled())).not.toHaveProperty('hsn_code')
+    const v = { ...filled(), hsn: '6109', hsnSuggested: true, country: 'in', pkg: { length: '30', breadth: '25', height: '3', weight: '250' } }
+    expect(validateGuided(v)).toEqual({})
+    expect(toProductCreate(v)).toMatchObject({ hsn_code: '6109', country_of_origin: 'IN', package: { length_cm: 30, breadth_cm: 25, height_cm: 3, weight_g: 250 } })
+  })
+
+  it('files their errors under Tax and shipping', () => {
+    const e = validateGuided({ ...filled(), hsn: '12', pkg: { length: '30', breadth: '', height: '', weight: '' } })
+    expect(Object.keys(e).sort()).toEqual(['hsn_code', 'package'])
+    expect(sectionStates({ ...filled(), hsn: '12' }, undefined, e).shipping).toEqual({ kind: 'error', count: 2 })
+    const { fields } = mapCreateErrors({ status: 422, type: 'VALIDATION_FAILED', details: [{ loc: ['body', 'package', 'length_cm'], msg: 'm' }] }, filled())
+    expect(fields).toEqual({ 'package.length': 'm' })
+  })
+
+  it('reads an older draft without them', () => {
+    const v = reviveGuided({ sku: 'A', title: 'B' })
+    expect(v).toMatchObject({ hsn: '', hsnSuggested: false, country: '', pkg: { length: '', breadth: '', height: '', weight: '' } })
   })
 })

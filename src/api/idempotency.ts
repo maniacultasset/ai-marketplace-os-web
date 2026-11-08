@@ -18,6 +18,7 @@ export const IDEMPOTENT_OPS = [
   'POST /products/{product_id}/image-candidates',
   'POST /image-candidates/{candidate_id}/accept',
   'POST /image-candidates/{candidate_id}/reject',
+  'POST /products/{product_id}/size-chart-read',
   'POST /listings/generate',
   'POST /listings/{listing_id}/regenerate',
   'POST /listings/approve',

@@ -8,7 +8,7 @@
  * Confirm is `PATCH /products/{id} {confirm_attributes: [key]}`; reject is `{attributes: {key: null}}`.
  */
 import type { Schema } from '@/api/types'
-import { SLOT_LABEL } from '@/features/analytics-images/images/report'
+import { imageLabel } from '@/features/analytics-images/images/report'
 
 export type PhotoFact = Schema<'PhotoFactOut'>
 type Product = Pick<Schema<'ProductOut'>, 'attributes' | 'photo_facts' | 'image_details'>
@@ -70,13 +70,13 @@ export function confidenceWords(c: number): string {
   return 'Maybe'
 }
 
-/** Which photo a value came from: "Main photo", "Secondary photo 2". Null when it is not on the product. */
+/** Which photo a value came from: "Front photo", "Close-up photo", "Secondary photo 2". Null when it is not on the product. */
 export function photoSourceLabel(imageId: string, details: Product['image_details']): string | null {
   const list = details ?? []
   const hit = list.find((d) => d.image_id === imageId)
   if (!hit) return null
-  const sameSlot = list.filter((d) => d.slot === hit.slot).sort((a, b) => a.position - b.position)
-  const slot = SLOT_LABEL[hit.slot] ?? 'Product'
+  const sameSlot = list.filter((d) => d.slot === hit.slot && (d.role ?? null) === (hit.role ?? null)).sort((a, b) => a.position - b.position)
+  const slot = imageLabel(hit.slot, hit.role) ?? 'Product'
   const n = sameSlot.length > 1 ? ` ${sameSlot.indexOf(hit) + 1}` : ''
   return `${slot} photo${n}`
 }

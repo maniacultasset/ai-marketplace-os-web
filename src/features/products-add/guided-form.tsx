@@ -40,7 +40,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
-import { type ImageSlot } from '@/features/analytics-images/images/report'
+import { type ImageRole, type ImageSlot } from '@/features/analytics-images/images/report'
 import { StageUnavailable, stageImageForNewProduct, uploadImage } from '@/features/analytics-images/images/upload'
 import { fetchProduct, useBrandManufacturer } from '@/features/products/api'
 import { BarcodeField } from '@/features/products/barcode-field'
@@ -93,7 +93,11 @@ import {
 } from './guided-model'
 import { serializeListOn } from './list-on'
 import { NewProductImages } from './new-images'
-import { newPendingImage, type PendingImage } from './new-images-model'
+import { newPendingImage, placePending, type PendingImage } from './new-images-model'
+import { CountryField, HsnField, PackageFields } from '@/features/products/seller-field-inputs'
+import { packageHasSize, packageHasWeight, suggestHsn } from '@/features/products/seller-fields'
+import { missingNeeds, missingSummary, needText, useRequirements, type Filled, type NeedFieldId } from '@/features/products/needs'
+import { normalizeBarcode } from '@/features/products/barcode'
 
 const DRAFT_PREFIX = 'la.guided-draft.'
 
@@ -136,7 +140,7 @@ function SectionMark({ state }: { state: SectionState }) {
     return (
       <span className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full border border-attention-line bg-attention-bg px-1.5 text-caption font-bold text-attention">
         {state.count}
-        <span className="sr-only"> critical facts missing</span>
+        <span className="sr-only"> critical inputs missing</span>
       </span>
     )
   if (state.kind === 'done')
@@ -226,13 +230,13 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
     staging.current.set(img.localId, run)
   }
 
-  const addImages = (files: File[], slot: ImageSlot) => {
-    const added = files.map((f) => newPendingImage(f, slot))
+  const addImages = (files: File[], slot: ImageSlot, role: ImageRole | null = null) => {
+    const added = files.map((f) => newPendingImage(f, slot, role))
     setImages((list) => {
-      // One main photo per product: a new one replaces the old.
-      const keep = slot === 'main' && added.some((a) => a.stage.kind !== 'invalid') ? list.filter((i) => i.slot !== 'main' || i.stage.kind === 'invalid') : list
-      for (const gone of list.filter((i) => !keep.includes(i))) URL.revokeObjectURL(gone.previewUrl)
-      return [...keep, ...added].slice(0, 20)
+      // Front, Back, Close-up and Size chart hold one photo each: a new one replaces the old.
+      const { next, dropped } = placePending(list, added)
+      for (const gone of dropped) URL.revokeObjectURL(gone.previewUrl)
+      return next
     })
     setServerErrors((e) => {
       const next = { ...e }
@@ -267,7 +271,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
       setPhase({ kind: 'images', done, total: list.length })
       patchImage(img.localId, { stage: { kind: 'uploading' } })
       try {
-        await uploadImage({ file: img.file, productId, slot: img.slot, multipartKey: img.multipartKey })
+        await uploadImage({ file: img.file, productId, slot: img.slot, role: img.role, multipartKey: img.multipartKey })
         patchImage(img.localId, { stage: { kind: 'done' } })
       } catch (error) {
         failed++
@@ -312,6 +316,27 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
   const states = sectionStates(values, ctx, errors)
   const missing = missingCritical(values, ctx)
 
+  // SI12: what the ticked marketplaces need for this category, while it is empty.
+  const requirements = useRequirements(values.category)
+  const filled: Filled = {
+    brand_name: !values.ownBrand || !!values.brandName.trim(),
+    identifier: values.barcode.exempt || normalizeBarcode(values.barcode.value) !== '',
+    gender: !!values.gender,
+    fabric_type: !!(values.attrs.fabric_type ?? '').trim(),
+    color: !!(values.attrs.color ?? '').trim(),
+    mrp: !!values.mrp.trim(),
+    selling_price: !!values.sellingPrice.trim(),
+    hsn_code: !!values.hsn.trim(),
+    package_size: packageHasSize(values.pkg),
+    package_weight: packageHasWeight(values.pkg),
+    country_of_origin: !!values.country.trim(),
+    // Unknown while the brand loads: not counted until it is known.
+    manufacturer: values.ownManufacturer || brand.data === undefined || brandParty !== null,
+  }
+  const needs = missingNeeds(requirements.data, listOn, filled)
+  const need = (id: NeedFieldId) => needText(needs, id)
+  const needSummary = missingSummary(needs)
+
   /** Server errors for edited fields go away: keys equal to, or under, each prefix. */
   const clearServer = (...prefixes: string[]) =>
     setServerErrors((e) => {
@@ -333,10 +358,22 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
     gender: ['gender'],
     ownBrand: ['brand_name'],
     brandName: ['brand_name'],
+    hsn: ['hsn_code'],
+    country: ['country_of_origin'],
+    pkg: ['package'],
   }
   const set = (patch: Partial<GuidedValues>) => {
     if ('sku' in patch) setConflict(null)
-    setValues((v) => ({ ...v, ...patch }))
+    setValues((v) => {
+      const next = { ...v, ...patch }
+      // The category's HSN heading is offered while the seller has not typed their own.
+      if ('category' in patch && (!v.hsn.trim() || v.hsnSuggested)) {
+        const hsn = suggestHsn(next.category)
+        next.hsn = hsn ?? ''
+        next.hsnSuggested = !!hsn
+      }
+      return next
+    })
     clearServer(...Object.keys(patch).flatMap((k) => FIELD_KEY[k as keyof GuidedValues] ?? [k]))
   }
   const setAttr = (key: string, val: string) => {
@@ -506,6 +543,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
         error={errors[`attr.${f.key}`]}
         submitCount={submitCount}
         hint={f.hint}
+        needed={f.key === 'fabric_type' || f.key === 'color' ? need(f.key) : undefined}
         otherPlaceholder={f.pick === 'fabric' ? 'For example Cotton Flex' : 'For example Rani Pink'}
       />
     ) : (
@@ -587,6 +625,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
             />
             <BarcodeField
               id="g-barcode"
+              needed={need('identifier')}
               value={values.barcode}
               onChange={(barcode) => set({ barcode })}
               onBlur={() => touch('barcode')}
@@ -610,6 +649,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
             />
             <AudienceSelect
               id="g-gender"
+              needed={need('gender')}
               value={values.gender}
               onChange={(gender) => set({ gender })}
               error={errors.gender}
@@ -647,7 +687,9 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
           <div className="flex flex-col gap-4">
             <p className="text-body text-ink-2">The measurements for each size. Marketplaces show them as the size chart.</p>
             <SizeChartEditor id="g-size" value={values.sizeChart} onChange={(sizeChart) => set({ sizeChart })} errors={errors} onBlur={touch} />
-            <p className="text-caption text-ink-3">Have a size chart image instead? Add it in Images, as “Size chart”.</p>
+            <p className="text-caption text-ink-3">
+              Have a size chart photo? Add it in Images as Size chart. Once the product is saved, you can read the sizes from it on the product page and check them before saving.
+            </p>
           </div>
         )
       case 'media':
@@ -674,6 +716,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
                 onBlur={() => touch('mrp')}
                 error={errors.mrp}
                 hint="The printed maximum retail price. Needed to publish."
+                needed={need('mrp')}
                 submitCount={submitCount}
               />
               <MoneyField
@@ -684,10 +727,51 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
                 onBlur={() => touch('selling_price')}
                 error={errors.selling_price}
                 hint={priceHint(values)}
+                needed={need('selling_price')}
                 submitCount={submitCount}
               />
             </div>
             <p className="text-caption text-ink-3">In rupees, tax included. Sizes or colours with a different price are set on the variants step.</p>
+          </div>
+        )
+      case 'shipping':
+        return (
+          <div className="flex flex-col gap-5">
+            <div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
+              <HsnField
+                id="g-hsn"
+                value={values.hsn}
+                suggested={values.hsnSuggested}
+                onChange={(hsn) => set({ hsn, hsnSuggested: false })}
+                onBlur={() => touch('hsn_code')}
+                error={errors.hsn_code}
+                needed={need('hsn_code')}
+                submitCount={submitCount}
+              />
+              <CountryField
+                id="g-country"
+                value={values.country}
+                onChange={(country) => {
+                  set({ country })
+                  touch('country_of_origin')
+                }}
+                error={errors.country_of_origin}
+                needed={need('country_of_origin')}
+                submitCount={submitCount}
+                allowClear
+              />
+            </div>
+            <PackageFields
+              id="g-package"
+              value={values.pkg}
+              onChange={(pkg) => set({ pkg })}
+              onBlur={touch}
+              errors={errors}
+              neededSize={need('package_size')}
+              neededWeight={need('package_weight')}
+              submitCount={submitCount}
+            />
+            <p className="text-caption text-ink-3">Flipkart asks for the HSN code and the package when you list there. Both marketplaces ask for the country of origin.</p>
           </div>
         )
       case 'care':
@@ -706,6 +790,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               errors={partyErrors}
               onBlur={(k) => touch(`manufacturer.${k}`)}
               submitCount={submitCount}
+              needed={need('manufacturer')}
             />
             <CriticalNote />
           </div>
@@ -831,7 +916,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
                 <IconTile icon="alert" tone="warn" size="sm" flat />
                 <div className="min-w-0">
                   <b className="text-ink">
-                    {missing.length} critical {missing.length === 1 ? 'fact' : 'facts'} missing
+                    {missing.length} critical {missing.length === 1 ? 'input' : 'inputs'} missing
                   </b>
                   <p className="mt-0.5 text-small text-attention-ink">{missing.join(', ')}</p>
                   <p className="mt-1 text-caption text-ink-2">You can save now and add them later.</p>
@@ -841,7 +926,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               <LaCard pad="sm" emphasis="success" className="flex items-start gap-3">
                 <IconTile icon="check" tone="ok" size="sm" flat />
                 <div className="min-w-0">
-                  <b className="text-ink">Critical facts filled</b>
+                  <b className="text-ink">Critical inputs filled</b>
                   <p className="mt-0.5 text-small text-success-ink">The agent will not guess any of them.</p>
                 </div>
               </LaCard>
@@ -851,8 +936,8 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               {listOn.length ? (
                 <ul className="mt-3 flex flex-col gap-2.5">
                   {listOn.map((m) => (
-                    <li key={m} className="flex items-center justify-between gap-2 text-small">
-                      <MarketplaceName id={m} size="sm" />
+                    <li key={m} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-small">
+                      <MarketplaceName id={m} size="sm" className="shrink-0" />
                       <TagChip tone="plain" className="shrink-0">
                         Checked after drafting
                       </TagChip>
@@ -867,6 +952,19 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
                   </Link>
                 </p>
               )}
+              {needSummary ? (
+                <div className="mt-3 border-t border-line pt-3" data-testid="needs-summary">
+                  <p className="text-small font-semibold text-attention-ink">{needSummary}</p>
+                  <ul className="mt-1.5 flex flex-col gap-1">
+                    {needs.map((n) => (
+                      <li key={n.field.id} className="flex items-start justify-between gap-2 text-caption">
+                        <span className="text-ink">{n.field.label}</span>
+                        <span className="text-right text-ink-3">{n.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               <p className="mt-3 text-caption text-ink-3">Readiness is checked against each marketplace’s rules once the agent drafts the listing.</p>
             </LaCard>
             <LaCard pad="sm">
@@ -981,7 +1079,9 @@ function ManufacturerChoice({
   errors,
   onBlur,
   submitCount,
+  needed,
 }: {
+  needed?: string
   brandParty: PartyOut | null
   brandState: 'pending' | 'ready' | 'error'
   onRetryBrand: () => void
@@ -1001,6 +1101,7 @@ function ManufacturerChoice({
           Manufacturer
           <IconGlyph icon={CONCEPT_ICON.critical} size={14} className="text-attention" />
           <span className="sr-only">(critical fact)</span>
+          {needed ? <SourceBadge source={{ kind: 'needed', detail: needed }} /> : null}
         </h3>
         {brandParty ? (
           <label className="flex items-center gap-2 text-small text-ink-2">

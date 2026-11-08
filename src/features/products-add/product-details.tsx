@@ -36,6 +36,14 @@ import {
 import { formatAttributeValue } from '@/features/products/format'
 import { groupPhotoFacts, photoGroupKeys } from '@/features/photo-facts/model'
 import { PhotoFactsGroup } from '@/features/photo-facts/photo-facts-group'
+import { usePhotoFactActions } from '@/features/photo-facts/api'
+import { OP_ACTION, useCan } from '@/lib/permissions'
+import { editingSource, fieldSource, rawFieldSource } from '@/features/products/field-sources'
+import { missingNeeds, missingSummary, needText, productFilled, useRequirements, type Filled, type Marketplace, type NeedFieldId } from '@/features/products/needs'
+import { countryName, fromPackageOut, normalizeCountry, packageHasSize, packageHasWeight, packageText, samePackage } from '@/features/products/seller-fields'
+import { CountryField, HsnField, PackageFields } from '@/features/products/seller-field-inputs'
+import { SizeChartReadButton } from '@/features/products/size-chart-read-button'
+import { normalizeBarcode } from '@/features/products/barcode'
 import { humanizeSlug } from './catalog-model'
 import type { ProductEditSession } from './product-edit-session'
 import { ATTR_FIELDS, ATTR_LABEL } from './guided-model'
@@ -49,7 +57,9 @@ const KV_GRID = 'grid grid-cols-[minmax(96px,max-content)_minmax(0,1fr)] items-b
 const SHOWN = new Set<string>(['fabric_type', 'fiber_composition', 'color', 'wash_care', 'iron_care', 'size_measurements', 'size_chart_url'])
 const MORE_VISIBLE = 6
 
-function Missing({ critical, children = 'Not set' }: { critical?: boolean; children?: ReactNode }) {
+function Missing({ critical, needed, children = 'Not set' }: { critical?: boolean; needed?: string; children?: ReactNode }) {
+  // SI12: who needs it, when a marketplace the seller sells on does.
+  if (needed) return <SourceBadge source={{ kind: 'needed', detail: needed }} />
   return critical ? (
     <span className="inline-flex items-center gap-1 text-attention-ink">
       <IconGlyph icon={CONCEPT_ICON.critical} size={12} />
@@ -80,6 +90,62 @@ function StyleBarcode({ variants }: { variants: readonly BarcodeHolder[] }) {
   )
 }
 
+/** The package parts still needed: one chip, or "Size: …" and "Weight: …" when they differ. */
+function PackageNeeds({ pkg, size, weight }: { pkg: string; size?: string; weight?: string }) {
+  if (!size && !weight) return pkg ? null : <Missing />
+  if (size && weight && size === weight) return <SourceBadge source={{ kind: 'needed', detail: size }} />
+  return (
+    <>
+      {size ? <SourceBadge source={{ kind: 'needed', detail: `Size: ${size.toLocaleLowerCase('en')}` }} /> : null}
+      {weight ? <SourceBadge source={{ kind: 'needed', detail: `Weight: ${weight.toLocaleLowerCase('en')}` }} /> : null}
+    </>
+  )
+}
+
+/**
+ * The source chip of a saved value (SI12 `field_sources`). A value read from a photo and not yet
+ * confirmed gets a Confirm, the same action as the "From photos" list.
+ */
+function FieldChip({
+  product,
+  k,
+  actions,
+  canAct,
+}: {
+  product: ProductDetail
+  k: string
+  actions: ReturnType<typeof usePhotoFactActions>
+  canAct: boolean
+}) {
+  const src = fieldSource(product, k)
+  if (!src) return null
+  const fact = src.kind === 'photo' ? product.photo_facts?.find((f) => f.key === k && !f.confirmed) : undefined
+  const pending = actions.pending[k]
+  if (fact && pending === 'confirm') return <SourceBadge source={{ kind: 'confirmed' }} />
+  return (
+    <>
+      <SourceBadge source={src} />
+      {fact && canAct ? (
+        <Button
+          variant="secondary"
+          size="xs"
+          onClick={() => void actions.confirm(fact)}
+          aria-label={`Confirm ${(ATTR_LABEL[k] ?? humanizeSlug(k)).toLocaleLowerCase('en')}: ${String(fact.value)}`}
+          data-testid={`field-confirm-${k}`}
+        >
+          <Icon name="check" size={12} />
+          Confirm
+        </Button>
+      ) : null}
+      {actions.errors[k] ? (
+        <span role="alert" className="text-caption text-danger">
+          {actions.errors[k]}
+        </span>
+      ) : null}
+    </>
+  )
+}
+
 /** The saved values. `onEdit` is absent when the person may not edit (no product:import). */
 export function ProductDetailsCard({
   product,
@@ -89,8 +155,11 @@ export function ProductDetailsCard({
   source,
   onEdit,
   categoryAction,
+  sellOn = [],
 }: {
   product: ProductDetail
+  /** SI12: the marketplaces this product is sold on (its listings and the connected ones). */
+  sellOn?: readonly Marketplace[]
   isVariant: boolean
   /** The product has variants: each one holds its own barcode. */
   isStyle?: boolean
@@ -128,11 +197,32 @@ export function ProductDetailsCard({
   const chart = product.size_chart
   const cols = chart ? MEASURES.filter((x) => chart.rows.some((r) => r[x] != null)) : []
 
+  // SI12: where each value came from, and what the marketplaces still need.
+  const can = useCan()
+  const canAct = can(OP_ACTION['PATCH /products/{product_id}'])
+  const actions = usePhotoFactActions(product)
+  const requirements = useRequirements(product.category)
+  const needs = missingNeeds(requirements.data, sellOn, productFilled(product, { isVariant, isStyle }))
+  const need = (id: NeedFieldId) => needText(needs, id)
+  const summary = missingSummary(needs)
+  const chip = (key: string) => <FieldChip product={product} k={key} actions={actions} canAct={canAct} />
+  const hsnSuggestion = product.hsn_code ? null : (product.suggestions?.hsn_code?.value ?? null)
+  const pkg = packageText(product.package)
+
   return (
     <LaCard data-testid="product-details">
       <CardHead
         title="Product details"
-        sub="What you told us. The agent uses these and never guesses the critical ones."
+        sub={
+          <>
+            What you told us. The agent uses these and never guesses the critical ones.
+            {summary ? (
+              <span className="mt-1.5 flex" data-testid="details-needs-summary">
+                <SourceBadge source={{ kind: 'needed', detail: summary }} />
+              </span>
+            ) : null}
+          </>
+        }
         action={
           onEdit ? (
             <Button variant="secondary" size="sm" onClick={onEdit} data-testid="product-edit">
@@ -145,7 +235,7 @@ export function ProductDetailsCard({
       <div data-testid="product-attributes">
         <dl className={cn('mt-4 text-small', KV_GRID)}>
           <Row k="Category">
-            {humanizeSlug(product.category)} <SourceBadge source={{ kind: 'you' }} />
+            {humanizeSlug(product.category)} <SourceBadge source={fieldSource(product, 'category') ?? { kind: 'you' }} />
             {categoryAction}
           </Row>
           {isVariant ? null : <Row k="Style number">{product.style_number ? <span className="font-mono">{product.style_number}</span> : <Missing />}</Row>}
@@ -156,13 +246,20 @@ export function ProductDetailsCard({
           ))}
           {hasBrandName(product) ? (
             <Row k="Brand" attr="brand_name">
-              {brand.name ? <span data-testid="product-brand">{brand.name}</span> : <Missing>Your store name</Missing>}
-              {brand.inherited ? <SourceBadge source={{ kind: 'brand-profile' }} /> : null}
+              {brand.name ? <span data-testid="product-brand">{brand.name}</span> : <Missing needed={need('brand_name')}>Your store name</Missing>}
+              {brand.inherited ? <SourceBadge source={{ kind: 'brand-profile' }} /> : brand.name ? chip('brand_name') : null}
             </Row>
           ) : null}
           {hasAudience(product) && !isVariant ? (
             <Row k="Audience" attr="gender">
-              {product.gender ? <span data-testid="product-gender">{GENDER_LABEL[product.gender]}</span> : <Missing>Needed for Amazon</Missing>}
+              {product.gender ? (
+                <>
+                  <span data-testid="product-gender">{GENDER_LABEL[product.gender]}</span>
+                  {chip('gender')}
+                </>
+              ) : (
+                <Missing needed={need('gender')}>Needed for Amazon</Missing>
+              )}
             </Row>
           ) : null}
           <Row k="Barcode" attr="identifier">
@@ -175,31 +272,113 @@ export function ProductDetailsCard({
             ) : product.identifier_exemption ? (
               <span data-testid="product-barcode">No barcode (exempt)</span>
             ) : (
-              <Missing>Needed for Amazon</Missing>
+              <Missing needed={need('identifier')}>Needed for Amazon</Missing>
             )}
           </Row>
-          <Row k="MRP">{mrp ? <span className="tabular-nums">{mrp}</span> : <Missing critical>Needed to publish</Missing>}</Row>
+          <Row k="MRP" attr="mrp">
+            {mrp ? (
+              <>
+                <span className="tabular-nums">{mrp}</span>
+                {chip('mrp')}
+              </>
+            ) : (
+              <Missing critical needed={need('mrp')}>Needed to publish</Missing>
+            )}
+          </Row>
           <Row k="Selling price">
             {price ? (
               <>
                 <span className="tabular-nums">{price}</span>
                 {off ? <span className="text-caption text-success-ink">{off}% off</span> : null}
+                {chip('selling_price')}
               </>
             ) : (
-              <Missing />
+              <Missing needed={need('selling_price')} />
             )}
           </Row>
-          <Row k="Fabric type" attr="fabric_type">{text('fabric_type') || <Missing critical />}</Row>
-          <Row k="Composition" attr="fiber_composition">{comp || <Missing critical />}</Row>
+          <Row k="Fabric type" attr="fabric_type">
+            {text('fabric_type') ? (
+              <>
+                {text('fabric_type')}
+                {chip('fabric_type')}
+              </>
+            ) : (
+              <Missing critical needed={need('fabric_type')} />
+            )}
+          </Row>
+          <Row k="Composition" attr="fiber_composition">
+            {comp ? (
+              <>
+                {comp}
+                {chip('fiber_composition')}
+              </>
+            ) : (
+              <Missing critical />
+            )}
+          </Row>
           {isVariant ? null : (
             <Row k="Colour" attr="color">
-              {text('color') || <Missing />}
+              {text('color') || <Missing needed={need('color')} />}
               {/* The seller's colour always wins; a photo colour is marked until it is confirmed. */}
-              {text('color') && photoColour && !photoColour.confirmed ? <SourceBadge source={{ kind: 'photo' }} /> : null}
+              {text('color') ? (rawFieldSource(product, 'color') ? chip('color') : photoColour && !photoColour.confirmed ? <SourceBadge source={{ kind: 'photo' }} /> : null) : null}
             </Row>
           )}
-          <Row k="Wash care" attr="wash_care">{text('wash_care') || <Missing critical />}</Row>
-          <Row k="Iron care" attr="iron_care">{text('iron_care') || <Missing critical />}</Row>
+          {(['wash_care', 'iron_care'] as const).map((k) => (
+            <Row key={k} k={k === 'wash_care' ? 'Wash care' : 'Iron care'} attr={k}>
+              {text(k) ? (
+                <>
+                  {text(k)}
+                  {chip(k)}
+                </>
+              ) : (
+                <Missing critical />
+              )}
+            </Row>
+          ))}
+          <Row k="HSN code" attr="hsn_code">
+            {product.hsn_code ? (
+              <>
+                <span className="font-mono tabular-nums" data-testid="product-hsn">
+                  {product.hsn_code}
+                </span>
+                {chip('hsn_code')}
+              </>
+            ) : hsnSuggestion ? (
+              <>
+                <span className="font-mono text-ink-2 tabular-nums" data-testid="product-hsn-suggested">
+                  {hsnSuggestion}
+                </span>
+                <SourceBadge source={{ kind: 'suggested' }} />
+                <span className="text-caption text-ink-3">{onEdit ? 'Edit and save to confirm it.' : 'Not saved yet.'}</span>
+                {need('hsn_code') ? <SourceBadge source={{ kind: 'needed', detail: need('hsn_code') }} /> : null}
+              </>
+            ) : (
+              <Missing needed={need('hsn_code')} />
+            )}
+          </Row>
+          <Row k="Package" attr="package">
+            {pkg ? (
+              <>
+                <span className="tabular-nums" data-testid="product-package">
+                  {pkg}
+                </span>
+                {chip('package')}
+              </>
+            ) : null}
+            {!packageHasSize(fromPackageOut(product.package)) || !packageHasWeight(fromPackageOut(product.package)) ? (
+              <PackageNeeds pkg={pkg} size={need('package_size')} weight={need('package_weight')} />
+            ) : null}
+          </Row>
+          <Row k="Country of origin" attr="country_of_origin">
+            {product.country_of_origin ? (
+              <>
+                <span data-testid="product-country">{countryName(product.country_of_origin)}</span>
+                {chip('country_of_origin')}
+              </>
+            ) : (
+              <Missing needed={need('country_of_origin')} />
+            )}
+          </Row>
           <Row k="Manufacturer">
             {m?.legal_name ? (
               <span className="flex min-w-0 flex-col">
@@ -207,19 +386,23 @@ export function ProductDetailsCard({
                   {m.legal_name}
                   {source === 'brand' ? <SourceBadge source={{ kind: 'brand-profile' }} /> : null}
                   {source === 'style' ? <TagChip tone="plain">From the style</TagChip> : null}
+                  {source === 'own' ? chip('manufacturer') : null}
                 </span>
                 <span className="text-caption text-ink-2">{partyPlace(m)}</span>
               </span>
             ) : (
-              <Missing critical />
+              <Missing critical needed={need('manufacturer')} />
             )}
           </Row>
           {isVariant ? null : (
-            <Row k="Size chart">
+            <Row k="Size chart" attr="size_measurements">
               {chart ? (
-                <span className="text-ink-2">
-                  {chart.rows.length} {chart.rows.length === 1 ? 'size' : 'sizes'}, {chart.unit === 'in' ? 'inches' : 'cm'}, {chart.basis === 'garment' ? 'garment' : 'body'} measurements
-                </span>
+                <>
+                  <span className="text-ink-2">
+                    {chart.rows.length} {chart.rows.length === 1 ? 'size' : 'sizes'}, {chart.unit === 'in' ? 'inches' : 'cm'}, {chart.basis === 'garment' ? 'garment' : 'body'} measurements
+                  </span>
+                  {chip('size_chart')}
+                </>
               ) : product.size_chart_url ? (
                 <a href={product.size_chart_url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 font-semibold text-brand hover:underline">
                   Open the size chart link
@@ -269,7 +452,7 @@ export function ProductDetailsCard({
             <span className="text-ink-2">{photoRead.detail}</span>
           </div>
         ) : null}
-        <PhotoFactsGroup product={product} rows={photoRows} />
+        <PhotoFactsGroup product={product} rows={photoRows} actions={actions} />
         {more.length ? (
           <div className="mt-4 border-t border-line pt-4">
             <p className="text-caption font-semibold text-ink-2">More details</p>
@@ -359,8 +542,11 @@ export function ProductDetailsEditor({
   session,
   categoryLock = 'pending',
   onRetryCategoryLock,
+  sellOn = [],
 }: {
   session: ProductEditSession
+  /** SI12: the marketplaces this product is sold on, for the "Needed" chips. */
+  sellOn?: readonly Marketplace[]
   categoryLock?: CategoryLock
   /** Re-read the listings after a failed read (`categoryLock` 'unknown'). */
   onRetryCategoryLock?: () => void
@@ -373,9 +559,34 @@ export function ProductDetailsEditor({
     if (out === 'invalid') requestAnimationFrame(() => focusFirstInvalid(ref.current))
   }
 
+  // SI12: the saved source while a value is unchanged, "You" once changed; "Needed" while empty.
+  const b = session.baseDraft
+  const saved = (k: string, unchanged: boolean, filled: boolean) => editingSource(fieldSource(product, k), unchanged, filled)
+  const requirements = useRequirements(d.category)
+  const filled: Filled = {
+    brand_name: !d.hasAudience || !d.ownBrand || !!d.brandName.trim() || !!product.brand_name?.trim(),
+    identifier: session.isStyle || d.barcode.exempt || normalizeBarcode(d.barcode.value) !== '',
+    gender: isVariant || !d.hasAudience || !!d.gender,
+    fabric_type: !!d.attrs.fabric_type.trim(),
+    color: isVariant || !!d.attrs.color.trim(),
+    mrp: !!d.mrp.trim(),
+    selling_price: !!d.sellingPrice.trim(),
+    hsn_code: !!d.hsn.trim(),
+    package_size: packageHasSize(d.pkg),
+    package_weight: packageHasWeight(d.pkg),
+    country_of_origin: !!d.country.trim(),
+    manufacturer: d.ownManufacturer || !!product.manufacturer?.legal_name,
+  }
+  const needs = missingNeeds(requirements.data, sellOn, filled)
+  const need = (id: NeedFieldId) => needText(needs, id)
+
   const attrs = editableAttrs(isVariant)
   const field = (k: (typeof attrs)[number]) => {
     const f = ATTR_FIELDS.find((x) => x.key === k)!
+    const chip = {
+      source: saved(k, d.attrs[k].trim() === b.attrs[k].trim(), !!d.attrs[k].trim()),
+      needed: k === 'fabric_type' || k === 'color' ? need(k) : undefined,
+    }
     return f.pick ? (
       <PickOrOtherField
         key={k}
@@ -389,6 +600,7 @@ export function ProductDetailsEditor({
         error={errors[`attr.${k}`]}
         submitCount={submitted}
         hint={f.hint}
+        {...chip}
       />
     ) : (
       <TextField
@@ -403,6 +615,7 @@ export function ProductDetailsEditor({
         submitCount={submitted}
         hint={f.hint}
         maxLength={4000}
+        {...chip}
       />
     )
   }
@@ -454,7 +667,7 @@ export function ProductDetailsEditor({
               />
             )}
             {isVariant || !d.hasAudience ? null : (
-              <AudienceSelect id="e-gender" value={d.gender} onChange={(gender) => patch({ gender }, 'gender')} error={errors.gender} submitCount={submitted} allowClear />
+              <AudienceSelect id="e-gender" needed={need('gender')} value={d.gender} onChange={(gender) => patch({ gender }, 'gender')} error={errors.gender} submitCount={submitted} allowClear />
             )}
             {isVariant || !d.hasAudience ? null : (
               <BrandField
@@ -476,6 +689,7 @@ export function ProductDetailsEditor({
             <BarcodeField
               id="e-barcode"
               level={session.isStyle ? 'style' : 'item'}
+              needed={need('identifier')}
               value={d.barcode}
               onChange={(barcode) => patch({ barcode }, 'barcode')}
               onBlur={() => touch('barcode')}
@@ -495,6 +709,8 @@ export function ProductDetailsEditor({
               onBlur={() => touch('mrp')}
               error={errors.mrp}
               hint={isVariant && !d.mrp ? 'Empty uses the style’s MRP. Needed to publish.' : 'Needed to publish.'}
+              source={saved('mrp', d.mrp.trim() === b.mrp.trim(), !!d.mrp.trim())}
+              needed={need('mrp')}
               submitCount={submitted}
             />
             <MoneyField
@@ -505,6 +721,8 @@ export function ProductDetailsEditor({
               onBlur={() => touch('selling_price')}
               error={errors.selling_price}
               hint="At or below the MRP."
+              source={saved('selling_price', d.sellingPrice.trim() === b.sellingPrice.trim(), !!d.sellingPrice.trim())}
+              needed={need('selling_price')}
               submitCount={submitted}
             />
           </div>
@@ -524,6 +742,7 @@ export function ProductDetailsEditor({
                   touch('attr.fiber_composition')
                 }}
                 submitCount={submitted}
+                source={saved('fiber_composition', JSON.stringify(d.composition) === JSON.stringify(b.composition), d.composition.some((r) => r.fibre.trim() || r.percent.trim()))}
               />
             </div>
             {attrs.filter((k) => !['fabric_type', 'wash_care', 'iron_care'].includes(k)).map(field)}
@@ -532,8 +751,48 @@ export function ProductDetailsEditor({
         <Group title="Care">
           <div className="grid gap-x-5 gap-y-4 md:grid-cols-2">{attrs.filter((k) => k === 'wash_care' || k === 'iron_care').map(field)}</div>
         </Group>
+        <Group title="Tax and shipping">
+          <div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
+            <HsnField
+              id="e-hsn"
+              value={d.hsn}
+              suggested={d.hsnSuggested}
+              onChange={(hsn) => patch({ hsn, hsnSuggested: false }, 'hsn_code')}
+              onBlur={() => touch('hsn_code')}
+              error={errors.hsn_code}
+              source={saved('hsn_code', d.hsn.trim() === b.hsn.trim(), !!d.hsn.trim())}
+              needed={need('hsn_code')}
+              submitCount={submitted}
+            />
+            <CountryField
+              id="e-country"
+              value={d.country}
+              onChange={(country) => {
+                patch({ country }, 'country_of_origin')
+                touch('country_of_origin')
+              }}
+              error={errors.country_of_origin}
+              source={saved('country_of_origin', normalizeCountry(d.country) === normalizeCountry(b.country), !!d.country.trim())}
+              needed={need('country_of_origin')}
+              submitCount={submitted}
+              allowClear
+            />
+          </div>
+          <PackageFields
+            id="e-package"
+            value={d.pkg}
+            onChange={(pkg) => patch({ pkg }, 'package')}
+            onBlur={touch}
+            errors={errors}
+            source={samePackage(d.pkg, b.pkg) ? fieldSource(product, 'package') : undefined}
+            neededSize={need('package_size')}
+            neededWeight={need('package_weight')}
+            submitCount={submitted}
+          />
+        </Group>
         {isVariant ? null : (
           <Group title="Size chart">
+            <SizeChartReadButton product={product} onRead={session.loadSizeChart} loaded={!!d.sizeChartImageId} />
             <SizeChartEditor id="e-size" value={d.sizeChart} onChange={(sizeChart) => patch({ sizeChart }, 'size_chart')} errors={errors} onBlur={touch} />
           </Group>
         )}
@@ -571,7 +830,7 @@ export function ProductDetailsEditor({
         ) : null}
         <div className="sticky bottom-0 -mx-5 -mb-5 flex flex-wrap items-center justify-between gap-3 rounded-b-card border-t border-line bg-surface px-5 py-3">
           <p className="text-caption text-ink-3" aria-live="polite">
-            {session.dirty ? 'Unsaved changes' : 'No changes yet'}
+            {session.onlySuggestion ? 'Saving confirms the suggested HSN code' : session.dirty ? 'Unsaved changes' : 'No changes yet'}
           </p>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={session.cancel} disabled={session.saving}>
