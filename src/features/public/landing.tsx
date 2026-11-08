@@ -146,12 +146,13 @@ export function Landing() {
   return (
     <PublicLayout inPage>
       <div ref={scope}>
-        {/* Hero: one full-bleed light field. The copy column never moves; the stage carries the motion. */}
+        {/* Hero: one full-bleed light field. The copy column never moves; the stage carries the motion.
+            The copy column is rounded down to a whole pixel, so the stage starts on one. */}
         <section ref={hero} aria-labelledby="hero-h" className="hero-field">
           <div
             className={cn(
               WRAP,
-              'grid grid-cols-1 pt-8 pb-16 md:pt-16 md:pb-24 lg:pt-8 xl:pt-16 lg:min-h-[min(calc(100svh-64px),880px)] lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] lg:content-center lg:items-stretch lg:gap-12 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] xl:gap-16 2xl:min-h-[min(calc(100svh-64px),960px)] 2xl:gap-20',
+              'grid grid-cols-1 pt-8 pb-16 md:pt-16 md:pb-24 lg:pt-8 xl:pt-16 lg:min-h-[min(calc(100svh-64px),880px)] lg:grid-cols-[round(down,calc((100%-48px)*0.43),1px)_minmax(0,1fr)] lg:content-center lg:items-stretch lg:gap-12 xl:grid-cols-[round(down,calc((100%-64px)*0.46),1px)_minmax(0,1fr)] xl:gap-16 2xl:min-h-[min(calc(100svh-64px),960px)] 2xl:gap-20',
             )}
           >
             {/* Centred against the stage as one group, so every gap in the column keeps its own step. */}

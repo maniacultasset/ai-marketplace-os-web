@@ -156,8 +156,8 @@
      variant is a raised surface with the canvas showing only in its far (bottom right) corner. */
   --hero-field: radial-gradient(110% 80% at 12% 0%, var(--surface) 0%, var(--canvas) 58%);
   --hero-field-corner: radial-gradient(120% 110% at 100% 100%, var(--canvas) 0%, var(--surface) 60%);
-  /* The white a cleaned main photo sits on (the marketplace's white background). */
-  --photo-white: #ffffff;
+  /* The soft neutral behind the landing's product photos (seen only while a photo loads). */
+  --photo: #ebe9e5;
   /* Translucent chrome (sticky bars): canvas or surface at 78% with blur, content scrolls under. */
   --material-canvas: rgb(237 240 245 / 0.78);
   /* Phones and touch screens: a lighter blur over a more solid fill, cheaper to draw while scrolling. */
@@ -328,7 +328,7 @@
   --color-danger-bg: var(--danger-bg);
   --color-danger-line: var(--danger-line);
   --color-danger-ink: var(--danger-ink);
-  --color-photo-white: var(--photo-white);
+  --color-photo: var(--photo);
 
   --radius-xs: 4px;
   --radius-sm: 5px;
@@ -735,17 +735,6 @@
   pointer-events: none;
   animation: hero-ring 700ms var(--ease-out-calm) both;
 }
-/* A field chip carried from the record card to the Amazon card: in, across, out. --chip-dx and
-   --chip-dy are the trip for the current layout (across from md, down on phones). Remounted per trip. */
-.hero-chip {
-  opacity: 0;
-  animation: hero-chip var(--chip-dur, 600ms) var(--ease-out-calm) both;
-  animation-delay: var(--chip-delay, 0ms);
-}
-/* While a landing loop holds still (hover, focus, off screen, hidden tab), a chip in flight holds too. */
-[data-paused] .hero-chip {
-  animation-play-state: paused;
-}
 /* Final CTA (final-cta.tsx): three listing slips offset like a small pile. Never rotated, so the
    text stays crisp. They rest offset; only inside a reveal scope do they wait stacked on the first
    slip, then spread out once (70ms apart). */
@@ -760,12 +749,11 @@
   transition-delay: calc(var(--i, 0) * 70ms);
 }
 @media (prefers-reduced-motion: reduce) {
-  /* Fade only: nothing travels. The ring, the chips and the fan hold still. */
+  /* Fade only: nothing travels. The ring and the fan hold still. */
   [data-reveal-scope] [data-reveal]:not([data-shown]) {
     transform: none;
   }
-  .hero-ring,
-  .hero-chip {
+  .hero-ring {
     animation: none !important;
   }
   .cta-fan > *,
@@ -861,22 +849,6 @@ svg.lucide[stroke-width="2"] {
   }
 }
 
-@keyframes hero-chip {
-  0% {
-    opacity: 0;
-    transform: translate(0, 0);
-  }
-  25% {
-    opacity: 1;
-  }
-  75% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translate(var(--chip-dx, 0px), var(--chip-dy, 0px));
-  }
-}
 
 @keyframes page-in {
   from {

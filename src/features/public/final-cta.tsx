@@ -1,8 +1,8 @@
 /**
  * The landing's final call to action: list your next collection on Amazon. The panel is the page's
  * last raised surface (canvas only in its far corner) and leads with the real Amazon logo, unchanged,
- * at 64px with a Live chip. From lg a column of three listing slips sits beside it, each with its
- * real product photo, all on the same left and right edges.
+ * at 64px with a Live chip. From lg a column of three listing slips sits beside it: the hero's three
+ * products, each with its real photo (3:4, 1x and 2x), all on the same left and right edges.
  *
  * Motion: the panel uses the page's one reveal (use-reveal.ts). Once it is shown, the slips spread
  * once from a stack, 70ms apart (`cta-fan` in index.css). They move vertically only, never rotated,
@@ -16,7 +16,7 @@ import { StatusChip } from '@/components/la/status-chip'
 import { Button } from '@/components/ui/button'
 import { useRevealed } from '@/lib/use-reveal'
 import { cn } from '@/lib/utils'
-import { CTA_SLIPS } from './hero-story'
+import { CTA_SLIPS, STATUS_LABEL } from './hero-story'
 
 
 export function FinalCta({ wrap, h2 }: { wrap: string; h2: string }) {
@@ -67,17 +67,18 @@ export function FinalCta({ wrap, h2 }: { wrap: string; h2: string }) {
                 >
                   <img
                     src={slip.photo}
+                    srcSet={`${slip.photo} 1x, ${slip.photo2x} 2x`}
                     alt=""
                     width={48}
-                    height={60}
+                    height={64}
                     loading="lazy"
                     decoding="async"
                     draggable={false}
-                    className="h-15 w-12 shrink-0 rounded-md border border-line bg-photo-white object-cover"
+                    className="h-16 w-12 shrink-0 rounded-md bg-photo object-cover"
                   />
                   <span className="flex min-w-0 flex-1 flex-col items-start gap-1">
                     <span className="max-w-full truncate text-small font-semibold text-ink">{slip.name}</span>
-                    <StatusChip status="ready">Ready to approve</StatusChip>
+                    <StatusChip status={slip.status === 'ready' ? 'ready' : 'live'}>{STATUS_LABEL[slip.status]}</StatusChip>
                   </span>
                   <MarketplaceTile id="amazon" size="xs" className="self-start" />
                 </li>

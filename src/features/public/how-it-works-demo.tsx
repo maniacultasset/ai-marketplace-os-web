@@ -302,7 +302,7 @@ function Stage({ pos, playing }: { pos: Pos; playing: boolean }) {
             loading="lazy"
             decoding="async"
             draggable={false}
-            className="mt-1.5 ml-1 h-20 w-16 shrink-0 rounded-md border border-line bg-photo-white object-cover max-sm:hidden"
+            className="mt-1.5 ml-1 h-20 w-16 shrink-0 rounded-md border border-line bg-photo object-cover max-sm:hidden"
           />
           <div className="min-w-0 flex-1">
             {/* Under sm the marketplace icons move down to the length row, so the SKU keeps its full width. */}
