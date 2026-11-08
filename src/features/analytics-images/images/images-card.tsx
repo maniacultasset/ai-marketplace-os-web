@@ -41,12 +41,21 @@ import {
 } from './report'
 import { ALL_COLOURS, colourGroups, colourHasMain, type ColourGroup, type ColourSource } from './colour-groups'
 import { uploadImage } from './upload'
+import { useImageCandidates } from './candidates-api'
+import { aiLimitHit, keptOriginals, openCandidates, originBadge, supportsCandidates, type CandidateKind } from './candidates-model'
+import { CandidateBlock, OriginBadges } from './candidate-review'
+import { useCandidateSession } from './candidate-session'
 
 interface ProductLike extends ColourSource {
   id: string
   images?: string[]
   parent_product_id?: string | null
+  /** Its rows feed "Make size chart image" (SI7). */
+  size_chart?: { rows: readonly unknown[] } | null
 }
+
+/** A preview URL that failed to load is read again at most this often (they expire after 10 min). */
+const PREVIEW_RETRY_MS = 30_000
 
 interface SessionUpload {
   localId: string
@@ -152,6 +161,47 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
     if (slot === 'main' && created.some((u) => u.stage.kind !== 'invalid')) setSlot('secondary')
   }
 
+  // Image candidates (SI7): only against a backend whose product read carries `fixes`/`origin`.
+  const details = product.image_details ?? []
+  const withCandidates = live && supportsCandidates(details)
+  const candidates = useImageCandidates(product.id, withCandidates)
+  const session = useCandidateSession()
+  const canMake = can(OP_ACTION['POST /products/{product_id}/image-candidates'])
+  const aiLimit = aiLimitHit(candidates.data)
+  const detailById = new Map(details.map((d) => [d.image_id, d]))
+  const kept = keptOriginals(details)
+  const lastPreviewRetry = useRef(0)
+  const onPreviewError = () => {
+    if (Date.now() - lastPreviewRetry.current < PREVIEW_RETRY_MS) return
+    lastPreviewRetry.current = Date.now()
+    void candidates.refetch()
+  }
+  const fixesBlock = (sourceId: string | null, kinds: readonly CandidateKind[]) =>
+    withCandidates ? (
+      <CandidateBlock
+        productId={product.id}
+        sourceId={sourceId}
+        kinds={kinds}
+        candidates={candidates.data}
+        listPending={candidates.isPending}
+        session={session}
+        canAct={canMake}
+        aiLimit={aiLimit}
+        onPreviewError={onPreviewError}
+      />
+    ) : null
+  const rowExtras = (imageId: string) => {
+    const d = detailById.get(imageId)
+    return {
+      badges: <OriginBadges label={originBadge(d)} kept={kept.has(imageId)} />,
+      extra: d?.slot === 'main' ? fixesBlock(imageId, d.fixes ?? []) : null,
+    }
+  }
+  const sizeChartKinds: CandidateKind[] =
+    !product.parent_product_id && (product.size_chart?.rows.length ?? 0) > 0 ? ['size_chart'] : []
+  const showSizeChart =
+    withCandidates && ((canMake && sizeChartKinds.length > 0) || openCandidates(candidates.data, null, session.hidden).length > 0)
+
   const dismiss = (localId: string) => setUploads((list) => list.filter((u) => u.localId !== localId))
 
   const listedIds = new Set(listed.map(imageIdFromKey).filter((x): x is string => !!x))
@@ -182,6 +232,7 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         productId={product.id}
         settled={reportsSettled}
         onDelete={canDelete ? onDelete : undefined}
+        {...rowExtras(id)}
       />
     ) : (
       <li key={key} className="truncate px-5 py-3 font-mono text-xs text-muted-foreground" title={key}>
@@ -256,6 +307,13 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
           )}
           {listed.map((key) => listedRow(key))}
         </ul>
+      ) : null}
+
+      {showSizeChart ? (
+        <section className="border-t pt-3" aria-label="Size chart image" data-testid="size-chart-image">
+          <h3 className="px-5 pb-2 font-sans text-small font-semibold text-ink">Size chart image</h3>
+          {fixesBlock(null, sizeChartKinds)}
+        </section>
       ) : null}
     </Card>
   )
@@ -470,6 +528,8 @@ function ImageRow({
   productId,
   settled = true,
   onDelete,
+  badges,
+  extra,
 }: {
   imageId: string
   storageKey?: string
@@ -480,6 +540,10 @@ function ImageRow({
   settled?: boolean
   /** DELETE /images/{id}; absent when the person may not delete. */
   onDelete?: (imageId: string) => Promise<void>
+  /** Where the image came from (AI white background, framed, the kept original). */
+  badges?: ReactNode
+  /** The image fixes and their review, under the row (main images, SI7). */
+  extra?: ReactNode
 }) {
   const keys = useKeys()
   const qc = useQueryClient()
@@ -525,7 +589,8 @@ function ImageRow({
               {imageId}
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            {badges}
             {live && (report.isPending || !settled) ? (
               <Skeleton className="h-[22px] w-24 rounded-full" />
             ) : report.error ? (
@@ -584,6 +649,7 @@ function ImageRow({
             </div>
           </div>
         ) : null}
+        {extra}
         {report.error && !isNotFound(report.error) && open ? (
           <ErrorState error={report.error} compact onRetry={() => void report.refetch()} />
         ) : null}

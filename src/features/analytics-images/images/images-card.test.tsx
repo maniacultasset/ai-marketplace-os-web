@@ -26,8 +26,8 @@ const product = {
   id: P,
   images: [`${T}/${P}/images/${I1}`, `${T}/${P}/images/${I2}`],
   image_details: [
-    { image_id: I1, slot: 'main' as const, position: 0, status: 'ready', compliance_status: 'passed' as const },
-    { image_id: I2, slot: 'main' as const, position: 0, status: 'ready', compliance_status: 'passed' as const, colourway_id: BLACK },
+    { image_id: I1, slot: 'main' as const, position: 0, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' as const },
+    { image_id: I2, slot: 'main' as const, position: 0, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' as const, colourway_id: BLACK },
   ],
   colourways: [
     { id: BLACK, colour: 'Black' },
@@ -137,5 +137,40 @@ describe('ProductImagesCard upload', () => {
     setup()
     expect(screen.getByRole('combobox', { name: 'Colour' })).toBeTruthy()
     expect(screen.getByRole('combobox', { name: 'Upload as' })).toBeTruthy()
+  })
+})
+
+describe('ProductImagesCard image fixes (SI7)', () => {
+  beforeEach(() => {
+    live = true
+  })
+  const withFixes = {
+    ...product,
+    colourways: [],
+    size_chart: { rows: [{ size: 'M' }] },
+    image_details: [
+      { image_id: I1, slot: 'main' as const, position: 0, status: 'ready', origin: 'generated' as const, parent_image_id: I2, fixes: ['fix' as const], compliance_status: 'failed' as const },
+      { image_id: I2, slot: 'secondary' as const, position: 1, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' as const },
+    ],
+  }
+
+  it('badges the AI image and the kept original, and holds the fixes while the list loads', () => {
+    setup(withFixes)
+    const rows = screen.getAllByTestId('image-row')
+    expect(within(rows[0]!).getByTestId('origin-badge').textContent).toContain('AI white background')
+    expect(within(rows[1]!).getByTestId('kept-badge')).toBeTruthy()
+    expect(within(rows[0]!).getByLabelText('Loading image fixes')).toBeTruthy()
+    expect(screen.getByTestId('size-chart-image')).toBeTruthy()
+  })
+
+  it('offers no size chart image on a variant', () => {
+    setup({ ...withFixes, parent_product_id: P })
+    expect(screen.queryByTestId('size-chart-image')).toBeNull()
+  })
+
+  it('stays off against a backend without image candidates', () => {
+    setup({ ...product, colourways: [], size_chart: { rows: [{ size: 'M' }] }, image_details: product.image_details.map(({ origin: _o, ...d }) => d) as never })
+    expect(screen.queryByTestId('size-chart-image')).toBeNull()
+    expect(screen.queryByLabelText('Loading image fixes')).toBeNull()
   })
 })
