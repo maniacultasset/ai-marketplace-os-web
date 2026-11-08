@@ -28,14 +28,20 @@ const setup = (images: PendingImage[] = []) => {
 describe('guided form photos (SI12)', () => {
   it('shows the four tiles, Front first, each sending its slot and role', async () => {
     const { onAdd } = setup()
-    expect(screen.getAllByTestId(/^photo-slot-/).map((t) => t.dataset.testid)).toEqual([
+    expect(screen.getAllByTestId(/^photo-slot-(front|back|close_up|size_chart)$/).map((t) => t.dataset.testid)).toEqual([
       'photo-slot-front',
       'photo-slot-back',
       'photo-slot-close_up',
       'photo-slot-size_chart',
     ])
-    expect(within(screen.getByTestId('photo-slot-front')).getByText('Required')).toBeTruthy()
-    expect(within(screen.getByTestId('photo-slot-back')).getByText('Recommended')).toBeTruthy()
+    // "Required" sits on the Front tile itself; the row of three has its own "Recommended" caption.
+    expect(within(screen.getByTestId('photo-slot-front')).getByTestId('photo-slot-required').textContent).toBe('Required')
+    expect(screen.getAllByText('Required')).toHaveLength(1)
+    const caption = screen.getByTestId('photo-slots-recommended')
+    expect(caption.textContent).toBe('Recommended')
+    expect(caption.compareDocumentPosition(screen.getByTestId('photo-slot-front')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+    expect(caption.compareDocumentPosition(screen.getByTestId('photo-slot-back')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(screen.getByTestId('photo-slot-back')).queryByText('Recommended')).toBeNull()
     const f = new File(['x'], 'back.jpg', { type: 'image/jpeg' })
     await userEvent.upload(screen.getByLabelText('Back photo file'), f)
     expect(onAdd).toHaveBeenCalledWith([f], 'secondary', 'back')
@@ -59,6 +65,8 @@ describe('guided form photos (SI12)', () => {
     const back = img({ slot: 'secondary', role: 'back' })
     const { onRemove } = setup([img({ stage: { kind: 'staged', productId: 'p', storageKey: 'k' } }), back])
     expect(within(screen.getByTestId('photo-slot-front')).getByText('Ready')).toBeTruthy()
+    // A filled Front no longer says Required.
+    expect(screen.queryByTestId('photo-slot-required')).toBeNull()
     expect(within(screen.getByTestId('photo-slot-back')).getByText('Uploads when you save')).toBeTruthy()
     await userEvent.click(screen.getByRole('button', { name: 'Remove back photo' }))
     expect(onRemove).toHaveBeenCalledWith(back.localId)

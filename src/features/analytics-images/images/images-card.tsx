@@ -1,5 +1,5 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useDropzone, type FileRejection } from 'react-dropzone'
 import { api, unwrap } from '@/api/client'
 import { describeError, isApiError, isNotFound } from '@/api/errors'
@@ -43,7 +43,7 @@ import {
   type PhotoSlotDef,
   type UploadStage,
 } from './report'
-import { PhotoSlotGrid, PhotoTile, type TileState } from './photo-slots'
+import { PhotoSlotGrid, PhotoSlotRowCaption, PhotoTile, type TileState } from './photo-slots'
 import { ALL_COLOURS, colourGroups, type ColourGroup, type ColourSource } from './colour-groups'
 import { uploadImage } from './upload'
 import { useImageCandidates } from './candidates-api'
@@ -180,7 +180,7 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
       return { filled: true, previewUrl: mine.previewUrl, status: 'Uploaded, checking…', tone: 'busy' }
     }
     const held = details.find((d) => photoSlotOf(d.slot, d.role) === def.id && (def.slot === 'size_chart' || (d.colourway_id ?? null) === cw))
-    if (!held) return { filled: false, status: def.required ? 'Required' : 'Recommended' }
+    if (!held) return { filled: false }
     if (held.compliance_status === 'passed') return { filled: true, status: 'Checked', tone: 'ok' }
     if (held.compliance_status === 'failed') return { filled: true, status: 'Needs a fix, see below', tone: 'bad' }
     return { filled: true, status: 'Checking…', tone: 'busy' }
@@ -295,7 +295,10 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
           </div>
           <PhotoSlotGrid>
             {tiles.map((def) => (
-              <PhotoTile key={def.id} def={def} large={def.id === 'front'} state={tileState(def)} onFiles={(files) => addAs(files, def.slot, def.role)} />
+              <Fragment key={def.id}>
+                {def.id === 'back' ? <PhotoSlotRowCaption /> : null}
+                <PhotoTile def={def} large={def.id === 'front'} state={tileState(def)} onFiles={(files) => addAs(files, def.slot, def.role)} />
+              </Fragment>
             ))}
           </PhotoSlotGrid>
           {byColour ? (

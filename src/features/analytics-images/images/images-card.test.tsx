@@ -95,7 +95,9 @@ describe('ProductImagesCard photo tiles (SI12)', () => {
 
   it('shows Front, Back, Close-up and Size chart, and sends the Front as the main photo with no colour', async () => {
     setup({ ...product, colourways: [] })
-    expect(screen.getAllByTestId(/^photo-slot-/).map((t) => t.dataset.testid)).toEqual([
+    // This product already has its Front photo: no Required on it.
+    expect(screen.queryByTestId('photo-slot-required')).toBeNull()
+    expect(screen.getAllByTestId(/^photo-slot-(front|back|close_up|size_chart)$/).map((t) => t.dataset.testid)).toEqual([
       'photo-slot-front',
       'photo-slot-back',
       'photo-slot-close_up',
@@ -129,7 +131,8 @@ describe('ProductImagesCard photo tiles (SI12)', () => {
     })
     expect(within(screen.getByTestId('photo-slot-front')).getByText('Checked')).toBeTruthy()
     expect(within(screen.getByTestId('photo-slot-back')).getByText('Checking…')).toBeTruthy()
-    expect(within(screen.getByTestId('photo-slot-close_up')).getByText('Recommended')).toBeTruthy()
+    expect(screen.getByTestId('photo-slots-recommended').textContent).toBe('Recommended')
+    expect(screen.queryByTestId('photo-slot-required')).toBeNull()
     expect(screen.getByLabelText('Replace front photo')).toBeTruthy()
     expect(screen.getByLabelText('Add close-up photo')).toBeTruthy()
   })
@@ -152,6 +155,12 @@ describe('ProductImagesCard photo tiles (SI12)', () => {
     await user.upload(screen.getByLabelText('Size chart photo file'), file())
     await waitFor(() => expect(uploadImage).toHaveBeenCalled())
     expect(uploadImage.mock.calls[0]![0]).toMatchObject({ slot: 'size_chart', colourwayId: null })
+  })
+
+  it('marks an empty Front tile Required on the tile itself', () => {
+    setup({ id: P, images: [], image_details: [], colourways: [] })
+    expect(within(screen.getByTestId('photo-slot-front')).getByTestId('photo-slot-required').textContent).toBe('Required')
+    expect(screen.getByTestId('photo-slots-recommended').textContent).toBe('Recommended')
   })
 
   it('has no size chart tile on a variant', () => {

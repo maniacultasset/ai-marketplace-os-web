@@ -31,6 +31,15 @@ export function PhotoSlotGrid({ children, className }: { children: ReactNode; cl
   )
 }
 
+/** The caption over the Back, Close-up and Size chart row, so its meaning never borrows the Front tile's. */
+export function PhotoSlotRowCaption() {
+  return (
+    <p className="col-span-3 mt-1 -mb-1 text-caption font-semibold text-ink-2" data-testid="photo-slots-recommended">
+      Recommended
+    </p>
+  )
+}
+
 export function PhotoTile({
   def,
   state,
@@ -115,8 +124,13 @@ export function PhotoTile({
             ) : null}
           </span>
         )}
-        <span className="absolute bottom-2 left-2 max-w-[calc(100%-1rem)] truncate rounded-md border border-line bg-surface/95 px-1.5 py-0.5 text-caption font-semibold text-ink shadow-raised-sm">
-          {def.label}
+        <span className="absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1">
+          <span className="truncate rounded-md border border-line bg-surface/95 px-1.5 py-0.5 text-caption font-semibold text-ink shadow-raised-sm">{def.label}</span>
+          {def.required && !state.filled ? (
+            <span className="shrink-0 rounded-md border border-attention-line bg-attention-bg px-1.5 py-0.5 text-caption font-semibold text-attention" data-testid="photo-slot-required">
+              Required
+            </span>
+          ) : null}
         </span>
       </div>
       {onRemove && state.filled ? (
@@ -132,6 +146,7 @@ export function PhotoTile({
           <Icon name="x" size={16} />
         </Button>
       ) : null}
+      {state.status ? (
       <p
         className={cn(
           'mt-1.5 flex min-h-[1lh] min-w-0 items-center gap-1 text-caption',
@@ -141,8 +156,9 @@ export function PhotoTile({
         aria-live={tone === 'bad' ? undefined : 'polite'}
       >
         {tone === 'busy' ? <Spinner className="size-3 shrink-0" aria-hidden /> : null}
-        <span className="line-clamp-2">{state.status ?? (state.filled ? '' : def.required ? 'Required' : 'Recommended')}</span>
+        <span className="line-clamp-2">{state.status}</span>
       </p>
+      ) : null}
     </div>
   )
 }

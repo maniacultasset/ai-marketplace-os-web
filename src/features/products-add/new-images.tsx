@@ -9,7 +9,7 @@
  * after the save (`uploadImage`), because the backend can attach only one image before the
  * product exists. Files are never kept in the draft, and the section says so.
  */
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useDropzone, type FileRejection } from 'react-dropzone'
 import { describeError } from '@/api/errors'
 import { Banner, Icon, Segmented } from '@/components/la'
@@ -26,7 +26,7 @@ import {
   type ImageRole,
   type ImageSlot,
 } from '@/features/analytics-images/images/report'
-import { PhotoSlotGrid, PhotoTile, type TileState } from '@/features/analytics-images/images/photo-slots'
+import { PhotoSlotGrid, PhotoSlotRowCaption, PhotoTile, type TileState } from '@/features/analytics-images/images/photo-slots'
 import type { PendingImage, PendingStage } from './new-images-model'
 import { cn } from '@/lib/utils'
 
@@ -76,15 +76,17 @@ export function NewProductImages({
         {PHOTO_SLOTS.map((def) => {
           const img = inTile(def.id)
           return (
-            <PhotoTile
-              key={def.id}
+            <Fragment key={def.id}>
+              {def.id === 'back' ? <PhotoSlotRowCaption /> : null}
+              <PhotoTile
               def={def}
               large={def.id === 'front'}
-              state={img ? tileState(img) : { filled: false, status: def.required ? 'Required' : 'Recommended' }}
+              state={img ? tileState(img) : { filled: false }}
               onFiles={(files) => onAdd(files, def.slot, def.role)}
               onRemove={img && img.stage.kind !== 'uploading' ? () => onRemove(img.localId) : undefined}
               disabled={locked}
-            />
+              />
+            </Fragment>
           )
         })}
       </PhotoSlotGrid>
