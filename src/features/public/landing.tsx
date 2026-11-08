@@ -15,6 +15,7 @@ import { StatusChip } from '@/components/la/status-chip'
 import { Button } from '@/components/ui/button'
 import { useReveal } from '@/lib/use-reveal'
 import { cn } from '@/lib/utils'
+import { Benefits } from './benefits'
 import { HeroFinding } from './hero-finding'
 import { HowItWorksDemo } from './how-it-works-demo'
 import { MarketplaceStrip } from './marketplace-strip'
@@ -54,9 +55,7 @@ const AGENT_DOES = [
   'Draft the title, bullets, description and keywords',
   'Propose attributes that match the category’s template',
   'Write with the tone, glossary and banned terms in your brand profile',
-  'Read details from your product photos for you to confirm',
   'Fix safe errors by itself and mark each one “Fixed for you”, so every change stays visible',
-  'Make a clean white-background main image from your own photo, for you to approve',
 ]
 
 const AGENT_NEVER = [
@@ -161,14 +160,14 @@ export function Landing() {
             <div>
               <h1
                 id="hero-h"
-                className="max-w-[16ch] font-display text-[clamp(2.4rem,5vw,3.75rem)] leading-[1.02] font-bold tracking-[-0.028em] text-ink"
+                className="max-w-[17ch] font-display text-[clamp(2.4rem,5vw,3.75rem)] leading-[1.02] font-bold tracking-[-0.028em] text-ink"
               >
-                One catalog. Every marketplace.
+                One product record. Listings ready to approve.
               </h1>
               <p data-reveal style={d(1, 90)} className="mt-6 max-w-[46ch] text-[18px] leading-[1.55] text-ink-2">
-                Keep each product as one record. Kuinn turns it into a listing for every marketplace you sell on, checks
-                each field against that marketplace’s rules, drafts in your brand’s voice, and waits for someone on your
-                team to approve before anything is sent.
+                Stop rewriting the same product for each marketplace. Stop chasing rejected listings and white-background
+                photo rules. Kuinn drafts each listing in your brand’s voice and checks every field against that
+                marketplace’s rules. Live on Amazon today, with every Indian marketplace next.
               </p>
               <div data-reveal style={d(2, 90)} className="mt-8 flex flex-wrap items-center gap-3 sm:gap-4">
                 <Button asChild size="lg">
@@ -180,19 +179,10 @@ export function Landing() {
                   <a href="#how">See how it works</a>
                 </Button>
               </div>
-              <ul
-                data-reveal
-                style={d(3, 90)}
-                className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-small font-medium text-ink-2"
-                aria-label="At a glance"
-              >
-                {['Every request reviewed by a person', 'Live on Amazon today', 'Nothing is sent without approval'].map((t) => (
-                  <li key={t} className="flex items-center gap-1.5">
-                    <Icon name="check" size={14} className="text-success" aria-hidden />
-                    {t}
-                  </li>
-                ))}
-              </ul>
+              <p data-reveal style={d(3, 90)} className="mt-7 flex items-center gap-2.5 text-[15px] font-semibold text-ink">
+                <IconTile icon="shield" tone="ok" size="sm" />
+                Nothing is sent without your approval.
+              </p>
               <div data-reveal style={d(4, 90)} className="mt-8 max-w-[560px] border-t border-line pt-6">
                 <MarketplaceStrip />
               </div>
@@ -203,11 +193,20 @@ export function Landing() {
           </div>
         </section>
 
+        {/* What Kuinn does for you: live features only */}
+        <Section
+          id="benefits"
+          title="What Kuinn does for you"
+          lede="Your team adds a product once. Kuinn does the listing work, and a person on your team approves the result."
+          className="bg-surface"
+        >
+          <Benefits />
+        </Section>
+
         {/* Four problems */}
         <Section
           title="Listing a catalog by hand costs more than anyone measures"
           lede="Four things that eat operator time on every SKU."
-          className="bg-surface"
         >
           {/* Not a sequence, so no numbers: each problem gets its own icon tile. */}
           <ul className="divide-y divide-line border-y border-line">
@@ -232,7 +231,7 @@ export function Landing() {
         </Section>
 
         {/* Workflow */}
-        <Section id="how" title="One workflow, from spreadsheet to listing" lede="The same steps run for one product or a whole catalog. Here is one example listing, from a CSV row to Live.">
+        <Section className="bg-surface" id="how" title="One workflow, from spreadsheet to listing" lede="The same steps run for one product or a whole catalog. Here is one example listing, from a CSV row to Live.">
           <div data-reveal="pop">
             <HowItWorksDemo />
           </div>
@@ -242,7 +241,6 @@ export function Landing() {
         <Section
           title={<>AI proposes.<br /> The rules engine decides.</>}
           lede="Writing is a job for a model. Checking is not. Your seller account depends on keeping those two jobs apart, so they are never done by the same thing. Every draft the agent writes answers to the same rules and the same approval step."
-          className="bg-surface"
         >
           <div className="grid gap-4 md:grid-cols-2">
             <div data-reveal className="rounded-card border border-line bg-surface p-6 shadow-raised-md md:p-7">
@@ -281,6 +279,7 @@ export function Landing() {
           id="bulk"
           title="A whole catalog runs the same way as one product"
           lede="Upload your catalog as a CSV. Every row is checked on its own and keeps its own error report, so a bad row never holds up the good ones and a retry never makes you rebuild context."
+          className="bg-surface"
         >
           <ol className="grid gap-px overflow-hidden rounded-card border border-line bg-line shadow-raised-md sm:grid-cols-2 lg:grid-cols-6">
             {BULK.map((s, i) => (
@@ -304,7 +303,6 @@ export function Landing() {
           id="marketplaces"
           title="Built for every marketplace you sell on"
           lede="One product record, one set of rules and one approval step, with each marketplace added in turn. Here is where each one stands today."
-          className="bg-surface"
         >
           <ul className="grid gap-4 md:grid-cols-3">
             {MARKET_STATUS.map((m, i) => {
@@ -341,6 +339,7 @@ export function Landing() {
           id="pricing"
           title="Pricing and contact"
           lede="Every brand’s catalog is different, so we price each one on its own."
+          className="bg-surface"
         >
           <div
             data-reveal="pop"
@@ -428,11 +427,13 @@ export function Landing() {
                 <IconTile icon="users" tone="brand" size="lg" />
                 <div>
                   <h2 id="cta-h" className="font-display text-[clamp(1.875rem,3.4vw,2.75rem)] leading-[1.05] font-bold tracking-[-0.03em] text-ink">
-                    Access is reviewed by a person
+                    Start with your Amazon catalog
                   </h2>
-                  <p className="mt-3 text-[15px] leading-[1.55] text-ink-2">
-                    Tell us your brand, your name and the email you will sign in with. Someone on our team reviews each request,
-                    and you can check where yours stands at any time.
+                  <p className="mt-3 text-[15px] leading-[1.55] text-ink">
+                    The products you set up now are the same records Kuinn lists on each marketplace it adds next.
+                  </p>
+                  <p className="mt-2 text-[15px] leading-[1.55] text-ink-2">
+                    Tell us your brand, your name and your sign-in email. A person on our team reviews each request.
                   </p>
                 </div>
               </div>

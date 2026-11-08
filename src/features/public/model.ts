@@ -107,6 +107,21 @@ export function stageOf(id: MarketplaceId): MarketStage {
   return MARKET_STATUS.find((m) => m.ids.includes(id))!.stage
 }
 
+export interface Benefit {
+  id: 'draft' | 'photos' | 'checks' | 'fixes' | 'images'
+  title: string
+  body: string
+}
+
+/** The landing's "What Kuinn does for you" row. Only shipped features, no counts or rates. */
+export const BENEFITS: readonly Benefit[] = [
+  { id: 'draft', title: 'Listings in your brand’s voice', body: 'Title, bullets, description and keywords, drafted from your product facts.' },
+  { id: 'photos', title: 'Details read from your photos', body: 'Attributes suggested from your product images. You confirm each one.' },
+  { id: 'checks', title: 'Every field checked first', body: 'Each marketplace’s limits, required fields and banned terms, checked before you approve.' },
+  { id: 'fixes', title: 'Safe errors fixed for you', body: 'Small rule errors are corrected on their own and marked “Fixed for you”.' },
+  { id: 'images', title: 'Main photos on clean white', body: 'Your main photo, turned into a clean white-background image. You approve it.' },
+]
+
 export type SignupState = Schema<'SignupStatusOut'>['status']
 
 /** The chip for a sign-up request (glyph + word). */

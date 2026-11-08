@@ -4,9 +4,10 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { MARKETPLACES } from '@/components/la/marketplace'
 import { HeroFinding } from './hero-finding'
 import { HowItWorksDemo } from './how-it-works-demo'
+import { Benefits } from './benefits'
 import { MarketplaceStrip } from './marketplace-strip'
 import { advance, checksAt, FINAL, FIX_BEATS, FIX_HEAD, FIX_TAIL, FIXED_TITLE, fixedText, LAST_BEAT, LIMIT, NARRATION, RAIL, SCENES, START } from './how-it-works-script'
-import { DESCRIBES_YOU, HERO_EXAMPLE, heroFindings, heroTitleLength, MARKET_STATUS, signupChip, STAGE_CHIP, stageOf } from './model'
+import { DESCRIBES_YOU, HERO_EXAMPLE, heroFindings, heroTitleLength, BENEFITS, MARKET_STATUS, signupChip, STAGE_CHIP, stageOf } from './model'
 import { Ph, POLICY_SECTIONS } from './privacy-policy'
 import { LEGAL_EMAIL, TERMS_SECTIONS } from './terms'
 
@@ -56,6 +57,23 @@ describe('marketplace status', () => {
     expect(stageOf('flipkart')).toBe('soon')
     for (const m of MARKETPLACES.filter((x) => !x.supported)) expect(stageOf(m.id)).toBe('roadmap')
     expect(MARKET_STATUS.filter((m) => STAGE_CHIP[m.stage].status === 'live').flatMap((m) => m.ids)).toEqual(['amazon'])
+  })
+})
+
+describe('benefits', () => {
+  afterEach(cleanup)
+  it('shows the five live features with short titles and one line each', () => {
+    expect(BENEFITS.map((b) => b.id)).toEqual(['draft', 'photos', 'checks', 'fixes', 'images'])
+    for (const b of BENEFITS) {
+      const words = b.title.split(/\s+/).length
+      expect(words).toBeGreaterThanOrEqual(3)
+      expect(words).toBeLessThanOrEqual(6)
+      expect(b.body).not.toMatch(/in development|coming soon|will /i)
+      expect(b.body).not.toMatch(/\d/)
+    }
+    const { container } = render(<Benefits />)
+    expect(container.querySelectorAll('li')).toHaveLength(BENEFITS.length)
+    expect(screen.getByTestId('benefit-fixes').textContent).toContain('Fixed for you')
   })
 })
 
