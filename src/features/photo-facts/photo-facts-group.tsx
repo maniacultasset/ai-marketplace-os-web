@@ -18,10 +18,24 @@ import { confidenceWords, toCheckCount, withPending, type FactRow } from './mode
 /** Same columns as the card's other key-value lists, so the values line up. */
 const KV_GRID = 'grid grid-cols-[minmax(96px,max-content)_minmax(0,1fr)] items-baseline gap-x-3'
 
-export function PhotoFactsGroup({ product, rows }: { product: ProductDetail; rows: readonly FactRow[] }) {
+type Actions = ReturnType<typeof usePhotoFactActions>
+
+/**
+ * `actions`: the product card's own confirm and reject (SI12: a field's "From photo" chip confirms
+ * through the same queue, so both show the same pending state). Absent: the group makes its own.
+ */
+export function PhotoFactsGroup({ product, rows, actions }: { product: ProductDetail; rows: readonly FactRow[]; actions?: Actions }) {
+  return actions ? <Group product={product} rows={rows} actions={actions} /> : <WithOwnActions product={product} rows={rows} />
+}
+
+function WithOwnActions({ product, rows }: { product: ProductDetail; rows: readonly FactRow[] }) {
+  const actions = usePhotoFactActions(product)
+  return <Group product={product} rows={rows} actions={actions} />
+}
+
+function Group({ product, rows, actions }: { product: ProductDetail; rows: readonly FactRow[]; actions: Actions }) {
   const can = useCan()
   const canAct = can(OP_ACTION['PATCH /products/{product_id}'])
-  const actions = usePhotoFactActions(product)
   const shown = useMemo(() => withPending(rows, actions.pending), [rows, actions.pending])
   const toCheck = toCheckCount(shown)
   const factByKey = useMemo(() => new Map((product.photo_facts ?? []).map((f) => [f.key, f])), [product.photo_facts])

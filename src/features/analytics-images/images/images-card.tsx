@@ -24,22 +24,27 @@ import { OP_ACTION, useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import {
   checkRows,
-  defaultSlot,
   formatBytes,
   IMAGE_CONTENT_TYPES,
   imageIdFromKey,
+  imageLabel,
   marketplaceReports,
   MAX_IMAGE_BYTES,
+  MORE_SLOTS,
+  photoSlotOf,
+  photoSlotsFor,
   SLOT_LABEL,
-  slotsFor,
   tally,
   validateImageFile,
   type CheckOutcome,
   type ImageReport,
+  type ImageRole,
   type ImageSlot,
+  type PhotoSlotDef,
   type UploadStage,
 } from './report'
-import { ALL_COLOURS, colourGroups, colourHasMain, type ColourGroup, type ColourSource } from './colour-groups'
+import { PhotoSlotGrid, PhotoTile, type TileState } from './photo-slots'
+import { ALL_COLOURS, colourGroups, type ColourGroup, type ColourSource } from './colour-groups'
 import { uploadImage } from './upload'
 import { useImageCandidates } from './candidates-api'
 import { aiLimitHit, candidatesUnsupported, keptOriginals, openCandidates, originBadge, type CandidateKind } from './candidates-model'
@@ -62,6 +67,8 @@ interface SessionUpload {
   file: File
   previewUrl: string
   slot: ImageSlot
+  /** SI12: Back or Close-up. */
+  role: ImageRole | null
   /** The colour it is filed under, or null for every colour. */
   colourwayId: string | null
   multipartKey: string
@@ -90,19 +97,18 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
   const capPending = BUILT.images && probe.isPending
   const canUpload = live && can(OP_ACTION['POST /images/upload']) && can(OP_ACTION['POST /images/upload-url'])
   const listed = product.images ?? []
-  const slots = slotsFor(!!product.parent_product_id)
-  const [slot, setSlot] = useState<ImageSlot>(defaultSlot(listed.length))
+  const isVariant = !!product.parent_product_id
+  const tiles = photoSlotsFor(isVariant)
+  /** "More photos": the kinds beyond the four tiles. */
+  const [slot, setSlot] = useState<ImageSlot>(MORE_SLOTS[0]!)
+  const [moreOpen, setMoreOpen] = useState(false)
   const [uploads, setUploads] = useState<SessionUpload[]>([])
   // Per-colour photos: only a style with colourways offers the choice. A size chart is the style's.
   const groups = colourGroups(product)
   const byColour = (product.colourways ?? []).length > 0
   const [colour, setColour] = useState<string>(ALL_COLOURS)
-  const colourwayId = byColour && slot !== 'size_chart' && colour !== ALL_COLOURS ? colour : null
-  /** A new colour starts on Main when it has none yet, else on Secondary (as on the variants page). */
-  const pickColour = (key: string) => {
-    setColour(key)
-    setSlot(colourHasMain(product, key === ALL_COLOURS ? null : key) ? 'secondary' : 'main')
-  }
+  const colourFor = (s: ImageSlot) => (byColour && s !== 'size_chart' && colour !== ALL_COLOURS ? colour : null)
+  const colourwayId = colourFor(slot)
 
   // Object URLs live as long as the card.
   const urls = useRef(new Set<string>())
@@ -125,7 +131,7 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
   const start = (u: SessionUpload) => {
     patch(u.localId, { stage: { kind: 'uploading' } })
     mutation
-      .mutateAsync({ file: u.file, productId: product.id, slot: u.slot, colourwayId: u.colourwayId, multipartKey: u.multipartKey })
+      .mutateAsync({ file: u.file, productId: product.id, slot: u.slot, role: u.role, colourwayId: u.colourwayId, multipartKey: u.multipartKey })
       .then((res) => {
         patch(u.localId, { stage: { kind: 'accepted', imageId: res.image_id, jobId: res.job_id } })
         void qc.invalidateQueries({ queryKey: keys.products.detail(product.id) })
@@ -138,10 +144,11 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
       })
   }
 
-  const add = (files: File[], rejected: FileRejection[]) => {
-    const all = [...files, ...rejected.map((r) => r.file)]
-    // One main image per product: a second main would replace the first straight away.
-    const take = slot === 'main' ? all.slice(0, 1) : all
+  const add = (files: File[], rejected: FileRejection[]) => addAs([...files, ...rejected.map((r) => r.file)], slot, null)
+  /** Upload into one slot (and role). Front, Back, Close-up and Size chart take one photo each. */
+  const addAs = (all: File[], toSlot: ImageSlot, role: ImageRole | null) => {
+    const single = toSlot === 'main' || toSlot === 'size_chart' || !!role
+    const take = single ? all.slice(0, 1) : all
     const created = take.map((file): SessionUpload => {
       const previewUrl = URL.createObjectURL(file)
       urls.current.add(previewUrl)
@@ -150,15 +157,33 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         localId: newIdempotencyKey(),
         file,
         previewUrl,
-        slot,
-        colourwayId,
+        slot: toSlot,
+        role,
+        colourwayId: colourFor(toSlot),
         multipartKey: newIdempotencyKey(),
         stage: problem ? { kind: 'invalid', message: problem } : { kind: 'uploading' },
       }
     })
     setUploads((list) => [...created, ...list])
     created.filter((u) => u.stage.kind === 'uploading').forEach(start)
-    if (slot === 'main' && created.some((u) => u.stage.kind !== 'invalid')) setSlot('secondary')
+  }
+
+  /** What a tile shows: this visit's upload for it, else the product's image in that place. */
+  const tileState = (def: PhotoSlotDef): TileState => {
+    const cw = colourFor(def.slot)
+    const mine = uploads.find((u) => photoSlotOf(u.slot, u.role) === def.id && u.colourwayId === cw)
+    if (mine) {
+      const st = mine.stage
+      if (st.kind === 'invalid') return { filled: false, status: st.message, tone: 'bad' }
+      if (st.kind === 'uploading') return { filled: true, previewUrl: mine.previewUrl, status: 'Uploading…', tone: 'busy' }
+      if (st.kind === 'failed') return { filled: false, status: describeError(st.error), tone: 'bad' }
+      return { filled: true, previewUrl: mine.previewUrl, status: 'Uploaded. Checking it now.', tone: 'ok' }
+    }
+    const held = details.find((d) => photoSlotOf(d.slot, d.role) === def.id && (def.slot === 'size_chart' || (d.colourway_id ?? null) === cw))
+    if (!held) return { filled: false, status: def.required ? 'Required' : 'Recommended' }
+    if (held.compliance_status === 'passed') return { filled: true, status: 'Added and checked', tone: 'ok' }
+    if (held.compliance_status === 'failed') return { filled: true, status: 'Added. Its check found problems, see below.', tone: 'bad' }
+    return { filled: true, status: 'Added. Checking it now.', tone: 'busy' }
   }
 
   // Image candidates (SI7). The list call says whether the backend has them: a 404 or 405 means
@@ -198,6 +223,7 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
     return {
       // The product read is the truth for the slot: a demoted main's cached report may still say main.
       knownSlot: d?.slot,
+      knownRole: d?.role ?? null,
       acceptedJob: session.accepted.get(imageId),
       badges: label || kept.has(imageId) ? <OriginBadges label={label} kept={kept.has(imageId)} /> : null,
       extra: d?.slot === 'main' ? fixesBlock(imageId, d.fixes ?? []) : null,
@@ -260,16 +286,39 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
           <Skeleton className="min-h-28 rounded-lg" />
         </div>
       ) : canUpload ? (
-        <Dropzone
-          slot={slot}
-          slots={slots}
-          onSlot={setSlot}
-          onFiles={add}
-          hasMain={byColour ? colourHasMain(product, colourwayId) : count > 0}
-          colours={byColour && slot !== 'size_chart' ? groups.filter((g) => g.key !== 'other') : null}
-          colour={colour}
-          onColour={pickColour}
-        />
+        <div className="flex flex-col gap-4 p-4 sm:p-5" data-testid="photo-slots-card">
+          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+            <p className="max-w-md text-small text-ink-2">
+              The same four photos for every product, so the agent reads each one the same way. Each is checked against Amazon and Flipkart image rules.
+            </p>
+            {byColour ? <ColourSelect colours={groups.filter((g) => g.key !== 'other')} colour={colour} onColour={setColour} /> : null}
+          </div>
+          <PhotoSlotGrid>
+            {tiles.map((def) => (
+              <PhotoTile key={def.id} def={def} large={def.id === 'front'} state={tileState(def)} onFiles={(files) => addAs(files, def.slot, def.role)} />
+            ))}
+          </PhotoSlotGrid>
+          {byColour ? (
+            <p className="text-caption text-ink-3">
+              Front, Back and Close-up are filed under {colour === ALL_COLOURS ? 'all colours' : (groups.find((g) => g.key === colour)?.label ?? 'this colour')}.
+              {isVariant ? '' : ' The size chart is for every colour.'}
+            </p>
+          ) : null}
+          <Collapsible open={moreOpen} onOpenChange={setMoreOpen} className="rounded-card border border-line">
+            <CollapsibleTrigger asChild>
+              <button type="button" className="focus-ring flex w-full items-center justify-between gap-3 rounded-card px-4 py-3 text-left" data-testid="more-photos-toggle">
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-small font-bold text-ink">More photos</span>
+                  <span className="text-caption text-ink-3">Lifestyle, packaging label and other angles. Optional.</span>
+                </span>
+                <Icon name="chev" size={16} className={cn('shrink-0 text-ink-2 motion-safe:transition-transform motion-safe:duration-150', moreOpen && 'rotate-180')} />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="border-t border-line">
+              <Dropzone slot={slot} slots={MORE_SLOTS} onSlot={setSlot} onFiles={add} hasMain={false} colours={null} colour={colour} colourName={byColour && slot !== 'size_chart' && colourwayId ? groups.find((g) => g.key === colour)?.label : undefined} />
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
       ) : null}
 
       {inFlight.length ? (
@@ -367,6 +416,30 @@ function ColourSection({ group, count, children }: { group: ColourGroup; count: 
   )
 }
 
+/* ---------------------------------------------------------------- Colour */
+
+/** The colour the tiles (and More photos) file under, on a style with colours. */
+function ColourSelect({ colours, colour, onColour }: { colours: readonly ColourGroup[]; colour: string; onColour: (key: string) => void }) {
+  const uid = useId()
+  return (
+    <div className="flex items-center gap-2 text-small text-ink-2">
+      <span id={`${uid}-colour`}>Colour</span>
+      <Select value={colour} onValueChange={(v) => onColour(colours.find((g) => g.key === v)?.key ?? colour)}>
+        <SelectTrigger size="sm" className="w-40" aria-labelledby={`${uid}-colour`} data-testid="image-colour">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {colours.map((g) => (
+            <SelectItem key={g.key} value={g.key}>
+              {g.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
 /* ---------------------------------------------------------------- Dropzone */
 
 function Dropzone({
@@ -377,7 +450,7 @@ function Dropzone({
   hasMain,
   colours,
   colour,
-  onColour,
+  colourName,
 }: {
   slot: ImageSlot
   slots: readonly ImageSlot[]
@@ -385,12 +458,12 @@ function Dropzone({
   onFiles: (files: File[], rejected: FileRejection[]) => void
   /** The chosen colour (or the product) already has a main image. */
   hasMain: boolean
-  /** The colours to file the upload under; null when the product has none. */
+  /** The colours to file the upload under; null when the product has none or the card picks it. */
   colours: readonly ColourGroup[] | null
   colour: string
-  onColour: (key: string) => void
+  /** The colour the upload is filed under, when the card picked one. */
+  colourName?: string
 }) {
-  const colourName = colours?.find((g) => g.key === colour)?.label
   // The visible words name each select: "Colour", "Upload as".
   const uid = useId()
   const dz = useDropzone({
@@ -404,23 +477,6 @@ function Dropzone({
     <div className="flex flex-col gap-3 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          {colours ? (
-            <div className="flex items-center gap-2 text-[0.8125rem] text-muted-foreground">
-              <span id={`${uid}-colour`}>Colour</span>
-              <Select value={colour} onValueChange={(v) => onColour(colours.find((g) => g.key === v)?.key ?? colour)}>
-                <SelectTrigger size="sm" className="w-40" aria-labelledby={`${uid}-colour`} data-testid="image-colour">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {colours.map((g) => (
-                    <SelectItem key={g.key} value={g.key}>
-                      {g.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
           <div className="flex items-center gap-2 text-[0.8125rem] text-muted-foreground">
             <span id={`${uid}-slot`}>Upload as</span>
             <Select value={slot} onValueChange={(v) => onSlot(slots.find((s) => s === v) ?? slot)}>
@@ -470,7 +526,7 @@ function Dropzone({
         <div className="text-left">
           <p className="text-sm font-medium">
             {dragging ? (
-              `Drop to upload as ${SLOT_LABEL[slot].toLowerCase()}${colours && colourName && slot !== 'size_chart' ? ` for ${colourName === 'All colours' ? 'all colours' : colourName}` : ''}`
+              `Drop to upload as ${SLOT_LABEL[slot].toLowerCase()}${colourName && slot !== 'size_chart' ? ` for ${colourName}` : ''}`
             ) : (
               <>
                 Drag {slot === 'main' ? 'an image' : 'images'} here, or <span className="text-brand">click to choose</span>
@@ -557,8 +613,10 @@ function ImageRow({
   badges,
   extra,
   knownSlot,
+  knownRole,
   acceptedJob,
 }: {
+  knownRole?: ImageRole | null
   imageId: string
   storageKey?: string
   upload?: SessionUpload
@@ -604,7 +662,7 @@ function ImageRow({
   })
   const reports = report.data ? marketplaceReports(report.data) : []
   const slot = knownSlot ?? reports[0]?.slot ?? upload?.slot
-  const title = slot ? SLOT_LABEL[slot] : 'Image'
+  const title = slot ? imageLabel(slot, knownRole ?? upload?.role) : 'Image'
 
   return (
     <li data-testid="image-row" data-image-id={imageId} data-compliance={report.data?.compliance_status}>

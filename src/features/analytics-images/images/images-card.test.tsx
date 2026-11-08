@@ -86,53 +86,62 @@ describe('ProductImagesCard per colour', () => {
   })
 })
 
-describe('ProductImagesCard upload', () => {
+describe('ProductImagesCard photo tiles (SI12)', () => {
   const file = () => new File(['x'], 'front.jpg', { type: 'image/jpeg' })
   beforeEach(() => {
     live = true
     uploadImage.mockResolvedValue({ image_id: '33333333-3333-4333-8333-333333333339', job_id: 'j1', status: 'queued' })
   })
 
-  it('offers no colour choice for a product with no colours and sends none', async () => {
+  it('shows Front, Back, Close-up and Size chart, and sends the Front as the main photo with no colour', async () => {
     setup({ ...product, colourways: [] })
+    expect(screen.getAllByTestId(/^photo-slot-/).map((t) => t.dataset.testid)).toEqual([
+      'photo-slot-front',
+      'photo-slot-back',
+      'photo-slot-close_up',
+      'photo-slot-size_chart',
+    ])
     expect(screen.queryByTestId('image-colour')).toBeNull()
-    await userEvent.upload(screen.getByLabelText('Image files'), file())
+    await userEvent.upload(screen.getByLabelText('Front photo file'), file())
     await waitFor(() => expect(uploadImage).toHaveBeenCalled())
-    expect(uploadImage.mock.calls[0]![0]).toMatchObject({ productId: P, colourwayId: null })
+    expect(uploadImage.mock.calls[0]![0]).toMatchObject({ productId: P, slot: 'main', role: null, colourwayId: null })
   })
 
-  it('files the upload under the colour picked', async () => {
+  it('sends the Back and Close-up roles with the secondary slot', async () => {
+    setup({ ...product, colourways: [] })
+    await userEvent.upload(screen.getByLabelText('Back photo file'), file())
+    await userEvent.upload(screen.getByLabelText('Close-up photo file'), file())
+    await waitFor(() => expect(uploadImage).toHaveBeenCalledTimes(2))
+    expect(uploadImage.mock.calls.map((c) => c[0])).toEqual([
+      expect.objectContaining({ slot: 'secondary', role: 'back' }),
+      expect.objectContaining({ slot: 'secondary', role: 'close_up' }),
+    ])
+  })
+
+  it('says what each tile holds from the product read', () => {
+    setup({
+      ...product,
+      colourways: [],
+      image_details: [
+        { image_id: I1, slot: 'main' as const, position: 0, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' as const },
+        { image_id: I2, slot: 'secondary' as const, role: 'back' as const, position: 1, status: 'ready', origin: 'seller' as const, compliance_status: 'pending' as const },
+      ],
+    })
+    expect(within(screen.getByTestId('photo-slot-front')).getByText('Added and checked')).toBeTruthy()
+    expect(within(screen.getByTestId('photo-slot-back')).getByText('Added. Checking it now.')).toBeTruthy()
+    expect(within(screen.getByTestId('photo-slot-close_up')).getByText('Recommended')).toBeTruthy()
+    expect(screen.getByLabelText('Replace front photo')).toBeTruthy()
+    expect(screen.getByLabelText('Add close-up photo')).toBeTruthy()
+  })
+
+  it('files the tiles under the colour picked', async () => {
     const user = userEvent.setup()
     setup()
     await user.click(screen.getByTestId('image-colour'))
     await user.click(await screen.findByRole('option', { name: 'White' }))
-    // White has no main yet, so the hint does not warn about replacing one.
-    expect(screen.queryByText(/replaces the current one/)).toBeNull()
-    await user.upload(screen.getByLabelText('Image files'), file())
+    await user.upload(screen.getByLabelText('Back photo file'), file())
     await waitFor(() => expect(uploadImage).toHaveBeenCalled())
-    // White has no main yet, so its first photo is its main, like on the variants page.
-    expect(uploadImage.mock.calls[0]![0]).toMatchObject({ productId: P, slot: 'main', colourwayId: WHITE })
-  })
-
-  it('picking a colour that has a main moves the slot to secondary', async () => {
-    const user = userEvent.setup()
-    setup()
-    await user.click(screen.getByTestId('image-colour'))
-    await user.click(await screen.findByRole('option', { name: 'White' }))
-    expect(screen.getByTestId('image-slot').textContent).toBe('Main')
-    await user.click(screen.getByTestId('image-colour'))
-    await user.click(await screen.findByRole('option', { name: 'Black' }))
-    expect(screen.getByTestId('image-slot').textContent).toBe('Secondary')
-  })
-
-  it('warns that a new main replaces the colour’s current main', async () => {
-    const user = userEvent.setup()
-    setup()
-    await user.click(screen.getByTestId('image-colour'))
-    await user.click(await screen.findByRole('option', { name: 'Black' }))
-    await user.click(screen.getByTestId('image-slot'))
-    await user.click(await screen.findByRole('option', { name: 'Main' }))
-    expect(screen.getByText('A new main image replaces the current one for Black.')).toBeTruthy()
+    expect(uploadImage.mock.calls[0]![0]).toMatchObject({ productId: P, slot: 'secondary', role: 'back', colourwayId: WHITE })
   })
 
   it('never files a size chart under a colour', async () => {
@@ -140,18 +149,34 @@ describe('ProductImagesCard upload', () => {
     setup()
     await user.click(screen.getByTestId('image-colour'))
     await user.click(await screen.findByRole('option', { name: 'Black' }))
-    await user.click(screen.getByTestId('image-slot'))
-    await user.click(await screen.findByRole('option', { name: 'Size chart' }))
-    expect(screen.queryByTestId('image-colour')).toBeNull()
-    await user.upload(screen.getByLabelText('Image files'), file())
+    await user.upload(screen.getByLabelText('Size chart photo file'), file())
     await waitFor(() => expect(uploadImage).toHaveBeenCalled())
     expect(uploadImage.mock.calls[0]![0]).toMatchObject({ slot: 'size_chart', colourwayId: null })
   })
 
-  it('names each select by its visible words', () => {
+  it('has no size chart tile on a variant', () => {
+    setup({ ...product, colourways: [], parent_product_id: P })
+    expect(screen.getByTestId('photo-slot-front')).toBeTruthy()
+    expect(screen.queryByTestId('photo-slot-size_chart')).toBeNull()
+  })
+
+  it('keeps More photos collapsed, and uploads the extra kinds from it', async () => {
+    const user = userEvent.setup()
+    setup({ ...product, colourways: [] })
+    expect(screen.queryByLabelText('Image files')).toBeNull()
+    await user.click(screen.getByTestId('more-photos-toggle'))
+    expect(screen.getByRole('combobox', { name: 'Upload as' })).toBeTruthy()
+    await user.click(screen.getByTestId('image-slot'))
+    expect((await screen.findAllByRole('option')).map((o) => o.textContent)).toEqual(['Secondary', 'Lifestyle', 'Packaging label'])
+    await user.click(screen.getByRole('option', { name: 'Lifestyle' }))
+    await user.upload(screen.getByLabelText('Image files'), [file(), file()])
+    await waitFor(() => expect(uploadImage).toHaveBeenCalledTimes(2))
+    expect(uploadImage.mock.calls[0]![0]).toMatchObject({ slot: 'lifestyle', role: null })
+  })
+
+  it('names the colour select by its visible word', () => {
     setup()
     expect(screen.getByRole('combobox', { name: 'Colour' })).toBeTruthy()
-    expect(screen.getByRole('combobox', { name: 'Upload as' })).toBeTruthy()
   })
 })
 
@@ -179,10 +204,16 @@ describe('ProductImagesCard image fixes (SI7)', () => {
     expect(screen.queryByTestId('size-chart-image')).toBeNull()
   })
 
-  it('titles each row from the product read, so a demoted main never reads as a second Main', () => {
+  it('titles each row from the product read, so a demoted main never reads as a second Front', () => {
     setup(withFixes)
     const rows = screen.getAllByTestId('image-row')
-    expect(rows.map((r) => r.querySelector('[data-testid="image-title"]')?.textContent)).toEqual(['Main', 'Secondary'])
+    expect(rows.map((r) => r.querySelector('[data-testid="image-title"]')?.textContent)).toEqual(['Front', 'Secondary'])
+  })
+
+  it('titles a Back photo by its role', () => {
+    setup({ ...withFixes, image_details: [withFixes.image_details[0]!, { ...withFixes.image_details[1]!, role: 'back' as const }] })
+    const rows = screen.getAllByTestId('image-row')
+    expect(rows.map((r) => r.querySelector('[data-testid="image-title"]')?.textContent)).toEqual(['Front', 'Back'])
   })
 
   it('offers the size chart image on a product with no photos once the list answers', async () => {

@@ -84,7 +84,7 @@ describe('From photos', () => {
     expect(within(row('neckline')!).getByTestId('photo-fact-value').textContent).toBe('Looks like V-neck')
     expect(within(row('fit')!).getByTestId('photo-fact-value').textContent).toBe('Clearly Slim fit')
     expect(within(row('neckline')!).getByText('From photo')).toBeTruthy()
-    expect(within(row('neckline')!).getByText('From the main photo')).toBeTruthy()
+    expect(within(row('neckline')!).getByText('From the front photo')).toBeTruthy()
     expect(row('pattern')!.dataset.factStatus).toBe('you')
     expect(within(row('pattern')!).getByText('You')).toBeTruthy()
     expect(within(row('pattern')!).queryByTestId('photo-fact-confirm')).toBeNull()
