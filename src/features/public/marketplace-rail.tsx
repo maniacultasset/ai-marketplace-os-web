@@ -17,11 +17,11 @@ import { ENTRANCE } from './hero-story'
 import { MARKET_STATUS, STAGE_CHIP, type MarketStage } from './model'
 
 /**
- * One soft grey for every roadmap marketplace. Grayscale alone turned the dark Meesho and Nykaa
- * icons into heavy blocks next to the light Myntra and AJIO ones. Grey first, then soften the
- * contrast and lift it a little, so the tiles sit together and the light marks still read.
+ * One light grey for every roadmap marketplace. Grayscale alone turned the solid Meesho and Nykaa
+ * icons into heavy dark blocks next to the light Myntra and AJIO ones. Grey first, then flatten the
+ * contrast and lift it, so all four read as the same quiet light tile.
  */
-export const MUTED_LOGO = '[&_img]:opacity-80 [&_img]:[filter:grayscale(1)_contrast(0.6)_brightness(1.25)]'
+export const MUTED_LOGO = '[&_img]:opacity-90 [&_img]:[filter:grayscale(1)_contrast(0.35)_brightness(1.7)]'
 
 /** Half lit: the next marketplace keeps its colour, softened, so it sits between live and roadmap. */
 export const NEXT_LOGO = '[&_img]:opacity-80 [&_img]:saturate-[.45]'
@@ -51,8 +51,11 @@ function Stage({ stage, ring, ringDelay }: { stage: MarketStage; ring?: number; 
 function Tiles({ ids, stage }: { ids: MarketplaceId[]; stage: MarketStage }) {
   if (stage === 'roadmap') {
     return (
+      // The two the name shows ("Myntra, AJIO and more"): both light marks, so the pair reads as one
+      // treatment. Meesho and Nykaa are solid icons that stay heavy even in grey; the full list is
+      // read out by screen readers and shown in the Marketplaces section.
       <span className="flex shrink-0 gap-1">
-        {ids.map((id) => (
+        {ids.slice(0, 2).map((id) => (
           <MarketplaceTile key={id} id={id} size="xs" className={MUTED_LOGO} />
         ))}
       </span>
@@ -94,7 +97,15 @@ export function MarketplaceRail({
           <>
             <Tiles ids={mk.ids} stage={mk.stage} />
             <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-small font-semibold text-pretty text-ink">{mk.name}</span>
+              {/* One line in every cell, so the three names share a baseline. */}
+              {mk.short ? (
+                <span className="truncate text-small font-semibold text-ink">
+                  <span aria-hidden>{mk.short}</span>
+                  <span className="sr-only">{mk.name}</span>
+                </span>
+              ) : (
+                <span className="truncate text-small font-semibold text-ink">{mk.name}</span>
+              )}
               <Stage stage={mk.stage} ring={mk.stage === 'live' ? ring : undefined} ringDelay={ringDelay} />
             </span>
           </>

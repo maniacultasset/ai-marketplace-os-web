@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { isValidElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MARKETPLACES } from '@/components/la/marketplace'
@@ -63,14 +63,20 @@ describe('marketplace rail', () => {
     expect(container.querySelectorAll('li')).toHaveLength(3)
     expect(screen.getByTestId('rail-live').textContent).toBe('Amazon●Live')
     expect(screen.getByTestId('rail-next').textContent).toBe('Flipkart◐Next')
-    expect(screen.getByTestId('rail-roadmap').textContent).toBe('Myntra, AJIO, Meesho, Nykaa Fashion◌On the roadmap')
+    // One line on screen; the full list is what a screen reader hears.
+    const roadmap = screen.getByTestId('rail-roadmap')
+    expect(roadmap.querySelector('[aria-hidden]:not([data-slot])')!.textContent).toBe('Myntra, AJIO and more')
+    expect(roadmap.querySelector('.sr-only')!.textContent).toBe('Myntra, AJIO, Meesho, Nykaa Fashion')
+    expect(roadmap.textContent).toContain('◌On the roadmap')
     // The stages carry their own glyphs: never a dash, never "paused" bars, never "Coming soon".
     expect(container.textContent).not.toMatch(/[–—❚]|Coming soon/)
     // Only logo images are dimmed: Amazon full colour, Flipkart half lit, the roadmap grey.
     const tile = (id: string) => container.querySelector(`[data-slot="marketplace-tile"][data-marketplace="${id}"]`)!
     expect(tile('amazon').getAttribute('class')).not.toMatch(/\[&_img\]/)
     expect(tile('flipkart').getAttribute('class')).toContain('[&_img]:saturate-[.45]')
-    for (const id of ['myntra', 'ajio', 'meesho', 'nykaa']) expect(tile(id).getAttribute('class')).toContain('grayscale(1)')
+    // The roadmap shows the two light marks the name leads with, both in the one grey treatment.
+    for (const id of ['myntra', 'ajio']) expect(tile(id).getAttribute('class')).toContain('grayscale(1)')
+    expect(roadmap.querySelectorAll('[data-slot="marketplace-tile"]')).toHaveLength(2)
   })
 })
 
@@ -146,6 +152,8 @@ describe('how it works demo: script', () => {
     expect(NARRATION.publish).toMatch(/waits for Amazon to confirm/)
     expect(RAIL.find((r) => r.id === 'publish')?.body).toMatch(/Live once Amazon confirms/)
     expect(NARRATION.fix).toMatch(/“Fixed for you”/)
+    // Nothing on the landing is labelled as an example, in any step's narration either.
+    for (const text of Object.values(NARRATION)) expect(text).not.toMatch(/example/i)
     for (const text of [...Object.values(NARRATION), ...RAIL.map((r) => r.body)]) expect(text).not.toMatch(/Sent to Flipkart|Live on Flipkart/)
   })
 })
@@ -188,13 +196,13 @@ describe('how it works demo', () => {
     window.matchMedia = realMatchMedia
   })
 
-  it('without IntersectionObserver renders every step, the controls and the finished state, without autoplay', () => {
+  it('without IntersectionObserver renders every step and the finished state, without autoplay or play controls', () => {
     setReduced(false)
     expect(typeof IntersectionObserver).toBe('undefined')
     render(<HowItWorksDemo />)
     for (const s of RAIL) expect(screen.getByTestId(`demo-step-${s.id}`)).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Play animation' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Replay animation' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /animation/i })).toBeNull()
+    expect(screen.getByTestId('how-demo').textContent).not.toMatch(/example/i)
     const current = screen.getByRole('button', { name: /Publish, current step/ })
     expect(current.getAttribute('aria-current')).toBe('step')
     expect(screen.getByTestId('demo-narration').textContent).toBe(NARRATION.publish)
@@ -212,35 +220,52 @@ describe('how it works demo', () => {
     expect(screen.getByTestId('demo-step-publish').getAttribute('aria-current')).toBeNull()
   })
 
-  it('puts the pause control before the moving stage, and it toggles play and pause', () => {
+  it('has no play controls and holds still while hovered or focused, showing a picked step finished', () => {
+    vi.useFakeTimers()
     setReduced(false)
     vi.stubGlobal('IntersectionObserver', OnScreenObserver)
     render(<HowItWorksDemo />)
-    const pause = screen.getByTestId('demo-play')
+    const demo = screen.getByTestId('how-demo')
     const stage = screen.getByTestId('demo-stage')
-    // Reached before the motion in reading order, so a phone does not scroll past it to stop it, and
-    // before the six step buttons, so it is the keyboard's first stop in the demo.
-    expect(pause.compareDocumentPosition(stage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(pause.compareDocumentPosition(screen.getByTestId('demo-step-import')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    // Autoplaying: the control offers Pause, and the narration stays quiet for screen readers.
-    expect(pause.getAttribute('aria-label')).toBe('Pause animation')
+    expect(screen.queryByTestId('demo-play')).toBeNull()
+    expect(screen.queryByTestId('demo-replay')).toBeNull()
+    // Autoplaying: the narration stays quiet for screen readers.
+    expect(demo.hasAttribute('data-paused')).toBe(false)
     expect(screen.getByTestId('demo-narration').getAttribute('aria-live')).toBe('off')
-    fireEvent.click(pause)
-    expect(pause.getAttribute('aria-label')).toBe('Play animation')
-    expect(pause.textContent).toContain('Play')
-    // Paused: nothing blinks, and what the person picks is announced.
+    fireEvent.mouseEnter(demo)
+    expect(demo.hasAttribute('data-paused')).toBe(true)
+    // Held: nothing blinks, and nothing advances.
     expect(stage.querySelector('.caret-blink')).toBeNull()
+    const before = screen.getByTestId('demo-narration').textContent
+    act(() => vi.advanceTimersByTime(20_000))
+    expect(screen.getByTestId('demo-narration').textContent).toBe(before)
+    // A step clicked while hovered lets go of the hover hold and runs from its start, announced.
+    const fix = screen.getByTestId('demo-step-fix')
+    fireEvent.mouseDown(fix)
+    fireEvent.focus(fix)
+    fireEvent.mouseUp(fix)
+    fireEvent.click(fix)
+    expect(screen.getByTestId('demo-narration').textContent).toBe(NARRATION.fix)
     expect(screen.getByTestId('demo-narration').getAttribute('aria-live')).toBe('polite')
-    fireEvent.click(pause)
-    expect(pause.getAttribute('aria-label')).toBe('Pause animation')
+    expect(demo.hasAttribute('data-paused')).toBe(false)
+    expect(stage.querySelector('.caret-blink')).not.toBeNull()
+    fireEvent.blur(fix)
+    fireEvent.mouseLeave(demo)
+    expect(demo.hasAttribute('data-paused')).toBe(false)
+    // Keyboard focus inside holds it too, and a step picked from the keyboard shows finished.
+    fireEvent.focus(screen.getByTestId('demo-step-draft'))
+    expect(demo.hasAttribute('data-paused')).toBe(true)
+    fireEvent.click(screen.getByTestId('demo-step-draft'))
+    expect(stage.textContent).toContain(DRAFT.description)
+    act(() => vi.advanceTimersByTime(20_000))
+    expect(screen.getByTestId('demo-narration').textContent).toBe(NARRATION.draft)
+    vi.useRealTimers()
   })
 
-  it('with reduced motion shows no play controls, never blinks and keeps every step viewable', () => {
+  it('with reduced motion never blinks and keeps every step viewable', () => {
     setReduced(true)
     vi.stubGlobal('IntersectionObserver', OnScreenObserver)
     render(<HowItWorksDemo />)
-    expect(screen.queryByTestId('demo-play')).toBeNull()
-    expect(screen.queryByTestId('demo-replay')).toBeNull()
     expect(screen.getByText(/Motion is off/)).toBeTruthy()
     fireEvent.click(screen.getByTestId('demo-step-fix'))
     expect(screen.getByTestId('demo-narration').textContent).toBe(NARRATION.fix)

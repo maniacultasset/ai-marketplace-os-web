@@ -5,7 +5,7 @@ import { useRef } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FinalCta } from './final-cta'
 import { HeroStage } from './hero-stage'
-import { BEATS, beatDelay, DRAFT_TITLE, ENTER, ENTER_READY_MS, FINAL, LAST, LOOP_MS, LOOP_START_MS, nextBeat, STORY, storyAt } from './hero-story'
+import { BEATS, beatDelay, CTA_SLIPS, DRAFT_TITLE, ENTER, ENTER_READY_MS, FINAL, HERO_PHOTO, LAST, LOOP_MS, LOOP_START_MS, nextBeat, STORY, storyAt } from './hero-story'
 import { HERO_EXAMPLE } from './model'
 
 const realMatchMedia = window.matchMedia
@@ -95,41 +95,77 @@ describe('hero story', () => {
 })
 
 describe('hero stage', () => {
-  it('is a labelled example with a screen reader summary, no links and Pause as its only control', () => {
+  it('is a named figure with a screen reader summary, no links and no controls', () => {
     setReduced(false)
     render(<Hero />)
     const fig = screen.getByTestId('hero-example')
     expect(fig.tagName).toBe('FIGURE')
-    expect(screen.getByText('Example')).toBeTruthy()
-    expect(screen.getByText(STORY.caption).id).toBe(fig.getAttribute('aria-labelledby'))
+    expect(fig.getAttribute('aria-label')).toBe(STORY.label)
+    // Nothing is labelled as an example: the visuals speak for themselves.
+    expect(fig.textContent).not.toMatch(/example/i)
+    expect(STORY.summary).not.toMatch(/example/i)
     expect(screen.getByText(STORY.summary).className).toContain('sr-only')
     // The white-background photo is proposed for the seller's approval, never done for them.
     expect(STORY.summary).toContain('main photo for you to approve')
     expect(screen.getByTestId('hero-stage').getAttribute('aria-hidden')).toBe('true')
     expect(screen.queryAllByRole('link')).toHaveLength(0)
-    expect(screen.getAllByRole('button')).toEqual([screen.getByTestId('hero-play')])
+    expect(screen.queryAllByRole('button')).toHaveLength(0)
     // No announcements on autoplay.
     expect(fig.querySelector('[aria-live]')).toBeNull()
     // The rail stays a real list.
     expect(screen.getByRole('list', { name: 'Marketplaces' })).toBeTruthy()
   })
 
-  it('puts Pause before the moving stage, and Pause/Play changes its label', () => {
+  it('shows the real product photo, sized up front, the white-background version first', () => {
+    vi.useFakeTimers()
     setReduced(false)
     vi.stubGlobal('IntersectionObserver', OnScreenObserver)
     render(<Hero />)
-    const toggle = screen.getByTestId('hero-play')
-    expect(toggle.compareDocumentPosition(screen.getByTestId('hero-stage')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(toggle.getAttribute('aria-label')).toBe('Pause animation')
-    expect(toggle.textContent).toBe('Pause')
-    fireEvent.click(toggle)
-    expect(toggle.getAttribute('aria-label')).toBe('Play animation')
-    expect(toggle.textContent).toBe('Play')
-    fireEvent.click(toggle)
-    expect(toggle.getAttribute('aria-label')).toBe('Pause animation')
+    const imgs = () => [...screen.getByTestId('hero-stage').querySelectorAll('img[src^="/landing/"]')]
+    // The entrance shows only the white-background photo; the studio shot mounts once the loop is near.
+    expect(imgs().map((i) => i.getAttribute('src'))).toEqual([HERO_PHOTO.white])
+    act(() => vi.advanceTimersByTime(ENTER_READY_MS))
+    expect(imgs().map((i) => i.getAttribute('src'))).toEqual([HERO_PHOTO.white, HERO_PHOTO.studio])
+    for (const img of imgs()) {
+      expect(img.getAttribute('width')).toBe(String(HERO_PHOTO.width))
+      expect(img.getAttribute('height')).toBe(String(HERO_PHOTO.height))
+      expect(img.getAttribute('srcset')).toMatch(/ 720w, .+ 1080w$/)
+      expect(img.getAttribute('loading')).toBeNull()
+    }
+    // High priority only where the photo is above the fold (lg up); matchMedia says no here.
+    expect(imgs()[0]!.getAttribute('fetchpriority')).toBe('auto')
+    expect(imgs()[0]!.getAttribute('alt')).toBe(STORY.photoAlt)
   })
 
-  it('loops while on screen, and Pause holds the beat until Play resumes it', () => {
+  it('never lays anything over the photo: the main photo state is a row in the facts', () => {
+    setReduced(true)
+    render(<Hero />)
+    const frame = screen.getByTestId('hero-stage').querySelector('img')!.parentElement!
+    expect(frame.children).toHaveLength(1)
+    const facts = screen.getByTestId('hero-stage').querySelector('dl')!.textContent
+    expect(facts).toContain(`${STORY.photoLabel}${STORY.photoStudio}${STORY.photoTag}${STORY.photoApproval}`)
+  })
+
+  it('does not hold for a click or a tap, only for a mouse hover or keyboard focus', () => {
+    vi.useFakeTimers()
+    setReduced(false)
+    vi.stubGlobal('IntersectionObserver', OnScreenObserver)
+    render(<Hero />)
+    const fig = screen.getByTestId('hero-example')
+    const paused = () => screen.getByTestId('hero-stage').hasAttribute('data-paused')
+    // A click focuses the figure; that alone is not a hold.
+    fireEvent.mouseDown(fig)
+    fireEvent.focus(fig)
+    fireEvent.mouseUp(fig)
+    expect(paused()).toBe(false)
+    fireEvent.blur(fig)
+    // A tap's emulated mouseenter is ignored too.
+    fireEvent.touchStart(fig)
+    fireEvent.mouseEnter(fig)
+    expect(paused()).toBe(false)
+  })
+
+  it('loops while on screen, and holds the beat while hovered or focused, then picks up again', () => {
     vi.useFakeTimers()
     setReduced(false)
     vi.stubGlobal('IntersectionObserver', OnScreenObserver)
@@ -144,12 +180,36 @@ describe('hero stage', () => {
     expect(beat()).toBe('0')
     act(() => vi.advanceTimersByTime(BEATS[1]!.at))
     expect(beat()).toBe('1')
-    fireEvent.click(screen.getByTestId('hero-play'))
+    const fig = screen.getByTestId('hero-example')
+    fireEvent.mouseEnter(fig)
+    expect(screen.getByTestId('hero-stage').hasAttribute('data-paused')).toBe(true)
     act(() => vi.advanceTimersByTime(LOOP_MS * 2))
     expect(beat()).toBe('1')
-    fireEvent.click(screen.getByTestId('hero-play'))
+    fireEvent.mouseLeave(fig)
     act(() => vi.advanceTimersByTime(BEATS[2]!.at - BEATS[1]!.at))
     expect(beat()).toBe('2')
+    // Focus holds it too (the figure is focusable for this), and blur lets it go.
+    expect(fig.getAttribute('tabindex')).toBe('0')
+    fireEvent.focus(fig)
+    act(() => vi.advanceTimersByTime(LOOP_MS))
+    expect(beat()).toBe('2')
+    fireEvent.blur(fig)
+    act(() => vi.advanceTimersByTime(BEATS[3]!.at - BEATS[2]!.at))
+    expect(beat()).toBe('3')
+  })
+
+  it('holds still while the tab is hidden', () => {
+    vi.useFakeTimers()
+    setReduced(false)
+    vi.stubGlobal('IntersectionObserver', OnScreenObserver)
+    render(<Hero />)
+    const hidden = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    act(() => vi.advanceTimersByTime(LOOP_MS))
+    expect(beat()).toBe(String(ENTER))
+    hidden.mockRestore()
   })
 
   it('does not play while it is off screen', () => {
@@ -164,12 +224,11 @@ describe('hero stage', () => {
     expect(beat()).toBe(String(ENTER))
   })
 
-  it('with reduced motion renders the finished listing at once, with no loop, ring, chips or toggle', () => {
+  it('with reduced motion renders the finished listing at once, with no loop, ring or chips', () => {
     vi.useFakeTimers()
     setReduced(true)
     vi.stubGlobal('IntersectionObserver', OnScreenObserver)
     render(<Hero />)
-    expect(screen.queryByTestId('hero-play')).toBeNull()
     expect(screen.queryAllByRole('button')).toHaveLength(0)
     expect(beat()).toBe('final')
     act(() => vi.advanceTimersByTime(LOOP_MS * 2))
@@ -207,8 +266,13 @@ describe('final call to action', () => {
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('List your next collection on Amazon, in your own voice.')
     expect(screen.getByRole('link', { name: 'Request access' }).getAttribute('href')).toBe('/signup')
     expect(screen.getByRole('link', { name: 'Check a request' }).getAttribute('href')).toBe('/signup/status')
-    // Three example slips, each ready to approve, and nothing that loops.
-    expect(cta.querySelectorAll('.cta-fan > li')).toHaveLength(3)
+    // Three listing slips, each with its real product photo and ready to approve, and nothing that loops.
+    const slips = cta.querySelectorAll('.cta-fan > li')
+    expect(slips).toHaveLength(3)
+    expect([...slips].map((li) => li.querySelector('img')!.getAttribute('src'))).toEqual(CTA_SLIPS.map((s) => s.photo))
+    for (const li of slips) expect(li.querySelector('img')!.getAttribute('loading')).toBe('lazy')
     expect(cta.textContent!.match(/Ready to approve/g)).toHaveLength(3)
+    // Nothing is labelled as an example.
+    expect(cta.textContent).not.toMatch(/example/i)
   })
 })

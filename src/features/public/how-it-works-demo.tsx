@@ -1,23 +1,21 @@
 /**
- * "See how it works": the landing page's How it works section as one example listing travelling the
- * workflow (import, draft, check, fix, approve, publish to Amazon), drawn with the real kit. It is
- * labelled as an example and is never app data.
+ * "See how it works": the landing page's How it works section as one listing travelling the
+ * workflow (import, draft, check, fix, approve, publish to Amazon), drawn with the real kit. It is a
+ * marketing illustration and never app data.
  *
  * Plays only while at least 40% of the moving card is on screen and the tab is visible, and loops
- * with a calm hold on Live. Pause and Replay sit in a toolbar above the step strip, so they are the
- * first stop for the keyboard and a phone reaches them before the motion. Pause freezes
- * everything, the caret included. The narration is announced
- * only after a person picks a step, pauses or replays, never on every autoplay beat. With reduced
+ * with a calm hold on Live. There are no visible play controls: it holds still by itself (WCAG
+ * 2.2.2) while a mouse is over the demo or keyboard focus is inside it, and the caret holds too. A
+ * step picked with a click runs from its start; one picked from the keyboard is shown finished. The narration is announced only after a person
+ * picks a step, never on every autoplay beat. With reduced
  * motion (or no IntersectionObserver) nothing autoplays: it shows the finished state, each step can
  * be viewed on its own and changes are short dissolves. Motion is transform and opacity only.
  */
-import { Pause, Play, RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { Icon, IconGlyph, IconTile } from '@/components/la/icons'
+import { Icon, IconTile } from '@/components/la/icons'
 import { MarketplaceTile } from '@/components/la/marketplace'
 import { SourceBadge } from '@/components/la/source-badge'
 import { CHIP_TONE, StatusChip, TagChip, type ChipStatus } from '@/components/la/status-chip'
-import { Button } from '@/components/ui/button'
 import { usePrefersReducedMotion } from '@/lib/use-media-query'
 import { cn } from '@/lib/utils'
 import {
@@ -42,6 +40,7 @@ import {
   type SceneId,
 } from './how-it-works-script'
 import { FINDING_LABEL, HERO_EXAMPLE, heroFindings } from './model'
+import { useHold, usePageVisible } from './use-loop-hold'
 
 /** Moves in with the spring; reduced motion keeps only the fade. */
 const SPRING = 'transition-[opacity,transform] duration-[var(--dur-spring)] ease-[var(--ease-spring)] motion-reduce:transform-none'
@@ -116,7 +115,8 @@ function CardField({ label, value, filled, scan, d, className }: { label: string
       <p className="relative text-caption font-bold text-ink-2">{label}</p>
       <div className="relative mt-0.5 grid">
         <span aria-hidden className={cn('col-start-1 row-start-1 mt-1.5 h-2.5 w-24 rounded-full bg-subtle transition-opacity duration-300', filled ? 'opacity-0' : 'opacity-100')} />
-        <span className={cn('col-start-1 row-start-1', arrive(filled, '-translate-y-3'))} style={delay(filled ? d : 0)}>
+        {/* The CSV row lights first; the field fills just after it, so the source always leads. */}
+        <span className={cn('col-start-1 row-start-1', arrive(filled, '-translate-y-3'))} style={delay(filled ? d + 160 : 0)}>
           {value}
         </span>
       </div>
@@ -285,51 +285,61 @@ function Stage({ pos, playing }: { pos: Pos; playing: boolean }) {
           <span className="max-sm:hidden">Listing · </span>
           {HERO_EXAMPLE.product}
         </span>
-        <TagChip tone="plain" className="ml-auto">
-          Example
-        </TagChip>
-        <span key={chip.label} className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-300">
+        <span key={chip.label} className="ml-auto motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-300">
           <StatusChip status={chip.status}>{chip.label}</StatusChip>
         </span>
       </div>
 
       <div className="flex flex-col gap-4 p-4 md:p-5">
         {/* Product card */}
-        <div className="rounded-xl border border-line bg-canvas p-2 shadow-inset-sm">
-          {/* Under sm the marketplace icons move down to the length row, so the SKU keeps its full width. */}
-          <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] items-start gap-1 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto]">
-            <CardField label="SKU" filled={filled} scan={scanField === 'sku'} d={0} value={<code className="font-mono text-[12.5px] font-medium text-ink">{DEMO.sku}</code>} />
-            <CardField label="Price" filled={filled} scan={scanField === 'price'} d={90} value={<span className="text-small font-semibold text-ink tabular-nums">{DEMO.price}</span>} />
-            <div className="flex gap-1 px-2 pt-2 max-sm:hidden" aria-hidden>
-              <MarketplaceTile id="amazon" size="sm" />
-              <MarketplaceTile id="flipkart" size="sm" />
-            </div>
-          </div>
-          <CardField
-            label="Title"
-            filled={filled}
-            scan={scanField === 'title'}
-            d={180}
-            className="mt-1"
-            value={
-              <div className="grid">
-                {/* Holds the height of the longest title so nothing below jumps while it shortens. */}
-                <p aria-hidden className="invisible col-start-1 row-start-1 text-small leading-5">
-                  {HERO_EXAMPLE.title}
-                </p>
-                <p className="col-start-1 row-start-1 text-small leading-5 text-ink">
-                  <TitleText head={t.head} tail={t.tail} caret={t.caret} markBanned={markBanned} markOverflow={markOverflow} playing={playing} />
-                </p>
-              </div>
-            }
+        <div className="flex gap-3 rounded-xl border border-line bg-canvas p-2 shadow-inset-sm">
+          {/* The hero's product photo, so the page shows one product from top to bottom. */}
+          <img
+            src={DEMO.photo}
+            alt=""
+            width={160}
+            height={200}
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+            className="mt-1.5 ml-1 h-20 w-16 shrink-0 rounded-md border border-line bg-photo-white object-cover max-sm:hidden"
           />
-          <div className={cn('mt-1 flex flex-wrap items-center gap-2 px-2.5 pb-1', arrive(filled))} style={delay(filled ? 260 : 0)}>
-            <CountChip len={len} judged={judged} />
-            <span className="text-caption text-ink-2">{judged ? 'Flipkart’s limit for kurta sets' : 'Title length'}</span>
-            <span className="ml-auto flex gap-1 sm:hidden" aria-hidden>
-              <MarketplaceTile id="amazon" size="xs" />
-              <MarketplaceTile id="flipkart" size="xs" />
-            </span>
+          <div className="min-w-0 flex-1">
+            {/* Under sm the marketplace icons move down to the length row, so the SKU keeps its full width. */}
+            <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] items-start gap-1 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto]">
+              <CardField label="SKU" filled={filled} scan={scanField === 'sku'} d={0} value={<code className="font-mono text-[12.5px] font-medium text-ink">{DEMO.sku}</code>} />
+              <CardField label="Price" filled={filled} scan={scanField === 'price'} d={90} value={<span className="text-small font-semibold text-ink tabular-nums">{DEMO.price}</span>} />
+              <div className="flex gap-1 px-2 pt-2 max-sm:hidden" aria-hidden>
+                <MarketplaceTile id="amazon" size="sm" />
+                <MarketplaceTile id="flipkart" size="sm" />
+              </div>
+            </div>
+            <CardField
+              label="Title"
+              filled={filled}
+              scan={scanField === 'title'}
+              d={180}
+              className="mt-1"
+              value={
+                <div className="grid">
+                  {/* Holds the height of the longest title so nothing below jumps while it shortens. */}
+                  <p aria-hidden className="invisible col-start-1 row-start-1 text-small leading-5">
+                    {HERO_EXAMPLE.title}
+                  </p>
+                  <p className="col-start-1 row-start-1 text-small leading-5 text-ink">
+                    <TitleText head={t.head} tail={t.tail} caret={t.caret} markBanned={markBanned} markOverflow={markOverflow} playing={playing} />
+                  </p>
+                </div>
+              }
+            />
+            <div className={cn('mt-1 flex flex-wrap items-center gap-2 px-2.5 pb-1', arrive(filled))} style={delay(filled ? 420 : 0)}>
+              <CountChip len={len} judged={judged} />
+              <span className="text-caption text-ink-2">{judged ? 'Flipkart’s limit for kurta sets' : 'Title length'}</span>
+              <span className="ml-auto flex gap-1 sm:hidden" aria-hidden>
+                <MarketplaceTile id="amazon" size="xs" />
+                <MarketplaceTile id="flipkart" size="xs" />
+              </span>
+            </div>
           </div>
         </div>
 
@@ -348,8 +358,8 @@ function Stage({ pos, playing }: { pos: Pos; playing: boolean }) {
                   'grid grid-cols-[minmax(0,0.9fr)_minmax(0,2fr)_minmax(0,0.6fr)] gap-3 px-3 py-1.5 text-ink',
                   SPRING,
                   'transition-[opacity,transform,background-color]',
+                  // The row stays as the source of the card above; it lights while it is read.
                   scene === 'import' && b === 1 && 'bg-brand-bg',
-                  scene === 'import' && b >= 2 ? '-translate-y-4 opacity-0 motion-reduce:opacity-40' : 'translate-y-0 opacity-100',
                 )}
               >
                 <span className="truncate">{DEMO.sku}</span>
@@ -449,7 +459,7 @@ function Stage({ pos, playing }: { pos: Pos; playing: boolean }) {
                   </ul>
                 </div>
                 <div className={cn('col-start-1 row-start-1 self-start', arrive(allPass, 'translate-y-2'), 'motion-fade')}>
-                  <PanelTitle aside={<TagChip tone="brand" className="gap-1"><Icon name="check" size={14} />Fixed for you</TagChip>}>Findings</PanelTitle>
+                  <PanelTitle aside={<TagChip className={cn('gap-1', CHIP_TONE.success)}><Icon name="check" size={14} />Fixed for you</TagChip>}>Findings</PanelTitle>
                   <div className="flex items-start gap-3 rounded-tile border border-success-line bg-success-tint p-3.5">
                     <IconTile icon="check" tone="ok" size="sm" />
                     <div>
@@ -631,7 +641,7 @@ function Rail({ current, progress, onPick, playing }: { current: SceneId; progre
           )}
           style={{ width: thumb.w, height: thumb.h, transform: `translate3d(${thumb.x}px, ${thumb.y}px, 0)` }}
         >
-          {/* How far the example has got through this step. */}
+          {/* How far the demo has got through this step. */}
           <span
             className={cn('absolute inset-x-3 bottom-1 h-[2px] origin-left rounded-full bg-brand', playing ? 'transition-transform duration-300 ease-linear' : 'transition-none')}
             style={{ transform: `scaleX(${progress})` }}
@@ -669,15 +679,15 @@ export function HowItWorksDemo() {
   const canObserve = typeof IntersectionObserver !== 'undefined'
   const autoplay = canObserve && !reduced
   const [pos, setPos] = useState<Pos>(() => (autoplay ? START : FINAL))
-  const [wantsPlay, setWantsPlay] = useState(autoplay)
-  // Autoplay narration stays silent for screen readers; once a person picks a step, pauses or
-  // replays, each step they reach is announced.
+  const { held, focusHeld, releaseHover, handlers } = useHold()
+  // Autoplay narration stays silent for screen readers; once a person picks a step, each step they
+  // reach is announced.
   const [userActed, setUserActed] = useState(false)
   const [inView, setInView] = useState(!canObserve)
-  const [pageVisible, setPageVisible] = useState(() => typeof document === 'undefined' || document.visibilityState !== 'hidden')
+  const pageVisible = usePageVisible()
   const root = useRef<HTMLDivElement>(null)
 
-  const playing = wantsPlay && inView && pageVisible && !reduced
+  const playing = autoplay && !held && inView && pageVisible
   const scene = SCENES[pos.scene] ?? 'import'
   // Reduced motion (even switched on mid-run) shows each step finished; nothing advances.
   const shown: Pos = reduced ? { scene: pos.scene, beat: LAST_BEAT[scene] } : pos
@@ -697,12 +707,6 @@ export function HowItWorksDemo() {
   }, [canObserve])
 
   useEffect(() => {
-    const on = () => setPageVisible(document.visibilityState !== 'hidden')
-    document.addEventListener('visibilitychange', on)
-    return () => document.removeEventListener('visibilitychange', on)
-  }, [])
-
-  useEffect(() => {
     if (!playing) return
     const id = window.setTimeout(() => setPos(advance), beatDelay(scene, pos.beat))
     return () => window.clearTimeout(id)
@@ -711,17 +715,12 @@ export function HowItWorksDemo() {
   const pick = (s: SceneId) => {
     const i = SCENES.indexOf(s)
     setUserActed(true)
-    // Playing: run the step from its start. Paused or reduced motion: show it finished.
-    setPos({ scene: i, beat: wantsPlay && !reduced ? 0 : LAST_BEAT[s] })
-  }
-  const togglePlay = () => {
-    setUserActed(true)
-    setWantsPlay((w) => !w)
-  }
-  const replay = () => {
-    setUserActed(true)
-    setPos(START)
-    setWantsPlay(true)
+    // A click asks to watch the step: it lets go of the hover hold and runs the step from its start.
+    // Keyboard focus keeps holding (the visitor is reading), so then, as with reduced motion or off
+    // screen, the step is shown finished.
+    const willPlay = autoplay && inView && pageVisible && !focusHeld
+    releaseHover()
+    setPos({ scene: i, beat: willPlay ? 0 : LAST_BEAT[s] })
   }
 
   const step = RAIL.find((r) => r.id === scene) ?? RAIL[0]!
@@ -729,36 +728,16 @@ export function HowItWorksDemo() {
   const progress = Math.min(1, shown.beat / LAST_BEAT[scene])
 
   return (
-    <figure ref={root} aria-labelledby="demo-caption" className="flex min-w-0 flex-col gap-3 md:gap-4" data-testid="how-demo">
-      {/* The controls come first, before the step strip and the moving card, so the keyboard and a
-          phone reach Pause before the motion. */}
-      <div className={cn('flex min-h-11 flex-wrap items-center gap-x-4 gap-y-2', !reduced && 'justify-between')}>
-        <p className="text-caption font-semibold text-ink-2 tabular-nums" aria-hidden>
-          Step {stepNo} of {SCENES.length}
-          <span className="font-normal text-ink-3"> · Example listing</span>
-        </p>
-        {reduced ? (
-          <p className="text-caption text-ink-2">Motion is off. Pick a step to see it.</p>
-        ) : (
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              className="min-h-11 lg:min-h-9"
-              onClick={togglePlay}
-              aria-label={wantsPlay ? 'Pause animation' : 'Play animation'}
-              data-testid="demo-play"
-            >
-              <IconGlyph icon={wantsPlay ? Pause : Play} size={16} />
-              {wantsPlay ? 'Pause' : 'Play'}
-            </Button>
-            <Button type="button" variant="ghost" className="min-h-11 lg:min-h-9" onClick={replay} aria-label="Replay animation" data-testid="demo-replay">
-              <IconGlyph icon={RotateCcw} size={16} />
-              Replay
-            </Button>
-          </div>
-        )}
-      </div>
+    <figure
+      ref={root}
+      aria-labelledby="demo-caption"
+      className="flex min-w-0 flex-col gap-3 md:gap-4"
+      data-testid="how-demo"
+      data-paused={playing ? undefined : ''}
+      {...handlers}
+    >
+      {/* The step count lives in the side panel; only reduced motion gets a note up here. */}
+      {reduced ? <p className="text-caption text-ink-2">Motion is off. Pick a step to see it.</p> : null}
 
       <Rail current={scene} progress={progress} onPick={pick} playing={playing} />
 
@@ -777,7 +756,7 @@ export function HowItWorksDemo() {
             <p className="text-[15px] leading-[1.55] text-ink-2">{step.body}</p>
           </div>
           <div className="border-t border-line pt-4">
-            <p className="text-caption font-bold text-ink-2">In this example</p>
+            <p className="text-caption font-bold text-ink-2">What happens</p>
             <p
               aria-live={playing && !userActed ? 'off' : 'polite'}
               aria-atomic="true"
@@ -790,9 +769,9 @@ export function HowItWorksDemo() {
         </div>
       </div>
 
-      <figcaption id="demo-caption" className="max-w-[70ch] text-caption text-ink-2">
-        An example listing, not real product data. Flipkart is shown so you can compare its rules with Amazon’s. Publishing to Flipkart is
-        not switched on yet.
+      {/* On the card's content edge, wrapped so no word is left alone on a line. */}
+      <figcaption id="demo-caption" className="max-w-[72ch] px-4 text-caption text-pretty text-ink-2 md:px-5">
+        Flipkart is shown so you can compare its rules with Amazon’s. Publishing to Flipkart is not switched on yet.
       </figcaption>
     </figure>
   )

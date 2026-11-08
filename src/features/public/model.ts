@@ -1,5 +1,5 @@
 /**
- * Pure data and logic for the public pages: the How it works example's findings, the honest
+ * Pure data and logic for the public pages: the How it works demo's findings, the honest
  * marketplace status, the live features, the sign-up status chip and the "what describes you" options.
  */
 import type { MarketplaceId } from '@/components/la/marketplace'
@@ -7,16 +7,18 @@ import type { ChipStatus } from '@/components/la/status-chip'
 import type { Schema } from '@/api/types'
 
 /**
- * The How it works example's finding. Marketing illustration, never app data. The limits and the banned
+ * The How it works demo's finding. Marketing illustration, never app data. The limits and the banned
  * term are the real seeded platform rules for kurta sets (backend
  * packages/schemas/fixtures/rules.seed.json: content.title max_length 200 on Amazon and 150 on
- * Flipkart; banned_terms includes "best" on both), so the example shows what the rules engine
+ * Flipkart; banned_terms includes "best" on both), so the demo shows what the rules engine
  * really answers. The character count is computed, never typed.
  */
 export const HERO_EXAMPLE = {
-  product: 'Example kurta set · Medium / Indigo',
+  /** The hero's kurta set (hero-story.ts STORY.product), in size Medium. */
+  product: 'Indigo floral print kurta set · Medium',
+  /** The hero's Amazon title as it came in the CSV: "Best" up front and extra detail at the end. */
   title:
-    "Best Women's Handloom Cotton Kurta Set with Straight Palazzo and Printed Dupatta, Indigo, Medium, Regular Fit, Three-Quarter Sleeves, Festive and Office Wear",
+    "Best Women's Floral Print Cotton Kurta Set with Straight Pants, Indigo, Medium, Regular Fit, Mandarin Collar, Three-Quarter Sleeves, Festive and Office Wear",
   limits: { amazon: 200, flipkart: 150 },
   bannedTerm: 'best',
 } as const
@@ -37,7 +39,7 @@ export interface HeroFinding {
   fix: string
 }
 
-/** The findings the seeded rules would raise on the example title, per marketplace. */
+/** The findings the seeded rules would raise on the demo title, per marketplace. */
 export function heroFindings(): HeroFinding[] {
   const len = heroTitleLength()
   const out: HeroFinding[] = []
@@ -71,6 +73,8 @@ export type MarketStage = 'live' | 'soon' | 'roadmap'
 export interface MarketStatus {
   ids: MarketplaceId[]
   name: string
+  /** A one-line name for the hero rail, where the full name is read by screen readers only. */
+  short?: string
   stage: MarketStage
   body: string
 }
@@ -96,6 +100,7 @@ export const MARKET_STATUS: readonly MarketStatus[] = [
   {
     ids: ['myntra', 'ajio', 'meesho', 'nykaa'],
     name: 'Myntra, AJIO, Meesho, Nykaa Fashion',
+    short: 'Myntra, AJIO and more',
     stage: 'roadmap',
     body: 'Planned after Flipkart, with no dates yet. Each will use the same catalog and approval step.',
   },
