@@ -1,7 +1,10 @@
 # Listing Agent — web
 
-The dashboard for Listing Agent. A brand's team adds products, the agent prepares Amazon and Flipkart
-listings, the rules engine checks them, and a person approves them before anything is published.
+The dashboard for Listing Agent (Kuinn): one place for a brand to list on every Indian marketplace.
+A brand's team adds each product once, the agent prepares a listing for each marketplace, the rules
+engine checks it against that marketplace's rules, and a person approves it before anything is
+published. Amazon is live, Flipkart is built but switched off, and Myntra, AJIO, Meesho and Nykaa
+Fashion are on the roadmap.
 
 Every screen reads from and writes to the backend API
 ([maniacultasset/ai-marketplace-os](https://github.com/maniacultasset/ai-marketplace-os)). There is no

@@ -61,8 +61,9 @@ export function MarketplaceTile({
   className,
 }: {
   id: MarketplaceId
-  /** xs 24 (inline in dense example rows), sm 28, md 36, big 44. */
-  size?: 'xs' | 'sm' | 'md' | 'big'
+  /** xs 24 (inline in dense example rows), sm 28, md 36, big 44, xl 64 (the landing's call-to-action
+   *  lockup). The icons are 128px, so 64 CSS px is the largest size that stays sharp: never larger. */
+  size?: 'xs' | 'sm' | 'md' | 'big' | 'xl'
   /** Not available to connect: flat, solid hairline, softened icon. The card or chip around it
    *  carries the dashed edge, so the tile never doubles it. Defaults to "not in the API". */
   unavailable?: boolean
@@ -84,6 +85,7 @@ export function MarketplaceTile({
         size === 'sm' && 'size-7 rounded-lg',
         size === 'md' && 'size-9 rounded-tile',
         size === 'big' && 'size-11 rounded-xl',
+        size === 'xl' && 'size-16 rounded-card',
         className,
       )}
     >
@@ -101,7 +103,7 @@ export function MarketplaceTile({
 }
 
 /** Tile + name, the standard way to name a marketplace in a row or card header. */
-export function MarketplaceName({ id, size, className }: { id: MarketplaceId; size?: 'xs' | 'sm' | 'md' | 'big'; className?: string }) {
+export function MarketplaceName({ id, size, className }: { id: MarketplaceId; size?: 'xs' | 'sm' | 'md' | 'big' | 'xl'; className?: string }) {
   return (
     <span className={cn('inline-flex min-w-0 items-center gap-3 font-semibold text-ink', className)}>
       <MarketplaceTile id={id} size={size} />

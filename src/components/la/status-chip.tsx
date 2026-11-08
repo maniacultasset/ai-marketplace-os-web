@@ -50,8 +50,9 @@ export const CHIP_TONE: Record<ChipMeta['tone'], string> = {
 const BASE =
   'inline-flex h-[22px] shrink-0 items-center gap-[5px] rounded-full border px-[9px] text-caption font-semibold whitespace-nowrap'
 
-export function Glyph({ status, className }: { status: ChipStatus; className?: string }) {
-  const g = CHIP_META[status].glyph
+/** `glyph` swaps the status's own glyph for another (the public pages' marketplace stages). */
+export function Glyph({ status, glyph, className }: { status: ChipStatus; glyph?: ReactNode; className?: string }) {
+  const g = glyph ?? CHIP_META[status].glyph
   return (
     <span aria-hidden className={cn('leading-none', g === '❚❚' ? 'text-[7px] tracking-[-1px]' : 'text-[10px]', className)}>
       {g}
@@ -69,9 +70,12 @@ export function StatusChip({
   children,
   iconOnly,
   label,
+  glyph,
   className,
 }: {
   status: ChipStatus
+  /** Replaces the status glyph (keep the meaning: one shape per stage). A string, or a small mark such as a spinner. */
+  glyph?: ReactNode
   /** Replaces the default word (keep it a word or a short count phrase). */
   children?: ReactNode
   iconOnly?: boolean
@@ -103,8 +107,8 @@ export function StatusChip({
     )
   }
   return (
-    <span data-status={status} className={cn(BASE, CHIP_TONE[meta.tone], className)}>
-      <Glyph status={status} />
+    <span data-status={status} className={cn(BASE, 'tabular-nums', CHIP_TONE[meta.tone], className)}>
+      <Glyph status={status} glyph={glyph} />
       {children ?? meta.label}
     </span>
   )

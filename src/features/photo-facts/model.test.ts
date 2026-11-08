@@ -16,9 +16,9 @@ const fact = (key: string, value: PhotoFact['value'], over: Partial<PhotoFact> =
 })
 
 const details = [
-  { image_id: IMG1, slot: 'main' as const, position: 0, status: 'ready', compliance_status: 'passed' as const },
-  { image_id: IMG2, slot: 'secondary' as const, position: 1, status: 'ready', compliance_status: 'passed' as const },
-  { image_id: IMG3, slot: 'secondary' as const, position: 2, status: 'ready', compliance_status: 'passed' as const },
+  { image_id: IMG1, slot: 'main' as const, position: 0, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' as const },
+  { image_id: IMG2, slot: 'secondary' as const, position: 1, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' as const },
+  { image_id: IMG3, slot: 'secondary' as const, position: 2, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' as const },
 ]
 
 describe('confidenceWords', () => {

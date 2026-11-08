@@ -44,7 +44,7 @@ import {
   type InboxSearch,
 } from './model'
 import { AccountTask } from './account-task'
-import type { ProductsById } from './api'
+import type { ProductsById, ProductSummary } from './api'
 import { Ago, CodeBlock, FixTrail, KeyValues } from './parts'
 
 /** The sentence the brief asks for, shown next to the disabled answer controls. */
@@ -167,7 +167,7 @@ function TaskDetail({
 }: {
   task: Task
   position: string | null
-  product?: { sku: string; title: string }
+  product?: ProductSummary
   /** The product is still on its first read: hold its line with a skeleton, never "One product". */
   productPending: boolean
   remaining: number
@@ -266,7 +266,7 @@ function TaskDetail({
               Confirm and continue
             </UnavailableButton>
           </div>
-          <TaskLinks task={task} />
+          <TaskLinks task={task} photoFixes={product?.photoFixes === true} />
           {remaining > 0 ? <p className="text-center text-small text-ink-3 lg:hidden">{remaining} more after this</p> : null}
         </>
       ) : (
@@ -280,7 +280,7 @@ function TaskDetail({
               Answered <Ago iso={task.answered_at} />.
             </p>
           ) : null}
-          <TaskLinks task={task} />
+          <TaskLinks task={task} photoFixes={product?.photoFixes === true} />
         </>
       )}
     </article>
@@ -334,7 +334,7 @@ function ReconnectTask({ task, remaining }: { task: Task; remaining: number }) {
   )
 }
 
-function TaskLinks({ task }: { task: Task }) {
+function TaskLinks({ task, photoFixes }: { task: Task; photoFixes: boolean }) {
   if (!task.product_id && !task.marketplace_account_id) return null
   return (
     <div className="flex flex-wrap gap-2">
@@ -346,7 +346,15 @@ function TaskLinks({ task }: { task: Task }) {
           </Link>
         </Button>
       ) : null}
-      {task.product_id ? (
+      {task.product_id && task.kind === 'image_replacement' && photoFixes ? (
+        // The product's Media tab holds the photo fixes (white background, framing).
+        <Button asChild variant="secondary" data-testid="task-open-photos">
+          <Link to="/products/$productId" params={{ productId: task.product_id }} search={{ tab: 'media' }}>
+            <Icon name="image" size={16} />
+            Fix the photo
+          </Link>
+        </Button>
+      ) : task.product_id ? (
         <Button asChild variant="secondary" data-testid="task-open-product">
           <Link to="/products/$productId" params={{ productId: task.product_id }}>
             Open product

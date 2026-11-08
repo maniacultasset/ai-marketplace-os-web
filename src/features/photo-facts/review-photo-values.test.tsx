@@ -36,7 +36,7 @@ const base: ProductDetail = {
     { key: 'fit', value: 'slim fit', confidence: 0.95, image_id: IMG, confirmed: false },
     { key: 'pattern', value: 'solid', confidence: 0.9, image_id: IMG, confirmed: true },
   ],
-  image_details: [{ image_id: IMG, slot: 'main', position: 0, status: 'ready', compliance_status: 'passed' }],
+  image_details: [{ image_id: IMG, slot: 'main', position: 0, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' }],
   etag: '"v1"',
 }
 

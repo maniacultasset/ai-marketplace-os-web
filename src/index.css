@@ -8,6 +8,39 @@
 @import "@fontsource-variable/dm-sans/opsz.css";
 @import "@fontsource-variable/bricolage-grotesque/opsz.css";
 
+/* Size-matched stand-ins, drawn while the web fonts load (font-display: swap). Arial scaled to each
+   face's width and line metrics, so the swap no longer reflows the page (it measured CLS 0.10 to
+   0.17 on the landing). Measured in Chrome against the latin opsz files: DM Sans 400 at 16px is
+   1.05x Arial's width (ascent 0.992, descent 0.310); Bricolage 700 at 56px is 0.962x Arial Bold's
+   (ascent 0.930, descent 0.270). The preloads for the two files are added at build (vite.config.ts). */
+@font-face {
+  font-family: "DM Sans Fallback";
+  src: local("Arial"), local("ArialMT"), local("Roboto");
+  font-weight: 100 500;
+  size-adjust: 105%;
+  ascent-override: 94.5%;
+  descent-override: 29.5%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "DM Sans Fallback";
+  src: local("Arial Bold"), local("Arial-BoldMT"), local("Roboto Bold"), local("Roboto-Bold");
+  font-weight: 600 1000;
+  size-adjust: 100.4%;
+  ascent-override: 98.8%;
+  descent-override: 30.9%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Bricolage Fallback";
+  src: local("Arial Bold"), local("Arial-BoldMT"), local("Roboto Bold"), local("Roboto-Bold");
+  font-weight: 100 1000;
+  size-adjust: 96.2%;
+  ascent-override: 96.7%;
+  descent-override: 28.1%;
+  line-gap-override: 0%;
+}
+
 /* The product UI is a fixed light theme (hi-fi "product UI kit"). `dark:` classes never apply. */
 @custom-variant dark (&:is(.dark *));
 
@@ -53,8 +86,8 @@
   --danger-ink: #7a1a11;
 
   /* type */
-  --font-display-family: "Bricolage Grotesque Variable", "Bricolage Grotesque", "DM Sans Variable", system-ui, sans-serif;
-  --font-ui-family: "DM Sans Variable", "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display-family: "Bricolage Grotesque Variable", "Bricolage Grotesque", "Bricolage Fallback", "DM Sans Variable", system-ui, sans-serif;
+  --font-ui-family: "DM Sans Variable", "DM Sans", "DM Sans Fallback", system-ui, -apple-system, "Segoe UI", sans-serif;
 
   /* radius */
   --radius-control: 8px;
@@ -104,8 +137,31 @@
   --dur-spring: 480ms;
   /* Press feedback lands on pointer-down, fast. */
   --dur-press: 90ms;
+  /* Public page motion (calm, no bounce): only transform and opacity move. Reveals fade over
+     --dur-fade and rise --rise over --dur-rise on the spring; siblings that arrive together are
+     --stagger apart (capped at 4 steps by use-reveal.ts); hover responses take --dur-hover. */
+  --dur-fade: 320ms;
+  --dur-rise: 440ms;
+  --rise: 12px;
+  --stagger: 60ms;
+  --dur-hover: 200ms;
+  /* The landing hero's own entrance and loop (hero-stage.tsx): calmer than the spring, no bounce.
+     The hero is the one place with a longer base duration and a wider stagger. */
+  --ease-out-calm: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-enter: 560ms;
+  --stagger-hero: 70ms;
+  /* The landing's one gradient exception: a neutral light field, surface fading into canvas, lit
+     from the top left like the matte shadows. Hero (full bleed) and the final call-to-action panel
+     only; flat under prefers-contrast: more (the hero-field utilities). Never coloured. The corner
+     variant is a raised surface with the canvas showing only in its far (bottom right) corner. */
+  --hero-field: radial-gradient(110% 80% at 12% 0%, var(--surface) 0%, var(--canvas) 58%);
+  --hero-field-corner: radial-gradient(120% 110% at 100% 100%, var(--canvas) 0%, var(--surface) 60%);
+  /* The white a cleaned main photo sits on (the marketplace's white background). */
+  --photo-white: #ffffff;
   /* Translucent chrome (sticky bars): canvas or surface at 78% with blur, content scrolls under. */
   --material-canvas: rgb(237 240 245 / 0.78);
+  /* Phones and touch screens: a lighter blur over a more solid fill, cheaper to draw while scrolling. */
+  --material-canvas-solid: rgb(237 240 245 / 0.9);
   --material-surface: rgb(251 252 253 / 0.8);
 
   /* icon tiles (raised squircles with a tinted fill) */
@@ -272,6 +328,7 @@
   --color-danger-bg: var(--danger-bg);
   --color-danger-line: var(--danger-line);
   --color-danger-ink: var(--danger-ink);
+  --color-photo-white: var(--photo-white);
 
   --radius-xs: 4px;
   --radius-sm: 5px;
@@ -287,6 +344,8 @@
   --radius-banner: 10px;
   /* md icon and monogram tiles, nav rows and inner rows: between a control (8) and a card (12). */
   --radius-tile: 10px;
+  /* The landing hero's stage tray and the final call-to-action panel only. */
+  --radius-stage: 24px;
 
   --shadow-sm: var(--shadow-raised-sm);
   --shadow-md: var(--shadow-raised-md);
@@ -434,6 +493,12 @@
       animation: none !important;
       opacity: 0.7;
     }
+    /* Changes that would otherwise cut hard (the demo's panels and findings) keep a short dissolve:
+       same layer as the rule above, so the class's higher specificity wins. */
+    .motion-fade {
+      transition-property: opacity !important;
+      transition-duration: 150ms !important;
+    }
   }
 }
 
@@ -522,17 +587,66 @@
     }
   }
 }
+/* A 44px tall touch target around a small inline link (an email or phone number in running text),
+   without changing how the line looks. */
+@utility hit-area {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    top: min(0px, calc((100% - 44px) / 2));
+    bottom: min(0px, calc((100% - 44px) / 2));
+    left: -4px;
+    right: -4px;
+  }
+}
+/* A data table that turns into stacked rows on phones: the header row is kept for screen readers,
+   and each cell after the first prints its column name (data-label) above its value. */
+@utility stack-table {
+  @media (max-width: 639px) {
+    & thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    & tr {
+      display: block;
+      padding: 12px 16px;
+    }
+    & td {
+      display: block;
+      padding: 0;
+    }
+    & td[data-label]::before {
+      content: attr(data-label);
+      display: block;
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 600;
+      color: var(--ink-3);
+    }
+  }
+}
 /* Material: a translucent sticky bar. Content scrolls under it; the hairline below only appears
    once something is underneath ([data-scrolled]), so at rest the bar is part of the page. */
 @utility material-bar {
   background-color: var(--material-canvas);
-  -webkit-backdrop-filter: blur(18px) saturate(170%);
-  backdrop-filter: blur(18px) saturate(170%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
   border-bottom: 1px solid transparent;
   transition: border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
   &[data-scrolled] {
     border-bottom-color: var(--line);
     box-shadow: 0 6px 16px -10px rgb(var(--shade) / 0.18);
+  }
+  @media (pointer: coarse), (max-width: 767px) {
+    background-color: var(--material-canvas-solid);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
   }
   @media (prefers-reduced-transparency: reduce) {
     background-color: var(--canvas);
@@ -574,36 +688,96 @@
   }
 }
 /* Reveal on scroll (src/lib/use-reveal.ts): only once the hook has marked the scope, an element
-   waits below and transparent (no transition, so it never animates out), then springs up when
-   it enters view. --d staggers siblings;
-   data-reveal="pop" also scales up from 98% (hero surfaces). */
-[data-reveal-scope] [data-reveal][data-shown] {
+   waits below and transparent (no transition, so it never animates out), then rises --rise into
+   place when it enters view. The hook sets --d (batch stagger, or a pinned data-reveal-delay) and,
+   once the transition is over, data-settled, which drops the reveal transition so the element's
+   own hover and state transitions run at their own speed. One pattern for every section: the H2,
+   then the lede, then top-level items. Never on nested elements. */
+[data-reveal-scope] [data-reveal][data-shown]:not([data-settled]) {
   transition:
-    opacity 420ms ease-out,
-    transform 640ms var(--ease-spring);
+    opacity var(--dur-fade) ease-out,
+    transform var(--dur-rise) var(--ease-spring);
   transition-delay: var(--d, 0ms);
 }
 [data-reveal-scope] [data-reveal]:not([data-shown]) {
   opacity: 0;
-  transform: translateY(16px);
+  transform: translateY(var(--rise));
 }
-[data-reveal-scope] [data-reveal="pop"]:not([data-shown]) {
-  transform: translateY(20px) scale(0.98);
+
+/* The landing's neutral light field (--hero-field). Flat canvas when more contrast is asked for. */
+@utility hero-field {
+  background-color: var(--canvas);
+  background-image: var(--hero-field);
+  @media (prefers-contrast: more) {
+    background-image: none;
+  }
 }
-/* A highlight drawn across a word (one flat fill growing left to right, never a gloss) once its
-   reveal has played. */
-[data-reveal-scope] [data-shown] mark[data-sweep],
-[data-reveal-scope] [data-shown][data-sweep] {
-  background-size: 100% 100%;
+@utility hero-field-corner {
+  background-color: var(--surface);
+  background-image: var(--hero-field-corner);
+  @media (prefers-contrast: more) {
+    background-image: none;
+  }
+}
+
+/* Hero stage (hero-stage.tsx). The live marketplace's dot gives one soft ring each time the
+   example turns ready. The element is remounted per ring, so the animation runs once per mount. */
+.hero-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  translate: -50% -50%;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0;
+  pointer-events: none;
+  animation: hero-ring 700ms var(--ease-out-calm) both;
+}
+/* A field chip carried from the record card to the Amazon card: in, across, out. --chip-dx and
+   --chip-dy are the trip for the current layout (across from md, down on phones). Remounted per trip. */
+.hero-chip {
+  opacity: 0;
+  animation: hero-chip var(--chip-dur, 600ms) var(--ease-out-calm) both;
+  animation-delay: var(--chip-delay, 0ms);
+}
+/* Final CTA (final-cta.tsx): three listing slips offset like a small pile. Never rotated, so the
+   text stays crisp. They rest offset; only inside a reveal scope do they wait stacked on the first
+   slip, then spread out once (70ms apart). */
+.cta-fan > * {
+  transform: translate(var(--x, 0px), var(--y, 0px));
+}
+[data-reveal-scope] .cta-fan:not([data-fanned]) > * {
+  transform: translateY(calc(var(--i, 0) * var(--stack, -76px)));
+}
+[data-reveal-scope] .cta-fan[data-fanned] > * {
+  transition: transform 520ms var(--ease-out-calm);
+  transition-delay: calc(var(--i, 0) * 70ms);
 }
 @media (prefers-reduced-motion: reduce) {
-  /* Fade only: nothing travels. The highlight is simply there. */
+  /* Fade only: nothing travels. The ring, the chips and the fan hold still. */
   [data-reveal-scope] [data-reveal]:not([data-shown]) {
     transform: none;
   }
-  mark[data-sweep] {
-    background-size: 100% 100% !important;
-    transition: none;
+  .hero-ring,
+  .hero-chip {
+    animation: none !important;
+  }
+  .cta-fan > *,
+  [data-reveal-scope] .cta-fan:not([data-fanned]) > * {
+    transform: translate(var(--x, 0px), var(--y, 0px)) !important;
+    transition: none !important;
+  }
+}
+
+/* A caret that blinks calmly (the demo's typing caret); the parent decides when it may blink. */
+.caret-blink {
+  animation: otp-caret 1.06s steps(1, end) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .caret-blink {
+    animation: none;
   }
 }
 
@@ -669,6 +843,34 @@ svg.lucide[stroke-width="2"] {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+@keyframes hero-ring {
+  from {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+
+@keyframes hero-chip {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  25% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--chip-dx, 0px), var(--chip-dy, 0px));
   }
 }
 

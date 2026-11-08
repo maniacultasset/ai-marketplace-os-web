@@ -4,8 +4,9 @@
  * retention: proposed, pending counsel), ADR-0018 (token envelope encryption with Cloud KMS),
  * ADR-0019 (sign-up reviewed by a person), core/passwords.py (argon2id), core/observability.py
  * (Sentry with send_default_pii=False and scrubbing), routers/auth.py (IP and user agent on
- * sign-in and refresh, IP only on sign-out), services/embeddings.py (the only model call today:
- * embeddings of the brand profile and documents; drafting is not built), LISTING-AGENT-ANALYSIS §2.8 (no credentials in prompts, signed image URLs
+ * sign-in and refresh, IP only on sign-out), ADR-0024 and core/config.py (LLM_GATEWAY=openrouter in
+ * production: drafting, photo reading, embeddings and image edits all go through OpenRouter with
+ * data collection denied), LISTING-AGENT-ANALYSIS §2.8 (no credentials in prompts, signed image URLs
  * ≤10 min), src/api/session.ts (refresh token in localStorage, access token in memory),
  * ADR-0023 and features/mfa/trusted-device.ts (trusted-browser token: localStorage here, a hash on
  * the server, 30 days or 7 for platform admins, removed with any password or authenticator change).
@@ -16,6 +17,7 @@ import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { PublicLayout } from '@/components/app/public-layout'
 import { COMPANY, COMPANY_ADDRESS } from './company'
+import { LegalContents } from './legal-contents'
 import { useDocumentTitle } from './use-document-title'
 
 /** A fact still to be supplied, impossible to miss on the page. */
@@ -27,12 +29,12 @@ export function Ph({ children }: { children: ReactNode }) {
   )
 }
 
-export const POLICY_UPDATED = '30 October 2026'
+export const POLICY_UPDATED = '8 November 2026'
 /** Named by the company: its director, who is also the legal and support contact in the Terms. */
 export const GRIEVANCE_OFFICER = 'Mukul Jasoria, Director'
 
 const Mail = () => (
-  <a href={`mailto:${COMPANY.email}`} className="font-semibold text-brand underline-offset-4 hover:underline">
+  <a href={`mailto:${COMPANY.email}`} className="hit-area font-semibold text-brand underline-offset-4 hover:underline">
     {COMPANY.email}
   </a>
 )
@@ -138,7 +140,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
         <p>
           The lawful basis for each purpose above is{' '}
           the consent you give when you request access and agree to our{' '}
-          <Link to="/terms" className="font-semibold text-brand underline-offset-4 hover:underline">
+          <Link to="/terms" className="hit-area font-semibold text-brand underline-offset-4 hover:underline">
             Terms and Conditions
           </Link>
           , and, where the law requires us to keep or share data, the legitimate uses in section 7 of the DPDP Act. You can
@@ -154,18 +156,26 @@ export const POLICY_SECTIONS: PolicySection[] = [
     body: (
       <>
         <p>
-          Today the only AI processing is turning your brand profile (tone of voice, guidelines, glossary) and the brand
-          documents you upload into text embeddings, so that drafts can later follow your brand. The embedding provider is
-          OpenAI (OpenAI, L.L.C.), which acts as our processor and handles this data in the United States.
-        </p>
-        <p>
-          AI drafting of titles, bullets, descriptions and attributes is in development and is not running yet. Before it
-          launches we will update this section with the model provider and what it receives. As designed, it will receive:
+          Kuinn uses AI to draft listings, read details from your product photos, and make white-background versions of
+          your main photo. Every AI request goes through OpenRouter (OpenRouter, Inc., United States), which acts as our
+          processor and forwards it to the model provider for that task. We send every request with data collection turned
+          off, so it is only routed to providers that do not store it for training or reuse.
         </p>
         <ul>
           <li>
-            the product facts and images needed for the listing and your brand profile. Images will be sent either as
-            downscaled copies or as signed links that expire within 10 minutes.
+            Listing drafts (titles, bullets, descriptions, attributes and keywords): DeepSeek models. They receive the
+            product facts needed for the listing and your brand profile.
+          </li>
+          <li>
+            Reading details from your photos: OpenAI models. They receive downscaled copies of your product photos.
+          </li>
+          <li>
+            White-background main images: Google Gemini models, served by Google. They receive a downscaled copy of the
+            main photo you choose to edit. You approve every result, and your original is kept.
+          </li>
+          <li>
+            Brand matching: your brand profile and brand documents are turned into text embeddings by OpenAI models, so
+            drafts follow your brand.
           </li>
         </ul>
         <p>In every case:</p>
@@ -179,8 +189,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
         </ul>
         <p>
           We do not use your data, or data from your connected marketplace accounts, to train or fine-tune AI models, and our
-          AI providers may not use it to train theirs. OpenAI does not train on data sent through its API, and keeps it for up
-          to 30 days only to detect abuse.
+          AI providers may not use it to train theirs.
         </p>
       </>
     ),
@@ -192,7 +201,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
       <>
         <p>We share data only with these service providers, and only for the purposes above:</p>
         <div className="my-4 max-w-full min-w-0 overflow-x-auto rounded-card border border-line bg-surface shadow-raised-md">
-          <table className="w-full min-w-[520px] text-left text-small">
+          <table className="stack-table w-full text-left text-small sm:min-w-[520px]">
             <thead className="bg-sunken text-ink-2">
               <tr>
                 <th className="px-4 py-2.5 font-semibold">Provider</th>
@@ -203,18 +212,33 @@ export const POLICY_SECTIONS: PolicySection[] = [
             <tbody className="divide-y divide-line text-ink">
               <tr>
                 <td className="px-4 py-2.5 font-semibold">Google Cloud</td>
-                <td className="px-4 py-2.5">Hosting (Cloud Run), database (Cloud SQL), file storage, key management (Cloud KMS), logs</td>
-                <td className="px-4 py-2.5">India, asia-south1 (Mumbai)</td>
+                <td data-label="What for" className="px-4 py-2.5">Hosting (Cloud Run), database (Cloud SQL), file storage, key management (Cloud KMS), logs</td>
+                <td data-label="Where" className="px-4 py-2.5">India, asia-south1 (Mumbai)</td>
               </tr>
               <tr>
-                <td className="px-4 py-2.5 font-semibold">OpenAI (OpenAI, L.L.C.)</td>
-                <td className="px-4 py-2.5">Text embeddings of your brand profile and brand documents (and, once launched, drafting listing content)</td>
-                <td className="px-4 py-2.5">United States</td>
+                <td className="px-4 py-2.5 font-semibold">OpenRouter (OpenRouter, Inc.)</td>
+                <td data-label="What for" className="px-4 py-2.5">Routes AI requests to the model providers below, with data collection turned off</td>
+                <td data-label="Where" className="px-4 py-2.5">United States</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-2.5 font-semibold">DeepSeek models, via OpenRouter</td>
+                <td data-label="What for" className="px-4 py-2.5">Drafting listing titles, bullets, descriptions, attributes and keywords</td>
+                <td data-label="Where" className="px-4 py-2.5">Outside India</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-2.5 font-semibold">OpenAI models (OpenAI, L.L.C.), via OpenRouter</td>
+                <td data-label="What for" className="px-4 py-2.5">Reading details from product photos; text embeddings of your brand profile and brand documents</td>
+                <td data-label="Where" className="px-4 py-2.5">United States</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-2.5 font-semibold">Google Gemini models, via OpenRouter</td>
+                <td data-label="What for" className="px-4 py-2.5">White-background versions of your main photo</td>
+                <td data-label="Where" className="px-4 py-2.5">Outside India</td>
               </tr>
               <tr>
                 <td className="px-4 py-2.5 font-semibold">Sentry (Functional Software, Inc.)</td>
-                <td className="px-4 py-2.5">Error monitoring</td>
-                <td className="px-4 py-2.5">Outside India, in Sentry’s hosting region</td>
+                <td data-label="What for" className="px-4 py-2.5">Error monitoring</td>
+                <td data-label="Where" className="px-4 py-2.5">Outside India, in Sentry’s hosting region</td>
               </tr>
             </tbody>
           </table>
@@ -272,7 +296,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
           period ends.
         </p>
         <div className="my-4 max-w-full min-w-0 overflow-x-auto rounded-card border border-line bg-surface shadow-raised-md">
-          <table className="w-full min-w-[520px] text-left text-small">
+          <table className="stack-table w-full text-left text-small sm:min-w-[520px]">
             <thead className="bg-sunken text-ink-2">
               <tr>
                 <th className="px-4 py-2.5 font-semibold">Data</th>
@@ -294,7 +318,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
               ].map(([what, how], i) => (
                 <tr key={i}>
                   <td className="px-4 py-2.5 font-semibold">{what}</td>
-                  <td className="px-4 py-2.5">{how}</td>
+                  <td data-label="Kept for" className="px-4 py-2.5">{how}</td>
                 </tr>
               ))}
             </tbody>
@@ -435,8 +459,8 @@ export function PrivacyPolicy() {
   useDocumentTitle('Privacy policy')
   return (
     <PublicLayout>
-      <div className="mx-auto max-w-[1200px] px-4 py-10 md:px-8 md:py-14">
-        <header className="max-w-[72ch]">
+      <div className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6 md:px-8 md:py-14 2xl:max-w-[1320px]">
+        <header className="max-w-[62ch]">
           <h1 className="font-display text-[clamp(2rem,4vw,2.75rem)] leading-[1.1] font-bold tracking-[-0.015em] text-ink">
             Privacy policy
           </h1>
@@ -444,30 +468,13 @@ export function PrivacyPolicy() {
             Last updated: {POLICY_UPDATED}. Applies to the Kuinn website, web app and API.
           </p>
         </header>
-        <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[220px_minmax(0,1fr)]">
-          <nav aria-label="On this page" className="lg:sticky lg:top-24 lg:self-start">
-            <details open className="group rounded-card border border-line bg-surface p-4 shadow-raised-sm lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
-              <summary className="cursor-pointer text-small font-bold text-ink lg:pointer-events-none lg:list-none">On this page</summary>
-              <ol className="mt-3 flex flex-col gap-1 text-small">
-                {POLICY_SECTIONS.map((s, i) => (
-                  <li key={s.id}>
-                    <a
-                      href={`#${s.id}`}
-                      className="tactile flex gap-2 rounded-control px-2 py-1.5 text-ink-2 hover:bg-hover hover:text-ink active:bg-pressed"
-                    >
-                      <span className="w-5 shrink-0 text-ink-3 tabular-nums">{i + 1}.</span>
-                      {s.title}
-                    </a>
-                  </li>
-                ))}
-              </ol>
-            </details>
-          </nav>
-          <article className="legal max-w-[72ch] text-[15px] leading-[1.65] text-ink">
+        <div className="mt-8 grid grid-cols-1 gap-8 lg:mt-10 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-14">
+          <LegalContents sections={POLICY_SECTIONS} number={(_, i) => `${i + 1}.`} />
+          <article className="legal min-w-0 max-w-[62ch] text-[15px] leading-[1.65] text-ink">
             {POLICY_SECTIONS.map((s, i) => (
               <section key={s.id} id={s.id} aria-labelledby={`${s.id}-h`} className="scroll-mt-24 border-t border-line pt-8 pb-4 first:border-t-0 first:pt-0">
                 <h2 id={`${s.id}-h`} className="text-h2 text-ink">
-                  <a href={`#${s.id}`} className="group/anchor no-underline">
+                  <a href={`#${s.id}`} className="group/anchor -my-[9px] inline-block py-[9px] no-underline">
                     <span className="mr-2 text-ink-3 tabular-nums">{i + 1}.</span>
                     {s.title}
                     <span aria-hidden className="ml-2 text-brand opacity-0 group-hover/anchor:opacity-100 group-focus-visible/anchor:opacity-100">
@@ -482,7 +489,7 @@ export function PrivacyPolicy() {
             ))}
             <p className="mt-8 border-t border-line pt-6 text-small text-ink-2">
               Questions? Write to <Mail />, or{' '}
-              <Link to="/" className="font-semibold text-brand underline-offset-4 hover:underline">
+              <Link to="/" className="hit-area font-semibold text-brand underline-offset-4 hover:underline">
                 go back to the home page
               </Link>
               .

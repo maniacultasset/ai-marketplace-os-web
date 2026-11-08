@@ -158,6 +158,8 @@ export function keysFor(tid: string) {
     images: {
       all: () => [...T, 'images'] as const,
       report: (imageId: string) => [...T, 'images', imageId, 'report'] as const,
+      /** GET /products/{id}/image-candidates (SI7). */
+      candidates: (productId: string) => [...T, 'images', 'candidates', productId] as const,
     },
     /** Platform-wide (not tenant data), kept under T so logout/tenant switch still clears it. */
     signups: {

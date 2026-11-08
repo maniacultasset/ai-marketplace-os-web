@@ -1,13 +1,13 @@
 /**
- * Pure data and logic for the public pages: the landing page's illustrative finding, the honest
- * marketplace status, the sign-up status chip and the "what describes you" options.
+ * Pure data and logic for the public pages: the How it works example's findings, the honest
+ * marketplace status, the live features, the sign-up status chip and the "what describes you" options.
  */
 import type { MarketplaceId } from '@/components/la/marketplace'
 import type { ChipStatus } from '@/components/la/status-chip'
 import type { Schema } from '@/api/types'
 
 /**
- * The hero's example finding. Marketing illustration, never app data. The limits and the banned
+ * The How it works example's finding. Marketing illustration, never app data. The limits and the banned
  * term are the real seeded platform rules for kurta sets (backend
  * packages/schemas/fixtures/rules.seed.json: content.title max_length 200 on Amazon and 150 on
  * Flipkart; banned_terms includes "best" on both), so the example shows what the rules engine
@@ -22,6 +22,12 @@ export const HERO_EXAMPLE = {
 } as const
 
 export const heroTitleLength = () => [...HERO_EXAMPLE.title].length
+
+/** Plain names for the rule codes on a marketing page; the code itself stays in a tooltip. */
+export const FINDING_LABEL: Record<HeroFinding['code'], string> = {
+  FIELD_TOO_LONG: 'Title too long',
+  BANNED_TERM: 'Banned word',
+}
 
 export interface HeroFinding {
   marketplace: 'amazon' | 'flipkart'
@@ -60,7 +66,7 @@ export function heroFindings(): HeroFinding[] {
   return out
 }
 
-export type MarketStage = 'in-setup' | 'pending' | 'later'
+export type MarketStage = 'live' | 'soon' | 'roadmap'
 
 export interface MarketStatus {
   ids: MarketplaceId[]
@@ -70,36 +76,61 @@ export interface MarketStatus {
 }
 
 /**
- * Honest marketplace status (FRONTEND-LIVE-HANDOVER.md §1: Amazon SP-API sandbox host until the
- * SP-API application is approved; analysis §1.1: Flipkart behind FLIPKART_ENABLED=false; the rest
- * are not in the API's `Marketplace` enum).
+ * Honest marketplace status. Amazon is connected in production (SP-API); Flipkart is built but its
+ * connection stays off (FLIPKART_ENABLED=false); the other four are not in the API's `Marketplace`
+ * enum yet, so they are roadmap only, with no date.
  */
 export const MARKET_STATUS: readonly MarketStatus[] = [
   {
     ids: ['amazon'],
     name: 'Amazon',
-    stage: 'in-setup',
-    body: 'Built on Amazon’s Selling Partner API. We are testing against Amazon’s sandbox until our SP-API application is approved, so listings are not sent to Amazon yet.',
+    stage: 'live',
+    body: 'Connect your seller account through Amazon’s Selling Partner API. Kuinn checks each listing against Amazon’s rules and sends it after your team approves.',
   },
   {
     ids: ['flipkart'],
     name: 'Flipkart',
-    stage: 'pending',
-    body: 'Built on Flipkart’s Seller API, with its own rules and category mapping. It stays switched off until our Flipkart access is confirmed.',
+    stage: 'soon',
+    body: 'The rules and category mapping are built. Publishing to Flipkart is not switched on yet.',
   },
   {
     ids: ['myntra', 'ajio', 'meesho', 'nykaa'],
     name: 'Myntra, AJIO, Meesho, Nykaa Fashion',
-    stage: 'later',
-    body: 'Not supported yet, and we have not set a date. Each one would be a new adapter behind the same rules and approval.',
+    stage: 'roadmap',
+    body: 'Planned after Flipkart, with no dates yet. Each will use the same catalog and approval step.',
   },
 ]
 
-export const STAGE_CHIP: Record<MarketStage, { status: ChipStatus; label: string }> = {
-  'in-setup': { status: 'working', label: 'In setup' },
-  pending: { status: 'paused', label: 'Pending' },
-  later: { status: 'not-listed', label: 'Later' },
+/**
+ * The chip for each stage. `glyph` replaces the status glyph on the public pages: a dotted ring for
+ * the roadmap (never a dash) and a half disc for "Next" (the paused bars read as stopped). Flipkart
+ * reads "Next" everywhere, to match "Flipkart is next."
+ */
+export const STAGE_CHIP: Record<MarketStage, { status: ChipStatus; label: string; short: string; glyph?: string }> = {
+  live: { status: 'live', label: 'Live', short: 'Live' },
+  soon: { status: 'paused', label: 'Next', short: 'Next', glyph: '◐' },
+  roadmap: { status: 'not-listed', label: 'On the roadmap', short: 'Roadmap', glyph: '◌' },
 }
+
+/** The stage of one marketplace, for the hero rail. */
+export function stageOf(id: MarketplaceId): MarketStage {
+  return MARKET_STATUS.find((m) => m.ids.includes(id))!.stage
+}
+
+export interface Benefit {
+  id: 'draft' | 'photos' | 'checks' | 'fixes' | 'images'
+  title: string
+  body: string
+}
+
+/** The landing's "What Kuinn does for your team" row. Only shipped features, no counts or rates. */
+export const BENEFITS: readonly Benefit[] = [
+  { id: 'draft', title: 'Written in your voice', body: 'Titles, bullets and descriptions follow your tone, your glossary and the words your brand avoids.' },
+  { id: 'photos', title: 'Read from your photos', body: 'Kuinn suggests product details from your images. You confirm each one before it is used.' },
+  { id: 'checks', title: 'Checked before you approve', body: 'Limits, required fields and banned words are checked for each marketplace before you approve.' },
+  { id: 'fixes', title: 'Fixed for you', body: 'Safe rule errors, like a title a few characters too long, are corrected on their own. You see each change marked “Fixed for you”.' },
+  { id: 'images', title: 'A clean white main image', body: 'Your main photo is turned into the white-background image marketplaces ask for. You approve it first.' },
+]
 
 export type SignupState = Schema<'SignupStatusOut'>['status']
 
