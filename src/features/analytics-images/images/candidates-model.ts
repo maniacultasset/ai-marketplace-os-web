@@ -44,10 +44,11 @@ export const FAILURE_COPY: Record<FailureReason, string> = {
   model_failed: 'Something went wrong. Try again later.',
   credit_used_up: 'AI credit used up.',
   budget: 'Daily AI image limit reached. Try tomorrow.',
+  source_changed: 'The photo changed since this was made. Try again.',
 }
 
 /** Failures worth a retry right away (the backend never caches them). */
-export const RETRYABLE: ReadonlySet<FailureReason> = new Set(['model_failed'])
+export const RETRYABLE: ReadonlySet<FailureReason> = new Set(['model_failed', 'source_changed'])
 
 export const AI_LIMIT_COPY = FAILURE_COPY.budget
 export const AI_OFF_COPY = 'AI image editing is switched off right now.'

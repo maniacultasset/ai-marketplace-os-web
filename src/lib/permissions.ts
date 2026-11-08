@@ -61,7 +61,7 @@ export const MATRIX: Readonly<Record<Role, ReadonlySet<Action>>> = {
  * `can(OP_ACTION['POST /issues/{issue_id}/dismiss'])`. Some are not obvious: dismissing an issue
  * needs `listing:approve`, cancelling a job needs `listing:generate`, a rules dry run needs
  * `listing:edit`, image upload needs `product:import`, brand documents upload/delete need
- * `settings:manage`.
+ * `settings:manage`, closing an account task needs `marketplace:connect` (owner, admin).
  */
 export const OP_ACTION = {
   'GET /auth/me': 'tenant:read',
@@ -93,6 +93,7 @@ export const OP_ACTION = {
   'GET /products': 'tenant:read',
   'GET /products/{product_id}': 'tenant:read',
   'PATCH /products/{product_id}': 'product:import',
+  'POST /products/{product_id}/recategorize': 'product:import',
   'POST /products': 'product:import',
   'POST /products/bulk': 'product:import',
   'GET /imports/{import_id}': 'tenant:read',
@@ -132,6 +133,7 @@ export const OP_ACTION = {
   'POST /issues/{issue_id}/dismiss': 'listing:approve',
   'GET /tasks': 'tenant:read',
   'POST /tasks/{task_id}/answer': 'product:import',
+  'POST /tasks/{task_id}/close': 'marketplace:connect',
   'GET /analytics': 'analytics:read',
   'GET /analytics/summary': 'analytics:read',
   'GET /admin/signup-requests': PLATFORM_ADMIN,
@@ -140,6 +142,8 @@ export const OP_ACTION = {
   'GET /admin/tenants': PLATFORM_ADMIN,
   'POST /admin/tenants/{target_tenant_id}/activate': PLATFORM_ADMIN,
   'POST /admin/tenants/{target_tenant_id}/extend-trial': PLATFORM_ADMIN,
+  'GET /admin/ai-credit': PLATFORM_ADMIN,
+  'POST /admin/ai-credit/resume': PLATFORM_ADMIN,
 } as const satisfies Record<string, Policy>
 
 /** Pure check. False for an unknown/absent role (a stale or forged role never grants anything). */

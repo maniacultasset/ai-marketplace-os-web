@@ -8,8 +8,12 @@
  *     sent, so the backend keeps them (listing_edit.py).
  *   - Approve all: the product's other listings that a multi-item approve accepts (`validated`).
  */
+import type { Schema } from '@/api/types'
 import { approveEligibility, type ApproveItem, type Listing, type RejectReason } from '@/features/listings/model'
 import { codePoints, CONTROL_MSG, hasStrayControlChars } from '@/lib/validation'
+
+type BatchResult = Schema<'BatchResult'>
+type ErrorItem = Schema<'ErrorItem'>
 
 export const FEEDBACK_MAX = 2000
 export const TITLE_MAX = 500
@@ -86,4 +90,16 @@ type Row = Pick<Listing, 'id' | 'status' | 'status_reason' | 'current_version_id
 /** "Approve all N": every listing of the product a batch approve would accept. Shown only for 2+. */
 export function approveAllTargets<T extends Row>(siblings: readonly T[]): T[] {
   return siblings.length > 1 ? approveEligibility(siblings).eligible : []
+}
+
+/**
+ * SI9: approve refuses a version the marketplace check blocks (per item 422 VALIDATION_FAILED with
+ * the blocking items). Returns those items for `listingId`, blocking first, or null when the item
+ * was not refused for that reason.
+ */
+export function approveBlockers(result: Pick<BatchResult, 'items'>, listingId: string): ErrorItem[] | null {
+  const item = result.items.find((i) => i.listing_id === listingId)
+  if (!item?.error || item.error.error_code !== 'VALIDATION_FAILED') return null
+  const items = item.error.errors ?? []
+  return [...items.filter((e) => e.severity === 'error'), ...items.filter((e) => e.severity !== 'error')]
 }

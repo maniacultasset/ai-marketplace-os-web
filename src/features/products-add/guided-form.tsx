@@ -59,8 +59,10 @@ import { ATTRIBUTE_KEY_SUGGESTIONS, ATTRIBUTE_TEXT_MAX, SKU_MAX, TITLE_MAX } fro
 import { categoryLabel } from '@/features/products/categories'
 import { CategorySelect } from '@/features/products/category-select'
 import { invalidateListingWork } from '@/features/listings/api'
-import { useSession } from '@/lib/auth'
+import { tenantName, useMe, useSession } from '@/lib/auth'
+import { AudienceSelect, BrandField } from '@/features/products/audience-fields'
 import { OP_ACTION, useCan } from '@/lib/permissions'
+import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
 import { useKeys } from '@/lib/query-keys'
 import { toast } from '@/lib/toast'
 import { focusFirstInvalid } from '@/lib/validation'
@@ -157,6 +159,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
   const keys = useKeys()
   const qc = useQueryClient()
   const can = useCan()
+  const aiPaused = useAiPaused()
   const { tenantId } = useSession()
   const draftKey = `${DRAFT_PREFIX}${tenantId ?? 'none'}`
   const [initial] = useState(() => readDraft(draftKey))
@@ -186,6 +189,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
   const [conflict, setConflict] = useState<Product | null>(null)
 
   const products = useAllProducts()
+  const storeName = tenantName(useMe().data)
   const brandCategories = useMemo(() => (products.data?.rows ?? []).map((p) => p.category), [products.data])
 
   // The brand's default manufacturer: every product inherits it unless it sets its own.
@@ -326,6 +330,9 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
     sizeChart: ['size_chart'],
     manufacturer: ['manufacturer'],
     ownManufacturer: ['manufacturer'],
+    gender: ['gender'],
+    ownBrand: ['brand_name'],
+    brandName: ['brand_name'],
   }
   const set = (patch: Partial<GuidedValues>) => {
     if ('sku' in patch) setConflict(null)
@@ -440,7 +447,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
       setPhase(null)
       return
     }
-    if (listOn.length && can('listing:generate')) {
+    if (listOn.length && can('listing:generate') && !aiPaused) {
       // The agent reads photos once their check has prepared them: wait for that (briefly), so
       // the first draft already has the photos.
       if (imagesRef.current.some((i) => i.stage.kind === 'done')) {
@@ -463,7 +470,9 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
       }
     } else {
       toast.success('Product saved', {
-        description: listOn.length ? 'Your role can’t start drafts. An owner or operator can.' : 'No marketplace was chosen, so no draft was started.',
+        description: listOn.length && aiPaused
+          ? 'AI drafting is paused, so no draft was started. Start it from the product once drafting is back.'
+          : listOn.length ? 'Your role can’t start drafts. An owner or operator can.' : 'No marketplace was chosen, so no draft was started.',
       })
     }
     setBusy(null)
@@ -476,7 +485,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
   const isPending = busy !== null
   const nextSection = SECTIONS[idx + 1]
   const phaseLabel = phase ? PHASE_LABEL(phase) : null
-  const sendLabel = busy === 'send' && phaseLabel ? phaseLabel : listOn.length ? 'Send to agent now' : 'Save product'
+  const sendLabel = busy === 'send' && phaseLabel ? phaseLabel : listOn.length && !aiPaused ? 'Send to agent now' : 'Save product'
 
   // Phones: the section list scrolls sideways; keep the current one in view. 'nearest' never moves the page.
   useEffect(() => {
@@ -540,6 +549,18 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               autoFocus
               className="md:col-span-2"
             />
+            <BrandField
+              id="g-brand_name"
+              own={values.ownBrand}
+              onOwnChange={(ownBrand) => set({ ownBrand })}
+              value={values.brandName}
+              onChange={(brandName) => set({ brandName })}
+              onBlur={() => touch('brand_name')}
+              defaultName={storeName}
+              error={errors.brand_name}
+              submitCount={submitCount}
+              className="md:col-span-2"
+            />
             <TextField
               id="g-style_number"
               label="Style number"
@@ -585,6 +606,13 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               onBlur={() => touch('category')}
               brandCategories={brandCategories}
               error={errors.category}
+              submitCount={submitCount}
+            />
+            <AudienceSelect
+              id="g-gender"
+              value={values.gender}
+              onChange={(gender) => set({ gender })}
+              error={errors.gender}
               submitCount={submitCount}
             />
           </div>

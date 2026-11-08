@@ -211,8 +211,23 @@ export interface ListingActionInput {
   validation?: Pick<ValidationSummary, 'passed' | 'listing_version_id'> | null
   can: (action: Action) => boolean
   maker?: MakerHint
+  /**
+   * SI10 `ListingDetail.can_approve` / `approve_hint`: the server's own maker-checker answer for
+   * this caller and version. When sent (not null) it wins over `maker`; absent on older backends.
+   */
+  canApprove?: boolean | null
+  approveHint?: ApproveHint | null
   /** BUILT['listings.publish']. */
   publishBuilt: boolean
+}
+
+export type ApproveHint = 'own_work' | 'no_other_approver' | 'not_approver'
+
+/** Why the server says this caller can't approve (SI10 `approve_hint`). */
+export const APPROVE_HINT_COPY: Record<ApproveHint, string> = {
+  own_work: 'You made this version, so a teammate approves it.',
+  no_other_approver: 'A teammate must approve this. Invite one in Team.',
+  not_approver: 'Your role doesn’t approve listings.',
 }
 
 const off = (reason?: string): ActionState => ({ show: true, enabled: false, reason })
@@ -224,7 +239,7 @@ const BUSY_REASON: Record<'generating' | 'publishing', string> = {
   publishing: 'Publishing is in progress. Try again when it finishes.',
 }
 
-export function listingActions({ listing, validation, can, maker, publishBuilt }: ListingActionInput): ListingActions {
+export function listingActions({ listing, validation, can, maker, canApprove, approveHint, publishBuilt }: ListingActionInput): ListingActions {
   const { status, status_reason: reason, current_version_id: current, approved_version_id: approved } = listing
   const busy = status === 'generating' || status === 'publishing' ? BUSY_REASON[status] : null
   const hasVersion = !!current && status !== 'created'
@@ -274,6 +289,8 @@ export function listingActions({ listing, validation, can, maker, publishBuilt }
         ? 'Approval needs a passing check on this version. Run checks first.'
         : 'Approval needs a passing check on this version. Ask an operator or owner to run checks.',
     )
+  else if (canApprove === false) approve = off(APPROVE_HINT_COPY[approveHint ?? 'own_work'])
+  else if (canApprove === true) approve = on
   else if (maker)
     approve = off(
       maker === 'edited'
@@ -391,6 +408,9 @@ export const ITEM_ERROR_COPY: Partial<Record<ErrorCode, string>> = {
   NOT_FOUND: 'Not found. It may have been removed.',
   BUDGET_EXCEEDED: 'The daily generation budget is spent. Try again later.',
   PERMISSION_DENIED: 'Your role can’t do this.',
+  VALIDATION_FAILED: 'The marketplace check found blocking issues. Fix them, then approve.',
+  AI_CREDIT_EXHAUSTED: 'AI drafting is paused. Your work is saved.',
+  AI_PROVIDER_KEY_INVALID: 'AI drafting is paused. Your work is saved.',
 }
 
 export interface BatchOutcome {

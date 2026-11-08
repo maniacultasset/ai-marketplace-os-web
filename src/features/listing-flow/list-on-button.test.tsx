@@ -2,7 +2,8 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
-const s = vi.hoisted(() => ({ flipkart: null as null | { status: string } }))
+const s = vi.hoisted(() => ({ flipkart: null as null | { status: string }, paused: false }))
+vi.mock('@/features/ai-credit/use-ai-paused', () => ({ useAiPaused: () => s.paused }))
 vi.mock('@/lib/permissions', () => ({ useCan: () => () => true }))
 vi.mock('./api', () => ({ useListOn: () => ({ start: vi.fn(), isPending: false }) }))
 vi.mock('@/features/marketplaces/api', () => ({
@@ -40,5 +41,13 @@ describe('ListOnButton', () => {
   it('Amazon can start a draft before it is connected', () => {
     view('amazon')
     expect((screen.getByTestId('list-on-amazon') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('waits with the reason while AI drafting is paused', () => {
+    s.paused = true
+    view('amazon')
+    expect(screen.getByTestId('list-on-amazon').getAttribute('aria-disabled')).toBe('true')
+    expect(screen.getByText(/AI drafting is paused. It starts again once AI is back/)).toBeTruthy()
+    s.paused = false
   })
 })

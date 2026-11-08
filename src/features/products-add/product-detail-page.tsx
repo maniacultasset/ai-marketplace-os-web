@@ -58,7 +58,7 @@ import {
   cellChip,
   firstListable,
   humanizeSlug,
-  attrText,
+  variantAxis,
   matrixKey,
   OVERALL_CHIP,
   overallStatus,
@@ -74,6 +74,10 @@ import { useProductEditSession, type ProductEditSession } from './product-edit-s
 import { manufacturerSource } from '@/features/products/edit-model'
 import { DETAIL_TABS, type DetailTab } from './detail-tabs'
 import { ProductThumb } from './products-page'
+import { marketplaceLink } from '@/features/listings/external-link'
+import { recategorizeState } from '@/features/products/recategorize'
+import { ChangeCategoryButton } from '@/features/products/recategorize-dialog'
+import { isNotBuyable, NOT_BUYABLE_NEXT } from '@/lib/listing-chip'
 
 const TAB_LABEL: Record<DetailTab, string> = {
   overview: 'Overview',
@@ -673,13 +677,21 @@ function MarketplaceCard({
       `${issues} open`
     )
   const live = l.marketplace_state === 'live' || l.marketplace_state === 'partially_live'
+  const notBuyable = isNotBuyable(l)
+  const link = live || notBuyable ? marketplaceLink(l) : null
   const busy = isBusy(l.status)
   const runJob = busy ? recallJob(l.id) : null
   const Frame = chip.status === 'needs-you' || chip.status === 'blocked' ? AttentionCard : LaCard
   const viewLive =
-    live && l.live_url ? (
-      <a href={l.live_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-brand hover:underline">
-        View live
+    link ? (
+      <a
+        href={link.href}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-1 font-semibold text-brand hover:underline"
+        data-testid={`marketplace-link-${id}`}
+      >
+        {link.idLabel ?? (live ? 'View live' : `Open on ${m.name}`)}
         <span className="sr-only"> (opens in a new tab)</span>
         <Icon name="external" size={14} />
       </a>
@@ -730,6 +742,11 @@ function MarketplaceCard({
           ) : null}
         </p>
       )}
+      {notBuyable && !busy ? (
+        <p className="mt-3 text-small text-pretty text-ink-2" data-testid={`not-buyable-${id}`}>
+          {id === 'amazon' ? NOT_BUYABLE_NEXT : `${m.name} has the product page but is not selling it yet.`}
+        </p>
+      ) : null}
       {busy ? (
         <p className="mt-3 flex items-center gap-2 text-small text-ink-2">
           <Spinner className="size-3.5 shrink-0 text-brand" aria-hidden />
@@ -806,7 +823,21 @@ function OverviewTab({ data, session, onEdit }: { data: DetailData; session: Pro
     <div className="flex flex-col gap-4">
       <MarketplaceCards data={data} />
       <div className="grid gap-4 lg:grid-cols-2">
-        <ProductDetailsCard product={data.product} isVariant={data.isVariant} isStyle={session.isStyle} variants={data.variants} source={session.source} onEdit={onEdit} />
+        <ProductDetailsCard
+          product={data.product}
+          isVariant={data.isVariant}
+          isStyle={session.isStyle}
+          variants={data.variants}
+          source={session.source}
+          onEdit={onEdit}
+          categoryAction={
+            // SI9: offered only by a backend that has it (its product read carries photo_read), to
+            // people who edit products, once the product has listings (before that, Edit changes it).
+            onEdit && 'photo_read' in data.product && !data.isVariant && !data.listingsPending && !data.listingsFailed ? (
+              <ChangeCategoryButton productId={data.product.id} current={data.product.category} state={recategorizeState(listingsIn(data))} />
+            ) : null
+          }
+        />
         <VariantStatusCard data={data} />
       </div>
     </div>
@@ -889,7 +920,7 @@ function VariantStatusCard({ data }: { data: DetailData }) {
           {matrix.loose.length ? (
             <ul className="mt-4 flex flex-wrap gap-1.5" aria-label="Variants" data-testid="variant-list">
               {matrix.loose.map((v) => {
-                const size = attrText(v, 'size')
+                const size = variantAxis(v, 'size')
                 return (
                   <li key={v.id}>
                     <Link to="/products/$productId" params={{ productId: v.id }} className="focus-ring inline-flex rounded-lg" aria-label={`${v.sku}${size ? `, size ${size}` : ''}`}>
@@ -910,11 +941,13 @@ function VariantStatusCard({ data }: { data: DetailData }) {
 }
 
 function VariantsTab({ data }: { data: DetailData }) {
+  // SI8 sends each variant's own colour (variant_attributes); older backends only the size.
+  const hasColour = data.variants.some((v) => variantAxis(v, 'color'))
   if (data.isVariant) return <VariantStatusCard data={data} />
   return (
     <LaCard pad="none" className="overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 p-5">
-        <CardHead title="Variants" sub="Each size and colour you make, as its own SKU. The colour is in each variant’s SKU." />
+        <CardHead title="Variants" sub={hasColour ? 'Each size and colour you make, as its own SKU.' : 'Each size and colour you make, as its own SKU. The colour is in each variant’s SKU.'} />
         <Can action="product:import">
           <Button variant="secondary" size="sm" asChild>
             <Link to="/add/variants" search={{ product: data.product.id }}>
@@ -934,6 +967,7 @@ function VariantsTab({ data }: { data: DetailData }) {
           <thead>
             <tr className="h-[38px] bg-sunken text-left text-caption font-bold text-ink-2">
               <th className="px-5">SKU</th>
+              {hasColour ? <th className="px-3">Colour</th> : null}
               <th className="px-3">Size</th>
               <th className="hidden px-3 sm:table-cell">Updated</th>
             </tr>
@@ -946,7 +980,8 @@ function VariantsTab({ data }: { data: DetailData }) {
                     {v.sku}
                   </Link>
                 </td>
-                <td className="px-3">{attrText(v, 'size') ?? '—'}</td>
+                {hasColour ? <td className="px-3">{variantAxis(v, 'color') ?? '—'}</td> : null}
+                <td className="px-3">{variantAxis(v, 'size') ?? '—'}</td>
                 <td className="hidden px-3 sm:table-cell">
                   <RelativeTime iso={v.updated_at} className="text-ink-2" />
                 </td>

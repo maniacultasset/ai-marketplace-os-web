@@ -16,7 +16,7 @@ import type { Listing, Submission } from '@/features/listings/model'
 
 export type ListingStatusOut = Schema<'ListingStatusOut'>
 
-export type ProofState = 'live' | 'unconfirmed' | 'partial' | 'waiting' | 'problem' | 'not-sent'
+export type ProofState = 'live' | 'unconfirmed' | 'partial' | 'not-buyable' | 'waiting' | 'problem' | 'not-sent'
 
 export interface Proof {
   state: ProofState
@@ -47,7 +47,7 @@ export function maskId(id: string): string {
 }
 
 export function liveProof(
-  listing: Pick<Listing, 'status' | 'marketplace_state' | 'live_url'>,
+  listing: Pick<Listing, 'status' | 'marketplace_state' | 'live_url'> & { external_id?: string | null },
   status: Pick<ListingStatusOut, 'status' | 'marketplace_state'> | null | undefined,
   submissionsNewestFirst: readonly Submission[],
 ): Proof {
@@ -57,7 +57,8 @@ export function liveProof(
   const liveSub = submissionsNewestFirst.find((s) => s.outcome === 'live') ?? null
   const confirmedAt = liveSub?.resolved_at ?? null
   const liveUrl = listing.live_url ?? null
-  const externalId = externalIdFromUrl(liveUrl)
+  // SI9 sends the marketplace's own ID; older backends only the link built from it.
+  const externalId = listing.external_id || externalIdFromUrl(liveUrl)
   const items = (liveSub ?? latest)?.items ?? []
   const variants = items.length ? { live: items.filter((i) => i.marketplace_state === 'live').length, total: items.length } : null
 
@@ -70,6 +71,8 @@ export function liveProof(
   if (!missing.length) state = 'live'
   else if (marketplaceState === 'live') state = 'unconfirmed'
   else if (marketplaceState === 'partially_live') state = 'partial'
+  // SI9: published + inactive is on the marketplace with its ID, but not buyable yet.
+  else if (marketplaceState === 'inactive' && listingStatus === 'published') state = 'not-buyable'
   else if (marketplaceState === 'rejected' || marketplaceState === 'removed' || marketplaceState === 'inactive' || listingStatus === 'failed')
     state = 'problem'
   else if (listingStatus === 'published' || listingStatus === 'publishing' || latest) state = 'waiting'

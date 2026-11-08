@@ -52,6 +52,7 @@ import {
 } from '@/features/products/barcode'
 import type { Schema } from '@/api/types'
 import { CONTROL_MSG, hasStrayControlChars } from '@/lib/validation'
+import { audienceServerMessage, brandNameProblem, GENDERS, type Gender } from '@/features/products/audience'
 
 export { skuProblem }
 
@@ -122,6 +123,11 @@ export interface GuidedValues {
   manufacturer: PartyDraft
   /** EAN, UPC or GTIN, or "No barcode (exempt)" (features/products/barcode.ts). */
   barcode: BarcodeDraft
+  /** SI8 audience (`gender`); '' = not chosen. */
+  gender: Gender | ''
+  /** SI8: lists under its own brand name (else the brand profile's). */
+  ownBrand: boolean
+  brandName: string
 }
 
 export const emptyGuided = (): GuidedValues => ({
@@ -138,6 +144,9 @@ export const emptyGuided = (): GuidedValues => ({
   ownManufacturer: false,
   manufacturer: emptyParty(),
   barcode: emptyBarcode(),
+  gender: '',
+  ownBrand: false,
+  brandName: '',
 })
 
 /**
@@ -163,6 +172,9 @@ export function reviveGuided(raw: Partial<GuidedValues> & { attrs?: Record<strin
     manufacturer: { ...base.manufacturer, ...(raw.manufacturer ?? {}) },
     ownManufacturer: raw.ownManufacturer === true,
     barcode: reviveBarcode(raw.barcode),
+    gender: raw.gender && (GENDERS as readonly string[]).includes(raw.gender) ? raw.gender : '',
+    ownBrand: raw.ownBrand === true,
+    brandName: typeof raw.brandName === 'string' ? raw.brandName : '',
   }
 }
 
@@ -181,7 +193,9 @@ export function isEmptyGuided(v: GuidedValues): boolean {
     sizeChartCount(v.sizeChart) === 0 &&
     !v.ownManufacturer &&
     !normalizeBarcode(v.barcode.value) &&
-    !v.barcode.exempt
+    !v.barcode.exempt &&
+    !v.gender &&
+    !v.ownBrand
   )
 }
 
@@ -228,6 +242,10 @@ export function validateGuided(v: GuidedValues): GuidedErrors {
     if (hasStrayControlChars(style)) e.style_number = CONTROL_MSG
     else if (codePoints(style) > 64) e.style_number = 'Shorten the style number to 64 characters or fewer.'
   }
+  if (v.ownBrand) {
+    const b = brandNameProblem(v.brandName)
+    if (b) e.brand_name = b
+  }
   for (const f of ATTR_FIELDS) {
     const p = textProblem(v.attrs[f.key] ?? '', f.label.toLowerCase(), ATTRIBUTE_TEXT_MAX)
     if (p) e[`attr.${f.key}`] = p
@@ -263,8 +281,8 @@ export function validateGuided(v: GuidedValues): GuidedErrors {
 
 /** The section an error key belongs to (to open it when a save fails). */
 export function sectionOfError(key: string): SectionId {
-  if (key === 'sku' || key === 'title' || key === 'style_number' || key === BARCODE_KEY) return 'identity'
-  if (key === 'category') return 'category'
+  if (key === 'sku' || key === 'title' || key === 'style_number' || key === 'brand_name' || key === BARCODE_KEY) return 'identity'
+  if (key === 'category' || key === 'gender') return 'category'
   if (key === 'mrp' || key === 'selling_price') return 'price'
   if (key.startsWith('size_chart')) return 'size'
   if (key === 'images') return 'media'
@@ -276,10 +294,12 @@ export function sectionOfError(key: string): SectionId {
 
 const WITHIN: readonly string[] = [
   'title',
+  'brand_name',
   'style_number',
   'sku',
   BARCODE_KEY,
   'category',
+  'gender',
   'attr.fabric_type',
   'composition',
   'attr.fiber_composition',
@@ -334,6 +354,8 @@ export function toProductCreate(v: GuidedValues, uploads?: { id: string; images:
   const body: ProductCreateBody = { sku: v.sku.trim(), title: v.title.trim(), category: v.category.trim(), attributes }
   const style = v.styleNumber.trim()
   if (style) body.style_number = style
+  if (v.gender) body.gender = v.gender
+  if (v.ownBrand && v.brandName.trim()) body.brand_name = v.brandName.trim()
   if (v.mrp.trim()) body.mrp = normalizeMoney(v.mrp)
   if (v.sellingPrice.trim()) body.selling_price = normalizeMoney(v.sellingPrice)
   const chart = toSizeChart(v.sizeChart)
@@ -465,11 +487,12 @@ export function mapCreateErrors(
       continue
     }
     if (key === 'images') msg = 'An image could not be attached. Remove it and add it again.'
+    if (key === 'brand_name' || key === 'gender') msg = audienceServerMessage(key, err.type, msg)
     if (isBarcodeErrorKey(key)) {
       key = BARCODE_KEY
       msg = barcodeServerMessage(err.type, v.barcode)
     }
-    const known = ['sku', 'title', 'category', 'style_number', 'mrp', 'selling_price', 'size_chart', 'images', BARCODE_KEY]
+    const known = ['sku', 'title', 'category', 'style_number', 'brand_name', 'gender', 'mrp', 'selling_price', 'size_chart', 'images', BARCODE_KEY]
     if (!(known.includes(key) || /^(attr|extra|size_chart|manufacturer)\./.test(key))) {
       unmapped = true
       continue

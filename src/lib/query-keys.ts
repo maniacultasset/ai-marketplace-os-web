@@ -172,6 +172,8 @@ export function keysFor(tid: string) {
       all: () => [...T, 'admin', 'tenants'] as const,
       list: (status: TenantStatus | null) => [...T, 'admin', 'tenants', { status }] as const,
     },
+    /** GET /admin/ai-credit (platform admins): the shared AI credit and its pause. */
+    aiCredit: () => [...T, 'admin', 'ai-credit'] as const,
   }
 }
 

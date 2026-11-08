@@ -13,6 +13,8 @@ import { draftClosedReason, draftOpen } from '@/features/marketplaces/meta'
 import { mapGenerateErrors } from '@/features/listings/generate-form'
 import type { Marketplace } from '@/features/listings/model'
 import { useCan } from '@/lib/permissions'
+import { AI_PAUSED_REASON, isAiPausedError } from '@/features/ai-credit/model'
+import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
 import { toastError } from '@/lib/toast'
 import { useListOn } from './api'
 import { mpName } from './format'
@@ -38,7 +40,16 @@ export function ListOnButton({
   const can = useCan()
   const listOn = useListOn()
   const accounts = useCurrentMarketplaceAccounts()
+  const paused = useAiPaused()
   if (!can('listing:generate')) return null
+  if (paused) {
+    const { size, variant, className } = props
+    return (
+      <UnavailableButton size={size} variant={variant} className={className} reason={AI_PAUSED_REASON} data-testid={`list-on-${marketplace}`}>
+        {`List on ${mpName(marketplace)}`}
+      </UnavailableButton>
+    )
+  }
   const connected = accounts.data ? (['amazon', 'flipkart'] as const).filter((m) => accounts.data.live[m]?.status === 'active') : null
   if (!draftOpen(marketplace, connected)) {
     // While the accounts load the button keeps its place, but can't start anything yet.
@@ -63,6 +74,8 @@ export function ListOnButton({
       onClick={() =>
         listOn.start(productId, marketplace, {
           onError: (e) => {
+            // The app-wide banner explains a pause; no toast.
+            if (isAiPausedError(e)) return
             const msg = generateRefusal(e)
             if (msg) toastError(e, msg)
             else toastError(e, `Couldn’t start the listing on ${mpName(marketplace)}`)

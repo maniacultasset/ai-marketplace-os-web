@@ -28,6 +28,8 @@ import { isCoarsePointer } from '@/lib/pointer'
 import { FORM_VALIDATION_MODE } from '@/lib/validation'
 import { AsideLink, AuthCard, AuthFrame, FormAlert } from './auth-frame'
 import { SignInSteps } from './sign-in-steps'
+import { SuspendedCard } from './suspended-card'
+import { isTenantSuspended } from './suspended'
 import { useSignInFlow } from './use-sign-in-flow'
 import { useDocumentTitle } from './use-document-title'
 
@@ -71,6 +73,8 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
   const [formError, setFormError] = useState<FormError | null>(() => (notice && notice !== 'google_unavailable' ? restartError(notice) : null))
   /** The email of this sign-in, for the password rules' name check. Never the password. */
   const [email, setEmail] = useState('')
+  /** 403 TENANT_SUSPENDED: the password was right, the brand is paused (its reference id). */
+  const [suspended, setSuspended] = useState<{ ref: string | null } | null>(null)
   const countdown = useCountdown()
   // With Google on, the Google button is the first control: no autofocus on Email, which would
   // show "Enter your email." to a keyboard user tabbing back to Google, or open the phone keyboard.
@@ -111,7 +115,10 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
         setFormError({ message: describeError(e), ref: null })
         return
       }
-      if (e.status === 401) {
+      if (isTenantSuspended(e)) {
+        form.resetField('password')
+        setSuspended({ ref: e.correlationId })
+      } else if (e.status === 401) {
         setFormError({ message: 'Email or password is incorrect.', detail: LOCKOUT, ref: e.correlationId })
         form.setFocus('password')
       } else if (e.status === 429) {
@@ -126,6 +133,8 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
       }
     }
   })
+
+  if (suspended) return <SuspendedCard reference={suspended.ref} onBack={() => setSuspended(null)} />
 
   if (step.kind !== 'credentials') {
     const startOver = () => {

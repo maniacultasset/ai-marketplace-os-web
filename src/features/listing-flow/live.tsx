@@ -23,6 +23,7 @@ import { useListing, useListingHistory, useListingSubmissions, useRefreshStatus 
 import { recallJob } from '@/features/listings/job-memory'
 import { contentAuthor, listingActions, MARKETPLACE_STATE_META, type ListingDetail } from '@/features/listings/model'
 import { useProduct } from '@/features/products/api'
+import { NOT_BUYABLE_NEXT } from '@/lib/listing-chip'
 import { useCan } from '@/lib/permissions'
 import { toast, toastError } from '@/lib/toast'
 import { cn } from '@/lib/utils'
@@ -69,6 +70,7 @@ const HERO: Record<Proof['state'], { tone: 'success' | 'danger' | 'neutral' }> =
   live: { tone: 'success' },
   unconfirmed: { tone: 'neutral' },
   partial: { tone: 'neutral' },
+  'not-buyable': { tone: 'neutral' },
   waiting: { tone: 'neutral' },
   problem: { tone: 'danger' },
   'not-sent': { tone: 'neutral' },
@@ -87,6 +89,11 @@ function heroCopy(p: Proof, title: string, mp: string): { title: string; line: s
       return {
         title: `${title} is only partly live on ${mp}`,
         line: `${mp} reports ${p.variants ? `${p.variants.live} of ${p.variants.total} variants live` : 'some variants live and others not'}. Open the checks to see which ones need attention.`,
+      }
+    case 'not-buyable':
+      return {
+        title: `${title} is live on ${mp}, not buyable yet`,
+        line: mp === 'Amazon' ? NOT_BUYABLE_NEXT : `${mp} has the product page but is not selling it yet. Check its seller portal, then check status here.`,
       }
     case 'waiting':
       return { title: `Waiting for ${mp} to confirm`, line: `Sent${p.sentAt ? ` at ${clock(p.sentAt)}` : ''}. ${mp} reports: ${MARKETPLACE_STATE_META[p.marketplaceState].label.toLowerCase()}.` }
@@ -164,10 +171,10 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
           </p>
         </div>
         <div className={cn('flex shrink-0 flex-wrap gap-2', reading && 'hidden')}>
-          {proof.state === 'live' && proof.liveUrl ? (
+          {(proof.state === 'live' || proof.state === 'not-buyable') && proof.liveUrl ? (
             <Button variant="secondary" asChild>
               <a href={proof.liveUrl} target="_blank" rel="noreferrer noopener" data-testid="view-live">
-                View live listing
+                {proof.state === 'live' ? 'View live listing' : `Open on ${mp}`}
                 <Icon name="arrow" size={14} />
               </a>
             </Button>

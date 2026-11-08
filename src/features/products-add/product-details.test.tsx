@@ -7,6 +7,7 @@ vi.mock('@/features/products/api', () => ({
   useUpdateProduct: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 vi.mock('@/lib/toast', () => ({ toast: { success: vi.fn(), info: vi.fn() } }))
+vi.mock('@/lib/auth', async (orig) => ({ ...(await orig<typeof import('@/lib/auth')>()), useMe: () => ({ data: undefined }) }))
 
 const { useProductEditSession } = await import('./product-edit-session')
 const { ProductDetailsEditor } = await import('./product-details')
@@ -27,7 +28,7 @@ const product: ProductDetail = {
   status: 'active',
   category: 'kurtas',
   created_at: 'x',
-  identifier_exemption: false,
+  identifier_exemption: false, brand_name_inherited: false,
   updated_at: 'x',
   attributes: {},
   attribute_literals: {},
@@ -98,5 +99,43 @@ describe('a style’s barcode exemption follows its variants', () => {
     expect(result.current.d.barcode.exempt).toBe(true)
     act(() => result.current.patch({ barcode: { ...result.current.d.barcode, exempt: true, touched: true } }))
     expect(result.current.dirty).toBe(true)
+  })
+})
+
+describe('SI8 and SI9 rows on the card', () => {
+  const card = async (p: ProductDetail, isVariant = false) => {
+    const { ProductDetailsCard } = await import('./product-details')
+    const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query')
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ProductDetailsCard product={p} isVariant={isVariant} source="brand" />
+      </QueryClientProvider>,
+    )
+  }
+
+  it('shows brand, audience and photo read when the backend sends them', async () => {
+    await card({
+      ...product,
+      brand_name: 'Rang Store',
+      brand_name_inherited: true,
+      gender: 'women',
+      photo_read: { status: 'read', at: '2026-11-08T10:00:00Z', written: 2, asked: 0 },
+    })
+    expect(screen.getByTestId('product-brand').textContent).toBe('Rang Store')
+    expect(screen.getByTestId('product-gender').textContent).toBe('Women')
+    expect(screen.getByTestId('photo-read').textContent).toContain('2 details filled.')
+  })
+
+  it('hides those rows on an older backend', async () => {
+    await card(product)
+    expect(screen.queryByTestId('product-brand')).toBeNull()
+    expect(screen.queryByTestId('product-gender')).toBeNull()
+    expect(screen.queryByTestId('photo-read')).toBeNull()
+  })
+
+  it('shows a variant’s own colour and size', async () => {
+    await card({ ...product, parent_product_id: 'p0', variant_attributes: { color: 'Navy', size: 'M' } }, true)
+    expect(screen.getByTestId('variant-axis-color').textContent).toBe('Navy')
+    expect(screen.getByTestId('variant-axis-size').textContent).toBe('M')
   })
 })

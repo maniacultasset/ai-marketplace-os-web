@@ -125,6 +125,7 @@ describe('create answers and errors', () => {
   it('has plain copy for every failure reason', () => {
     expect(FAILURE_COPY.budget).toBe('Daily AI image limit reached. Try tomorrow.')
     expect(FAILURE_COPY.too_small).toBe('Photo too small. Upload at least 800 px.')
-    expect(Object.keys(FAILURE_COPY)).toHaveLength(8)
+    expect(Object.keys(FAILURE_COPY)).toHaveLength(9)
+    expect(FAILURE_COPY.source_changed).toBe('The photo changed since this was made. Try again.')
   })
 })

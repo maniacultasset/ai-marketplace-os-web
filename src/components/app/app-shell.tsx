@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { AppSidebar } from './app-sidebar'
 import { CommandPaletteProvider } from './command-palette'
 import { UserMenu } from './user-menu'
+import { AiPausedBanner, TrialChip } from '@/features/ai-credit/shell-notices'
 
 const SIDEBAR_KEY = 'la.sidebar'
 export type Pref = 'open' | 'collapsed' | null
@@ -58,6 +59,7 @@ function TopBar({ title, onOpenMenu }: { title: string; onOpenMenu: () => void }
           {title}
         </p>
         <div className="ml-auto flex items-center gap-2 md:gap-3.5">
+          <TrialChip />
           <UserMenu />
         </div>
       </div>
@@ -122,6 +124,7 @@ export function AppShell() {
         <div className="flex min-w-0 flex-col">
           <TopBar title={title} onOpenMenu={() => setDrawer(true)} />
           <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
+            <AiPausedBanner />
             <Outlet />
           </main>
         </div>

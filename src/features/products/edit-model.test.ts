@@ -10,7 +10,7 @@ const product = (over: Partial<Schema<'ProductOut'>> = {}): Schema<'ProductOut'>
   status: 'active',
   category: 'kurtas',
   created_at: '2026-11-07T10:00:00Z',
-  identifier_exemption: false,
+  identifier_exemption: false, brand_name_inherited: false,
   updated_at: '2026-11-07T10:00:00Z',
   attributes: { fabric_type: 'Cotton', fiber_composition: '60% Cotton, 40% Polyester', occasion: 'Casual' },
   fiber_composition: [{ fibre: 'cotton', percent: 60 }, { fibre: 'polyester', percent: 40 }],
@@ -29,6 +29,21 @@ describe('product edit', () => {
     expect(d.composition).toEqual([{ fibre: 'Cotton', percent: '60' }, { fibre: 'Polyester', percent: '40' }])
     expect(d.ownManufacturer).toBe(false)
     expect(d.sizeChart.rows[0]).toEqual({ ...emptySizeRow('M'), chest: '40' })
+  })
+
+  it('edits audience and brand only on a backend that sends them (SI8)', () => {
+    const old = toEditDraft(product())
+    expect(old.hasAudience).toBe(false)
+    expect(buildPatch(old, { ...old, gender: 'men' }, false)).toEqual({})
+    const base = toEditDraft(product({ gender: null, brand_name: 'Store', brand_name_inherited: true }))
+    expect(base).toMatchObject({ hasAudience: true, ownBrand: false, brandName: '' })
+    expect(buildPatch(base, { ...base, gender: 'men' }, false)).toEqual({ gender: 'men' })
+    expect(buildPatch(base, { ...base, ownBrand: true, brandName: 'Rang' }, false)).toEqual({ brand_name: 'Rang' })
+    const own = toEditDraft(product({ gender: 'women', brand_name: 'Rang', brand_name_inherited: false }))
+    expect(buildPatch(own, { ...own, ownBrand: false }, false)).toEqual({ brand_name: null })
+    expect(buildPatch(own, { ...own, gender: '' }, false)).toEqual({ gender: null })
+    // Style level: never from a variant.
+    expect(buildPatch(own, { ...own, gender: 'men' }, true)).toEqual({})
   })
 
   it('sends nothing when nothing changed (money compared by value)', () => {
