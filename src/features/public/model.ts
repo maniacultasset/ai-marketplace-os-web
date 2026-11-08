@@ -60,7 +60,7 @@ export function heroFindings(): HeroFinding[] {
   return out
 }
 
-export type MarketStage = 'in-setup' | 'pending' | 'later'
+export type MarketStage = 'live' | 'soon' | 'roadmap'
 
 export interface MarketStatus {
   ids: MarketplaceId[]
@@ -70,36 +70,57 @@ export interface MarketStatus {
 }
 
 /**
- * Honest marketplace status (FRONTEND-LIVE-HANDOVER.md §1: Amazon SP-API sandbox host until the
- * SP-API application is approved; analysis §1.1: Flipkart behind FLIPKART_ENABLED=false; the rest
- * are not in the API's `Marketplace` enum).
+ * Honest marketplace status. Kuinn's aim is every marketplace Indian brands sell on, added one at
+ * a time behind the same rules and approval step. Amazon is connected in production (SP-API);
+ * Flipkart is built but its connection stays off (FLIPKART_ENABLED=false); the other four are not
+ * in the API's `Marketplace` enum yet, so they are roadmap only, with no date.
  */
 export const MARKET_STATUS: readonly MarketStatus[] = [
   {
     ids: ['amazon'],
     name: 'Amazon',
-    stage: 'in-setup',
-    body: 'Built on Amazon’s Selling Partner API. We are testing against Amazon’s sandbox until our SP-API application is approved, so listings are not sent to Amazon yet.',
+    stage: 'live',
+    body: 'Connect your seller account through Amazon’s Selling Partner API. Kuinn checks each listing against Amazon’s rules and sends it once your team approves.',
   },
   {
     ids: ['flipkart'],
     name: 'Flipkart',
-    stage: 'pending',
-    body: 'Built on Flipkart’s Seller API, with its own rules and category mapping. It stays switched off until our Flipkart access is confirmed.',
+    stage: 'soon',
+    body: 'Built on Flipkart’s Seller API, with its own rules and category mapping. The connection stays switched off until our Flipkart access is confirmed.',
   },
   {
     ids: ['myntra', 'ajio', 'meesho', 'nykaa'],
     name: 'Myntra, AJIO, Meesho, Nykaa Fashion',
-    stage: 'later',
-    body: 'Not supported yet, and we have not set a date. Each one would be a new adapter behind the same rules and approval.',
+    stage: 'roadmap',
+    body: 'Next on the roadmap, with no date set yet. Each one joins behind the same product record, the same rules and the same approval step.',
   },
 ]
 
 export const STAGE_CHIP: Record<MarketStage, { status: ChipStatus; label: string }> = {
-  'in-setup': { status: 'working', label: 'In setup' },
-  pending: { status: 'paused', label: 'Pending' },
-  later: { status: 'not-listed', label: 'Later' },
+  live: { status: 'live', label: 'Live' },
+  soon: { status: 'paused', label: 'Coming soon' },
+  roadmap: { status: 'not-listed', label: 'On the roadmap' },
 }
+
+/** The stage of one marketplace, for the hero strip. */
+export function stageOf(id: MarketplaceId): MarketStage {
+  return MARKET_STATUS.find((m) => m.ids.includes(id))!.stage
+}
+
+export interface Benefit {
+  id: 'draft' | 'photos' | 'checks' | 'fixes' | 'images'
+  title: string
+  body: string
+}
+
+/** The landing's "What Kuinn does for you" row. Only shipped features, no counts or rates. */
+export const BENEFITS: readonly Benefit[] = [
+  { id: 'draft', title: 'Listings in your brand’s voice', body: 'Title, bullets, description and keywords, drafted from your product facts.' },
+  { id: 'photos', title: 'Details read from your photos', body: 'Attributes suggested from your product images. You confirm each one.' },
+  { id: 'checks', title: 'Every field checked first', body: 'Each marketplace’s limits, required fields and banned terms, checked before you approve.' },
+  { id: 'fixes', title: 'Safe errors fixed for you', body: 'Small rule errors are corrected on their own and marked “Fixed for you”.' },
+  { id: 'images', title: 'Main photos on clean white', body: 'Your main photo, turned into a clean white-background image. You approve it.' },
+]
 
 export type SignupState = Schema<'SignupStatusOut'>['status']
 

@@ -33,7 +33,8 @@ export interface RailStep {
   title: string
   body: string
   icon: IconSource
-  inDevelopment?: true
+  /** On the rail but not played: this example checks a title written by hand. */
+  notInExample?: true
 }
 
 /** The rail. The five landing cards keep their words; Fix is the step between a finding and approval. */
@@ -43,8 +44,8 @@ export const RAIL: readonly RailStep[] = [
     id: 'generate',
     icon: 'spark',
     title: 'Generate',
-    body: 'The agent will draft the title, bullets, description and attributes in your brand’s voice.',
-    inDevelopment: true,
+    body: 'The agent drafts the title, bullets, description and attributes in your brand’s voice.',
+    notInExample: true,
   },
   { id: 'validate', icon: CONCEPT_ICON.rules, title: 'Validate', body: 'A rules engine written as code checks every field against each marketplace’s limits. No model decides pass or fail.' },
   { id: 'fix', icon: CONCEPT_ICON.edit, title: 'Fix', body: 'A person edits the field a rule flagged, then the same rules check the new text again.' },
@@ -59,7 +60,7 @@ const fixedLen = [...FIXED_TITLE].length
 
 /** What the example shows at each step, read out politely once per step. */
 export const NARRATION: Record<SceneId, string> = {
-  import: `A row from ${DEMO.file} becomes one product with its SKU, title and price. Generate is skipped because drafting is in development.`,
+  import: `A row from ${DEMO.file} becomes one product with its SKU, title and price. Generate is skipped here: this example checks a title written by hand.`,
   validate: `The rules check each field. The title is ${fullLen} characters, over Flipkart’s ${LIMIT}, and it uses the banned word “Best”.`,
   fix: `${DEMO.editor} removes “Best” and moves the sleeve length and occasion out of the title. At ${fixedLen} characters, every check passes.`,
   approve: `${DEMO.approver} approves it. ${DEMO.editor} edited the listing, so the approval has to come from someone else.`,

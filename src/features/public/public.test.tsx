@@ -4,8 +4,10 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { MARKETPLACES } from '@/components/la/marketplace'
 import { HeroFinding } from './hero-finding'
 import { HowItWorksDemo } from './how-it-works-demo'
+import { Benefits } from './benefits'
+import { MarketplaceStrip } from './marketplace-strip'
 import { advance, checksAt, FINAL, FIX_BEATS, FIX_HEAD, FIX_TAIL, FIXED_TITLE, fixedText, LAST_BEAT, LIMIT, NARRATION, RAIL, SCENES, START } from './how-it-works-script'
-import { DESCRIBES_YOU, HERO_EXAMPLE, heroFindings, heroTitleLength, MARKET_STATUS, signupChip, STAGE_CHIP } from './model'
+import { DESCRIBES_YOU, HERO_EXAMPLE, heroFindings, heroTitleLength, BENEFITS, MARKET_STATUS, signupChip, STAGE_CHIP, stageOf } from './model'
 import { Ph, POLICY_SECTIONS } from './privacy-policy'
 import { LEGAL_EMAIL, TERMS_SECTIONS } from './terms'
 
@@ -45,14 +47,46 @@ describe('hero example (seeded kurta-set rules)', () => {
 })
 
 describe('marketplace status', () => {
-  it('never claims a marketplace is live', () => {
-    for (const m of MARKET_STATUS) expect(STAGE_CHIP[m.stage].status).not.toBe('live')
+  it('covers every marketplace the product shows, once', () => {
+    const ids = MARKET_STATUS.flatMap((m) => m.ids)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect([...ids].sort()).toEqual(MARKETPLACES.map((m) => m.id).sort())
   })
-  it('puts Amazon in setup, Flipkart pending and every unsupported marketplace under Later', () => {
-    const stageOf = (id: string) => MARKET_STATUS.find((m) => m.ids.includes(id as never))?.stage
-    expect(stageOf('amazon')).toBe('in-setup')
-    expect(stageOf('flipkart')).toBe('pending')
-    for (const m of MARKETPLACES.filter((x) => !x.supported)) expect(stageOf(m.id)).toBe('later')
+  it('marks only Amazon live, Flipkart coming soon and every unsupported marketplace as roadmap', () => {
+    expect(stageOf('amazon')).toBe('live')
+    expect(stageOf('flipkart')).toBe('soon')
+    for (const m of MARKETPLACES.filter((x) => !x.supported)) expect(stageOf(m.id)).toBe('roadmap')
+    expect(MARKET_STATUS.filter((m) => STAGE_CHIP[m.stage].status === 'live').flatMap((m) => m.ids)).toEqual(['amazon'])
+  })
+})
+
+describe('benefits', () => {
+  afterEach(cleanup)
+  it('shows the five live features with short titles and one line each', () => {
+    expect(BENEFITS.map((b) => b.id)).toEqual(['draft', 'photos', 'checks', 'fixes', 'images'])
+    for (const b of BENEFITS) {
+      const words = b.title.split(/\s+/).length
+      expect(words).toBeGreaterThanOrEqual(3)
+      expect(words).toBeLessThanOrEqual(6)
+      expect(b.body).not.toMatch(/in development|coming soon|will /i)
+      expect(b.body).not.toMatch(/\d/)
+    }
+    const { container } = render(<Benefits />)
+    expect(container.querySelectorAll('li')).toHaveLength(BENEFITS.length)
+    expect(screen.getByTestId('benefit-fixes').textContent).toContain('Fixed for you')
+  })
+})
+
+describe('marketplace strip', () => {
+  afterEach(cleanup)
+  it('names all six marketplaces with their own stage and keeps only Amazon in full colour', () => {
+    const { container } = render(<MarketplaceStrip />)
+    expect(container.querySelectorAll('li')).toHaveLength(MARKETPLACES.length)
+    expect(screen.getByTestId('strip-amazon').textContent).toBe('Amazon●Live')
+    expect(screen.getByTestId('strip-flipkart').textContent).toContain('Coming soon')
+    for (const id of ['myntra', 'ajio', 'meesho', 'nykaa']) expect(screen.getByTestId(`strip-${id}`).textContent).toContain('On the roadmap')
+    const muted = [...container.querySelectorAll('[data-slot="marketplace-tile"][data-muted]')].map((t) => t.getAttribute('data-marketplace'))
+    expect(muted).toEqual(['flipkart', 'myntra', 'ajio', 'meesho', 'nykaa'])
   })
 })
 
@@ -120,9 +154,11 @@ describe('how it works demo: script', () => {
     expect(seen).toEqual([...SCENES])
     expect(advance(FINAL)).toEqual(START)
   })
-  it('keeps Generate on the rail as in development, never as a played step', () => {
+  it('keeps Generate on the rail as not in this example, never as a played step', () => {
     const gen = RAIL.find((r) => r.id === 'generate')
-    expect(gen?.inDevelopment).toBe(true)
+    expect(gen?.notInExample).toBe(true)
+    expect(gen?.body).not.toMatch(/will/)
+    expect(NARRATION.import).not.toMatch(/in development/i)
     expect(SCENES as readonly string[]).not.toContain('generate')
     expect(NARRATION.publish).toMatch(/Live only after Flipkart confirms/)
   })
@@ -153,7 +189,8 @@ describe('how it works demo: static fallback (no IntersectionObserver)', () => {
     expect(typeof IntersectionObserver).toBe('undefined')
     render(<HowItWorksDemo />)
     for (const s of RAIL) expect(screen.getAllByText(s.title).length).toBeGreaterThan(0)
-    expect(screen.getAllByText('In development').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Not in this example').length).toBeGreaterThan(0)
+    expect(screen.queryByText(/in development/i)).toBeNull()
     expect(screen.queryByRole('button', { name: /^Generate/ })).toBeNull()
     expect(screen.getByRole('button', { name: 'Play' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Replay' })).toBeTruthy()

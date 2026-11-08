@@ -27,7 +27,7 @@ export function Ph({ children }: { children: ReactNode }) {
   )
 }
 
-export const POLICY_UPDATED = '30 October 2026'
+export const POLICY_UPDATED = '8 November 2026'
 /** Named by the company: its director, who is also the legal and support contact in the Terms. */
 export const GRIEVANCE_OFFICER = 'Mukul Jasoria, Director'
 
@@ -154,18 +154,26 @@ export const POLICY_SECTIONS: PolicySection[] = [
     body: (
       <>
         <p>
-          Today the only AI processing is turning your brand profile (tone of voice, guidelines, glossary) and the brand
-          documents you upload into text embeddings, so that drafts can later follow your brand. The embedding provider is
-          OpenAI (OpenAI, L.L.C.), which acts as our processor and handles this data in the United States.
-        </p>
-        <p>
-          AI drafting of titles, bullets, descriptions and attributes is in development and is not running yet. Before it
-          launches we will update this section with the model provider and what it receives. As designed, it will receive:
+          Kuinn uses AI to draft listings, read details from your product photos, and make white-background versions of
+          your main photo. Every AI request goes through OpenRouter (OpenRouter, Inc., United States), which acts as our
+          processor and forwards it to the model provider for that task. We send every request with data collection turned
+          off, so it is only routed to providers that do not store it for training or reuse.
         </p>
         <ul>
           <li>
-            the product facts and images needed for the listing and your brand profile. Images will be sent either as
-            downscaled copies or as signed links that expire within 10 minutes.
+            Listing drafts (titles, bullets, descriptions, attributes and keywords): DeepSeek models. They receive the
+            product facts needed for the listing and your brand profile.
+          </li>
+          <li>
+            Reading details from your photos: OpenAI models. They receive downscaled copies of your product photos.
+          </li>
+          <li>
+            White-background main images: Google Gemini models, served by Google. They receive a downscaled copy of the
+            main photo you choose to edit. You approve every result, and your original is kept.
+          </li>
+          <li>
+            Brand matching: your brand profile and brand documents are turned into text embeddings by OpenAI models, so
+            drafts follow your brand.
           </li>
         </ul>
         <p>In every case:</p>
@@ -179,8 +187,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
         </ul>
         <p>
           We do not use your data, or data from your connected marketplace accounts, to train or fine-tune AI models, and our
-          AI providers may not use it to train theirs. OpenAI does not train on data sent through its API, and keeps it for up
-          to 30 days only to detect abuse.
+          AI providers may not use it to train theirs.
         </p>
       </>
     ),
