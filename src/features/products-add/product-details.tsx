@@ -830,13 +830,21 @@ export function ProductDetailsEditor({
         ) : null}
         <div className="sticky bottom-0 -mx-5 -mb-5 flex flex-wrap items-center justify-between gap-3 rounded-b-card border-t border-line bg-surface px-5 py-3">
           <p className="text-caption text-ink-3" aria-live="polite">
-            {session.onlySuggestion ? 'Saving confirms the suggested HSN code' : session.dirty ? 'Unsaved changes' : 'No changes yet'}
+            {session.unitPending === 'choose'
+              ? 'Choose the size chart unit to save'
+              : session.unitPending === 'confirm'
+                ? 'Confirm the size chart unit to save'
+                : session.onlySuggestion
+                  ? 'Saving confirms the suggested HSN code'
+                  : session.dirty
+                    ? 'Unsaved changes'
+                    : 'No changes yet'}
           </p>
           <div className="flex gap-2">
             <Button type="button" variant="ghost" onClick={session.cancel} disabled={session.saving}>
               Cancel
             </Button>
-            <Button type="submit" disabled={session.saving || !session.dirty} data-testid="product-save">
+            <Button type="submit" disabled={session.saving || !session.dirty || session.unitPending !== null} data-testid="product-save">
               {session.saving ? <Spinner data-icon="inline-start" aria-hidden /> : null}
               {session.saving ? 'Saving…' : 'Save changes'}
             </Button>

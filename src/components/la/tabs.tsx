@@ -61,7 +61,8 @@ export function Segmented<T extends string>({
   className,
 }: {
   options: readonly SegmentOption<T>[]
-  value: T
+  /** Null: nothing chosen yet (the first option takes the Tab stop). */
+  value: T | null
   onChange: (v: T) => void
   label: string
   className?: string
@@ -86,7 +87,7 @@ export function Segmented<T extends string>({
               const sib = e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role=radio]')
               sib?.[options.indexOf(next)]?.focus()
             }}
-            tabIndex={on ? 0 : -1}
+            tabIndex={on || (value === null && o === options[0]) ? 0 : -1}
             className={cn(
               'inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-3 text-small font-semibold whitespace-nowrap text-ink-2 transition-[color,background-color,box-shadow] duration-150 hover:text-ink',
               on && 'bg-surface text-ink shadow-thumb',

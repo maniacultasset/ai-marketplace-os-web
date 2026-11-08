@@ -1,7 +1,9 @@
 /**
  * "Read sizes from your size chart photo" (SI12): starts the read, follows it, and loads the rows
- * into the size chart editor above it with a "Size chart" chip. The seller checks and saves; the
- * read never saves anything. While AI is paused the button explains why it is off (SI10).
+ * into the size chart editor below it with a "Size chart" chip. The seller checks the rows,
+ * chooses or confirms the unit, and saves; the read never saves anything. While AI is paused the
+ * button explains why it is off (SI10). Hidden while the read is switched off
+ * (`size_chart_read_enabled` false).
  */
 import { Banner, Icon, SourceBadge, UnavailableButton } from '@/components/la'
 import { Button } from '@/components/ui/button'
@@ -9,8 +11,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { AI_PAUSED_REASON } from '@/features/ai-credit/model'
 import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
 import type { ProductDetail } from './api'
-import { sizeChartImageId, useSizeChartRead } from './size-chart-read'
-import type { SizeChart } from './intake-model'
+import { sizeChartImageId, useSizeChartRead, type OnRead } from './size-chart-read'
 
 const LABEL = 'Read sizes from your size chart photo'
 
@@ -20,7 +21,7 @@ export function SizeChartReadButton({
   loaded,
 }: {
   product: ProductDetail
-  onRead: (chart: SizeChart, imageId: string) => void
+  onRead: OnRead
   /** The editor holds rows read from the photo (not saved yet). */
   loaded: boolean
 }) {
@@ -29,6 +30,7 @@ export function SizeChartReadButton({
   const imageId = sizeChartImageId(product)
   const busy = read.state.kind === 'reading'
 
+  if (!product.size_chart_read_enabled) return null
   if (!imageId)
     return (
       <p className="flex items-start gap-1.5 text-caption text-ink-3" data-testid="size-chart-read-none">
@@ -54,12 +56,12 @@ export function SizeChartReadButton({
         {loaded ? (
           <span className="flex items-center gap-1.5 text-caption text-ink-2">
             <SourceBadge source={{ kind: 'size-chart' }} />
-            Not saved yet. Check each row, then save.
+            Not saved yet. Check each row and the unit, then save.
           </span>
         ) : null}
       </div>
       <p className="sr-only" aria-live="polite">
-        {busy ? 'Reading your size chart photo.' : read.state.kind === 'read' ? `${read.state.rows} sizes read. Check them, then save.` : ''}
+        {busy ? 'Reading your size chart photo.' : read.state.kind === 'read' ? `${read.state.rows} sizes read. Check them and the unit, then save.` : ''}
       </p>
       {read.state.kind === 'unreadable' ? (
         <Banner tone="attention" role="status">

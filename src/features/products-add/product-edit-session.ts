@@ -26,7 +26,7 @@ import {
   type EditErrors,
   type ManufacturerSource,
 } from '@/features/products/edit-model'
-import { fromSizeChart, type SizeChart } from '@/features/products/intake-model'
+import { fromReadChart, unitPending as chartUnitPending, type SuggestedSizeChart } from '@/features/products/intake-model'
 import { toast } from '@/lib/toast'
 
 export type SaveOutcome = 'saved' | 'unchanged' | 'invalid' | 'stale' | 'failed'
@@ -71,7 +71,9 @@ export function useProductEditSession(
   const errors: EditErrors = { ...server }
   for (const [k, v] of Object.entries(client)) if (submitted > 0 || touched.has(k)) errors[k] ??= v
   const body = buildPatch(baseDraft, d, isVariant, barcodeLevel)
-  const dirty = Object.keys(body).length > 0
+  /** SI12: rows read from the photo wait for the seller to choose or confirm their unit. */
+  const unitPending = isVariant ? null : chartUnitPending(d.sizeChart)
+  const dirty = Object.keys(body).length > 0 || unitPending !== null
   /** Only the HSN suggestion would be saved: not a change the seller made, so Cancel never asks. */
   const onlySuggestion = d.hsnSuggested && Object.keys(body).every((k) => k === 'hsn_code')
 
@@ -102,8 +104,13 @@ export function useProductEditSession(
     if (clear.length) setServer((s) => Object.fromEntries(Object.entries(s).filter(([k]) => !clear.some((c) => k === c || k.startsWith(`${c}.`)))))
   }
   const setAttr = (k: string, v: string) => patch({ attrs: { ...d.attrs, [k]: v } }, `attr.${k}`)
-  /** SI12: the rows read from the size-chart photo go into the editor for the seller to check and save. */
-  const loadSizeChart = (chart: SizeChart, imageId: string) => patch({ sizeChart: fromSizeChart(chart), sizeChartImageId: imageId }, 'size_chart')
+  /**
+   * SI12: the rows read from the size-chart photo go into the editor for the seller to check and
+   * save. The unit is never taken as read: an `unknown` one is left to choose, a read one is
+   * pre-selected next to its printed line for the seller to confirm.
+   */
+  const loadSizeChart = (chart: SuggestedSizeChart, line: string | null | undefined, imageId: string) =>
+    patch({ sizeChart: fromReadChart(chart, line), sizeChartImageId: imageId }, 'size_chart')
 
   /** Someone else's version is the new base; the person's own changes go on top of it. */
   const rebaseOnto = (fresh: ProductDetail) => {
@@ -181,6 +188,7 @@ export function useProductEditSession(
     dirty,
     onlySuggestion,
     loadSizeChart,
+    unitPending,
     saving,
     save,
     isVariant,

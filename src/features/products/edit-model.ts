@@ -27,9 +27,11 @@ import {
   priceAboveMrp,
   samePartyDraft,
   SIZE_CHART_REFUSED,
+  sizeChartKey,
   sizeChartProblems,
   toPartyIn,
   toSizeChart,
+  UNIT_CHOOSE_MSG,
   type FibreRow,
   type PartyDraft,
   type SizeChartDraft,
@@ -230,7 +232,8 @@ export function buildPatch(base: EditDraft, d: EditDraft, isVariant: boolean, ba
   if (Object.keys(attributes).length) body.attributes = attributes
   if (!isVariant) {
     const chart = toSizeChart(d.sizeChart)
-    if (JSON.stringify(chart) !== JSON.stringify(toSizeChart(base.sizeChart))) {
+    // `undefined`: rows wait for the seller's unit, so nothing is sent (validateEdit blocks Save).
+    if (chart !== undefined && JSON.stringify(chart) !== JSON.stringify(toSizeChart(base.sizeChart))) {
       body.size_chart = chart
       // The photo it was read from is the chart's evidence (only with a chart).
       if (chart && d.sizeChartImageId) body.size_chart_image_id = d.sizeChartImageId
@@ -275,6 +278,7 @@ export function mapPatchErrors(
     if (err.type === 'FACT_LEVEL_INVALID') msg = 'This is set on the style, not on a single variant.'
     if (err.type === 'UNKNOWN_FACT_KEY') msg = 'Unknown attribute.'
     if (key === 'size_chart') msg = SIZE_CHART_REFUSED
+    if (key === 'size_chart.unit') msg = UNIT_CHOOSE_MSG
     if (key === 'selling_price' && priceAboveMrp(d.sellingPrice, d.mrp)) msg = 'Keep the selling price at or below the MRP.'
     if (key === 'category') msg = CATEGORY_LOCKED_MSG
     if (key === 'brand_name' || key === 'gender') msg = audienceServerMessage(key, err.type, msg)
@@ -307,7 +311,7 @@ export function rebaseDraft(original: EditDraft, mine: EditDraft, fresh: EditDra
   if (!sameMoney(mine.sellingPrice, original.sellingPrice)) out.sellingPrice = mine.sellingPrice
   for (const k of EDIT_ATTRS) if (mine.attrs[k].trim() !== original.attrs[k].trim()) out.attrs[k] = mine.attrs[k]
   if (compositionValue(mine.composition) !== compositionValue(original.composition)) out.composition = mine.composition
-  if (JSON.stringify(toSizeChart(mine.sizeChart)) !== JSON.stringify(toSizeChart(original.sizeChart))) out.sizeChart = mine.sizeChart
+  if (sizeChartKey(mine.sizeChart) !== sizeChartKey(original.sizeChart)) out.sizeChart = mine.sizeChart
   const mfrChanged =
     mine.ownManufacturer !== original.ownManufacturer || (mine.ownManufacturer && !samePartyDraft(mine.manufacturer, original.manufacturer))
   if (mfrChanged) {
