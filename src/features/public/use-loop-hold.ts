@@ -1,10 +1,11 @@
 /**
- * What holds a looping landing animation still without a visible control (WCAG 2.2.2): a mouse over
- * it, keyboard focus inside it, and a hidden tab. Off-screen holds are each figure's own observer.
+ * What holds a looping landing animation still without a visible control. How it works holds for a
+ * mouse over it, keyboard focus inside it and a hidden tab; the hero holds only for a hidden tab and
+ * off screen (its own observer), never for hover or focus. Off-screen holds are each figure's own.
  *
- * Only a real mouse hover and keyboard focus count. A click or a tap also focuses (the hero figure
- * is focusable, the demo's steps are buttons) and a tap fires an emulated mouseenter; neither may
- * freeze the loop until the visitor happens to click somewhere else.
+ * Only a real mouse hover and keyboard focus count. A click or a tap also focuses (the demo's steps
+ * are buttons) and a tap fires an emulated mouseenter; neither may freeze the loop until the visitor
+ * happens to click somewhere else.
  */
 import { useCallback, useEffect, useRef, useState, type FocusEvent } from 'react'
 

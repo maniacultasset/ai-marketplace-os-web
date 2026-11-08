@@ -81,8 +81,8 @@ describe('reduced motion', () => {
   it('switches off every public animation class in CSS', () => {
     const reduce = reducedMotionCss()
     expect(reduce).toMatch(/\.caret-blink\s*\{\s*animation:\s*none/)
-    // The hero's ring and field chips hold still; the call to action's slips rest fanned.
-    expect(reduce).toMatch(/\.hero-ring,\s*\.hero-chip\s*\{\s*animation:\s*none !important/)
+    // The hero's ring holds still; the call to action's slips rest fanned.
+    expect(reduce).toMatch(/\.hero-ring\s*\{\s*animation:\s*none !important/)
     expect(reduce).toMatch(/\.cta-fan > \*,\s*\[data-reveal-scope\] \.cta-fan:not\(\[data-fanned\]\) > \*\s*\{[^}]*transition:\s*none !important/)
     expect(reduce).toMatch(/\[data-reveal-scope\] \[data-reveal\]:not\(\[data-shown\]\)\s*\{\s*transform:\s*none/)
     // The global rule that stops every other transition and animation.

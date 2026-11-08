@@ -8,7 +8,7 @@ test.describe('public pages', () => {
   test('landing shows one call to action and honest marketplace status', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Every Indian marketplace')
-    await expect(page.getByTestId('hero-example')).toHaveAccessibleName('How Kuinn turns one product into an Amazon listing')
+    await expect(page.getByTestId('hero-example')).toHaveAccessibleName('How Kuinn turns your products into Amazon listings')
     await expect(page.getByTestId('hero-example')).not.toContainText('Example')
     await expect(page.getByTestId('market-live')).toContainText('Amazon')
     await expect(page.getByTestId('market-soon')).toContainText('Flipkart')
@@ -25,7 +25,7 @@ test.describe('public pages', () => {
     expect(cta).not.toBeNull()
     expect(cta!.y + cta!.height).toBeLessThan(600)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-    // The hero loop has no visible controls (it holds on hover, focus and off screen), and the final call to action leads with Amazon.
+    // The hero loop has no visible controls (it holds only off screen and in a hidden tab), and the final call to action leads with Amazon.
     await expect(page.getByTestId('hero-example').getByRole('button')).toHaveCount(0)
     await expect(page.getByTestId('cta-lockup').locator('[data-marketplace="amazon"] img')).toBeVisible()
   })

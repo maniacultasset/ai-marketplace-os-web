@@ -1,25 +1,30 @@
 /**
- * The landing hero's visual. A real product photo of one kurta set, head to feet with nothing laid
- * over it, sits on the left as the record card; the Amazon listing Kuinn writes from it overlaps the
- * photo's right edge on a fixed offset; the marketplace rail lines up under both on the same column
- * edges. Nothing inside is a control and nothing is app data.
+ * The landing hero's visual. Three real product photos, one after another, each head to toe in the
+ * same 3:4 frame with nothing laid over it, sit on the left as the record card; the Amazon listing
+ * Kuinn writes from each overlaps the photo's right edge on a fixed offset; the marketplace rail lines
+ * up under both on the same column edges. Nothing inside is a control and nothing is app data.
+ *
+ * Each product spotlights different live features (hero-story.ts): brand voice, a banned word fixed
+ * and a second person's approval; six size variants, a title trimmed to fit and Live on Amazon; a
+ * colour read from the photo and confirmed, a size chart from the seller's sheet and every rule
+ * checked. Per product: the photo crossfades in, one fact is confirmed from the photo, the listing is
+ * drafted, the checks tick in order, the fix lands, then "Ready to approve" and its ending.
  *
  * Motion (transform and opacity only, hero-story.ts holds every time):
- * - Entrance, once: the photo card, the Amazon card and the rail rise in showing the finished
- *   listing, and the live dot rings once. The h1 never waits.
- * - Loop: a 10.8s cycle that starts 1.6s after the entrance. The photo crossfades to its
- *   white-background version, the facts are confirmed, the field chips travel, the checks tick,
- *   "Best" is flagged and removed, "Fixed for you", then "Ready to approve". The restart is one soft
- *   crossfade of the listing's contents; the cards never move or remount.
- * - It pauses by itself (WCAG 2.2.2) while the pointer is over it, while focus is inside it (the
- *   figure is focusable for that), while it is less than 40% on screen and while the tab is hidden,
- *   and picks up again from the same beat. There are no visible play controls.
+ * - Entrance, once: the photo card, the Amazon card and the rail rise in showing the first product's
+ *   finished listing. The h1 never waits.
+ * - Loop: products change with one soft crossfade of the photo and the listing's contents together;
+ *   the cards never move, slide, scale or remount. Every row, chip, check and fix line has its room
+ *   reserved up front, so text and chips only fade and rise 6px in place (spring, no overshoot,
+ *   70ms apart). A spotlight (a soft tint) lights one thing at a time and settles before the next.
+ * - It never pauses for hover or focus. It holds only while less than 40% of it is on screen or the
+ *   tab is hidden (both save CPU), and picks up again from the same beat. No visible controls.
  * - Pointer parallax from lg with a fine pointer, at most 6px, 2D translate only.
- * - Reduced motion: the finished state at once, no loop, no parallax, no ring.
+ * - Reduced motion: one still frame (the first product, finished), no loop, no parallax.
  *
- * Layout never shifts: the photo frame has a fixed aspect (3:4 from md, 4:5 on phones), so the stage
- * is as tall as the photo card and the Amazon card is placed inside it. Whatever changes is stacked
- * in a reserved cell and only fades or moves.
+ * Layout never shifts and edges stay on whole pixels: the stage's column, the two card widths and the
+ * photo frame's height are rounded down to 1px (CSS round()), so the stage, both cards and every row
+ * keep the same box through the whole loop.
  */
 import { domAnimation, LazyMotion, m, type MotionValue, useTransform } from 'motion/react'
 import { useEffect, useReducer, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
@@ -31,41 +36,56 @@ import { useMediaQuery, usePrefersReducedMotion } from '@/lib/use-media-query'
 import { usePointerParallax } from '@/lib/use-pointer-parallax'
 import { cn } from '@/lib/utils'
 import { MarketplaceRail } from './marketplace-rail'
-import { useHold, usePageVisible } from './use-loop-hold'
-import { BEATS, beatDelay, ENTER, ENTRANCE, FINAL, HERO_PHOTO, LAST, nextBeat, photoSrcSet, RESET_DIP_MS, STORY, storyAt, type StoryState } from './hero-story'
+import { usePageVisible } from './use-loop-hold'
+import {
+  APPROVER,
+  BEATS,
+  beatDelay,
+  CHECKS,
+  CROSSFADE_MS,
+  ENTER,
+  ENTRANCE,
+  FINAL,
+  HERO_PHOTO,
+  LAST,
+  next,
+  photoSrcSet,
+  PRODUCTS,
+  STATUS_LABEL,
+  STORY,
+  storyAt,
+  TICK_STAGGER_MS,
+  type HeroProduct,
+  type Position,
+  type Status,
+  type StoryState,
+} from './hero-story'
 
 /** --ease-out-calm, for motion's JS animations. */
 const CALM = [0.22, 1, 0.36, 1] as const
-/** --ease-spring as a critically damped spring (no overshoot). */
-const SPRING = { type: 'spring', bounce: 0, duration: 0.48 } as const
+/** Text and chips settle on a critically damped spring (no overshoot). */
+const SETTLE = { type: 'spring', bounce: 0, duration: 0.5 } as const
 const ENTRANCE_MS = 1800
+const STAGGER = 0.07
 const sec = (ms: number) => ms / 1000
 
 /* ------------------------------------------------------------------------------------------------
  * The beat player
  * --------------------------------------------------------------------------------------------- */
 
-interface Player {
-  beat: number
-  /** Loops completed; the first hold on the finished listing is the shorter one after the entrance. */
-  cycle: number
-  /** Bumps each time the field chips travel, so they remount and play again. */
-  trip: number
-  /** Bumps each time the listing turns ready, so the live dot rings again. */
+interface Player extends Position {
+  /** The product shown before this one, still under it while the new photo fades in. */
+  prev: number
+  /** Bumps each time a listing goes live, so the rail's live dot rings again. */
   ring: number
 }
 
-// The field chips travel only inside the loop, never in the entrance (which shows the finished listing).
-const startPlayer = (reduced: boolean): Player => ({ beat: reduced ? LAST : ENTER, cycle: 0, trip: 0, ring: 0 })
+const startPlayer = (reduced: boolean): Player => ({ product: 0, beat: reduced ? LAST : ENTER, prev: PRODUCTS.length - 1, ring: 0 })
 
 function advance(p: Player): Player {
-  const beat = nextBeat(p.beat)
-  return {
-    beat,
-    cycle: p.beat === LAST ? p.cycle + 1 : p.cycle,
-    trip: BEATS[beat]?.id === 'chips' ? p.trip + 1 : p.trip,
-    ring: beat === LAST ? p.ring + 1 : p.ring,
-  }
+  const to = next(p)
+  const wentLive = storyAt(to.product, to.beat).status === 'live' && storyAt(p.product, p.beat).status !== 'live'
+  return { ...to, prev: to.product === p.product ? p.prev : p.product, ring: wentLive ? p.ring + 1 : p.ring }
 }
 
 /** True while at least 40% of `ref` is on screen (or it fills half a short viewport). */
@@ -91,10 +111,22 @@ function useOnScreen(ref: RefObject<HTMLElement | null>): boolean {
 
 /**
  * States in one reserved cell: the cell is as big as the largest, so a swap never moves layout.
- * The outgoing layer fades out first and is then hidden; only then does the next fade in, so two
- * chips of different widths never show together. `show` picks the layer; -1 shows none.
+ * `cross` fades both at once (a swap in place); otherwise the outgoing layer fades out first and only
+ * then does the next fade in, so two pills of different widths never show together. -1 shows none.
  */
-function Layers({ show, layers, duration = 0.24, className }: { show: number; layers: ReactNode[]; duration?: number; className?: string }) {
+function Layers({
+  show,
+  layers,
+  duration = 0.32,
+  cross,
+  className,
+}: {
+  show: number
+  layers: ReactNode[]
+  duration?: number
+  cross?: boolean
+  className?: string
+}) {
   return (
     <span className={cn('grid', className)}>
       {layers.map((layer, i) => {
@@ -102,10 +134,14 @@ function Layers({ show, layers, duration = 0.24, className }: { show: number; la
         return (
           <m.span
             key={i}
-            className="col-start-1 row-start-1"
+            className="col-start-1 row-start-1 min-w-0"
             initial={false}
-            animate={on ? { opacity: 1, visibility: 'visible' } : { opacity: 0, transitionEnd: { visibility: 'hidden' } }}
-            transition={{ duration: duration / 2, delay: on ? duration / 2 : 0, ease: CALM }}
+            animate={on ? { opacity: 1, y: 0, visibility: 'visible' } : { opacity: 0, transitionEnd: { visibility: 'hidden', y: 4 } }}
+            transition={
+              cross
+                ? { opacity: { duration, ease: CALM }, y: SETTLE }
+                : { opacity: { duration: duration / 2, delay: on ? duration / 2 : 0, ease: CALM }, y: { ...SETTLE, delay: on ? duration / 2 : 0 } }
+            }
           >
             {layer}
           </m.span>
@@ -115,9 +151,38 @@ function Layers({ show, layers, duration = 0.24, className }: { show: number; la
   )
 }
 
-const Swap = ({ on, off, to, duration, className }: { on: boolean; off: ReactNode; to: ReactNode; duration?: number; className?: string }) => (
-  <Layers show={on ? 1 : 0} layers={[off, to]} duration={duration} className={className} />
-)
+/**
+ * Text or chips that fade and rise 6px into their final place. Leaving, they only fade (their offset
+ * resets once unseen), so nothing ever travels on the way out.
+ */
+function Rise({ on, delay = 0, className, children }: { on: boolean; delay?: number; className?: string; children: ReactNode }) {
+  return (
+    <m.span
+      className={cn('block', className)}
+      initial={false}
+      animate={on ? { opacity: 1, y: 0 } : { opacity: 0, transitionEnd: { y: 6 } }}
+      transition={on ? { opacity: { duration: 0.44, delay, ease: CALM }, y: { ...SETTLE, delay } } : { opacity: { duration: 0.28, ease: CALM } }}
+    >
+      {children}
+    </m.span>
+  )
+}
+
+/** A soft tint behind one thing while it is in the spotlight, then back to calm. */
+function Spot({ on, className }: { on: boolean; className?: string }) {
+  return (
+    <m.span
+      aria-hidden
+      className={cn('pointer-events-none absolute -inset-x-2 -inset-y-1 -z-10 rounded-lg bg-brand-bg', className)}
+      initial={false}
+      animate={{ opacity: on ? 1 : 0 }}
+      transition={{ duration: on ? 0.5 : 0.6, ease: CALM }}
+    />
+  )
+}
+
+/** A skeleton bar, shown in a row before the listing is written. */
+const Bar = ({ className }: { className?: string }) => <span className={cn('block h-2 rounded-full bg-subtle', className)} />
 
 /** Rises into place with the hero entrance; reduced motion or a later mount shows it at once. */
 function Enter({
@@ -161,198 +226,430 @@ export function HeroRise({ delay, className, children }: { delay: number; classN
 }
 
 /* ------------------------------------------------------------------------------------------------
- * Cards
+ * The record card: photo and facts
  * --------------------------------------------------------------------------------------------- */
 
-/**
- * The record: the real product photo (the studio shot, then the white-background main image made
- * from it) with nothing laid over it, and its facts underneath. The frame has a fixed aspect that
- * matches the photo's head-to-feet crop, so the whole outfit always shows.
- */
-function PhotoCard({ s, studio, eager }: { s: StoryState; studio: boolean; eager: boolean }) {
+/** The photo frame: 3:4, its height rounded down to a whole pixel from the card's own width. */
+const FRAME: CSSProperties = { height: 'round(down, calc(100cqw * 4 / 3), 1px)' }
+
+function PhotoCard({
+  player,
+  states,
+  mounted,
+  eager,
+  confirmSpot,
+}: {
+  player: Player
+  states: StoryState[]
+  mounted: boolean
+  eager: boolean
+  confirmSpot: boolean
+}) {
   return (
-    <div className="flex flex-col overflow-hidden rounded-card border border-line bg-surface shadow-raised-md">
-      <div className="relative aspect-[4/5] overflow-hidden bg-photo-white md:aspect-[3/4]">
-        <img
-          src={HERO_PHOTO.white}
-          srcSet={photoSrcSet(HERO_PHOTO.white, HERO_PHOTO.white2x)}
-          sizes={HERO_PHOTO.sizes}
-          alt={STORY.photoAlt}
-          width={HERO_PHOTO.width}
-          height={HERO_PHOTO.height}
-          fetchPriority={eager ? 'high' : 'auto'}
-          decoding="async"
-          draggable={false}
-          className="absolute inset-0 size-full object-cover"
-        />
-        {/* The studio shot is first seen when the loop starts, so it loads only once the loop is near. */}
-        {studio ? (
-          <m.img
-            src={HERO_PHOTO.studio}
-            srcSet={photoSrcSet(HERO_PHOTO.studio, HERO_PHOTO.studio2x)}
-            sizes={HERO_PHOTO.sizes}
-            alt=""
-            width={HERO_PHOTO.width}
-            height={HERO_PHOTO.height}
-            decoding="async"
-            draggable={false}
-            className="absolute inset-0 size-full object-cover"
-            initial={false}
-            animate={{ opacity: s.white ? 0 : 1 }}
-            transition={{ duration: 0.9, ease: CALM }}
-          />
-        ) : null}
+    <div className="@container flex flex-col overflow-hidden rounded-card border border-line bg-surface shadow-raised-md">
+      <div data-testid="hero-photo" className="relative overflow-hidden bg-photo" style={FRAME}>
+        {PRODUCTS.map((p, i) => {
+          // The first photo is always there; the others load once the stage has been seen.
+          if (i > 0 && !mounted) return null
+          const on = i === player.product
+          const under = i === player.prev
+          return (
+            <m.img
+              key={p.id}
+              src={p.photo.src}
+              srcSet={photoSrcSet(p.photo)}
+              sizes={HERO_PHOTO.sizes}
+              alt={i === 0 ? p.photo.alt : ''}
+              width={HERO_PHOTO.width}
+              height={HERO_PHOTO.height}
+              fetchPriority={i === 0 && eager ? 'high' : i === 0 ? 'auto' : 'low'}
+              decoding="async"
+              draggable={false}
+              className="absolute inset-0 size-full object-cover"
+              // The new photo fades in on top of the old one, which stays put underneath: no blank frame.
+              style={{ zIndex: on ? 2 : under ? 1 : 0 }}
+              initial={false}
+              animate={{ opacity: on || under ? 1 : 0 }}
+              transition={{ duration: on ? sec(CROSSFADE_MS) + 0.2 : 0, ease: CALM }}
+            />
+          )
+        })}
       </div>
-      <div className="flex flex-col gap-2.5 border-t border-line p-4">
-        <p className="truncate text-small font-semibold text-ink">{STORY.product}</p>
-        <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5 text-caption">
-          {STORY.facts.map((f) => (
-            <div key={f.label} className="contents">
-              <dt className="text-ink-2">{f.label}</dt>
-              <dd className="font-medium text-ink">{f.value}</dd>
-            </div>
-          ))}
-          <dt className="text-ink-2">{STORY.photoFact.label}</dt>
-          <dd className="col-span-3 flex min-w-0 items-center gap-2 font-medium text-ink">
-            <span className="truncate">{STORY.photoFact.value}</span>
-            <Swap on={s.confirmed} duration={0.36} off={<SourceBadge source={{ kind: 'photo' }} />} to={<SourceBadge source={{ kind: 'confirmed' }} />} />
-          </dd>
-          {/* The main photo: the white background is a proposal, so it waits for "You approve". */}
-          <dt className="text-ink-2">{STORY.photoLabel}</dt>
-          <dd className="col-span-3 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-medium text-ink">
-            <Swap on={s.white} duration={0.4} className="whitespace-nowrap" off={STORY.photoStudio} to={STORY.photoTag} />
-            <m.span initial={false} animate={{ opacity: s.photoTag ? 1 : 0 }} transition={{ duration: 0.4, ease: CALM }}>
-              <TagChip>{STORY.photoApproval}</TagChip>
-            </m.span>
-          </dd>
-        </dl>
+      <div className="grid border-t border-line p-4">
+        {PRODUCTS.map((p, i) => (
+          <m.div
+            key={p.id}
+            className="col-start-1 row-start-1 flex min-w-0 flex-col gap-2.5"
+            initial={false}
+            animate={{ opacity: i === player.product ? 1 : 0 }}
+            transition={{ duration: sec(CROSSFADE_MS), ease: CALM }}
+          >
+            <Facts p={p} s={states[i]!} spot={i === player.product && confirmSpot} />
+          </m.div>
+        ))}
       </div>
     </div>
   )
 }
 
-function Title({ s }: { s: StoryState }) {
+function Facts({ p, s, spot }: { p: HeroProduct; s: StoryState; spot: boolean }) {
   return (
-    // Clipped, so the closing-up title never shows past the card while it slides in.
-    <p className="-mx-0.5 grid overflow-hidden px-0.5 text-small leading-5 font-semibold text-pretty text-ink">
-      <m.span className="col-start-1 row-start-1" initial={false} animate={{ opacity: s.struck ? 0 : 1 }} transition={{ duration: 0.24, ease: CALM }}>
-        <span className="relative isolate inline-block">
-          <m.span
-            className="absolute -inset-x-0.5 inset-y-0 -z-10 origin-left rounded-xs bg-danger-bg"
-            initial={false}
-            animate={{ scaleX: s.marked ? 1 : 0 }}
-            transition={{ duration: s.marked ? 0.5 : 0.2, ease: CALM }}
+    <>
+      {/* From md the Amazon card overlaps this card's right 12.5%, so nothing here reaches under it. */}
+      <p className="truncate text-small font-semibold text-ink md:pr-[12.5cqw]">{p.name}</p>
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1.5 text-caption md:pr-[12.5cqw]">
+        {p.facts.map((f) => (
+          <div key={f.label} className="contents">
+            <dt className="text-ink-2">{f.label}</dt>
+            <dd className="truncate font-medium text-ink">{f.value}</dd>
+          </div>
+        ))}
+        {/* The fact read from the photo: "From photo", then the seller confirms it. */}
+        <dt className="text-ink-2">{p.photoFact.label}</dt>
+        <dd className="relative isolate flex min-w-0 items-center gap-2 font-medium text-ink">
+          <Spot on={spot} className="-inset-x-1.5 -inset-y-0.5 rounded-md" />
+          <span className="truncate">{p.photoFact.value}</span>
+          <Layers
+            show={s.confirmed ? 1 : 0}
+            cross
+            duration={0.4}
+            layers={[<SourceBadge key="photo" source={{ kind: 'photo' }} />, <SourceBadge key="ok" source={{ kind: 'confirmed' }} />]}
           />
-          <span className={cn('transition-colors duration-300', s.marked && 'text-danger-ink')}>{STORY.bannedWord}</span>
-        </span>{' '}
-        {STORY.title}
-      </m.span>
-      <m.span
-        className="col-start-1 row-start-1"
-        initial={false}
-        animate={s.struck ? { opacity: 1, x: '0em' } : { opacity: 0, x: '2.6em' }}
-        // It slides only on the way in; on the way out it fades, then resets its offset unseen.
-        transition={{ opacity: { duration: 0.24, ease: CALM }, x: s.struck ? SPRING : { duration: 0, delay: 0.24 } }}
-      >
-        {STORY.title}
-      </m.span>
-    </p>
+        </dd>
+      </dl>
+    </>
   )
 }
 
-function AmazonCard({ s, dim }: { s: StoryState; dim: boolean }) {
-  // The cell under the checks: empty, then the finding, then the fix. Its room is always reserved.
-  const outcome = s.fixed ? 2 : s.marked ? 1 : 0
+/* ------------------------------------------------------------------------------------------------
+ * The Amazon listing
+ * --------------------------------------------------------------------------------------------- */
+
+const spinner = (
+  <span className="inline-block size-2 animate-spin rounded-full border-[1.5px] border-current border-r-transparent [animation-duration:1.2s] group-data-[paused]/stage:[animation-play-state:paused] motion-reduce:animate-none" />
+)
+const avatar = (
+  <span aria-hidden className="grid size-3.5 place-items-center rounded-full bg-success text-[8px] leading-none font-bold text-surface">
+    {APPROVER.initial}
+  </span>
+)
+
+const STATUSES: readonly Status[] = ['drafting', 'checking', 'ready', 'approved', 'sent', 'live']
+
+function StatusPill({ status }: { status: Status }) {
+  switch (status) {
+    case 'drafting':
+    case 'checking':
+    case 'sent':
+      // Its own working glyph, a slow spinner, so it never reads as Flipkart's ◐ Next.
+      return (
+        <StatusChip status="working" glyph={spinner}>
+          {STATUS_LABEL[status]}
+        </StatusChip>
+      )
+    case 'ready':
+      return <StatusChip status="ready">{STATUS_LABEL.ready}</StatusChip>
+    case 'approved':
+      return (
+        <StatusChip status="live" glyph={avatar} className="pl-1">
+          {STATUS_LABEL.approved}
+        </StatusChip>
+      )
+    case 'live':
+      return <StatusChip status="live">{STATUS_LABEL.live}</StatusChip>
+  }
+}
+
+/**
+ * One product's title. The Brand voice tag is floated, so its room on the first line is kept from
+ * the first frame and the title never reflows. The draft title and the one that ships share one cell
+ * and crossfade in place; "Best" is lit in the draft while it is flagged.
+ */
+function Title({ p, s, on }: { p: HeroProduct; s: StoryState; on: boolean }) {
+  const tag =
+    p.spotlight === 'voice' ? (
+      <Rise on={on} delay={STAGGER * 2} className="float-right ml-2 pt-px">
+        <TagChip tone="brand" className="h-[18px] px-1.5 text-[11px]">
+          {STORY.voice}
+        </TagChip>
+      </Rise>
+    ) : null
+  const draft = p.bannedWord ? (
+    <>
+      <span className="relative isolate">
+        <m.span
+          aria-hidden
+          className="absolute -inset-x-0.5 inset-y-0 -z-10 rounded-xs bg-danger-bg"
+          initial={false}
+          animate={{ opacity: s.finding ? 1 : 0 }}
+          transition={{ duration: 0.4, ease: CALM }}
+        />
+        <span className={cn('transition-colors duration-300', s.finding && 'text-danger-ink')}>{p.bannedWord}</span>
+      </span>{' '}
+      {p.title}
+    </>
+  ) : (
+    p.draftTitle
+  )
+  const swaps = p.draftTitle !== p.title
   return (
-    <div data-testid="hero-amazon" className="rounded-card border border-line bg-surface p-4 shadow-raised-lg md:p-5">
-      {/* The loop's restart: only the contents crossfade; the card itself never moves. */}
-      <m.div
-        className="flex flex-col gap-3"
-        initial={false}
-        animate={{ opacity: dim ? 0 : 1 }}
-        transition={{ duration: sec(RESET_DIP_MS / 2), ease: CALM }}
-      >
-        <div className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-2 text-small font-semibold text-ink">
-            <MarketplaceTile id="amazon" size="sm" />
-            Amazon
+    <span className="grid">
+      <Rise on={on} className="col-start-1 row-start-1">
+        {swaps ? (
+          <span className="grid">
+            <m.span
+              className="col-start-1 row-start-1 line-clamp-2"
+              initial={false}
+              animate={{ opacity: s.fixed ? 0 : 1 }}
+              transition={{ duration: 0.36, ease: CALM }}
+            >
+              {tag}
+              {draft}
+            </m.span>
+            <m.span
+              className="col-start-1 row-start-1 line-clamp-2"
+              initial={false}
+              animate={{ opacity: s.fixed ? 1 : 0 }}
+              transition={{ duration: 0.44, delay: s.fixed ? 0.08 : 0, ease: CALM }}
+            >
+              {tag}
+              {p.title}
+            </m.span>
           </span>
-          <Swap
-            on={s.ready}
-            className="justify-items-end"
-            off={
-              // Its own working glyph, a slow spinner, so it never reads as Flipkart's ◐ Next.
-              <StatusChip
-                status="working"
-                glyph={
-                  <span className="inline-block size-2 animate-spin rounded-full border-[1.5px] border-current border-r-transparent [animation-duration:1.2s] group-data-[paused]/stage:[animation-play-state:paused] motion-reduce:animate-none" />
-                }
-              >
-                {STORY.checking}
-              </StatusChip>
-            }
-            to={<StatusChip status="ready">{STORY.ready}</StatusChip>}
-          />
-        </div>
-        <Title s={s} />
-        <p className="text-caption text-ink-2">{STORY.bullet}</p>
-        <ul className="flex flex-col gap-1.5">
-          {STORY.checks.map((c, i) => {
-            const on = s.ticked.has(c.id)
-            return (
-              <li key={c.id} className="flex items-center gap-2 text-caption text-ink-2">
-                <span className="grid size-4 shrink-0 place-items-center">
-                  <m.span
-                    className="col-start-1 row-start-1 size-3 rounded-full border border-line-strong"
-                    initial={false}
-                    animate={{ opacity: on ? 0 : 1 }}
-                    transition={{ duration: 0.2 }}
-                  />
-                  <m.span
-                    className="col-start-1 row-start-1 text-success"
-                    initial={false}
-                    animate={on ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.6 }}
-                    transition={{ duration: 0.32, delay: on && i === 2 ? 0.14 : 0, ease: CALM }}
+        ) : (
+          <span className="line-clamp-2">{p.title}</span>
+        )}
+      </Rise>
+    </span>
+  )
+}
+
+const ROW = {
+  title: 'h-10',
+  bullets: 'h-9',
+  price: 'h-[22px]',
+  sizes: 'h-6',
+  attrs: 'h-[30px]',
+} as const
+
+function Listing({ player, states }: { player: Player; states: StoryState[] }) {
+  const s = states[player.product]!
+  const p = PRODUCTS[player.product]!
+  // Each row stacks a skeleton and the three products' versions in one reserved cell.
+  const row = (key: keyof typeof ROW, skeleton: ReactNode, version: (p: HeroProduct, s: StoryState, on: boolean, i: number) => ReactNode, i: number) => (
+    <div className={cn('relative grid', ROW[key])}>
+      <m.span
+        aria-hidden
+        className="col-start-1 row-start-1 flex flex-col justify-center gap-3"
+        initial={false}
+        animate={{ opacity: s.drafted ? 0 : 1 }}
+        transition={{ duration: s.drafted ? 0.3 : sec(CROSSFADE_MS), delay: s.drafted ? STAGGER * i : 0, ease: CALM }}
+      >
+        {skeleton}
+      </m.span>
+      {PRODUCTS.map((q, j) => (
+        <span key={q.id} className="col-start-1 row-start-1 min-w-0">
+          {version(q, states[j]!, j === player.product && states[j]!.drafted, i)}
+        </span>
+      ))}
+    </div>
+  )
+
+  const failing = CHECKS.findIndex((c) => c.id === p.failing)
+  // The checks tick in order; the failing one waits for the fix.
+  const tickDelay = (k: number) => (k === failing ? 0.12 : sec(TICK_STAGGER_MS) * CHECKS.slice(0, k).filter((c) => c.id !== p.failing).length)
+  const outcome = (j: number) => (s.fixed ? 2 + 2 * j : s.finding ? 1 + 2 * j : 0)
+
+  return (
+    <div className="flex flex-col">
+      {/* The header: the marketplace and the listing's one status. */}
+      <div className="flex h-7 items-center justify-between gap-2">
+        <span className="flex items-center gap-2 text-small font-semibold text-ink">
+          <MarketplaceTile id="amazon" size="sm" />
+          Amazon
+        </span>
+        <span className="grid">
+          {PRODUCTS.map((q, j) => (
+            <m.span
+              key={q.id}
+              className="col-start-1 row-start-1 grid justify-items-end"
+              initial={false}
+              animate={{ opacity: j === player.product ? 1 : 0 }}
+              transition={{ duration: sec(CROSSFADE_MS) / 2, delay: j === player.product ? sec(CROSSFADE_MS) / 2 : 0, ease: CALM }}
+            >
+              <Layers show={STATUSES.indexOf(states[j]!.status)} className="justify-items-end" layers={STATUSES.map((st) => <StatusPill key={st} status={st} />)} />
+            </m.span>
+          ))}
+        </span>
+      </div>
+
+      {/* The copy: title and bullets, lit softly when the brand's voice is in the spotlight. */}
+      <div className="relative isolate mt-3.5 flex flex-col gap-1.5">
+        <Spot on={p.spotlight === 'voice' && s.spot} className="-inset-y-1.5" />
+        {row(
+          'title',
+          <>
+            <Bar className="w-full" />
+            <Bar className="w-3/5" />
+          </>,
+          (q, qs, on) => (
+            <span className="block text-[14px] leading-5 font-semibold text-pretty text-ink">
+              <Title p={q} s={qs} on={on} />
+            </span>
+          ),
+          0,
+        )}
+        {row(
+          'bullets',
+          <>
+            <Bar className="w-11/12" />
+            <Bar className="w-4/5" />
+          </>,
+          (q, _qs, on, i) => (
+            <ul className="flex flex-col text-caption leading-[18px] text-ink-2">
+              {q.bullets.map((b, k) => (
+                <li key={b}>
+                  <Rise
+                    on={on}
+                    delay={STAGGER * (i + k)}
+                    className="relative truncate pl-3 before:absolute before:top-[7px] before:left-0.5 before:size-1 before:rounded-full before:bg-ink-3"
                   >
-                    <Icon name="check" size={14} />
-                  </m.span>
-                </span>
-                {c.text}
-              </li>
-            )
-          })}
-        </ul>
-        <div className="relative pt-3">
-          {/* The hairline shows with the finding, so the card never ends on an empty rule. */}
-          <m.span
-            aria-hidden
-            className="absolute inset-x-0 top-0 h-px bg-line"
-            initial={false}
-            animate={{ opacity: outcome ? 1 : 0 }}
-            transition={{ duration: 0.3, ease: CALM }}
-          />
-          <Layers
-            show={outcome}
-            duration={0.4}
-            className="items-start"
-            layers={[
-              <span key="none" />,
-              <span key="finding" className="flex flex-col items-start gap-1.5">
-                <StatusChip status="error">{STORY.finding}</StatusChip>
-                <span className="text-caption text-ink-2">{STORY.findingCaption}</span>
-              </span>,
-              <span key="fixed" className="flex flex-col items-start gap-1.5">
-                {/* A resolved fix reads as a success; blue stays the card's one status. */}
+                    {b}
+                  </Rise>
+                </li>
+              ))}
+            </ul>
+          ),
+          1,
+        )}
+      </div>
+
+      <div className="mt-3 flex flex-col gap-2">
+        {row(
+          'price',
+          <Bar className="w-1/3" />,
+          (q, _qs, on, i) => (
+            <Rise on={on} delay={STAGGER * (i + 1)} className="flex h-[22px] items-baseline gap-2 tabular-nums">
+              <span className="text-[15px] leading-[22px] font-semibold text-ink">{q.price}</span>
+              <span className="text-caption text-ink-3">
+                M.R.P. <s>{q.mrp}</s>
+              </span>
+              <span className="ml-auto text-caption text-ink-2">{q.sizes.length} variants</span>
+            </Rise>
+          ),
+          2,
+        )}
+        <div className="relative isolate">
+          <Spot on={p.spotlight === 'variants' && s.spot} className="-inset-y-1" />
+          {row(
+            'sizes',
+            <span className="flex gap-1">
+              {[0, 1, 2, 3, 4].map((k) => (
+                <span key={k} className="h-6 w-7 rounded-md bg-subtle" />
+              ))}
+            </span>,
+            (q, _qs, on, i) => (
+              <span className="flex gap-1">
+                {q.sizes.map((size, k) => (
+                  // The variant strip: one chip per size, in order.
+                  <Rise
+                    key={size}
+                    on={on}
+                    delay={STAGGER * (i + 1) + (q.spotlight === 'variants' ? STAGGER : 0.04) * k}
+                    className="grid h-6 min-w-7 place-items-center rounded-md border border-line-strong bg-surface px-1.5 text-[11px] leading-none font-semibold text-ink-2"
+                  >
+                    {size}
+                  </Rise>
+                ))}
+              </span>
+            ),
+            3,
+          )}
+        </div>
+        {row(
+          'attrs',
+          <span className="grid grid-cols-3 gap-3">
+            <Bar />
+            <Bar />
+            <Bar />
+          </span>,
+          (q, _qs, on, i) => (
+            <dl className="grid grid-cols-3 gap-3">
+              {q.attributes.map((a, k) => (
+                <Rise key={a.label} on={on} delay={STAGGER * (i + 1 + k)} className="min-w-0">
+                  <dt className="truncate text-[11px] leading-[14px] text-ink-3">{a.label}</dt>
+                  <dd className="truncate text-caption font-medium text-ink">{a.value}</dd>
+                </Rise>
+              ))}
+            </dl>
+          ),
+          4,
+        )}
+      </div>
+
+      <span aria-hidden className="mt-3.5 h-px bg-line" />
+
+      {/* The checks, ticking in order; the failing one is flagged until the fix lands. */}
+      <ul className="mt-3 flex flex-col gap-1">
+        {CHECKS.map((c, k) => {
+          const on = s.ticked.has(c.id)
+          const flagged = c.id === p.failing && s.finding && !on
+          return (
+            <li key={c.id} className="flex h-[18px] items-center gap-2 text-caption text-ink-2">
+              <span className="grid size-4 shrink-0 place-items-center">
+                <m.span
+                  className="col-start-1 row-start-1 size-3 rounded-full border border-line-strong"
+                  initial={false}
+                  animate={{ opacity: on || flagged ? 0 : 1 }}
+                  transition={{ duration: 0.2, delay: on ? tickDelay(k) : 0 }}
+                />
+                <m.span
+                  className={cn('col-start-1 row-start-1 text-[10px] leading-none font-bold', p.failing === 'required' ? 'text-attention' : 'text-danger')}
+                  initial={false}
+                  animate={{ opacity: flagged ? 1 : 0 }}
+                  transition={{ duration: 0.3, ease: CALM }}
+                >
+                  {p.failing === 'required' ? '▲' : '✕'}
+                </m.span>
+                <m.span
+                  className="col-start-1 row-start-1 text-success"
+                  initial={false}
+                  animate={on ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.6 }}
+                  transition={{ duration: 0.36, delay: on ? tickDelay(k) : 0, ease: CALM }}
+                >
+                  <Icon name="check" size={14} />
+                </m.span>
+              </span>
+              {c.text}
+            </li>
+          )
+        })}
+      </ul>
+
+      {/* The fix line: empty, the finding, then the fix, swapped in place. */}
+      <div className="mt-2.5 h-[42px]">
+        <Layers
+          show={outcome(player.product)}
+          cross
+          duration={0.44}
+          className="items-start"
+          layers={[
+            <span key="none" />,
+            ...PRODUCTS.flatMap((q) => [
+              <StatusChip key={`${q.id}-finding`} status={q.failing === 'required' ? 'needs-you' : 'error'}>
+                {q.finding}
+              </StatusChip>,
+              <span key={`${q.id}-fixed`} className="flex flex-col items-start gap-1">
                 <TagChip className={cn('gap-1', CHIP_TONE.success)}>
                   <Icon name="check" size={14} />
-                  {STORY.fixed}
+                  {q.fixTag}
                 </TagChip>
-                <span className="text-caption text-ink-2">{STORY.fixedCaption}</span>
+                <span className="max-w-full truncate text-caption text-ink-2">{q.fixCaption}</span>
               </span>,
-            ]}
-          />
-        </div>
-      </m.div>
+            ]),
+          ]}
+        />
+      </div>
     </div>
   )
 }
@@ -371,32 +668,26 @@ function useDrift(pointer: { x: MotionValue<number>; y: MotionValue<number> }, r
 export function HeroStage({ hero }: { hero: RefObject<HTMLElement | null> }) {
   const reduced = usePrefersReducedMotion()
   // The entrance plays only for a first view with motion on; switching reduced motion on later
-  // simply shows the finished listing.
+  // simply shows the still frame.
   const [enter] = useState(!reduced)
-  const [player, step] = useReducer(advance, reduced, startPlayer)
+  const [live, step] = useReducer(advance, reduced, startPlayer)
   const [entering, setEntering] = useState(enter)
   const fig = useRef<HTMLElement>(null)
   const onScreen = useOnScreen(fig)
   const pageVisible = usePageVisible()
-  const { held, handlers } = useHold()
-  const playing = !held && onScreen && pageVisible && !reduced
-  const s = reduced ? FINAL : storyAt(player.beat)
-  // The studio shot first shows at the loop's reset, so it mounts once the entrance has handed over.
-  const studio = !reduced && player.beat !== ENTER
+  const playing = onScreen && pageVisible && !reduced
+  const player: Player = reduced ? startPlayer(true) : live
 
-  // The restart: the listing's contents fade out over the last half of RESET_DIP_MS, the loop
-  // starts again unseen, and they fade back in. A pause mid-fade brings them straight back.
-  const [dim, setDim] = useState(false)
+  // The other two photos load once the stage has been on screen, well before the first crossfade.
+  const [seen, setSeen] = useState(false)
+  // Latched during render (React's "adjust state on a prop change" pattern), never reset.
+  if (onScreen && !reduced && !seen) setSeen(true)
+
   useEffect(() => {
     if (!playing) return
-    const delay = beatDelay(player.beat, player.cycle)
-    const ids = [window.setTimeout(step, delay)]
-    if (player.beat === LAST) ids.push(window.setTimeout(() => setDim(true), delay - RESET_DIP_MS / 2))
-    return () => {
-      ids.forEach((id) => window.clearTimeout(id))
-      setDim(false)
-    }
-  }, [playing, player.beat, player.cycle])
+    const id = window.setTimeout(step, beatDelay(player.beat))
+    return () => window.clearTimeout(id)
+  }, [playing, player.beat, player.product])
 
   useEffect(() => {
     if (!entering) return
@@ -404,75 +695,56 @@ export function HeroStage({ hero }: { hero: RefObject<HTMLElement | null> }) {
     return () => window.clearTimeout(id)
   }, [entering])
 
+  // Each product's state: the one playing, the one before it held finished while it fades out, and
+  // the third already reset (unseen) to its first beat.
+  const states = PRODUCTS.map((_, i) =>
+    reduced ? (i === 0 ? FINAL : storyAt(i, 0)) : i === player.product ? storyAt(i, player.beat) : i === player.prev ? storyAt(i, LAST) : storyAt(i, 0),
+  )
+  const at = player.beat >= 0 ? BEATS[player.beat]!.id : 'end3'
+
   // Pointer parallax from lg (fine pointer only); it rests at 0 otherwise.
   const lg = useMediaQuery('(min-width: 1024px)')
-  const pointer = usePointerParallax(hero, lg)
+  const pointer = usePointerParallax(hero, lg && !reduced)
   const photoLayer = useDrift(pointer, 3)
   const amazonLayer = useDrift(pointer, 6)
   const will = entering ? 'transform' : 'auto'
-
-  // The field chips leave 70ms apart.
-  const chipTiming = (i: number): CSSProperties => ({ '--chip-delay': `${i * 70}ms` }) as CSSProperties
-  const rise = enter && player.cycle === 0
+  const rise = enter && player.beat === ENTER
 
   return (
     <LazyMotion features={domAnimation}>
-      {/* Focusable, so a keyboard user can hold the loop still the same way a pointer does. */}
-      <figure
-        ref={fig}
-        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focus holds the loop (WCAG 2.2.2)
-        tabIndex={0}
-        aria-label={STORY.label}
-        data-testid="hero-example"
-        className="@container/tray flex min-w-0 flex-col gap-4 rounded-card outline-offset-4 xl:gap-5"
-        {...handlers}
-      >
+      <figure ref={fig} aria-label={STORY.label} data-testid="hero-example" className="@container/tray flex min-w-0 flex-col gap-4 xl:gap-5">
         <p className="sr-only">{STORY.summary}</p>
 
         <div
           aria-hidden
           data-testid="hero-stage"
+          data-product={PRODUCTS[player.product]!.id}
           data-beat={reduced ? 'final' : player.beat}
           data-paused={playing ? undefined : ''}
           className="group/stage relative flex flex-col"
         >
-          {/* The record: full width on phones, the left 56% from md. Its photo sets the stage's height. */}
-          <m.div style={{ ...photoLayer, willChange: will }} className="relative z-0 md:w-[56%]">
+          {/* The record: full width on phones, the left 48% from md. Its photo sets the stage's height. */}
+          <m.div style={{ ...photoLayer, willChange: will }} className="relative z-0 md:w-[round(down,48%,1px)]">
             <Enter play={rise} delay={ENTRANCE.record} from={{ y: 16 }}>
-              <PhotoCard s={s} studio={studio} eager={lg} />
+              <PhotoCard player={player} states={states} mounted={seen} eager={lg} confirmSpot={at === 'confirm'} />
             </Enter>
           </m.div>
-
-          {/* Field chips, carried from the record into the Amazon listing. */}
-          <div className="pointer-events-none relative z-30 h-0 [--chip-dx:0px] [--chip-dy:40px] md:absolute md:top-[40%] md:left-[30%] md:[--chip-dx:26cqw] md:[--chip-dy:0px]">
-            {reduced || player.trip === 0 ? null : (
-              <div className="absolute -top-10 left-1/2 flex -translate-x-1/2 gap-2 md:top-0 md:left-0 md:translate-x-0 md:flex-col md:items-start">
-                {STORY.chips.map((c, i) => (
-                  <span
-                    key={`${player.trip}-${c}`}
-                    className="hero-chip inline-flex h-7 items-center rounded-full border border-line bg-surface px-3 text-caption font-semibold text-ink-2 shadow-raised-sm"
-                    style={chipTiming(i)}
-                  >
-                    {c}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
 
           {/* The Amazon listing: stacked on the same edges on phones; from md in front, on a fixed offset
               over the photo's right edge, ending above the photo's facts. */}
           <m.div
             style={{ ...amazonLayer, willChange: will }}
-            className="relative z-20 mt-3 md:absolute md:top-8 md:right-0 md:mt-0 md:w-[52%] xl:top-12"
+            className="relative z-20 mt-3 md:absolute md:top-8 md:right-0 md:mt-0 md:w-[round(down,58%,1px)] xl:top-10"
           >
             <Enter play={rise} delay={ENTRANCE.amazon} from={{ y: 24 }} duration={0.64}>
-              <AmazonCard s={s} dim={dim} />
+              <div data-testid="hero-amazon" className="rounded-card border border-line bg-surface p-4 shadow-raised-lg">
+                <Listing player={player} states={states} />
+              </div>
             </Enter>
           </m.div>
         </div>
 
-        <MarketplaceRail className="relative z-20 shrink-0" enter={enter} ring={reduced ? 0 : player.ring} ringDelay={player.ring === 1 ? 120 : 0} />
+        <MarketplaceRail className="relative z-20 shrink-0" enter={enter} ring={reduced ? 0 : player.ring} ringDelay={300} />
       </figure>
     </LazyMotion>
   )
