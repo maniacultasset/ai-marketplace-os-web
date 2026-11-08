@@ -14,6 +14,7 @@ import type { ChipStatus } from '@/components/la/status-chip'
 import type { Schema } from '@/api/types'
 import { humanizeCode, isAutoFix, TASK_KIND_LABEL, type Issue, type Task } from '@/features/inbox/model'
 import { NO_TRAIL_TEXT, onVersion, versionRef } from '@/features/listing-flow/auto-fix-model'
+import { causeLabel, fixState, laneView, type FixContext, type LaneView } from '@/features/listing-flow/lanes'
 import { isBlockingTask, isPhotoQuestion } from '@/features/photo-facts/answer-spec'
 
 type Listing = Schema<'ListingOut'>
@@ -425,7 +426,28 @@ export function positionLabel(items: readonly InboxItem[], key: string): string 
 /** Short title for an issue row: the humanized error code ("Value not allowed"). */
 export const issueTitle = (i: Pick<Issue, 'error_code'>) => humanizeCode(i.error_code)
 
-export function issueChip(i: Pick<Issue, 'status' | 'severity'> & Partial<Pick<Issue, 'resolution'>>): { status: ChipStatus; label: string } {
+type LaneFields = Partial<Pick<Issue, 'resolution' | 'lane' | 'marketplace' | 'resolved_at'>>
+
+/**
+ * Who settles an issue (SI11 lanes): open issues by their lane, closed ones only when Kuinn fixed
+ * them. Null when the API sent no lane (an older backend) or a person closed it: today's label stays.
+ * A closed fix is "Fixed for you" only with `ctx` (the listing's attempts) proving it (lanes.ts).
+ */
+export function issueLane(i: Pick<Issue, 'status'> & LaneFields, ctx?: FixContext | null): LaneView | null {
+  if (!i.lane) return null
+  const fixed = isAutoFix({ status: i.status, resolution: i.resolution })
+  if (i.status !== 'open' && !fixed) return null
+  return laneView(i.lane, { closed: fixed, marketplace: i.marketplace ?? 'amazon', fix: fixed ? fixState(i.lane, i.resolved_at, ctx) : undefined })
+}
+
+/** "A product fact", "The listing text": why it failed, when the API says. */
+export function issueCause(i: Partial<Pick<Issue, 'cause' | 'marketplace'>>): string | null {
+  return causeLabel(i.cause, i.marketplace ?? 'amazon')
+}
+
+export function issueChip(i: Pick<Issue, 'status' | 'severity'> & LaneFields, ctx?: FixContext | null): { status: ChipStatus; label: string } {
+  const lane = issueLane(i, ctx)
+  if (lane) return lane.chip
   switch (i.status) {
     case 'auto_fixed':
       return { status: 'live', label: 'Auto-fixed' }
@@ -450,7 +472,9 @@ export const RETRY_CLASS_TEXT: Record<Issue['retry_class'], string> = {
  * "Next step" for an issue. Only an open issue asks anything of a person; a closed one says
  * plainly that nothing is left, so an auto-fixed issue never reads as "needs you".
  */
-export function issueNextStep(i: Pick<Issue, 'status' | 'retry_class'> & Partial<Pick<Issue, 'resolution'>>): string {
+export function issueNextStep(i: Pick<Issue, 'status' | 'retry_class'> & LaneFields, ctx?: FixContext | null): string {
+  const lane = issueLane(i, ctx)
+  if (lane) return lane.next
   if (isAutoFix({ status: i.status, resolution: i.resolution })) return 'Nothing. Kuinn fixed this on its own.'
   switch (i.status) {
     case 'open':
@@ -634,4 +658,13 @@ export function greeting(name: string | null, hour = new Date().getHours()) {
   if (!first) return 'Home'
   const part = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
   return `Good ${part}, ${first}`
+}
+
+/** The fix context of one listing: its resolution attempts and whether the current version is approved. */
+export function fixContext(
+  resolution: { attempts?: readonly { kind: string; at: string; outcome: string }[] } | null | undefined,
+  listing: { current_version_id?: string | null; approved_version_id?: string | null } | null | undefined,
+): FixContext | null {
+  if (!resolution || !listing) return null
+  return { attempts: resolution.attempts ?? [], approved: !!listing.current_version_id && listing.approved_version_id === listing.current_version_id }
 }

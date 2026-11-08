@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useReviewListings, useSaveContent } from '@/features/listings/api'
 import { REJECT_REASONS, summarizeBatch, type BatchItemResult, type ListingDetail, type RejectReason } from '@/features/listings/model'
 import { codePoints, focusFirstInvalid } from '@/lib/validation'
+import { mpName } from './format'
 import {
   BULLETS_MAX,
   DESCRIPTION_MAX,
@@ -179,12 +180,18 @@ export function EditDialog({
   listing,
   etag,
   onSaved,
+  resend = false,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   listing: ListingDetail
   etag: string | null
   onSaved: (next: Versioned<ListingDetail>) => void
+  /**
+   * SI11: the listing goes out again once approved (resend.ts isResend). The button reads "Save and
+   * resend"; the editor still can't approve their own edit, so a teammate's one click sends it.
+   */
+  resend?: boolean
 }) {
   const save = useSaveContent(listing.id)
   const c = listing.content?.content
@@ -223,7 +230,9 @@ export function EditDialog({
         <DialogHeader>
           <DialogTitle>Edit the listing text</DialogTitle>
           <DialogDescription>
-            Saving creates a new version and runs the checks on it again. Because you edited it, someone else must approve it.
+            {resend
+              ? `Saving creates a new version and runs the checks on it again. Because you edited it, a teammate approves it and sends it to ${mpName(listing.marketplace)} again.`
+              : 'Saving creates a new version and runs the checks on it again. Because you edited it, someone else must approve it.'}
           </DialogDescription>
         </DialogHeader>
         <div ref={bodyRef} className="flex flex-col gap-4">
@@ -293,8 +302,8 @@ export function EditDialog({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button variant="primary" disabled={save.isPending} onClick={submit}>
-            {save.isPending ? 'Saving…' : 'Save as new version'}
+          <Button variant="primary" disabled={save.isPending} onClick={submit} data-testid="edit-save">
+            {save.isPending ? 'Saving…' : resend ? 'Save and resend' : 'Save as new version'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -14,6 +14,9 @@ vi.mock('@tanstack/react-router', () => ({
 // Every right, so a hidden control is hidden by the issue's state, not by the role.
 vi.mock('@/lib/permissions', () => ({ useCan: () => () => true }))
 vi.mock('@/features/inbox/dismiss-issue', () => ({ DismissIssueButton: () => <button type="button">Dismiss</button> }))
+// SI11: a closed fix reads its listing and the resolution read; these tests run with neither.
+vi.mock('@/features/listings/api', async (orig) => ({ ...(await orig<object>()), useListing: () => ({ data: undefined }) }))
+vi.mock('@/features/listing-flow/api', async (orig) => ({ ...(await orig<object>()), useListingResolution: () => ({ data: undefined }) }))
 
 const { InboxDetail } = await import('./inbox-detail')
 

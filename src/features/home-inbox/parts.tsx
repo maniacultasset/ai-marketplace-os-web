@@ -94,7 +94,7 @@ const TASK_ICON: Record<Task['kind'], IconSource> = {
 
 type RowItem =
   | { kind: 'task'; task: Pick<Task, 'kind'> }
-  | { kind: 'issue'; issue: Pick<Issue, 'severity' | 'status' | 'field_path' | 'error_code'> & Partial<Pick<Issue, 'error_class' | 'source'>> }
+  | { kind: 'issue'; issue: Pick<Issue, 'severity' | 'status' | 'field_path' | 'error_code'> & Partial<Pick<Issue, 'error_class' | 'source' | 'lane'>> }
 
 /**
  * 36px leading tile of a task or issue row. A question for the agent's work is brand; a reconnect

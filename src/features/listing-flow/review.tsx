@@ -16,6 +16,10 @@
  *     maker-checker explained before the click (makerHint over the history) and per item after;
  *   - Send back with a note: POST /listings/approve `decision: reject` (+ `regenerate`);
  *   - once approved: Publish (POST /listings/publish) opens the publish run.
+ *   - SI11 "What Kuinn did" (GET /listings/{id}/resolution, Amazon only): the resolution card
+ *     lands with the gates. On a resend (a fix Kuinn prepared, or a change after a send) the
+ *     approve button is "Approve and resend" (approve, then publish; resend.ts) for a teammate who
+ *     did not make the version; its maker or editor sees "Sent to a teammate for approval".
  */
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useLocation, useNavigate } from '@tanstack/react-router'
@@ -70,12 +74,28 @@ import { EditDialog, SendBackDialog } from './dialogs'
 import { clock, fieldLabel, mpName } from './format'
 import { claimFindings, gateCounts, plural, type ErrorItem, type GateResult } from './gates'
 import { ListOnButton } from './list-on'
+import { useListingResolution } from './api'
+import { approveThenPublish, isResend, resendView, TEAMMATE_TEXT } from './resend'
+import { hasResolution, resolutionView } from './resolution-model'
+import { ResolutionActionLink, ResolutionCard } from './resolution-timeline'
 import { approveAllTargets, approveBlockers } from './review-model'
 import { AI_PAUSED_REASON, isAiPausedError } from '@/features/ai-credit/model'
 import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
 import { STAGE_SUB } from './run-steps'
 import { ActionButton, CardSkeleton, GATE_CHIP, GateLegend, GateList, GateListSkeleton, ReadsAsSkeleton, ReviewTopSkeleton } from './ui'
 import { useListingChecks } from './use-listing-checks'
+
+/** Resets an intent key once the server answered (a network failure keeps it, so a retry replays). */
+async function keyed<T>(key: { reset: () => void }, call: Promise<T>): Promise<T> {
+  try {
+    const out = await call
+    key.reset()
+    return out
+  } catch (e) {
+    if (isApiError(e) && !e.isNetwork) key.reset()
+    throw e
+  }
+}
 
 function itemsSummary(okCount: number, failed: { message: string }[], verb: string): string {
   const parts = [okCount ? `${okCount} ${verb}` : null, failed.length ? `${failed.length} refused: ${failed[0]!.message}` : null]
@@ -139,6 +159,10 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   const fixesQ = useFixTrail(listing.id)
   const fixes = autoFixTrail(fixesQ.data ?? [], versionRef(listing))
   const hash = useLocation({ select: (l) => l.hash })
+  const amazon = listing.marketplace === 'amazon'
+  const resolutionQ = useListingResolution(listing.id, { enabled: amazon })
+  const resolution = amazon ? (resolutionQ.data ?? null) : null
+  const resolutionPending = amazon && resolutionQ.isPending
   const validate = useValidateListing(listing.id)
   const review = useReviewListings()
   const publish = usePublishListings()
@@ -181,7 +205,15 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   const allTargets = can('listing:approve') && !siblingsPending ? approveAllTargets(siblings) : []
   // Until the other marketplaces are read, the footer holds one Approve, so its width never changes.
   const approveShown: ActionState =
-    siblingsPending && approveState.show ? { show: true, enabled: false, reason: 'Checking the other marketplaces…' } : approveState
+    siblingsPending && approveState.show
+      ? { show: true, enabled: false, reason: 'Checking the other marketplaces…' }
+      : resolutionPending && approveState.show
+        ? { show: true, enabled: false, reason: 'Checking what Kuinn did…' }
+        : approveState
+  // SI11: a resend is one click (approve, then publish) by a teammate who did not make the version.
+  const resend = resendView({ resolution, listing, approve: approveShown, can, publishBuilt: BUILT['listings.publish'] })
+  const resendEdit = amazon && isResend(resolution)
+  const rview = resolution && hasResolution(resolution) ? resolutionView(resolution, { marketplace: listing.marketplace, marketplaceState: listing.marketplace_state }) : null
   // "Approve all" approves the other marketplaces' fixes too: read them, and name them in the footer.
   const others = allTargets.filter((l) => l.id !== listing.id)
   const otherFixes = useFixCounts(others)
@@ -233,6 +265,37 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
       if (isApiError(e) && !e.isNetwork) approveKey.reset()
       toastError(e, 'Couldn’t approve')
     } finally {
+      setSettling(null)
+    }
+  }
+
+  async function approveAndResend() {
+    setSettling('approve')
+    try {
+      const out = await approveThenPublish(listing, {
+        approve: (items) => keyed(approveKey, review.mutateAsync({ items, key: approveKey.get() })),
+        publish: (items) => keyed(publishKey, publish.mutateAsync({ items, key: publishKey.get() })),
+        reread: refetchListing,
+      })
+      const ref = (id: string | null) => (id ? ` Reference: ${id}` : '')
+      if (out.step === 'sent') {
+        if (out.jobId) {
+          rememberJob(listing.id, out.jobId)
+          toast.success(`Approved. Sending to ${mp} again.`)
+          void navigate({ to: '/runs/$runId', params: { runId: out.jobId } })
+        } else toast.success(`Approved. Sending to ${mp} again.`)
+      } else if (out.step === 'approve_failed') {
+        const blocking = out.result ? approveBlockers(out.result, listing.id) : null
+        setBlockers(blocking ? { version: listing.current_version_id, items: blocking } : null)
+        toast.error(`Couldn’t approve ${mp}`, {
+          description: blocking ? 'The marketplace check found blocking issues. They are listed on this page.' : `${out.message}${ref(out.requestId)} Nothing was sent.`,
+        })
+      } else {
+        // The approval stands; the page now offers Publish to try the send again.
+        toast.error(`Approved, but couldn’t send to ${mp}`, { description: `${out.message}${ref(out.requestId)}` })
+      }
+    } finally {
+      await refetchListing()
       setSettling(null)
     }
   }
@@ -375,9 +438,27 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
               {otherFindings.length ? <FindingsCard findings={otherFindings} /> : null}
             </div>
             <div className="flex min-w-0 flex-col gap-4">
+              {/* Lands with the gates (same ready flag), so it never pushes the cards below it. */}
+              {rview && checks.gatesReady && !fixesQ.isPending ? (
+                <ResolutionCard
+                  view={rview}
+                  marketplace={listing.marketplace}
+                  action={
+                    rview.action.kind === 'change' ? (
+                      actions.edit.show && actions.edit.enabled ? (
+                        <Button size="sm" variant="secondary" onClick={() => setEdit(true)} data-testid="resolution-edit">
+                          Edit the text
+                        </Button>
+                      ) : null
+                    ) : rview.action.kind === 'approve' ? null : (
+                      <ResolutionActionLink action={rview.action} listingId={listing.id} marketplace={listing.marketplace} />
+                    )
+                  }
+                />
+              ) : null}
               <GatesCard
                 gates={checks.gates}
-                ready={checks.gatesReady && !fixesQ.isPending}
+                ready={checks.gatesReady && !fixesQ.isPending && !resolutionPending}
                 neverChecked={!checks.current.checked}
                 listed={otherFindings}
                 rulesCount={checks.rules?.length ?? null}
@@ -429,7 +510,13 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
       {listing.content && !busy && (actions.approve.show || actions.reject.show) ? (
         <FooterBar
           status={
-            allTargets.length > 1 ? (
+            resend.kind === 'teammate' ? (
+              <span data-testid="resend-teammate">
+                <b className="text-ink">{TEAMMATE_TEXT}.</b> You made this version, so a teammate approves it and sends it to {mp} again.
+              </span>
+            ) : resend.kind === 'approve_and_resend' ? (
+              `Approving sends this version to ${mp} again.`
+            ) : allTargets.length > 1 ? (
               <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span>Each marketplace is approved as its own listing.</span>
                 {batchFixes.map(({ listing: l, count }) => (
@@ -444,16 +531,22 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
           <ActionButton state={actions.reject} variant="ghost" onClick={() => setSendBack(true)} data-testid="send-back">
             Send back with a note
           </ActionButton>
-          <ActionButton
-            state={approveShown}
-            variant={allTargets.length > 1 ? 'secondary' : 'primary'}
-            disabled={approving}
-            onClick={() => void approve([listing])}
-            data-testid="approve"
-          >
-            {approving ? 'Approving…' : `Approve ${mp}`}
-          </ActionButton>
-          {allTargets.length > 1 ? (
+          {resend.kind === 'teammate' ? null : resend.kind === 'approve_and_resend' ? (
+            <ActionButton state={resend.state} disabled={approving} onClick={() => void approveAndResend()} data-testid="approve-resend">
+              {approving ? 'Sending…' : 'Approve and resend'}
+            </ActionButton>
+          ) : (
+            <ActionButton
+              state={approveShown}
+              variant={allTargets.length > 1 ? 'secondary' : 'primary'}
+              disabled={approving}
+              onClick={() => void approve([listing])}
+              data-testid="approve"
+            >
+              {approving ? 'Approving…' : `Approve ${mp}`}
+            </ActionButton>
+          )}
+          {allTargets.length > 1 && resend.kind === 'none' ? (
             <ActionButton state={approveAllState} disabled={approving} onClick={() => void approve(allTargets)} data-testid="approve-all">
               Approve all {allTargets.length}
             </ActionButton>
@@ -483,9 +576,11 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
           onOpenChange={setEdit}
           listing={listing}
           etag={checks.etag}
+          resend={resendEdit}
           onSaved={() => {
             setEdit(false)
-            toast.success('Saved as a new version', { description: 'The checks ran again. Someone else approves your edit.' })
+            if (resendEdit) toast.success(TEAMMATE_TEXT, { description: `Saved as a new version. A teammate approves it and sends it to ${mp} again.` })
+            else toast.success('Saved as a new version', { description: 'The checks ran again. Someone else approves your edit.' })
           }}
         />
       ) : null}

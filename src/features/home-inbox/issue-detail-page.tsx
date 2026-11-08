@@ -32,6 +32,8 @@ import { DismissIssueButton } from '@/features/inbox/dismiss-issue'
 import { canDismiss, isAutoFix, issueHeadline, MARKETPLACE_LABEL, RESOLUTION_LABEL, SOURCE_LABEL, type Issue } from '@/features/inbox/model'
 import { useListing, useListingSubmissions } from '@/features/listings/api'
 import { FIXED_FOR_YOU_HASH } from '@/features/listing-flow/auto-fix-model'
+import { useListingResolution } from '@/features/listing-flow/api'
+import type { FixContext } from '@/features/listing-flow/lanes'
 import { ScreenHead } from '@/features/listing-flow/ui'
 import { useProduct } from '@/features/products/api'
 import { listingChip } from '@/lib/listing-chip'
@@ -40,10 +42,12 @@ import { supportMailto } from '@/lib/support'
 import { useFindIssueListing, useListingIssues } from './api'
 import {
   attemptsTimeline,
+  fixContext,
   issueAffects,
   issueChip,
   issueClassLine,
   issueFixTrail,
+  issueCause,
   issueNextStep,
   issuePlainLabel,
   issueTimeline,
@@ -77,6 +81,7 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
   const listing = useListing(listingId)
   const product = useProduct(listing.data?.data.product_id)
   const submissions = useListingSubmissions(listingId)
+  const resolution = useListingResolution(listingId, { enabled: listing.data?.data.marketplace === 'amazon' })
   const can = useCan()
 
   if (issues.isPending) return <DetailSkeleton />
@@ -93,6 +98,8 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
   if (!issue) return <IssueNotFound />
 
   const l = listing.data?.data
+  // A closed fix says "Fixed for you" only with the listing's attempts proving it (SI11 lanes).
+  const fix = fixContext(resolution.data, l)
   const fixed = isAutoFix(issue)
   const trailLink = l ? issueTrailLink(issue, l) : null
   const others = issues.data.filter((i) => i.id !== issueId)
@@ -137,7 +144,7 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <LaCard className="flex flex-col gap-3" data-testid="issue-card" data-issue-id={issue.id}>
-          <IssueBody issue={issue} />
+          <IssueBody issue={issue} fix={fix} />
           <div className="flex flex-wrap items-center gap-2 pt-1">
             {issue.status === 'open' && isCategoryIssue(issue) ? (
               <UnavailableButton reason={NOT_YET.chooseCategory} data-testid="issue-choose-category">
@@ -240,7 +247,7 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
           </h2>
           <ul className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
             {others.map((o) => {
-              const c = issueChip(o)
+              const c = issueChip(o, fix)
               return (
                 <li key={o.id}>
                   <Link
@@ -266,8 +273,8 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
   )
 }
 
-function IssueBody({ issue }: { issue: Issue }) {
-  const chip = issueChip(issue)
+function IssueBody({ issue, fix }: { issue: Issue; fix: FixContext | null }) {
+  const chip = issueChip(issue, fix)
   const marketplace = MARKETPLACE_LABEL[issue.marketplace]
   const fromMarketplace = issue.source === 'amazon_adapter' || issue.source === 'flipkart_adapter'
   const plain = issue.plain_message?.trim()
@@ -300,7 +307,8 @@ function IssueBody({ issue }: { issue: Issue }) {
         rows={[
           ['Affects', issueAffects(issue)],
           ['Class', issueClassLine(issue)],
-          ['Next step', issueNextStep(issue)],
+          ['Next step', issueNextStep(issue, fix)],
+          ...(issueCause(issue) ? ([['Cause', issueCause(issue)]] as [string, ReactNode][]) : []),
           ...(issue.value_submitted ? ([['Value sent', <code key="v" className="font-mono text-caption">{issue.value_submitted}</code>]] as [string, ReactNode][]) : []),
         ]}
       />
