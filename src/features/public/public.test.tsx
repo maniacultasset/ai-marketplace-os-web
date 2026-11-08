@@ -1,31 +1,16 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { isValidElement } from 'react'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MARKETPLACES } from '@/components/la/marketplace'
-import { HeroFinding } from './hero-finding'
 import { HowItWorksDemo } from './how-it-works-demo'
 import { Benefits } from './benefits'
-import { MarketplaceStrip } from './marketplace-strip'
+import { MarketplaceRail } from './marketplace-rail'
 import { advance, checksAt, DRAFT, FINAL, FIX_BEATS, FIX_HEAD, FIX_TAIL, FIXED_TITLE, fixedText, LAST_BEAT, LIMIT, NARRATION, RAIL, SCENES, START } from './how-it-works-script'
 import { DESCRIBES_YOU, HERO_EXAMPLE, heroFindings, heroTitleLength, BENEFITS, MARKET_STATUS, signupChip, STAGE_CHIP, stageOf } from './model'
 import { Ph, POLICY_SECTIONS } from './privacy-policy'
 import { LEGAL_EMAIL, TERMS_SECTIONS } from './terms'
 
-describe('hero example (seeded kurta-set rules)', () => {
-  // jsdom has no matchMedia; the length count-up asks for it. Report reduced motion so the real
-  // value renders at once.
-  beforeAll(() => {
-    window.matchMedia ??= ((query: string) => ({
-      matches: query.includes('reduce'),
-      media: query,
-      onchange: null,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      addListener: () => {},
-      removeListener: () => {},
-      dispatchEvent: () => false,
-    })) as typeof window.matchMedia
-  })
+describe('example title (seeded kurta-set rules)', () => {
   it('has a title that passes Amazon’s 200 limit but breaks Flipkart’s 150', () => {
     const len = heroTitleLength()
     expect(len).toBeGreaterThan(HERO_EXAMPLE.limits.flipkart)
@@ -36,15 +21,6 @@ describe('hero example (seeded kurta-set rules)', () => {
     expect(f.map((x) => `${x.marketplace}:${x.code}`)).toEqual(['flipkart:FIELD_TOO_LONG', 'amazon:BANNED_TERM', 'flipkart:BANNED_TERM'])
     expect(f[0]?.message).toContain(String(heroTitleLength()))
   })
-  it('renders as a labelled example with no interactive controls and shows the "Fixed for you" trail', () => {
-    render(<HeroFinding />)
-    expect(screen.getByText('Example')).toBeTruthy()
-    expect(screen.getByText(/An example listing, not real product data/)).toBeTruthy()
-    expect(screen.getByText('Fixed for you')).toBeTruthy()
-    expect(screen.queryAllByRole('button')).toHaveLength(0)
-    expect(screen.queryAllByRole('link')).toHaveLength(0)
-    expect(screen.getByText(`${heroTitleLength()} / ${HERO_EXAMPLE.limits.flipkart} characters`)).toBeTruthy()
-  })
 })
 
 describe('marketplace status', () => {
@@ -53,9 +29,10 @@ describe('marketplace status', () => {
     expect(new Set(ids).size).toBe(ids.length)
     expect([...ids].sort()).toEqual(MARKETPLACES.map((m) => m.id).sort())
   })
-  it('marks only Amazon live, Flipkart coming soon and every unsupported marketplace as roadmap', () => {
+  it('marks only Amazon live, Flipkart next and every unsupported marketplace as roadmap', () => {
     expect(stageOf('amazon')).toBe('live')
     expect(stageOf('flipkart')).toBe('soon')
+    expect(STAGE_CHIP.soon).toEqual({ status: 'paused', label: 'Next', short: 'Next', glyph: '◐' })
     for (const m of MARKETPLACES.filter((x) => !x.supported)) expect(stageOf(m.id)).toBe('roadmap')
     expect(MARKET_STATUS.filter((m) => STAGE_CHIP[m.stage].status === 'live').flatMap((m) => m.ids)).toEqual(['amazon'])
   })
@@ -78,18 +55,22 @@ describe('benefits', () => {
   })
 })
 
-describe('marketplace strip', () => {
+describe('marketplace rail', () => {
   afterEach(cleanup)
-  it('names all six marketplaces with their own stage and keeps only Amazon in full colour', () => {
-    const { container } = render(<MarketplaceStrip />)
-    expect(container.querySelectorAll('li')).toHaveLength(MARKETPLACES.length)
-    expect(screen.getByTestId('strip-amazon').textContent).toBe('Amazon●Live')
-    expect(screen.getByTestId('strip-flipkart').textContent).toContain('Coming soon')
-    for (const id of ['myntra', 'ajio', 'meesho', 'nykaa']) expect(screen.getByTestId(`strip-${id}`).textContent).toContain('On the roadmap')
-    // The roadmap and coming-soon stages carry their own glyphs: never a dash, never "paused" bars.
-    expect(container.textContent).not.toMatch(/[–—❚]/)
-    const muted = [...container.querySelectorAll('[data-slot="marketplace-tile"][data-muted]')].map((t) => t.getAttribute('data-marketplace'))
-    expect(muted).toEqual(['flipkart', 'myntra', 'ajio', 'meesho', 'nykaa'])
+  it('shows the three stages in three levels: Amazon live, Flipkart next, the four on the roadmap', () => {
+    const { container } = render(<MarketplaceRail />)
+    expect(screen.getByRole('list', { name: 'Marketplaces' })).toBeTruthy()
+    expect(container.querySelectorAll('li')).toHaveLength(3)
+    expect(screen.getByTestId('rail-live').textContent).toBe('Amazon●Live')
+    expect(screen.getByTestId('rail-next').textContent).toBe('Flipkart◐Next')
+    expect(screen.getByTestId('rail-roadmap').textContent).toBe('Myntra, AJIO, Meesho, Nykaa Fashion◌On the roadmap')
+    // The stages carry their own glyphs: never a dash, never "paused" bars, never "Coming soon".
+    expect(container.textContent).not.toMatch(/[–—❚]|Coming soon/)
+    // Only logo images are dimmed: Amazon full colour, Flipkart half lit, the roadmap grey.
+    const tile = (id: string) => container.querySelector(`[data-slot="marketplace-tile"][data-marketplace="${id}"]`)!
+    expect(tile('amazon').getAttribute('class')).not.toMatch(/\[&_img\]/)
+    expect(tile('flipkart').getAttribute('class')).toContain('[&_img]:saturate-[.45]')
+    for (const id of ['myntra', 'ajio', 'meesho', 'nykaa']) expect(tile(id).getAttribute('class')).toContain('grayscale(1)')
   })
 })
 

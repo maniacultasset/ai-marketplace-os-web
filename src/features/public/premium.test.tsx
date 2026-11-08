@@ -31,8 +31,16 @@ describe('public copy', () => {
     }
   })
 
-  it('never claims more than is live: Amazon live, Flipkart coming soon', () => {
-    const copy = ['src/features/public/landing.tsx', 'src/features/public/model.ts', 'src/features/public/how-it-works-script.ts', 'index.html']
+  it('never claims more than is live: Amazon live, Flipkart next', () => {
+    const copy = [
+      'src/features/public/landing.tsx',
+      'src/features/public/model.ts',
+      'src/features/public/how-it-works-script.ts',
+      'src/features/public/hero-story.ts',
+      'src/features/public/hero-stage.tsx',
+      'src/features/public/final-cta.tsx',
+      'index.html',
+    ]
       .map(read)
       .join('\n')
     for (const claim of [/every marketplace you sell/i, /Live on Flipkart/, /Sent to Flipkart/, /Publishing to Flipkart</, /once Flipkart approves/i]) {
@@ -73,8 +81,9 @@ describe('reduced motion', () => {
   it('switches off every public animation class in CSS', () => {
     const reduce = reducedMotionCss()
     expect(reduce).toMatch(/\.caret-blink\s*\{\s*animation:\s*none/)
-    expect(reduce).toMatch(/\.strip-rise > li,\s*\[data-reveal-scope\] \[data-shown\] \.live-ring::after\s*\{\s*animation:\s*none !important/)
-    expect(reduce).toMatch(/mark\[data-sweep\]::before\s*\{\s*transform:\s*none !important;\s*transition:\s*none !important/)
+    // The hero's ring and field chips hold still; the call to action's slips rest fanned.
+    expect(reduce).toMatch(/\.hero-ring,\s*\.hero-chip\s*\{\s*animation:\s*none !important/)
+    expect(reduce).toMatch(/\.cta-fan > \*,\s*\[data-reveal-scope\] \.cta-fan:not\(\[data-fanned\]\) > \*\s*\{[^}]*transition:\s*none !important/)
     expect(reduce).toMatch(/\[data-reveal-scope\] \[data-reveal\]:not\(\[data-shown\]\)\s*\{\s*transform:\s*none/)
     // The global rule that stops every other transition and animation.
     expect(reduce).toMatch(/animation-duration:\s*0\.01ms !important/)

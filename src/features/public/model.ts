@@ -1,5 +1,5 @@
 /**
- * Pure data and logic for the public pages: the landing page's illustrative finding, the honest
+ * Pure data and logic for the public pages: the How it works example's findings, the honest
  * marketplace status, the live features, the sign-up status chip and the "what describes you" options.
  */
 import type { MarketplaceId } from '@/components/la/marketplace'
@@ -7,7 +7,7 @@ import type { ChipStatus } from '@/components/la/status-chip'
 import type { Schema } from '@/api/types'
 
 /**
- * The hero's example finding. Marketing illustration, never app data. The limits and the banned
+ * The How it works example's finding. Marketing illustration, never app data. The limits and the banned
  * term are the real seeded platform rules for kurta sets (backend
  * packages/schemas/fixtures/rules.seed.json: content.title max_length 200 on Amazon and 150 on
  * Flipkart; banned_terms includes "best" on both), so the example shows what the rules engine
@@ -103,15 +103,16 @@ export const MARKET_STATUS: readonly MarketStatus[] = [
 
 /**
  * The chip for each stage. `glyph` replaces the status glyph on the public pages: a dotted ring for
- * the roadmap (never a dash) and a half disc for "coming soon" (the paused bars read as stopped).
+ * the roadmap (never a dash) and a half disc for "Next" (the paused bars read as stopped). Flipkart
+ * reads "Next" everywhere, to match "Flipkart is next."
  */
 export const STAGE_CHIP: Record<MarketStage, { status: ChipStatus; label: string; short: string; glyph?: string }> = {
   live: { status: 'live', label: 'Live', short: 'Live' },
-  soon: { status: 'paused', label: 'Coming soon', short: 'Soon', glyph: '◐' },
+  soon: { status: 'paused', label: 'Next', short: 'Next', glyph: '◐' },
   roadmap: { status: 'not-listed', label: 'On the roadmap', short: 'Roadmap', glyph: '◌' },
 }
 
-/** The stage of one marketplace, for the hero strip. */
+/** The stage of one marketplace, for the hero rail. */
 export function stageOf(id: MarketplaceId): MarketStage {
   return MARKET_STATUS.find((m) => m.ids.includes(id))!.stage
 }
