@@ -23,6 +23,7 @@ import {
   STATUS_LABEL,
   STORY,
   storyAt,
+  titleLength,
 } from './hero-story'
 import { HERO_EXAMPLE } from './model'
 
@@ -42,7 +43,7 @@ const setReduced = (reduce: boolean) => {
 
 /** Reports every observed element fully on screen. */
 class OnScreenObserver {
-  private cb: IntersectionObserverCallback
+  protected cb: IntersectionObserverCallback
   constructor(cb: IntersectionObserverCallback) {
     this.cb = cb
   }
@@ -67,6 +68,17 @@ function Hero() {
 }
 
 const beat = () => screen.getByTestId('hero-stage').getAttribute('data-beat')
+const stage = () => screen.getByTestId('hero-stage')
+/** jsdom never loads images: report every hero photo loaded. */
+const loadPhotos = () => {
+  for (const img of screen.getByTestId('hero-photo').querySelectorAll('img')) fireEvent.load(img)
+}
+/** md and up, motion on. */
+const setWide = () => {
+  setReduced(false)
+  const reduced = window.matchMedia
+  window.matchMedia = ((query: string) => ({ ...reduced(query), matches: /min-width: (768|1024)px/.test(query) })) as typeof window.matchMedia
+}
 /** Runs the clock in small steps, so each beat's timer is set before the next one is due. */
 const run = (ms: number) => {
   for (let t = 0; t < ms; t += 100) act(() => vi.advanceTimersByTime(Math.min(100, ms - t)))
@@ -126,14 +138,19 @@ describe('hero story', () => {
     expect(tee!.sizes).toHaveLength(6)
     expect([at('end1'), at('end2'), at('end3')].map((b) => storyAt(1, b).status)).toEqual(['approved', 'sent', 'live'])
     expect(shirt!.photoFact.label).toBe('Colour')
-    expect(shirt!.fixCaption).toMatch(/your sheet/i)
+    expect(shirt!.fixTag).toMatch(/your sheet/i)
+    expect(shirt!.fixCaption).toMatch(/nothing guessed/i)
     expect(storyAt(2, LAST).status).toBe('ready')
-    // "Fixed for you" only marks safe fixes; the size chart comes from the seller.
-    expect(PRODUCTS.map((p) => p.fixTag)).toEqual(['Fixed for you', 'Fixed for you', 'Size chart added'])
+    // "Fixed for you" (green) only marks safe fixes; the size chart comes from the seller (brand blue).
+    expect(PRODUCTS.map((p) => p.fixTag)).toEqual(['Fixed for you', 'Fixed for you', 'Added from your sheet'])
+    expect(PRODUCTS.map((p) => p.fixTone)).toEqual(['success', 'success', 'brand'])
+    // The t-shirt's fix says exactly what changed.
+    expect(tee!.fixCaption).toBe(`Title trimmed from ${titleLength(tee!.draftTitle)} to ${titleLength(tee!.title)} characters`)
     const copy = JSON.stringify(PRODUCTS) + JSON.stringify(STORY) + JSON.stringify(STATUS_LABEL)
     // No em dashes, no white-background claim and nothing that is not live yet.
     expect(copy).not.toMatch(/—|white background|resend|re-send|resubmit/i)
-    expect(STORY.summary).toContain('Flipkart is next.')
+    // The rail's own list reads the marketplaces out; the summary does not repeat them.
+    expect(STORY.summary).not.toMatch(/flipkart|myntra|roadmap/i)
     expect(JSON.stringify(STATUS_LABEL)).not.toMatch(/flipkart/i)
   })
 
@@ -150,6 +167,14 @@ describe('hero story', () => {
     expect(tee!.finding).toBe(`Title is ${[...tee!.draftTitle].length} characters`)
     expect(CHECKS[0]!.text).toContain(String(limit))
     for (const p of PRODUCTS) expect([...p.title].length).toBeLessThanOrEqual(limit)
+    // A title shortened for the card keeps whole phrases from the shipped title, then an ellipsis.
+    expect(tee!.shownTitle!.endsWith('…')).toBe(true)
+    expect(tee!.title.startsWith(tee!.shownTitle!.slice(0, -1))).toBe(true)
+    expect(tee!.title.slice(tee!.shownTitle!.length - 1, tee!.shownTitle!.length + 1)).toBe(', ')
+  })
+
+  it('keeps every visible title within two lines, so none is cut mid-word by the clamp', () => {
+    for (const p of PRODUCTS) expect([...(p.shownTitle ?? p.draftTitle)].length).toBeLessThanOrEqual(70)
   })
 })
 
@@ -190,7 +215,7 @@ describe('hero stage', () => {
       expect(img.getAttribute('height')).toBe(String(HERO_PHOTO.height))
       expect(img.getAttribute('srcset')).toMatch(/ 420w, .+ 840w$/)
     }
-    // Only the first photo may be high priority (from lg, where it is above the fold); matchMedia says no here.
+    // Only the first photo may be high priority (from md, where it is above the fold); matchMedia says no here.
     expect(imgs()[0]!.getAttribute('fetchpriority')).toBe('auto')
     expect(imgs()[1]!.getAttribute('fetchpriority')).toBe('low')
     expect(imgs()[0]!.getAttribute('alt')).toBe(PRODUCTS[0]!.photo.alt)
@@ -199,13 +224,33 @@ describe('hero stage', () => {
     expect(screen.getByTestId('hero-photo').querySelectorAll(':scope > :not(img)')).toHaveLength(0)
   })
 
+  it('gives only the first photo high priority from md, where the stage is above the fold', () => {
+    setWide()
+    vi.stubGlobal('IntersectionObserver', OnScreenObserver)
+    render(<Hero />)
+    const imgs = [...screen.getByTestId('hero-photo').querySelectorAll('img')]
+    expect(imgs.map((i) => i.getAttribute('fetchpriority'))).toEqual(['high', 'low', 'low'])
+  })
+
+  it('waits for the next photo before moving to its product', () => {
+    vi.useFakeTimers()
+    setReduced(false)
+    vi.stubGlobal('IntersectionObserver', OnScreenObserver)
+    render(<Hero />)
+    run(ENTER_HOLD_MS * 2)
+    expect([stage().getAttribute('data-product'), beat()]).toEqual(['kurta', String(ENTER)])
+    loadPhotos()
+    run(ENTER_HOLD_MS)
+    expect([stage().getAttribute('data-product'), beat()]).toEqual(['tee', '0'])
+  })
+
   it('loops through the three products and never holds for hover, focus or a tap', () => {
     vi.useFakeTimers()
     setReduced(false)
     vi.stubGlobal('IntersectionObserver', OnScreenObserver)
     render(<Hero />)
-    const stage = () => screen.getByTestId('hero-stage')
     const fig = screen.getByTestId('hero-example')
+    loadPhotos()
     expect(beat()).toBe(String(ENTER))
     expect(stage().getAttribute('data-product')).toBe('kurta')
     fireEvent.mouseEnter(fig)
@@ -228,6 +273,7 @@ describe('hero stage', () => {
     setReduced(false)
     vi.stubGlobal('IntersectionObserver', OnScreenObserver)
     render(<Hero />)
+    loadPhotos()
     expect(document.querySelector('.hero-ring')).toBeNull()
     run(ENTER_HOLD_MS + BEATS[LAST]!.at)
     expect(screen.getByTestId('hero-stage').getAttribute('data-product')).toBe('tee')
@@ -245,7 +291,52 @@ describe('hero stage', () => {
     })
     act(() => vi.advanceTimersByTime(CYCLE_MS))
     expect(beat()).toBe(String(ENTER))
+    expect(stage().hasAttribute('data-paused')).toBe(true)
+    // Visible again: it picks up from the same beat.
+    hidden.mockReturnValue('visible')
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    loadPhotos()
+    run(ENTER_HOLD_MS)
+    expect([stage().getAttribute('data-product'), beat()]).toEqual(['tee', '0'])
     hidden.mockRestore()
+  })
+
+  it('resumes when the stage comes back on screen', () => {
+    vi.useFakeTimers()
+    setReduced(false)
+    let report: ((on: boolean) => void) | undefined
+    class Toggle extends OnScreenObserver {
+      observe(target: Element) {
+        report = (on) =>
+          this.cb(
+            [{ target, isIntersecting: on, intersectionRatio: on ? 1 : 0, intersectionRect: { height: on ? 2000 : 0 } } as IntersectionObserverEntry],
+            this as unknown as IntersectionObserver,
+          )
+        report(true)
+      }
+    }
+    vi.stubGlobal('IntersectionObserver', Toggle)
+    render(<Hero />)
+    loadPhotos()
+    act(() => report!(false))
+    act(() => vi.advanceTimersByTime(CYCLE_MS))
+    expect(beat()).toBe(String(ENTER))
+    act(() => report!(true))
+    run(ENTER_HOLD_MS)
+    expect([stage().getAttribute('data-product'), beat()]).toEqual(['tee', '0'])
+  })
+
+  it('clears its timer on unmount', () => {
+    vi.useFakeTimers()
+    setReduced(false)
+    vi.stubGlobal('IntersectionObserver', OnScreenObserver)
+    const { unmount } = render(<Hero />)
+    loadPhotos()
+    expect(vi.getTimerCount()).toBeGreaterThan(0)
+    unmount()
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('does not play while it is off screen', () => {
@@ -312,9 +403,13 @@ describe('final call to action', () => {
       expect(img.getAttribute('loading')).toBe('lazy')
       expect(img.getAttribute('srcset')).toMatch(/ 1x, .+-96\.webp 2x$/)
     }
-    // The hero's three products: kurta set, t-shirt and linen shirt.
+    // The hero's three products, each with the status it ends on in the hero.
     expect(CTA_SLIPS.map((s) => s.name)).toEqual(PRODUCTS.map((p) => p.name))
-    expect(cta.textContent!.match(/Ready to approve/g)).toHaveLength(3)
+    expect([...slips].map((li) => li.querySelector('[data-status]')!.textContent!.slice(1))).toEqual([
+      STATUS_LABEL.approved,
+      STATUS_LABEL.live,
+      STATUS_LABEL.ready,
+    ])
     // Nothing is labelled as an example.
     expect(cta.textContent).not.toMatch(/example/i)
   })

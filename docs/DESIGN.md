@@ -204,39 +204,50 @@ The landing's one bold moment. Everything else on the page stays quiet.
   in the stage has its own radius.
 - **Stage** (`features/public/hero-stage.tsx`, data in `hero-story.ts`). Three products play one after another,
   each led by its real, original photo (no cut-outs or white-background versions anywhere on the landing):
-  an indigo kurta set, an oversized cotton t-shirt and a coral linen shirt. The record card holds the photo, head
-  to toe in one 3:4 frame at the same scale and headroom for all three, with nothing laid over it, and its facts
+  an indigo kurta set, an oversized cotton t-shirt and a pastel pink linen shirt. The record card holds the photo in
+  one 3:4 frame with the same headroom for all three (the kurta set and the t-shirt head to toe, the shirt, a studio
+  shot cut at the shins, head to below the hem), with nothing laid over it, and its facts
   underneath (two from the seller's sheet, one read from the photo that turns from "From photo" to "Confirmed").
   The Amazon card overlaps the photo's right edge on a fixed offset (32px down, 40px from xl, 6% over it; the
-  facts keep clear of the overlap) and reads as a real listing: logo and one status pill, title, two bullets,
-  price with the M.R.P. struck through and the variant count, the size chips, three key attributes, the three
-  checks and one fix line. On phones the cards stack on the same edges. Nothing is labelled "Example". The figure
+  facts keep clear of the overlap) and reads as a real listing: logo and one status pill, title (two lines at
+  most; a longer one shows whole phrases and an ellipsis, never a mid-word cut), one line under the title, two
+  bullets, price with the M.R.P. struck through and the variant count, the size chips, three key attributes on
+  one line, the three checks and one fix line. While the checks and the fix hold the eye, the written rows rest at
+  42% opacity, so only the header, title, checks and fix line read at once; they come back for "Ready to
+  approve". Every status glyph sits in one 14px box on a 28px header row, so the pill never moves between states. On phones the cards stack on the same edges. Nothing is labelled "Example". The figure
   has an accessible name and an `sr-only` summary; the cards are `aria-hidden`. No card is a control.
 - **What each product shows.** Only live features. Kurta set: written in the brand's voice (a "Brand voice" tag
-  on the title), "Best" flagged and removed ("Fixed for you"), then "Ready to approve" and "Approved by Meera"
-  (maker-checker). T-shirt: six size variants (the strip staggers in), a 210-character title trimmed to fit
-  Amazon's 200 ("Fixed for you"), then approved, "Sent to Amazon" and "Live on Amazon" (the rail's live dot
-  rings once). Linen shirt: colour read from the photo and confirmed, the size chart added from the seller's
-  sheet (never invented), every check ticked, "Ready to approve". Never shown: auto-resend after a rejection,
+  under the title), "Best" flagged and removed ("Fixed for you", "Removed “Best” from the title"), then "Ready to
+  approve" and "Approved by Meera" (maker-checker). T-shirt: six size variants (the strip staggers in), a counter
+  under the title ("210/200 characters", red once flagged, then "192/200" in green) and "Title trimmed from 210 to
+  192 characters" ("Fixed for you"), then approved, "Sent to Amazon" and "Live on Amazon" (the rail's live dot
+  rings once). Linen shirt: colour read from the photo and confirmed ("Colour from your photo" under the title),
+  the size chart from the seller's sheet in brand blue, not the green of a Kuinn fix ("Added from your sheet",
+  "Size chart attached, nothing guessed"), every check ticked, "Ready to approve". Never shown: auto-resend after a rejection,
   Flipkart publishing, invented data.
 - **No layout shift, whole pixels.** Every row, chip, check and fix line has its room reserved from the first
   frame (a skeleton bar sits in each row until the listing is written), so text only fades and rises in place.
   The hero's copy column, both card widths and the photo frame's height are rounded down to 1px with CSS
   `round()`, so x, width and height land on whole pixels and the stage, both cards and every row keep one box
-  through the whole loop (verified with a frame trace at 375, 768, 1024, 1440 and 1920). The cards' y offset
-  can sit on a half pixel where fluid type or vertical centring above them does.
+  through the whole loop (verified with a frame trace at 375, 768, 1024, 1440 and 1920). The stage's y offset is
+  not rounded: it inherits fluid type and vertical centring above it, so it lands on .5 at 1440 and 1920 and on
+  a third of a pixel at 375 and 768 (whole device pixels at 2x and 3x; Chrome snaps borders and backgrounds).
 - **Images.** WebP from the original JPEGs (quality 86-88): 420w and 840w (2x the largest display size) with
   `srcset` and `sizes`, each hero photo under 140KB, slips 48x64 with a 96x128 2x under 15KB. The first photo is
-  never lazy and gets `fetchpriority="high"` from lg; the other two mount with low priority once the stage has
-  been on screen, long before the first crossfade, so it never shows a blank frame. The new photo fades in on
-  top of the old one, which stays put underneath. No preload in `index.html`: it is served for every route and
+  never lazy and gets `fetchpriority="high"` from md, where the stage is above the fold; the other two mount
+  with low priority once the stage has been on screen. The loop never moves to a product whose photo has not
+  loaded (it holds the current product instead), so it never shows a blank frame or the old photo under new
+  facts. The new photo fades in on top of the old one, which stays put underneath. No preload in `index.html`: it is served for every route and
   the CSP forbids an inline script to scope it.
-- **Photo sources.** The kurta set is by IMANA, an Indian fashion brand that publishes on Unsplash; the t-shirt and
-  the linen shirt are by independent Unsplash photographers. All three are under the Unsplash License (commercial
-  use, no attribution required, not Unsplash+); credits stay in `public/landing/CREDITS.md` and no brand is named
+- **Photo sources.** The kurta set is by IMANA, an Indian fashion brand that publishes on Unsplash; the t-shirt is
+  by an independent Unsplash photographer (Unsplash License, not Unsplash+); the linen shirt is a plain studio shot
+  with no logo from Pexels (Pexels License). Both licenses allow commercial use and editing with no attribution
+  required; credits stay in `public/landing/CREDITS.md` and no brand is named
   in visible copy or alt text. If a source ever objects, swap the photo; the beats do not depend on it.
 - **Rail** (`marketplace-rail.tsx`). A real list in three levels: Amazon full colour with ● Live, Flipkart half lit
-  (`NEXT_LOGO`) with ◐ Next, the roadmap cell with the Myntra and AJIO marks in one light grey (`MUTED_LOGO`) and ◌ On the roadmap.
+  (`NEXT_LOGO`) with ◐ Next, the roadmap cell with the Myntra and AJIO marks at the same 28px as the others in one
+  muted but legible grey (`MUTED_LOGO`) and ◌ On the roadmap, drawn as a 7px ring in the same 10px glyph box as ●
+  and ◐ so the three status lines align.
   Only logo images are dimmed. Every name is one line ("Myntra, AJIO and more" on screen, the full list for
   screen readers), so the three cells share a baseline. It lays out by the tray's width (container queries): one
   column, two, then one row of three.
@@ -256,7 +267,8 @@ The landing's one bold moment. Everything else on the page stays quiet.
   or ring.
 - **Final call to action** (`final-cta.tsx`). `rounded-stage` raised panel in the corner light field, led by the real
   Amazon logo at 64px with a Live chip. From lg a column of three listing slips, the hero's three products, each with
-  its real 48x64 photo (1x and 2x), on shared left and right edges with no well behind them, spreads once vertically after the panel's
+  its real 48x64 photo (1x and 2x) and the status it ends on in the hero (Approved by Meera, Live on Amazon, Ready
+  to approve), on shared left and right edges with no well behind them, spreads once vertically after the panel's
   reveal (`cta-fan`); with reduced motion they rest spread.
 - **Sections.** One reveal for every section below the hero (`use-reveal.ts`): the H2, the lede, then top-level
   items, never nested ones, and no scale ("pop") variant.

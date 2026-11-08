@@ -16,7 +16,7 @@ import { StatusChip } from '@/components/la/status-chip'
 import { Button } from '@/components/ui/button'
 import { useRevealed } from '@/lib/use-reveal'
 import { cn } from '@/lib/utils'
-import { CTA_SLIPS } from './hero-story'
+import { CTA_SLIPS, STATUS_LABEL } from './hero-story'
 
 
 export function FinalCta({ wrap, h2 }: { wrap: string; h2: string }) {
@@ -78,7 +78,7 @@ export function FinalCta({ wrap, h2 }: { wrap: string; h2: string }) {
                   />
                   <span className="flex min-w-0 flex-1 flex-col items-start gap-1">
                     <span className="max-w-full truncate text-small font-semibold text-ink">{slip.name}</span>
-                    <StatusChip status="ready">Ready to approve</StatusChip>
+                    <StatusChip status={slip.status === 'ready' ? 'ready' : 'live'}>{STATUS_LABEL[slip.status]}</StatusChip>
                   </span>
                   <MarketplaceTile id="amazon" size="xs" className="self-start" />
                 </li>
