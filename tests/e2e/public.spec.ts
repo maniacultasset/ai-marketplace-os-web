@@ -11,9 +11,22 @@ test.describe('public pages', () => {
     await expect(page.getByTestId('hero-example')).toContainText('Example')
     await expect(page.getByTestId('market-live')).toContainText('Amazon')
     await expect(page.getByTestId('market-soon')).toContainText('Flipkart')
+    await expect(page.getByTestId('market-soon')).toContainText('Next')
     await expect(page.getByTestId('market-roadmap')).toContainText('Myntra')
     await page.getByTestId('landing-cta').click()
     await expect(page).toHaveURL(/\/signup$/)
+  })
+
+  test('on a 375 phone the first call to action is above the fold and nothing scrolls sideways', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 })
+    await page.goto('/')
+    const cta = await page.getByTestId('landing-cta').boundingBox()
+    expect(cta).not.toBeNull()
+    expect(cta!.y + cta!.height).toBeLessThan(600)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    // The hero loop has a Pause a keyboard or a thumb reaches, and the final call to action leads with Amazon.
+    await expect(page.getByTestId('hero-play')).toHaveAccessibleName('Pause animation')
+    await expect(page.getByTestId('cta-lockup').locator('[data-marketplace="amazon"] img')).toBeVisible()
   })
 
   test('privacy policy is final, names the company and has anchors', async ({ page }) => {

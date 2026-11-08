@@ -1,13 +1,15 @@
 /**
- * '/' signed out. Structure from the "Aisle" landing (hero with a validation finding, the pain, what
+ * '/' signed out. Structure from the "Aisle" landing (hero with an example listing, the pain, what
  * Kuinn does, the trust rules, one workflow, catalogs, marketplaces, pricing, one call to action),
  * styled with the Listing Agent hi-fi tokens and kit. No testimonials, logos of customers or
- * invented numbers. Every claim is a shipped feature; each marketplace's stage (live, coming soon,
+ * invented numbers. Every claim is a shipped feature; each marketplace's stage (live, next,
  * roadmap) is the honest one from MARKET_STATUS. "Three" failed fixes is the backend's
  * `llm_max_correction_attempts`.
  *
- * Motion: the h1 never waits; the hero lines follow it 60ms apart and every other block rises in
- * once when it scrolls into view (use-reveal.ts). Reduced motion shows everything at once.
+ * Motion: the h1 never waits; the hero lines follow it (60, 130, 200ms) and the hero stage plays its
+ * own entrance and loop (hero-stage.tsx). Every section below uses the one reveal pattern
+ * (use-reveal.ts): the H2, then the lede, then top-level items, never nested ones. Reduced motion
+ * shows everything at once.
  */
 import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
@@ -22,9 +24,10 @@ import { useReveal } from '@/lib/use-reveal'
 import { scrollToSection } from '@/lib/scroll-to-section'
 import { cn } from '@/lib/utils'
 import { Benefits } from './benefits'
-import { HeroFinding } from './hero-finding'
+import { FinalCta } from './final-cta'
+import { HeroRise, HeroStage } from './hero-stage'
 import { HowItWorksDemo } from './how-it-works-demo'
-import { MarketplaceStrip, MUTED_LOGO } from './marketplace-strip'
+import { MUTED_LOGO } from './marketplace-rail'
 import { COMPANY } from './company'
 import { MARKET_STATUS, STAGE_CHIP } from './model'
 import { useDocumentTitle } from './use-document-title'
@@ -137,35 +140,38 @@ const glideTo = (id: string) => (e: MouseEvent<HTMLAnchorElement>) => {
 export function Landing() {
   useDocumentTitle(null)
   const scope = useRef<HTMLDivElement>(null)
+  const hero = useRef<HTMLElement>(null)
   useReveal(scope)
   useSectionSpy()
   return (
     <PublicLayout inPage>
       <div ref={scope}>
-        {/* Hero */}
-        <section aria-labelledby="hero-h" className="bg-canvas">
+        {/* Hero: one full-bleed light field. The copy column never moves; the stage carries the motion. */}
+        <section ref={hero} aria-labelledby="hero-h" className="hero-field">
           <div
             className={cn(
               WRAP,
-              'grid grid-cols-1 items-center gap-12 pt-12 pb-20 md:pt-20 md:pb-28 lg:grid-cols-[minmax(0,1.04fr)_minmax(0,0.96fr)] lg:gap-14 xl:gap-20',
+              'grid grid-cols-1 pt-8 pb-16 md:pt-16 md:pb-24 lg:pt-8 xl:pt-16 lg:min-h-[min(calc(100svh-64px),880px)] lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] lg:items-center lg:gap-10 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] xl:gap-16 2xl:min-h-[min(calc(100svh-64px),960px)] 2xl:gap-20',
             )}
           >
-            <div className="min-w-0">
-              <p className="text-small font-semibold text-brand">AI listing agent for Indian fashion brands</p>
+            <div className="min-w-0 md:max-w-[640px]">
+              <p className="text-[14px] leading-5 font-semibold text-brand">AI listing agent for Indian fashion brands</p>
               <h1
                 id="hero-h"
-                className="mt-4 max-w-[18ch] font-display text-[clamp(2.4rem,2.2vw+2.05rem,4.25rem)] leading-[1.02] font-bold tracking-[-0.03em] text-balance text-ink"
+                className="mt-4 max-w-[12ch] font-display text-[clamp(2.5rem,2.6vw+1.6rem,4.75rem)] leading-[1] font-bold tracking-[-0.035em] text-balance text-ink"
               >
                 {/* One sentence per line, so a mid-width screen never strands a word on its own. */}
                 <span className="block">One catalog.</span> <span className="block">Every Indian marketplace.</span>
               </h1>
-              <p data-reveal data-reveal-delay="60" className="mt-6 max-w-[48ch] text-[17px] leading-[1.6] text-ink-2 md:text-[18px]">
-                Kuinn drafts every listing in your brand’s voice and checks each field against the marketplace’s rules before your team sees
-                it.
-                {/* Its own line, so the vision above is always read next to what works today. */}
-                <span className="mt-2 block font-semibold text-ink">Live on Amazon today. Flipkart is next.</span>
-              </p>
-              <div data-reveal data-reveal-delay="120" className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <HeroRise delay={60}>
+                <p className="mt-6 max-w-[46ch] text-[17px] leading-[1.6] text-ink-2 md:text-[18px]">
+                  Kuinn drafts every listing in your brand’s voice and checks each field against the marketplace’s rules before your team sees
+                  it.
+                  {/* Its own line, so the vision above is always read next to what works today. */}
+                  <span className="mt-2 block font-semibold text-ink">Live on Amazon today. Flipkart is next.</span>
+                </p>
+              </HeroRise>
+              <HeroRise delay={130} className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Button asChild size="lg" className="w-full sm:w-auto">
                   <Link to="/signup" data-testid="landing-cta">
                     Request access
@@ -176,17 +182,16 @@ export function Landing() {
                     See how it works
                   </a>
                 </Button>
-              </div>
-              <p data-reveal data-reveal-delay="180" className="mt-7 flex items-start gap-2.5 text-[15px] leading-[1.5] font-semibold text-ink">
-                <IconTile icon="shield" tone="ok" size="sm" className="mt-[calc((1lh-28px)/2)]" />
-                Nothing goes to a marketplace until someone on your team approves it.
-              </p>
-              <div data-reveal data-reveal-delay="240" className="mt-8 max-w-[560px] border-t border-line pt-6">
-                <MarketplaceStrip />
-              </div>
+              </HeroRise>
+              <HeroRise delay={200}>
+                <p className="mt-7 flex items-start gap-2.5 text-[15px] leading-[1.5] font-semibold text-ink">
+                  <IconTile icon="shield" tone="ok" size="sm" className="mt-[calc((1lh-28px)/2)]" />
+                  Nothing goes to a marketplace until someone on your team approves it.
+                </p>
+              </HeroRise>
             </div>
-            <div data-reveal="pop" data-reveal-delay="120" className="min-w-0">
-              <HeroFinding />
+            <div className="mt-10 w-full min-w-0 md:max-w-[640px] lg:mt-0 lg:max-w-none 2xl:max-w-[720px] 2xl:justify-self-end">
+              <HeroStage hero={hero} />
             </div>
           </div>
         </section>
@@ -374,38 +379,7 @@ export function Landing() {
           </div>
         </Section>
 
-        {/* Final call to action */}
-        <section aria-labelledby="cta-h">
-          <div className={cn(WRAP, 'py-20 md:py-28')}>
-            <div
-              data-reveal
-              className="flex flex-col gap-8 rounded-card border border-brand-line bg-brand-bg p-6 shadow-raised-md sm:p-8 md:p-12 lg:flex-row lg:items-center lg:justify-between"
-            >
-              <div className="flex max-w-[58ch] flex-col items-start gap-4">
-                <IconTile icon="users" tone="brand" size="lg" />
-                <div>
-                  <h2 id="cta-h" className={H2}>
-                    List your next collection on Amazon, in your own voice.
-                  </h2>
-                  <p className="mt-4 text-[17px] leading-[1.55] text-ink">
-                    Set up your products once. When Flipkart and the next marketplaces go live, they connect to that same catalog.
-                  </p>
-                  <p className="mt-2 text-[15px] leading-[1.55] text-ink-2">
-                    Our team reviews every request. Share your brand and work email to get started.
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-col gap-3 sm:flex-row lg:shrink-0">
-                <Button asChild size="lg" className="w-full sm:w-auto">
-                  <Link to="/signup">Request access</Link>
-                </Button>
-                <Button asChild size="lg" variant="secondary" className="w-full sm:w-auto">
-                  <Link to="/signup/status">Check a request</Link>
-                </Button>
-              </div>
-            </div>
-          </div>
-        </section>
+        <FinalCta wrap={WRAP} h2={H2} />
       </div>
     </PublicLayout>
   )

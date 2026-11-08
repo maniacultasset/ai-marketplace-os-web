@@ -145,6 +145,19 @@
   --rise: 12px;
   --stagger: 60ms;
   --dur-hover: 200ms;
+  /* The landing hero's own entrance and loop (hero-stage.tsx): calmer than the spring, no bounce.
+     The hero is the one place with a longer base duration and a wider stagger. */
+  --ease-out-calm: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-enter: 560ms;
+  --stagger-hero: 70ms;
+  /* The landing's one gradient exception: a neutral light field, surface fading into canvas, lit
+     from the top left like the matte shadows. Hero (full bleed) and the final call-to-action panel
+     only; flat under prefers-contrast: more (the hero-field utilities). Never coloured. The corner
+     variant is a raised surface with the canvas showing only in its far (bottom right) corner. */
+  --hero-field: radial-gradient(110% 80% at 12% 0%, var(--surface) 0%, var(--canvas) 58%);
+  --hero-field-corner: radial-gradient(120% 110% at 100% 100%, var(--canvas) 0%, var(--surface) 60%);
+  /* The white a cleaned main photo sits on (the marketplace's white background). */
+  --photo-white: #ffffff;
   /* Translucent chrome (sticky bars): canvas or surface at 78% with blur, content scrolls under. */
   --material-canvas: rgb(237 240 245 / 0.78);
   /* Phones and touch screens: a lighter blur over a more solid fill, cheaper to draw while scrolling. */
@@ -315,6 +328,7 @@
   --color-danger-bg: var(--danger-bg);
   --color-danger-line: var(--danger-line);
   --color-danger-ink: var(--danger-ink);
+  --color-photo-white: var(--photo-white);
 
   --radius-xs: 4px;
   --radius-sm: 5px;
@@ -330,6 +344,8 @@
   --radius-banner: 10px;
   /* md icon and monogram tiles, nav rows and inner rows: between a control (8) and a card (12). */
   --radius-tile: 10px;
+  /* The landing hero's stage tray and the final call-to-action panel only. */
+  --radius-stage: 24px;
 
   --shadow-sm: var(--shadow-raised-sm);
   --shadow-md: var(--shadow-raised-md);
@@ -675,9 +691,8 @@
    waits below and transparent (no transition, so it never animates out), then rises --rise into
    place when it enters view. The hook sets --d (batch stagger, or a pinned data-reveal-delay) and,
    once the transition is over, data-settled, which drops the reveal transition so the element's
-   own hover and state transitions run at their own speed.
-   data-reveal="pop" adds a 98.5% scale, for small surfaces only (scaling a page-wide card blurs its
-   text while it runs). */
+   own hover and state transitions run at their own speed. One pattern for every section: the H2,
+   then the lede, then top-level items. Never on nested elements. */
 [data-reveal-scope] [data-reveal][data-shown]:not([data-settled]) {
   transition:
     opacity var(--dur-fade) ease-out,
@@ -688,64 +703,71 @@
   opacity: 0;
   transform: translateY(var(--rise));
 }
-[data-reveal-scope] [data-reveal="pop"]:not([data-shown]) {
-  transform: translateY(var(--rise)) scale(0.985);
+
+/* The landing's neutral light field (--hero-field). Flat canvas when more contrast is asked for. */
+@utility hero-field {
+  background-color: var(--canvas);
+  background-image: var(--hero-field);
+  @media (prefers-contrast: more) {
+    background-image: none;
+  }
 }
-/* A highlight drawn across a word: one flat fill that grows left to right (transform only) 200ms
-   after its line arrives. Fully drawn by default, so it shows without script and in tests. */
-mark[data-sweep] {
-  position: relative;
-  isolation: isolate;
-  background: transparent;
+@utility hero-field-corner {
+  background-color: var(--surface);
+  background-image: var(--hero-field-corner);
+  @media (prefers-contrast: more) {
+    background-image: none;
+  }
 }
-mark[data-sweep]::before {
-  content: "";
+
+/* Hero stage (hero-stage.tsx). The live marketplace's dot gives one soft ring each time the
+   example turns ready. The element is remounted per ring, so the animation runs once per mount. */
+.hero-ring {
   position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  background: var(--danger-bg);
-  transform-origin: left center;
-}
-[data-reveal-scope] [data-reveal]:not([data-shown]) mark[data-sweep]::before {
-  transform: scaleX(0);
-}
-[data-reveal-scope] [data-reveal][data-shown]:not([data-settled]) mark[data-sweep]::before {
-  transition: transform 500ms var(--ease-spring) calc(var(--d, 0ms) + 200ms);
-}
-/* The hero marketplace strip: once its line is revealed, each tile rises 4px in turn (--i), then
-   the live marketplace's dot gives one soft ring. Never looped. */
-[data-reveal-scope] [data-shown] .strip-rise > li {
-  animation: rise-sm var(--dur-fade) var(--ease-spring) both;
-  animation-delay: calc(var(--d, 0ms) + 120ms + var(--i, 0) * 40ms);
-}
-.live-ring {
-  position: relative;
-  display: inline-block;
-}
-[data-reveal-scope] [data-shown] .live-ring::after {
-  content: "";
-  position: absolute;
-  inset: -1px;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  translate: -50% -50%;
   border-radius: 999px;
   background: currentColor;
   opacity: 0;
   pointer-events: none;
-  animation: live-ring 700ms ease-out both;
-  animation-delay: calc(var(--d, 0ms) + 520ms);
+  animation: hero-ring 700ms var(--ease-out-calm) both;
+}
+/* A field chip carried from the record card to the Amazon card: in, across, out. --chip-dx and
+   --chip-dy are the trip for the current layout (across from md, down on phones). Remounted per trip. */
+.hero-chip {
+  opacity: 0;
+  animation: hero-chip var(--chip-dur, 600ms) var(--ease-out-calm) both;
+  animation-delay: var(--chip-delay, 0ms);
+}
+/* Final CTA (final-cta.tsx): three listing slips offset like a small pile. Never rotated, so the
+   text stays crisp. They rest offset; only inside a reveal scope do they wait stacked on the first
+   slip, then spread out once (70ms apart). */
+.cta-fan > * {
+  transform: translate(var(--x, 0px), var(--y, 0px));
+}
+[data-reveal-scope] .cta-fan:not([data-fanned]) > * {
+  transform: translateY(calc(var(--i, 0) * var(--stack, -76px)));
+}
+[data-reveal-scope] .cta-fan[data-fanned] > * {
+  transition: transform 520ms var(--ease-out-calm);
+  transition-delay: calc(var(--i, 0) * 70ms);
 }
 @media (prefers-reduced-motion: reduce) {
-  /* Fade only: nothing travels. The highlight is simply there; the strip and the ring hold still. */
+  /* Fade only: nothing travels. The ring, the chips and the fan hold still. */
   [data-reveal-scope] [data-reveal]:not([data-shown]) {
     transform: none;
   }
-  mark[data-sweep]::before {
-    transform: none !important;
-    transition: none !important;
-  }
-  [data-reveal-scope] [data-shown] .strip-rise > li,
-  [data-reveal-scope] [data-shown] .live-ring::after {
+  .hero-ring,
+  .hero-chip {
     animation: none !important;
+  }
+  .cta-fan > *,
+  [data-reveal-scope] .cta-fan:not([data-fanned]) > * {
+    transform: translate(var(--x, 0px), var(--y, 0px)) !important;
+    transition: none !important;
   }
 }
 
@@ -824,25 +846,31 @@ svg.lucide[stroke-width="2"] {
   }
 }
 
-@keyframes rise-sm {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes live-ring {
+@keyframes hero-ring {
   from {
     opacity: 0.35;
     transform: scale(1);
   }
   to {
     opacity: 0;
-    transform: scale(1.8);
+    transform: scale(2.2);
+  }
+}
+
+@keyframes hero-chip {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  25% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--chip-dx, 0px), var(--chip-dy, 0px));
   }
 }
 

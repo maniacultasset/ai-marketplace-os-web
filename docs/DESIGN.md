@@ -28,6 +28,8 @@ in a component. Use these Tailwind names:
 | brand `#2F46D6`, brand-hover, brand-bg, brand-line | `bg-brand`, `hover:bg-brand-hover`, `bg-brand-bg`, `border-brand-line` | One primary action, selected state, in progress |
 | scrim | `bg-scrim` | Dialog, sheet and alert overlays (flat, never blurred) |
 | success, attention, danger (+ `-bg`, `-line`, `-tint`, `-ink`) | `text-success`, `bg-attention-bg`, `border-danger-line`, `bg-attention-tint` … | Live and passed / needs you and blocked / error and destructive |
+| photo-white `#FFFFFF` | `bg-photo-white` | The backing behind a cleaned white-background main photo (landing hero only) |
+| hero-field, hero-field-corner | `hero-field`, `hero-field-corner` utilities | The landing's light field: surface fading into canvas from the top left. Hero (full bleed) and final call to action only. See **Landing hero** |
 
 - Type: `font-display` (Bricolage Grotesque) for page and card titles, `font-sans` (DM Sans) for everything else.
   Both are self-hosted with `@fontsource-variable` (CSP `font-src 'self'`). Scale: `text-display` 34/38,
@@ -35,7 +37,8 @@ in a component. Use these Tailwind names:
   `text-caption` 12/16. `h1`–`h4` get the display font automatically.
 - Spacing: only 4, 8, 12, 16, 20, 24, 32, 48 (`1 2 3 4 5 6 8 12`). Card padding 20 (`p-5`). Page padding 28 (`p-7`,
   16 on mobile). Gap between cards 16. Gap between form fields 16.
-- Radius: controls 8 (`rounded-control`/`rounded-lg`), cards 12 (`rounded-card`/`rounded-xl`), banners 10
+- Radius: controls 8 (`rounded-control`/`rounded-lg`), cards 12 (`rounded-card`/`rounded-xl`), the landing hero tray
+  and final call-to-action panel 24 (`rounded-stage`, nowhere else), banners 10
   (`rounded-banner`), md tiles, nav rows and inner rows 10 (`rounded-tile`), small marks `rounded-xs`/`-sm`/`-md`
   (4/5/7), chips and toggles pill. Never an arbitrary `rounded-[Npx]`. Nested corners: inner radius = outer radius
   minus the padding between them (a 12 well with 8 padding holds 4 fields; a 12 track with 4 padding holds 8 cells).
@@ -53,7 +56,9 @@ in a component. Use these Tailwind names:
 A matte layer on top of the hi-fi: soft, non-glossy surfaces lit from the top left. Layout, type, copy and
 colour roles stay as in the hi-fi. Tokens live in `src/index.css`.
 
-**No** gradients, glass (`backdrop-blur`), glow halos, gloss highlights or coloured light. **Always** a hairline
+**No** gradients, glass (`backdrop-blur`), glow halos, gloss highlights or coloured light. The one exception is the
+landing's neutral light field (`--hero-field`, see **Landing hero**): never coloured, and flat under
+`prefers-contrast: more`. **Always** a hairline
 edge on every card, field and raised control (classic neumorphism's edgeless shapes fail contrast), the gap-plus-brand
 focus ring, text at 4.5:1 or more, and status chips with a glyph plus a word.
 
@@ -114,7 +119,9 @@ dots) uses 2.5, with a comment at the use. No emoji, no icon CDN, no other icon 
   (`--mp-amazon`, `--mp-flipkart`, `--mp-myntra`, `--mp-ajio`, `--mp-meesho`, `--mp-nykaa`, each ≥ 4.5:1 on
   `--surface`), so A/A and M/M read apart. The name always prints beside it. Unsupported marketplaces get a flat
   tile with a solid hairline and an `ink-3` letter on `subtle`; the card or chip around it carries the dashed edge, so
-  the tile never doubles it. Sizes xs 24, sm 28, md 36, big 44. No logos until we hold licensed assets.
+  the tile never doubles it. Sizes xs 24, sm 28, md 36, big 44, xl 64 (`rounded-card`, the landing's call-to-action
+  lockup only). The icon files are 128px, so 64 CSS px is the largest crisp size: never scale a tile past it, and never
+  filter, crop or recolour a live marketplace's logo.
 - Icons are decorative (`aria-hidden`); the label, or an icon-only button's `aria-label` naming action and object
   (plus a tooltip with the same words), carries the meaning.
 
@@ -181,6 +188,40 @@ The shadcn kit in `src/components/ui` is restyled to the tokens. The Kuinn piece
 | `BeingBuilt` | `la/being-built` | A placeholder for an unbuilt route. Delete it when you replace the route. |
 | `Icon`, `IconGlyph`, `IconTile`, `MonogramTile`, `LogoMark`, `Wordmark` | `la/icons` | See **Icons**. The hi-fi icon paths (24 grid, 1.75 stroke), any-source glyph, matte icon tiles and monogram tiles. |
 | States | `components/states` | `ErrorState` (with reference id), `EmptyState`, `Forbidden`, `NotFound`, `RequireAction`. Loading uses skeletons shaped like the content. |
+
+## Landing hero
+
+The landing's one bold moment. Everything else on the page stays quiet.
+
+- **Light field.** `hero-field` on the full-bleed hero section, `hero-field-corner` on the final call-to-action
+  panel: `radial-gradient(110% 80% at 12% 0%, surface 0%, canvas 58%)`. The corner variant is a raised surface
+  with canvas only in its far corner (`radial-gradient(120% 110% at 100% 100%, canvas 0%, surface 60%)`), so the
+  closing panel lifts off the page. Neutral, lit from the top left like the matte shadows. It is the only
+  gradient in the product and falls back to flat under `prefers-contrast: more`.
+- **Stage** (`features/public/hero-stage.tsx`, data in `hero-story.ts`). A recessed tray (`bg-canvas`,
+  `rounded-stage`, hairline, `shadow-inset-md`, `line-strong` edge under more contrast) holding an example: a record
+  card led by its photo (edge to edge from md; the white-background photo carries "You approve"), an Amazon card in front (raised lg), a dashed Flipkart ghost behind it (flat, its fill and edge at
+  70% so the words keep full contrast) and the marketplace rail. Labelled "Example" with a figcaption; the cards are
+  `aria-hidden` and an `sr-only` summary says what they show. No card is a control: no hover lift, no fake Approve.
+  From md the stage has a fixed height and every card is absolutely placed; whatever changes is stacked in a
+  reserved cell and only fades or moves (a swap fades out before the other fades in), so nothing shifts. The one
+  exception is the "Fixed for you" band, which opens inside the Amazon card (grid rows 0fr to 1fr). "Checking…"
+  uses a slow spinner, never the ◐ that means Next.
+- **Rail** (`marketplace-rail.tsx`). A real list in three levels: Amazon full colour with ● Live, Flipkart half lit
+  (`NEXT_LOGO`) with ◐ Next, the four roadmap marketplaces grey (`MUTED_LOGO`) with ◌ On the roadmap. Only logo
+  images are dimmed. It lays out by the tray's width (container queries): one column, two, then one row of three.
+- **Motion.** Transform and opacity only, `--ease-out-calm`, `--dur-enter` 560, `--stagger-hero` 70. The h1 never
+  waits; the copy lines rise 12px at 60/130/200ms. The stage enters once (about 1.8s) showing the finished listing, then loops every 10.8s while
+  40% of it is on screen and the tab is visible: photo to white, "From photo" to "Confirmed", field chips travel,
+  checks tick, "Best" is marked and removed, "Fixed for you", "Ready to approve", one ring on the live dot. The restart is one 300ms dip of the whole stage, never per-item reversals. Pause/Play
+  comes first in the figure (44px tall at every width, an icon button on phones, "Pause animation"/"Play animation"). Scroll parallax from
+  md, pointer parallax from lg with a fine pointer (`use-pointer-parallax.ts`, 2D only, at most 10px). No
+  `aria-live`. Reduced motion shows the finished listing at once, with no loop, parallax, ring or toggle.
+- **Final call to action** (`final-cta.tsx`). `rounded-stage` raised panel in the corner light field, led by the real
+  Amazon logo at 64px with a Live chip. From lg an inset well holds three example slips, offset and never rotated, that
+  spread once after the panel's reveal (`cta-fan`); with reduced motion they rest spread.
+- **Sections.** One reveal for every section below the hero (`use-reveal.ts`): the H2, the lede, then top-level
+  items, never nested ones, and no scale ("pop") variant.
 
 ## Shell and layouts
 

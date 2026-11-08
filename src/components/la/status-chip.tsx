@@ -51,7 +51,7 @@ const BASE =
   'inline-flex h-[22px] shrink-0 items-center gap-[5px] rounded-full border px-[9px] text-caption font-semibold whitespace-nowrap'
 
 /** `glyph` swaps the status's own glyph for another (the public pages' marketplace stages). */
-export function Glyph({ status, glyph, className }: { status: ChipStatus; glyph?: string; className?: string }) {
+export function Glyph({ status, glyph, className }: { status: ChipStatus; glyph?: ReactNode; className?: string }) {
   const g = glyph ?? CHIP_META[status].glyph
   return (
     <span aria-hidden className={cn('leading-none', g === '❚❚' ? 'text-[7px] tracking-[-1px]' : 'text-[10px]', className)}>
@@ -74,8 +74,8 @@ export function StatusChip({
   className,
 }: {
   status: ChipStatus
-  /** Replaces the status glyph (keep the meaning: one shape per stage). */
-  glyph?: string
+  /** Replaces the status glyph (keep the meaning: one shape per stage). A string, or a small mark such as a spinner. */
+  glyph?: ReactNode
   /** Replaces the default word (keep it a word or a short count phrase). */
   children?: ReactNode
   iconOnly?: boolean

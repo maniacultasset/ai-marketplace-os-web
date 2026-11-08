@@ -12,12 +12,13 @@
  * be viewed on its own and changes are short dissolves. Motion is transform and opacity only.
  */
 import { Pause, Play, RotateCcw } from 'lucide-react'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Icon, IconGlyph, IconTile } from '@/components/la/icons'
 import { MarketplaceTile } from '@/components/la/marketplace'
 import { SourceBadge } from '@/components/la/source-badge'
 import { CHIP_TONE, StatusChip, TagChip, type ChipStatus } from '@/components/la/status-chip'
 import { Button } from '@/components/ui/button'
+import { usePrefersReducedMotion } from '@/lib/use-media-query'
 import { cn } from '@/lib/utils'
 import {
   advance,
@@ -41,25 +42,6 @@ import {
   type SceneId,
 } from './how-it-works-script'
 import { FINDING_LABEL, HERO_EXAMPLE, heroFindings } from './model'
-
-/* ------------------------------------------------------------------------------------------------
- * Environment
- * --------------------------------------------------------------------------------------------- */
-
-const REDUCE = '(prefers-reduced-motion: reduce)'
-const mql = () => (typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia(REDUCE) : null)
-
-function usePrefersReducedMotion() {
-  return useSyncExternalStore(
-    (cb) => {
-      const m = mql()
-      m?.addEventListener?.('change', cb)
-      return () => m?.removeEventListener?.('change', cb)
-    },
-    () => mql()?.matches ?? false,
-    () => false,
-  )
-}
 
 /** Moves in with the spring; reduced motion keeps only the fade. */
 const SPRING = 'transition-[opacity,transform] duration-[var(--dur-spring)] ease-[var(--ease-spring)] motion-reduce:transform-none'
