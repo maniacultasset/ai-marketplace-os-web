@@ -198,28 +198,37 @@ The landing's one bold moment. Everything else on the page stays quiet.
   with canvas only in its far corner (`radial-gradient(120% 110% at 100% 100%, canvas 0%, surface 60%)`), so the
   closing panel lifts off the page. Neutral, lit from the top left like the matte shadows. It is the only
   gradient in the product and falls back to flat under `prefers-contrast: more`.
-- **Stage** (`features/public/hero-stage.tsx`, data in `hero-story.ts`). A recessed tray (`bg-canvas`,
-  `rounded-stage`, hairline, `shadow-inset-md`, `line-strong` edge under more contrast) holding an example: a record
-  card led by its photo (edge to edge from md; the white-background photo carries "You approve"), an Amazon card in front (raised lg), a dashed Flipkart ghost behind it (flat, its fill and edge at
-  70% so the words keep full contrast) and the marketplace rail. Labelled "Example" with a figcaption; the cards are
-  `aria-hidden` and an `sr-only` summary says what they show. No card is a control: no hover lift, no fake Approve.
-  From md the stage has a fixed height and every card is absolutely placed; whatever changes is stacked in a
-  reserved cell and only fades or moves (a swap fades out before the other fades in), so nothing shifts. The one
-  exception is the "Fixed for you" band, which opens inside the Amazon card (grid rows 0fr to 1fr). "Checking…"
-  uses a slow spinner, never the ◐ that means Next.
+- **Grid.** Two columns on one row from lg. The stage stretches to the copy column: its top is the eyebrow's top
+  and the rail's bottom is the trust line's bottom (the trust line sits at `mt-auto`). Spacing stays on the 4/8
+  scale; cards are `rounded-card`, nothing else in the stage has its own radius.
+- **Stage** (`features/public/hero-stage.tsx`, data in `hero-story.ts`). A real product photo (Unsplash License,
+  `public/landing/`, credits in `public/landing/CREDITS.md`) leads the record card, edge to edge, with a compact
+  facts footer. The photo crossfades from the studio shot to a white-background cutout of the same crop, and one
+  quiet pill says "White background · You approve". The Amazon card overlaps the photo on a fixed offset (48px
+  down, 8% over it from md; 24px on phones). No tray, no dashed ghosts and no floating chips at rest. Nothing is
+  labelled "Example": landing visuals are understood as illustrations. The figure has an accessible name and an
+  `sr-only` summary; the cards are `aria-hidden`. No card is a control. From md every card is absolutely placed
+  in a stage of fixed minimum height, and whatever changes is stacked in a reserved cell (the finding, then
+  "Fixed for you") and only fades or moves, so nothing shifts.
+- **Images.** WebP, width and height set. The white-background photo is the first frame, so it gets
+  `fetchpriority="high"` and is never lazy; the call-to-action thumbnails are `loading="lazy"`. Hero photo
+  under 70KB, thumbnails under 8KB.
 - **Rail** (`marketplace-rail.tsx`). A real list in three levels: Amazon full colour with ● Live, Flipkart half lit
   (`NEXT_LOGO`) with ◐ Next, the four roadmap marketplaces grey (`MUTED_LOGO`) with ◌ On the roadmap. Only logo
   images are dimmed. It lays out by the tray's width (container queries): one column, two, then one row of three.
 - **Motion.** Transform and opacity only, `--ease-out-calm`, `--dur-enter` 560, `--stagger-hero` 70. The h1 never
-  waits; the copy lines rise 12px at 60/130/200ms. The stage enters once (about 1.8s) showing the finished listing, then loops every 10.8s while
-  40% of it is on screen and the tab is visible: photo to white, "From photo" to "Confirmed", field chips travel,
-  checks tick, "Best" is marked and removed, "Fixed for you", "Ready to approve", one ring on the live dot. The restart is one 300ms dip of the whole stage, never per-item reversals. Pause/Play
-  comes first in the figure (44px tall at every width, an icon button on phones, "Pause animation"/"Play animation"). Scroll parallax from
-  md, pointer parallax from lg with a fine pointer (`use-pointer-parallax.ts`, 2D only, at most 10px). No
-  `aria-live`. Reduced motion shows the finished listing at once, with no loop, parallax, ring or toggle.
+  waits; the copy lines rise 12px at 60/130/200ms. The stage enters once showing the finished listing, then loops
+  every 10.8s: the studio photo holds 1.6s, then turns white, "From photo" to "Confirmed", field chips travel,
+  checks tick, "Best" is flagged and removed, "Fixed for you", "Ready to approve", one ring on the live dot. The
+  restart is a soft crossfade of the Amazon card's contents while the cards stay put. There are no play, pause or
+  replay controls (here or in How it works): the loop holds by itself while the pointer is over it, focus is
+  inside it (the figure is focusable), less than 40% of it is on screen or the tab is hidden, and resumes from
+  the same beat. Pointer parallax from lg with a fine pointer, at most 6px. No `aria-live`. Reduced motion shows
+  the finished listing at once, with no loop, parallax or ring.
 - **Final call to action** (`final-cta.tsx`). `rounded-stage` raised panel in the corner light field, led by the real
-  Amazon logo at 64px with a Live chip. From lg an inset well holds three example slips, offset and never rotated, that
-  spread once after the panel's reveal (`cta-fan`); with reduced motion they rest spread.
+  Amazon logo at 64px with a Live chip. From lg an inset well holds three listing slips, each with a real 48x60
+  product photo, offset and never rotated, that spread once after the panel's reveal (`cta-fan`); with reduced
+  motion they rest spread.
 - **Sections.** One reveal for every section below the hero (`use-reveal.ts`): the H2, the lede, then top-level
   items, never nested ones, and no scale ("pop") variant.
 

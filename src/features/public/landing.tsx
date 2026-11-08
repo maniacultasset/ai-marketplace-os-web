@@ -1,5 +1,5 @@
 /**
- * '/' signed out. Structure from the "Aisle" landing (hero with an example listing, the pain, what
+ * '/' signed out. Structure from the "Aisle" landing (hero with a listing, the pain, what
  * Kuinn does, the trust rules, one workflow, catalogs, marketplaces, pricing, one call to action),
  * styled with the Listing Agent hi-fi tokens and kit. No testimonials, logos of customers or
  * invented numbers. Every claim is a shipped feature; each marketplace's stage (live, next,
@@ -151,10 +151,10 @@ export function Landing() {
           <div
             className={cn(
               WRAP,
-              'grid grid-cols-1 pt-8 pb-16 md:pt-16 md:pb-24 lg:pt-8 xl:pt-16 lg:min-h-[min(calc(100svh-64px),880px)] lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] lg:items-center lg:gap-10 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] xl:gap-16 2xl:min-h-[min(calc(100svh-64px),960px)] 2xl:gap-20',
+              'grid grid-cols-1 pt-8 pb-16 md:pt-16 md:pb-24 lg:pt-8 xl:pt-16 lg:min-h-[min(calc(100svh-64px),880px)] lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] lg:content-center lg:items-stretch lg:gap-12 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] xl:gap-16 2xl:min-h-[min(calc(100svh-64px),960px)] 2xl:gap-20',
             )}
           >
-            <div className="min-w-0 md:max-w-[640px]">
+            <div className="flex min-w-0 flex-col md:max-w-[640px]">
               <p className="text-[14px] leading-5 font-semibold text-brand">AI listing agent for Indian fashion brands</p>
               <h1
                 id="hero-h"
@@ -183,14 +183,14 @@ export function Landing() {
                   </a>
                 </Button>
               </HeroRise>
-              <HeroRise delay={200}>
-                <p className="mt-7 flex items-start gap-2.5 text-[15px] leading-[1.5] font-semibold text-ink">
+              <HeroRise delay={200} className="lg:mt-auto">
+                <p className="mt-8 flex items-start gap-2.5 text-[15px] leading-[1.5] font-semibold text-ink">
                   <IconTile icon="shield" tone="ok" size="sm" className="mt-[calc((1lh-28px)/2)]" />
                   Nothing goes to a marketplace until someone on your team approves it.
                 </p>
               </HeroRise>
             </div>
-            <div className="mt-10 w-full min-w-0 md:max-w-[640px] lg:mt-0 lg:max-w-none 2xl:max-w-[720px] 2xl:justify-self-end">
+            <div className="mt-12 w-full min-w-0 md:max-w-[640px] lg:mt-0 lg:max-w-none 2xl:max-w-[720px] 2xl:justify-self-end">
               <HeroStage hero={hero} />
             </div>
           </div>

@@ -1,7 +1,8 @@
 /**
  * The landing's final call to action: list your next collection on Amazon. The panel is the page's
  * last raised surface (canvas only in its far corner) and leads with the real Amazon logo, unchanged,
- * at 64px with a Live chip. From lg an inset well holds three example listing slips.
+ * at 64px with a Live chip. From lg an inset well holds three listing slips, each with its real
+ * product photo.
  *
  * Motion: the panel uses the page's one reveal (use-reveal.ts). Once it is shown, the slips spread
  * once from a stack, 70ms apart (`cta-fan` in index.css). They are offset, never rotated, so their
@@ -11,7 +12,7 @@
 import { Link } from '@tanstack/react-router'
 import { useRef, type CSSProperties } from 'react'
 import { MarketplaceTile } from '@/components/la/marketplace'
-import { StatusChip, TagChip } from '@/components/la/status-chip'
+import { StatusChip } from '@/components/la/status-chip'
 import { Button } from '@/components/ui/button'
 import { useRevealed } from '@/lib/use-reveal'
 import { cn } from '@/lib/utils'
@@ -60,22 +61,29 @@ export function FinalCta({ wrap, h2 }: { wrap: string; h2: string }) {
             </div>
           </div>
 
-          <div aria-hidden className="flex flex-col gap-4 rounded-card bg-canvas p-6 pr-10 pb-10 shadow-inset-md max-lg:hidden">
-            <TagChip tone="plain" className="self-start">
-              Example
-            </TagChip>
-            <ul className="cta-fan flex flex-col gap-3 [--stack:-84px]" data-fanned={fanned || undefined}>
-              {CTA_SLIPS.map((name, i) => (
+          <div aria-hidden className="rounded-card bg-canvas p-6 pr-10 pb-12 shadow-inset-md max-lg:hidden">
+            <ul className="cta-fan flex flex-col gap-3 [--stack:-92px]" data-fanned={fanned || undefined}>
+              {CTA_SLIPS.map((slip, i) => (
                 <li
-                  key={name}
+                  key={slip.name}
                   style={{ '--i': i, '--x': FAN[i]!.x, '--y': FAN[i]!.y, zIndex: i } as CSSProperties}
-                  className="relative flex h-18 min-w-0 items-center gap-3 rounded-tile border border-line bg-surface px-4 shadow-raised-sm"
+                  className="relative flex h-20 min-w-0 items-center gap-3 rounded-tile border border-line bg-surface py-2 pr-4 pl-2 shadow-raised-sm"
                 >
-                  <MarketplaceTile id="amazon" size="sm" />
+                  <img
+                    src={slip.photo}
+                    alt=""
+                    width={48}
+                    height={60}
+                    loading="lazy"
+                    decoding="async"
+                    draggable={false}
+                    className="h-15 w-12 shrink-0 rounded-md border border-line bg-photo-white object-cover"
+                  />
                   <span className="flex min-w-0 flex-1 flex-col items-start gap-1">
-                    <span className="max-w-full truncate text-small font-semibold text-ink">{name}</span>
+                    <span className="max-w-full truncate text-small font-semibold text-ink">{slip.name}</span>
                     <StatusChip status="ready">Ready to approve</StatusChip>
                   </span>
+                  <MarketplaceTile id="amazon" size="xs" className="self-start" />
                 </li>
               ))}
             </ul>

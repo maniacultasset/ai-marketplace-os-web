@@ -7,14 +7,14 @@ import type { ChipStatus } from '@/components/la/status-chip'
 import type { Schema } from '@/api/types'
 
 /**
- * The How it works example's finding. Marketing illustration, never app data. The limits and the banned
+ * The How it works demo's finding. Marketing illustration, never app data. The limits and the banned
  * term are the real seeded platform rules for kurta sets (backend
  * packages/schemas/fixtures/rules.seed.json: content.title max_length 200 on Amazon and 150 on
  * Flipkart; banned_terms includes "best" on both), so the example shows what the rules engine
  * really answers. The character count is computed, never typed.
  */
 export const HERO_EXAMPLE = {
-  product: 'Example kurta set · Medium / Indigo',
+  product: 'Indigo kurta set · Medium',
   title:
     "Best Women's Handloom Cotton Kurta Set with Straight Palazzo and Printed Dupatta, Indigo, Medium, Regular Fit, Three-Quarter Sleeves, Festive and Office Wear",
   limits: { amazon: 200, flipkart: 150 },

@@ -742,6 +742,10 @@
   animation: hero-chip var(--chip-dur, 600ms) var(--ease-out-calm) both;
   animation-delay: var(--chip-delay, 0ms);
 }
+/* While a landing loop holds still (hover, focus, off screen, hidden tab), a chip in flight holds too. */
+[data-paused] .hero-chip {
+  animation-play-state: paused;
+}
 /* Final CTA (final-cta.tsx): three listing slips offset like a small pile. Never rotated, so the
    text stays crisp. They rest offset; only inside a reveal scope do they wait stacked on the first
    slip, then spread out once (70ms apart). */

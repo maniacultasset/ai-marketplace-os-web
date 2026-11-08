@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { isValidElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MARKETPLACES } from '@/components/la/marketplace'
@@ -188,13 +188,13 @@ describe('how it works demo', () => {
     window.matchMedia = realMatchMedia
   })
 
-  it('without IntersectionObserver renders every step, the controls and the finished state, without autoplay', () => {
+  it('without IntersectionObserver renders every step and the finished state, without autoplay or play controls', () => {
     setReduced(false)
     expect(typeof IntersectionObserver).toBe('undefined')
     render(<HowItWorksDemo />)
     for (const s of RAIL) expect(screen.getByTestId(`demo-step-${s.id}`)).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Play animation' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Replay animation' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /animation/i })).toBeNull()
+    expect(screen.getByTestId('how-demo').textContent).not.toMatch(/example/i)
     const current = screen.getByRole('button', { name: /Publish, current step/ })
     expect(current.getAttribute('aria-current')).toBe('step')
     expect(screen.getByTestId('demo-narration').textContent).toBe(NARRATION.publish)
@@ -212,35 +212,41 @@ describe('how it works demo', () => {
     expect(screen.getByTestId('demo-step-publish').getAttribute('aria-current')).toBeNull()
   })
 
-  it('puts the pause control before the moving stage, and it toggles play and pause', () => {
+  it('has no play controls and holds still while hovered or focused, showing a picked step finished', () => {
+    vi.useFakeTimers()
     setReduced(false)
     vi.stubGlobal('IntersectionObserver', OnScreenObserver)
     render(<HowItWorksDemo />)
-    const pause = screen.getByTestId('demo-play')
+    const demo = screen.getByTestId('how-demo')
     const stage = screen.getByTestId('demo-stage')
-    // Reached before the motion in reading order, so a phone does not scroll past it to stop it, and
-    // before the six step buttons, so it is the keyboard's first stop in the demo.
-    expect(pause.compareDocumentPosition(stage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(pause.compareDocumentPosition(screen.getByTestId('demo-step-import')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    // Autoplaying: the control offers Pause, and the narration stays quiet for screen readers.
-    expect(pause.getAttribute('aria-label')).toBe('Pause animation')
+    expect(screen.queryByTestId('demo-play')).toBeNull()
+    expect(screen.queryByTestId('demo-replay')).toBeNull()
+    // Autoplaying: the narration stays quiet for screen readers.
+    expect(demo.hasAttribute('data-paused')).toBe(false)
     expect(screen.getByTestId('demo-narration').getAttribute('aria-live')).toBe('off')
-    fireEvent.click(pause)
-    expect(pause.getAttribute('aria-label')).toBe('Play animation')
-    expect(pause.textContent).toContain('Play')
-    // Paused: nothing blinks, and what the person picks is announced.
+    fireEvent.mouseEnter(demo)
+    expect(demo.hasAttribute('data-paused')).toBe(true)
+    // Held: nothing blinks, and nothing advances.
     expect(stage.querySelector('.caret-blink')).toBeNull()
+    const before = screen.getByTestId('demo-narration').textContent
+    act(() => vi.advanceTimersByTime(20_000))
+    expect(screen.getByTestId('demo-narration').textContent).toBe(before)
+    // A step picked while held shows finished and is announced.
+    fireEvent.click(screen.getByTestId('demo-step-fix'))
+    expect(screen.getByTestId('demo-narration').textContent).toBe(NARRATION.fix)
     expect(screen.getByTestId('demo-narration').getAttribute('aria-live')).toBe('polite')
-    fireEvent.click(pause)
-    expect(pause.getAttribute('aria-label')).toBe('Pause animation')
+    fireEvent.mouseLeave(demo)
+    expect(demo.hasAttribute('data-paused')).toBe(false)
+    // Focus inside holds it too.
+    fireEvent.focus(screen.getByTestId('demo-step-draft'))
+    expect(demo.hasAttribute('data-paused')).toBe(true)
+    vi.useRealTimers()
   })
 
-  it('with reduced motion shows no play controls, never blinks and keeps every step viewable', () => {
+  it('with reduced motion never blinks and keeps every step viewable', () => {
     setReduced(true)
     vi.stubGlobal('IntersectionObserver', OnScreenObserver)
     render(<HowItWorksDemo />)
-    expect(screen.queryByTestId('demo-play')).toBeNull()
-    expect(screen.queryByTestId('demo-replay')).toBeNull()
     expect(screen.getByText(/Motion is off/)).toBeTruthy()
     fireEvent.click(screen.getByTestId('demo-step-fix'))
     expect(screen.getByTestId('demo-narration').textContent).toBe(NARRATION.fix)

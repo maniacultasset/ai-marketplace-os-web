@@ -1,23 +1,21 @@
 /**
- * "See how it works": the landing page's How it works section as one example listing travelling the
- * workflow (import, draft, check, fix, approve, publish to Amazon), drawn with the real kit. It is
- * labelled as an example and is never app data.
+ * "See how it works": the landing page's How it works section as one listing travelling the
+ * workflow (import, draft, check, fix, approve, publish to Amazon), drawn with the real kit. It is a
+ * marketing illustration and never app data.
  *
  * Plays only while at least 40% of the moving card is on screen and the tab is visible, and loops
- * with a calm hold on Live. Pause and Replay sit in a toolbar above the step strip, so they are the
- * first stop for the keyboard and a phone reaches them before the motion. Pause freezes
- * everything, the caret included. The narration is announced
- * only after a person picks a step, pauses or replays, never on every autoplay beat. With reduced
+ * with a calm hold on Live. There are no visible play controls: it holds still by itself (WCAG
+ * 2.2.2) while the pointer is over the demo or focus is inside it, and the caret holds too. A step
+ * a person picks while it holds is shown finished. The narration is announced only after a person
+ * picks a step, never on every autoplay beat. With reduced
  * motion (or no IntersectionObserver) nothing autoplays: it shows the finished state, each step can
  * be viewed on its own and changes are short dissolves. Motion is transform and opacity only.
  */
-import { Pause, Play, RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { Icon, IconGlyph, IconTile } from '@/components/la/icons'
+import { Icon, IconTile } from '@/components/la/icons'
 import { MarketplaceTile } from '@/components/la/marketplace'
 import { SourceBadge } from '@/components/la/source-badge'
 import { CHIP_TONE, StatusChip, TagChip, type ChipStatus } from '@/components/la/status-chip'
-import { Button } from '@/components/ui/button'
 import { usePrefersReducedMotion } from '@/lib/use-media-query'
 import { cn } from '@/lib/utils'
 import {
@@ -42,6 +40,7 @@ import {
   type SceneId,
 } from './how-it-works-script'
 import { FINDING_LABEL, HERO_EXAMPLE, heroFindings } from './model'
+import { useHold, usePageVisible } from './use-loop-hold'
 
 /** Moves in with the spring; reduced motion keeps only the fade. */
 const SPRING = 'transition-[opacity,transform] duration-[var(--dur-spring)] ease-[var(--ease-spring)] motion-reduce:transform-none'
@@ -285,10 +284,7 @@ function Stage({ pos, playing }: { pos: Pos; playing: boolean }) {
           <span className="max-sm:hidden">Listing · </span>
           {HERO_EXAMPLE.product}
         </span>
-        <TagChip tone="plain" className="ml-auto">
-          Example
-        </TagChip>
-        <span key={chip.label} className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-300">
+        <span key={chip.label} className="ml-auto motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-300">
           <StatusChip status={chip.status}>{chip.label}</StatusChip>
         </span>
       </div>
@@ -669,15 +665,15 @@ export function HowItWorksDemo() {
   const canObserve = typeof IntersectionObserver !== 'undefined'
   const autoplay = canObserve && !reduced
   const [pos, setPos] = useState<Pos>(() => (autoplay ? START : FINAL))
-  const [wantsPlay, setWantsPlay] = useState(autoplay)
-  // Autoplay narration stays silent for screen readers; once a person picks a step, pauses or
-  // replays, each step they reach is announced.
+  const { held, handlers } = useHold()
+  // Autoplay narration stays silent for screen readers; once a person picks a step, each step they
+  // reach is announced.
   const [userActed, setUserActed] = useState(false)
   const [inView, setInView] = useState(!canObserve)
-  const [pageVisible, setPageVisible] = useState(() => typeof document === 'undefined' || document.visibilityState !== 'hidden')
+  const pageVisible = usePageVisible()
   const root = useRef<HTMLDivElement>(null)
 
-  const playing = wantsPlay && inView && pageVisible && !reduced
+  const playing = autoplay && !held && inView && pageVisible
   const scene = SCENES[pos.scene] ?? 'import'
   // Reduced motion (even switched on mid-run) shows each step finished; nothing advances.
   const shown: Pos = reduced ? { scene: pos.scene, beat: LAST_BEAT[scene] } : pos
@@ -697,12 +693,6 @@ export function HowItWorksDemo() {
   }, [canObserve])
 
   useEffect(() => {
-    const on = () => setPageVisible(document.visibilityState !== 'hidden')
-    document.addEventListener('visibilitychange', on)
-    return () => document.removeEventListener('visibilitychange', on)
-  }, [])
-
-  useEffect(() => {
     if (!playing) return
     const id = window.setTimeout(() => setPos(advance), beatDelay(scene, pos.beat))
     return () => window.clearTimeout(id)
@@ -711,17 +701,9 @@ export function HowItWorksDemo() {
   const pick = (s: SceneId) => {
     const i = SCENES.indexOf(s)
     setUserActed(true)
-    // Playing: run the step from its start. Paused or reduced motion: show it finished.
-    setPos({ scene: i, beat: wantsPlay && !reduced ? 0 : LAST_BEAT[s] })
-  }
-  const togglePlay = () => {
-    setUserActed(true)
-    setWantsPlay((w) => !w)
-  }
-  const replay = () => {
-    setUserActed(true)
-    setPos(START)
-    setWantsPlay(true)
+    // Playing: run the step from its start. Held (a click or a key holds it) or reduced motion:
+    // show it finished.
+    setPos({ scene: i, beat: playing ? 0 : LAST_BEAT[s] })
   }
 
   const step = RAIL.find((r) => r.id === scene) ?? RAIL[0]!
@@ -729,36 +711,16 @@ export function HowItWorksDemo() {
   const progress = Math.min(1, shown.beat / LAST_BEAT[scene])
 
   return (
-    <figure ref={root} aria-labelledby="demo-caption" className="flex min-w-0 flex-col gap-3 md:gap-4" data-testid="how-demo">
-      {/* The controls come first, before the step strip and the moving card, so the keyboard and a
-          phone reach Pause before the motion. */}
-      <div className={cn('flex min-h-11 flex-wrap items-center gap-x-4 gap-y-2', !reduced && 'justify-between')}>
-        <p className="text-caption font-semibold text-ink-2 tabular-nums" aria-hidden>
-          Step {stepNo} of {SCENES.length}
-          <span className="font-normal text-ink-3"> · Example listing</span>
-        </p>
-        {reduced ? (
-          <p className="text-caption text-ink-2">Motion is off. Pick a step to see it.</p>
-        ) : (
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              className="min-h-11 lg:min-h-9"
-              onClick={togglePlay}
-              aria-label={wantsPlay ? 'Pause animation' : 'Play animation'}
-              data-testid="demo-play"
-            >
-              <IconGlyph icon={wantsPlay ? Pause : Play} size={16} />
-              {wantsPlay ? 'Pause' : 'Play'}
-            </Button>
-            <Button type="button" variant="ghost" className="min-h-11 lg:min-h-9" onClick={replay} aria-label="Replay animation" data-testid="demo-replay">
-              <IconGlyph icon={RotateCcw} size={16} />
-              Replay
-            </Button>
-          </div>
-        )}
-      </div>
+    <figure
+      ref={root}
+      aria-labelledby="demo-caption"
+      className="flex min-w-0 flex-col gap-3 md:gap-4"
+      data-testid="how-demo"
+      data-paused={playing ? undefined : ''}
+      {...handlers}
+    >
+      {/* The step count lives in the side panel; only reduced motion gets a note up here. */}
+      {reduced ? <p className="text-caption text-ink-2">Motion is off. Pick a step to see it.</p> : null}
 
       <Rail current={scene} progress={progress} onPick={pick} playing={playing} />
 
@@ -777,7 +739,7 @@ export function HowItWorksDemo() {
             <p className="text-[15px] leading-[1.55] text-ink-2">{step.body}</p>
           </div>
           <div className="border-t border-line pt-4">
-            <p className="text-caption font-bold text-ink-2">In this example</p>
+            <p className="text-caption font-bold text-ink-2">What happens</p>
             <p
               aria-live={playing && !userActed ? 'off' : 'polite'}
               aria-atomic="true"
@@ -791,8 +753,7 @@ export function HowItWorksDemo() {
       </div>
 
       <figcaption id="demo-caption" className="max-w-[70ch] text-caption text-ink-2">
-        An example listing, not real product data. Flipkart is shown so you can compare its rules with Amazon’s. Publishing to Flipkart is
-        not switched on yet.
+        Flipkart is shown so you can compare its rules with Amazon’s. Publishing to Flipkart is not switched on yet.
       </figcaption>
     </figure>
   )
