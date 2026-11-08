@@ -9,6 +9,8 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { isApiError } from '@/api/errors'
 import { Banner, CardHead, CONCEPT_ICON, fieldHintId, Icon, IconGlyph, LaCard, LaField, SourceBadge, StatusChip, TagChip } from '@/components/la'
+import { AudienceSelect, BrandField } from '@/features/products/audience-fields'
+import { tenantName, useMe } from '@/lib/auth'
 import { brandView, GENDER_LABEL, hasAudience, hasBrandName, photoReadView, variantAxes } from '@/features/products/audience'
 import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
@@ -365,6 +367,7 @@ export function ProductDetailsEditor({
 }) {
   const { d, patch, setAttr, touch, errors, submitted, isVariant, base: product } = session
   const ref = useRef<HTMLFormElement>(null)
+  const storeName = tenantName(useMe().data)
   const onSave = async () => {
     const out = await session.save()
     if (out === 'invalid') requestAnimationFrame(() => focusFirstInvalid(ref.current))
@@ -448,6 +451,22 @@ export function ProductDetailsEditor({
                 submitCount={submitted}
                 maxLength={72}
                 code
+              />
+            )}
+            {isVariant || !d.hasAudience ? null : (
+              <AudienceSelect id="e-gender" value={d.gender} onChange={(gender) => patch({ gender }, 'gender')} error={errors.gender} submitCount={submitted} allowClear />
+            )}
+            {isVariant || !d.hasAudience ? null : (
+              <BrandField
+                id="e-brand_name"
+                own={d.ownBrand}
+                onOwnChange={(ownBrand) => patch({ ownBrand }, 'brand_name')}
+                value={d.brandName}
+                onChange={(brandName) => patch({ brandName }, 'brand_name')}
+                onBlur={() => touch('brand_name')}
+                defaultName={storeName}
+                error={errors.brand_name}
+                submitCount={submitted}
               />
             )}
           </div>

@@ -59,7 +59,8 @@ import { ATTRIBUTE_KEY_SUGGESTIONS, ATTRIBUTE_TEXT_MAX, SKU_MAX, TITLE_MAX } fro
 import { categoryLabel } from '@/features/products/categories'
 import { CategorySelect } from '@/features/products/category-select'
 import { invalidateListingWork } from '@/features/listings/api'
-import { useSession } from '@/lib/auth'
+import { tenantName, useMe, useSession } from '@/lib/auth'
+import { AudienceSelect, BrandField } from '@/features/products/audience-fields'
 import { OP_ACTION, useCan } from '@/lib/permissions'
 import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
 import { useKeys } from '@/lib/query-keys'
@@ -188,6 +189,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
   const [conflict, setConflict] = useState<Product | null>(null)
 
   const products = useAllProducts()
+  const storeName = tenantName(useMe().data)
   const brandCategories = useMemo(() => (products.data?.rows ?? []).map((p) => p.category), [products.data])
 
   // The brand's default manufacturer: every product inherits it unless it sets its own.
@@ -328,6 +330,9 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
     sizeChart: ['size_chart'],
     manufacturer: ['manufacturer'],
     ownManufacturer: ['manufacturer'],
+    gender: ['gender'],
+    ownBrand: ['brand_name'],
+    brandName: ['brand_name'],
   }
   const set = (patch: Partial<GuidedValues>) => {
     if ('sku' in patch) setConflict(null)
@@ -544,6 +549,18 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               autoFocus
               className="md:col-span-2"
             />
+            <BrandField
+              id="g-brand_name"
+              own={values.ownBrand}
+              onOwnChange={(ownBrand) => set({ ownBrand })}
+              value={values.brandName}
+              onChange={(brandName) => set({ brandName })}
+              onBlur={() => touch('brand_name')}
+              defaultName={storeName}
+              error={errors.brand_name}
+              submitCount={submitCount}
+              className="md:col-span-2"
+            />
             <TextField
               id="g-style_number"
               label="Style number"
@@ -589,6 +606,13 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               onBlur={() => touch('category')}
               brandCategories={brandCategories}
               error={errors.category}
+              submitCount={submitCount}
+            />
+            <AudienceSelect
+              id="g-gender"
+              value={values.gender}
+              onChange={(gender) => set({ gender })}
+              error={errors.gender}
               submitCount={submitCount}
             />
           </div>

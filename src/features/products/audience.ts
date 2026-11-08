@@ -5,6 +5,7 @@
  * runtime: an older backend omits it, and the screens then hide the row or control.
  */
 import type { Schema } from '@/api/types'
+import { CONTROL_MSG, hasStrayControlChars } from '@/lib/validation'
 
 type ProductOut = Schema<'ProductOut'>
 export type Gender = NonNullable<ProductOut['gender']>
@@ -79,4 +80,25 @@ export function photoReadView(r: PhotoRead): PhotoReadView {
     case 'not_read':
       return { chip: 'not-listed', label: 'Photos not read', detail: 'No photo to read, or nothing left to read from them.' }
   }
+}
+
+/* ------------------------------------------------------------------------------------- Checks */
+
+export const BRAND_NAME_MAX = 100
+
+/** Client check for an own brand name (ProductCreate/Patch `brand_name`: 1..100). */
+export function brandNameProblem(raw: string): string | null {
+  const v = raw.trim()
+  if (!v) return 'Enter the brand name, or turn on From brand profile.'
+  if (hasStrayControlChars(v)) return CONTROL_MSG
+  if ([...v].length > BRAND_NAME_MAX) return `Shorten the brand name to ${BRAND_NAME_MAX} characters or fewer.`
+  return null
+}
+
+/** A server refusal on `brand_name` or `gender`, in plain words. */
+export function audienceServerMessage(key: 'brand_name' | 'gender', type: string, msg: string): string {
+  // An older server (before SI8) does not take these fields yet.
+  if (/extra inputs/i.test(msg)) return 'This can’t be saved here yet. Clear it to save the rest.'
+  if (key === 'brand_name' && type === 'VALUE_NOT_ALLOWED') return 'Use your store name or a brand name from your brand profile.'
+  return msg
 }

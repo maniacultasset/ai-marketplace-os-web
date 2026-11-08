@@ -46,6 +46,7 @@ import {
   type BarcodeLevel,
 } from './barcode'
 import { ATTRIBUTE_TEXT_MAX, codePoints, productTitleProblem } from './schema'
+import { audienceServerMessage, brandNameProblem, hasAudience, hasBrandName, type Gender } from './audience'
 
 type Product = Schema<'ProductOut'>
 export type ProductPatchBody = Schema<'ProductPatch'>
@@ -68,6 +69,12 @@ export interface EditDraft {
   ownManufacturer: boolean
   manufacturer: PartyDraft
   barcode: BarcodeDraft
+  /** SI8: the backend sends audience and brand (an older one omits both: the editor hides them). */
+  hasAudience: boolean
+  gender: Gender | ''
+  /** Lists under its own brand name (else the brand profile's). */
+  ownBrand: boolean
+  brandName: string
 }
 
 /**
@@ -105,6 +112,10 @@ export function toEditDraft(p: Product, source: ManufacturerSource = manufacture
     ownManufacturer: source === 'own',
     manufacturer: fromPartyOut(p.manufacturer),
     barcode: barcodeFromProduct(p),
+    hasAudience: hasAudience(p) && hasBrandName(p),
+    gender: p.gender ?? '',
+    ownBrand: !!p.brand_name?.trim() && p.brand_name_inherited !== true,
+    brandName: p.brand_name_inherited === true ? '' : (p.brand_name ?? ''),
   }
 }
 
@@ -129,6 +140,10 @@ export function validateEdit(d: EditDraft, isVariant: boolean): EditErrors {
     if (style && hasStrayControlChars(style)) e.style_number = CONTROL_MSG
     else if (codePoints(style) > 64) e.style_number = 'Shorten the style number to 64 characters or fewer.'
     Object.assign(e, sizeChartProblems(d.sizeChart))
+    if (d.hasAudience && d.ownBrand) {
+      const b = brandNameProblem(d.brandName)
+      if (b) e.brand_name = b
+    }
   }
   for (const k of editableAttrs(isVariant)) {
     const v = d.attrs[k].trim()
@@ -179,6 +194,12 @@ export function buildPatch(base: EditDraft, d: EditDraft, isVariant: boolean, ba
   if (d.ownManufacturer && (!base.ownManufacturer || !samePartyDraft(d.manufacturer, base.manufacturer))) body.manufacturer = toPartyIn(d.manufacturer)
   else if (!d.ownManufacturer && base.ownManufacturer) body.manufacturer = null
   Object.assign(body, barcodePatchFields(base.barcode, d.barcode, barcodeLevel))
+  // Audience and brand are style-level (SI8): never sent from a variant or to an older backend.
+  if (!isVariant && d.hasAudience) {
+    if (d.gender !== base.gender) body.gender = d.gender || null
+    if (d.ownBrand && (!base.ownBrand || d.brandName.trim() !== base.brandName.trim())) body.brand_name = d.brandName.trim()
+    else if (!d.ownBrand && base.ownBrand) body.brand_name = null
+  }
   return body
 }
 
@@ -207,11 +228,12 @@ export function mapPatchErrors(
     if (key === 'size_chart') msg = SIZE_CHART_REFUSED
     if (key === 'selling_price' && priceAboveMrp(d.sellingPrice, d.mrp)) msg = 'Keep the selling price at or below the MRP.'
     if (key === 'category') msg = CATEGORY_LOCKED_MSG
+    if (key === 'brand_name' || key === 'gender') msg = audienceServerMessage(key, err.type, msg)
     if (isBarcodeErrorKey(key)) {
       key = BARCODE_KEY
       msg = barcodeServerMessage(err.type, d.barcode)
     }
-    if (!/^(title|category|style_number|mrp|selling_price|size_chart|barcode$|attr\.|manufacturer\.)/.test(key)) {
+    if (!/^(title|category|style_number|brand_name$|gender$|mrp|selling_price|size_chart|barcode$|attr\.|manufacturer\.)/.test(key)) {
       unmapped = true
       continue
     }
@@ -242,6 +264,11 @@ export function rebaseDraft(original: EditDraft, mine: EditDraft, fresh: EditDra
     out.manufacturer = mine.manufacturer
   }
   if (!sameBarcode(mine.barcode, original.barcode)) out.barcode = mine.barcode
+  if (mine.gender !== original.gender) out.gender = mine.gender
+  if (mine.ownBrand !== original.ownBrand || mine.brandName.trim() !== original.brandName.trim()) {
+    out.ownBrand = mine.ownBrand
+    out.brandName = mine.brandName
+  }
   return out
 }
 
