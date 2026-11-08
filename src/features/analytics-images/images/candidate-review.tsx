@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { describeError, isApiError } from '@/api/errors'
+import type { Schema } from '@/api/types'
 import { Icon } from '@/components/la/icons'
 import { UnavailableButton } from '@/components/la/unavailable'
 import { ReferenceId } from '@/components/states/reference-id'
@@ -11,6 +12,7 @@ import { useAcceptCandidate, useCreateCandidate, useRejectCandidate } from './ca
 import type { CandidateSession } from './candidate-session'
 import {
   ACTION_LABEL,
+  ALREADY_IN_USE_COPY,
   AI_HINT,
   AI_LIMIT_COPY,
   AI_OFF_COPY,
@@ -58,6 +60,8 @@ export function CandidateBlock({
 }) {
   const create = useCreateCandidate(productId)
   const [createError, setCreateError] = useState<{ kind: CandidateKind; error: unknown } | null>(null)
+  // The cache answered a candidate that is already a product image.
+  const [note, setNote] = useState<string | null>(null)
   // One call per click: React disables the button a render later than a fast double click.
   const creating = useRef(false)
   const open = openCandidates(candidates, sourceId, session.hidden)
@@ -66,7 +70,7 @@ export function CandidateBlock({
 
   if (listPending && (shown.length || open.length))
     return (
-      <div className="flex gap-2 px-5 pb-3" aria-busy="true" aria-label="Loading image fixes">
+      <div className="flex gap-2 px-5 pb-3" role="status" aria-busy="true" aria-label="Loading image fixes">
         {shown.map((k) => (
           <Skeleton key={k} className="h-8 w-40 rounded-control" />
         ))}
@@ -78,11 +82,15 @@ export function CandidateBlock({
     if (creating.current) return
     creating.current = true
     setCreateError(null)
+    setNote(null)
     create.mutate(
       { kind, sourceImageId: sourceId },
       {
         onSuccess: (a) => {
           if (isCacheHit(a)) session.markCacheHit(a.candidate_id)
+          // A cached failure answers again: show its reason even if it was closed.
+          if (a.status === 'failed') session.unhide(a.candidate_id)
+          if (a.status === 'accepted') setNote(ALREADY_IN_USE_COPY)
         },
         onError: (error) => {
           if (isAiOff(error, kind)) session.setAiOff()
@@ -131,9 +139,15 @@ export function CandidateBlock({
         </div>
       ) : null}
 
+      {note ? (
+        <p role="status" className="text-small text-ink-2" data-testid="candidate-create-note">
+          {note}
+        </p>
+      ) : null}
+
       {createError ? (
         <div role="alert" className="flex flex-col gap-0.5 text-small text-danger-ink" data-testid="candidate-create-error">
-          <span>{candidateErrorCopy(createError.error, createError.kind) ?? describeError(createError.error)}</span>
+          <span>{candidateErrorCopy(createError.error, createError.kind, 'create') ?? describeError(createError.error)}</span>
           {isApiError(createError.error) && createError.error.correlationId ? <ReferenceId id={createError.error.correlationId} /> : null}
         </div>
       ) : null}
@@ -146,6 +160,7 @@ export function CandidateBlock({
           cacheHit={session.cacheHits.has(c.id)}
           canDecide={canAct}
           onHide={() => session.hide(c.id)}
+          onAccepted={session.markAccepted}
           onRetry={canAct && !busy && !create.isPending ? () => make(c.kind) : undefined}
           onPreviewError={onPreviewError}
         />
@@ -180,6 +195,7 @@ export function CandidateReview({
   onHide,
   onRetry,
   onPreviewError,
+  onAccepted,
 }: {
   productId: string
   candidate: Candidate
@@ -188,22 +204,31 @@ export function CandidateReview({
   onHide: () => void
   onRetry?: () => void
   onPreviewError: () => void
+  /** The new image and its check job, so the card can follow it. */
+  onAccepted?: (a: Schema<'ImageAccepted'>) => void
 }) {
   const accept = useAcceptCandidate(productId)
   const reject = useRejectCandidate(productId)
   const waiting = useWaiting(c)
   const deciding = accept.isPending || reject.isPending
   const once = useRef(false)
-  const decide = (m: typeof accept | typeof reject) => {
+  const settle = {
+    onSettled: () => {
+      once.current = false
+    },
+  }
+  const use = () => {
     if (once.current) return
     once.current = true
-    m.mutate(c.id, {
-      onSettled: () => {
-        once.current = false
-      },
-    })
+    accept.mutate(c.id, { ...settle, onSuccess: (a) => onAccepted?.(a) })
+  }
+  const discard = () => {
+    if (once.current) return
+    once.current = true
+    reject.mutate(c.id, settle)
   }
   const error = accept.error ?? reject.error
+  const errorOp = accept.error ? 'accept' : 'discard'
   const twoUp = c.kind !== 'size_chart'
 
   if (c.status === 'failed') {
@@ -269,10 +294,10 @@ export function CandidateReview({
         </p>
         {!queued && canDecide ? (
           <div className="flex gap-2">
-            <Button variant="ghost" size="sm" disabled={deciding} onClick={() => decide(reject)} data-testid="candidate-discard">
+            <Button variant="ghost" size="sm" disabled={deciding} onClick={discard} data-testid="candidate-discard">
               {reject.isPending ? 'Discarding…' : 'Discard'}
             </Button>
-            <Button size="sm" disabled={deciding} onClick={() => decide(accept)} data-testid="candidate-use">
+            <Button size="sm" disabled={deciding} onClick={use} data-testid="candidate-use">
               {accept.isPending ? 'Saving…' : 'Use this image'}
             </Button>
           </div>
@@ -280,7 +305,7 @@ export function CandidateReview({
       </div>
       {error ? (
         <div role="alert" className="flex flex-col gap-0.5 text-small text-danger-ink" data-testid="candidate-decide-error">
-          <span>{candidateErrorCopy(error, c.kind) ?? describeError(error)}</span>
+          <span>{candidateErrorCopy(error, c.kind, errorOp) ?? describeError(error)}</span>
           {isApiError(error) && error.correlationId ? <ReferenceId id={error.correlationId} /> : null}
         </div>
       ) : null}

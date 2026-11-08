@@ -44,25 +44,28 @@ function Harness(props: {
   canAct?: boolean
   aiLimit?: boolean
   sourceId?: string | null
+  listPending?: boolean
 }) {
   const session = useCandidateSession()
   return (
+    <>
+    <span data-testid="accepted-jobs">{[...session.accepted].map(([image, job]) => `${image}:${job}`).join(',')}</span>
     <CandidateBlock
       productId={P}
       sourceId={props.sourceId === undefined ? MAIN : props.sourceId}
       kinds={props.kinds ?? []}
       candidates={props.candidates ?? []}
-      listPending={false}
+      listPending={props.listPending ?? false}
       session={session}
       canAct={props.canAct ?? true}
       aiLimit={props.aiLimit ?? false}
       onPreviewError={() => {}}
     />
+    </>
   )
 }
 
-function setup(props: Parameters<typeof Harness>[0]) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+function setup(props: Parameters<typeof Harness>[0], qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })) {
   return render(
     <QueryClientProvider client={qc}>
       <TooltipProvider>
@@ -153,8 +156,31 @@ describe('fix buttons', () => {
   })
 
   it('renders nothing when there is nothing to offer', () => {
-    const { container } = setup({ kinds: [] })
-    expect(container.textContent).toBe('')
+    setup({ kinds: [] })
+    expect(screen.queryByTestId('candidate-block')).toBeNull()
+  })
+
+  it('holds the buttons with a status while the list loads', () => {
+    setup({ kinds: ['fix'], listPending: true })
+    expect(screen.getByRole('status', { name: 'Loading image fixes' })).toBeTruthy()
+    expect(screen.queryByTestId('make-fix')).toBeNull()
+  })
+
+  it('says the photo is already in use when the cache answers an accepted one', async () => {
+    post.mockReturnValueOnce(ok({ candidate_id: C1, status: 'accepted', job_id: null, poll_url: null }))
+    setup({ kinds: ['fix'] })
+    fireEvent.click(screen.getByTestId('make-fix'))
+    expect((await screen.findByTestId('candidate-create-note')).textContent).toBe('Already in use.')
+  })
+
+  it('shows a cached failure again even after it was closed', async () => {
+    const failed = cand({ kind: 'fix', status: 'failed', failure_reason: 'too_small' })
+    post.mockReturnValueOnce(ok({ candidate_id: C1, status: 'failed', job_id: null, poll_url: null }))
+    setup({ kinds: ['fix'], candidates: [failed] })
+    fireEvent.click(screen.getByTestId('candidate-hide'))
+    expect(screen.queryByTestId('candidate-review')).toBeNull()
+    fireEvent.click(screen.getByTestId('make-fix'))
+    expect((await screen.findByTestId('candidate-review')).textContent).toContain(FAILURE_COPY.too_small)
   })
 })
 
@@ -185,6 +211,17 @@ describe('candidate review', () => {
     expect(init.params.header['Idempotency-Key']).toBeTruthy()
   })
 
+  it('after a use, refreshes every image report and hands the new image job to the card', async () => {
+    post.mockReturnValue(ok({ image_id: 'i9', job_id: 'j9', poll_url: '/api/v1/jobs/j9', status: 'queued' }))
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    const spy = vi.spyOn(qc, 'invalidateQueries')
+    setup({ candidates: [cand()] }, qc)
+    fireEvent.click(screen.getByTestId('candidate-use'))
+    await waitFor(() => expect(screen.getByTestId('accepted-jobs').textContent).toBe('i9:j9'))
+    const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey))
+    expect(keys).toContain(JSON.stringify(['t', 't1', 'images']))
+  })
+
   it('discards with one call per click', async () => {
     post.mockReturnValue(ok({ ...cand({ status: 'rejected', preview_url: null, source_preview_url: null }) }, 200))
     setup({ candidates: [cand()] })
@@ -199,7 +236,7 @@ describe('candidate review', () => {
     post.mockReturnValue(refuse(409, 'INVALID_STATUS_TRANSITION'))
     setup({ candidates: [cand()] })
     fireEvent.click(screen.getByTestId('candidate-use'))
-    expect((await screen.findByTestId('candidate-decide-error')).textContent).toContain('The photo changed since this was made.')
+    expect((await screen.findByTestId('candidate-decide-error')).textContent).toContain('Already used or the photo changed. Showing the latest.')
   })
 
   it('says a cache hit cost nothing', async () => {

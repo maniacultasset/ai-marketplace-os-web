@@ -9,6 +9,7 @@ import {
   isCacheHit,
   keptOriginals,
   openCandidates,
+  candidatesUnsupported,
   originBadge,
   supportsCandidates,
   AI_OFF_COPY,
@@ -98,13 +99,28 @@ describe('create answers and errors', () => {
     expect(isAiOff(err422('kind'), 'white_background')).toBe(true)
     expect(isAiOff(err422('kind'), 'size_chart')).toBe(false)
     expect(isAiOff(err422('source_image_id'), 'white_background')).toBe(false)
-    expect(candidateErrorCopy(err422('kind'), 'white_background')).toBe(AI_OFF_COPY)
+    expect(candidateErrorCopy(err422('kind'), 'white_background', 'create')).toBe(AI_OFF_COPY)
   })
-  it('says what to do for the other refusals', () => {
-    expect(candidateErrorCopy(err422('source_image_id'), 'fix')).toMatch(/still being checked/)
-    expect(candidateErrorCopy(err422('kind'), 'size_chart')).toMatch(/size chart cannot be drawn/)
-    expect(candidateErrorCopy(new ApiError({ type: 'INVALID_STATUS_TRANSITION', status: 409, message: 'm' }), 'fix')).toMatch(/changed since/)
-    expect(candidateErrorCopy(new Error('x'), 'fix')).toBeNull()
+  const err = (status: number) => new ApiError({ type: status === 404 ? 'NOT_FOUND' : 'INVALID_STATUS_TRANSITION', status, message: 'm' })
+  it('says what to do for the other create refusals', () => {
+    expect(candidateErrorCopy(err422('source_image_id'), 'fix', 'create')).toMatch(/still being checked/)
+    expect(candidateErrorCopy(err422('kind'), 'size_chart', 'create')).toMatch(/size chart cannot be drawn/)
+    expect(candidateErrorCopy(err(404), 'fix', 'create')).toBe('This photo is no longer the main image.')
+    expect(candidateErrorCopy(new Error('x'), 'fix', 'create')).toBeNull()
+  })
+  it('has its own words for a refused use or discard', () => {
+    expect(candidateErrorCopy(err(404), 'fix', 'accept')).toBe('This suggestion is gone.')
+    expect(candidateErrorCopy(err(404), 'fix', 'discard')).toBe('This suggestion is gone.')
+    expect(candidateErrorCopy(err(409), 'white_background', 'accept')).toBe('Already used or the photo changed. Showing the latest.')
+    expect(candidateErrorCopy(err(409), 'white_background', 'discard')).toBe('Already used or discarded. Showing the latest.')
+    // An accept is never read as the AI switch.
+    expect(candidateErrorCopy(err422('kind'), 'white_background', 'accept')).toBeNull()
+  })
+  it('reads a backend without image candidates from the list call', () => {
+    expect(candidatesUnsupported(err(404))).toBe(true)
+    expect(candidatesUnsupported(new ApiError({ type: 'VALIDATION_FAILED', status: 405, message: 'm' }))).toBe(true)
+    expect(candidatesUnsupported(new ApiError({ type: 'INTERNAL_ERROR', status: 500, message: 'm' }))).toBe(false)
+    expect(candidatesUnsupported(null)).toBe(false)
   })
   it('has plain copy for every failure reason', () => {
     expect(FAILURE_COPY.budget).toBe('Daily AI image limit reached. Try tomorrow.')

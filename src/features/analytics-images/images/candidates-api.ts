@@ -59,8 +59,13 @@ export function useCreateCandidate(productId: string) {
   })
 }
 
-/** POST /image-candidates/{id}/accept: the candidate becomes a product image. */
+/**
+ * POST /image-candidates/{id}/accept: the candidate becomes a product image. The old main is now an
+ * extra image, so every image report is read again (its cached report still says main).
+ */
 export function useAcceptCandidate(productId: string) {
+  const keys = useKeys()
+  const qc = useQueryClient()
   const refresh = useRefresh(productId)
   return useMutation({
     meta: { toast: false },
@@ -70,7 +75,11 @@ export function useAcceptCandidate(productId: string) {
           params: { path: { candidate_id: candidateId }, header: idempotencyHeader(newIdempotencyKey()) },
         }),
       ),
-    onSettled: () => refresh(),
+    onSettled: () => {
+      // Reports refresh in the background: the new image's job is handed over without waiting on them.
+      void qc.invalidateQueries({ queryKey: keys.images.all() })
+      return refresh()
+    },
   })
 }
 

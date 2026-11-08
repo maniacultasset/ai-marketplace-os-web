@@ -70,7 +70,7 @@ export function keptOriginals(details: readonly ProductImageDetail[] | undefined
   return out
 }
 
-/** The backend speaks SI7 (its product read carries `fixes`/`origin`). Gate every candidate call on it. */
+/** A product read from a backend with image candidates carries `fixes`/`origin` on its images (Inbox links). */
 export function supportsCandidates(details: readonly ProductImageDetail[] | undefined): boolean {
   return (details ?? []).some((d) => 'fixes' in d || 'origin' in d)
 }
@@ -124,13 +124,27 @@ function fieldIs(error: { details: readonly { loc: readonly (string | number)[] 
   return error.details.some((d) => d.loc[d.loc.length - 1] === field)
 }
 
+export type CandidateOp = 'create' | 'accept' | 'discard'
+
 /** Plain words for a refused create, accept or discard; null to fall back to the shared copy. */
-export function candidateErrorCopy(error: unknown, kind: CandidateKind): string | null {
+export function candidateErrorCopy(error: unknown, kind: CandidateKind, op: CandidateOp = 'create'): string | null {
   if (!isApiError(error)) return null
+  if (op !== 'create') {
+    if (error.status === 404) return 'This suggestion is gone.'
+    if (error.status === 409)
+      return op === 'accept' ? 'Already used or the photo changed. Showing the latest.' : 'Already used or discarded. Showing the latest.'
+    return null
+  }
   if (isAiOff(error, kind)) return AI_OFF_COPY
   if (error.status === 422 && kind === 'size_chart') return 'This size chart cannot be drawn as an image. Check its sizes.'
   if (error.status === 422 && fieldIs(error, 'source_image_id')) return 'This photo is still being checked. Try again in a minute.'
-  if (error.status === 409) return 'The photo changed since this was made. Make a new one.'
   if (error.status === 404) return 'This photo is no longer the main image.'
   return null
 }
+
+/** The list call says the backend has no image candidates (before SI7): 404 or 405. */
+export function candidatesUnsupported(error: unknown): boolean {
+  return isApiError(error) && (error.status === 404 || error.status === 405)
+}
+
+export const ALREADY_IN_USE_COPY = 'Already in use.'
