@@ -4,7 +4,11 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/errors'
 
-const calls = vi.hoisted(() => ({ list: [] as { path: string; body: unknown; key: string | undefined }[], fail: null as unknown }))
+const calls = vi.hoisted(() => ({
+  list: [] as { path: string; body: unknown; key: string | undefined }[],
+  fail: null as unknown,
+  role: 'owner' as string,
+}))
 vi.mock('@/api/client', () => ({
   api: {
     POST: async (path: string, init: { body: unknown; params: { header: Record<string, string> } }) => {
@@ -15,8 +19,10 @@ vi.mock('@/api/client', () => ({
   },
   unwrap: async (p: Promise<{ data: unknown }>) => (await p).data,
 }))
-vi.mock('@/lib/auth', () => ({ useSession: () => ({ tenantId: 't' }) }))
-vi.mock('@/lib/permissions', () => ({ useCan: () => () => true }))
+vi.mock('@/lib/auth', () => ({
+  useSession: () => ({ tenantId: 't' }),
+  useMe: () => ({ data: { role: calls.role, is_platform_admin: false } }),
+}))
 vi.mock('@/lib/toast', () => ({ toast: { success: vi.fn() } }))
 
 const { CloseTaskActions } = await import('./close-task')
@@ -26,6 +32,7 @@ afterEach(() => {
   cleanup()
   calls.list = []
   calls.fail = null
+  calls.role = 'owner'
 })
 
 const setup = () =>
@@ -50,6 +57,23 @@ describe('CloseTaskActions', () => {
     await userEvent.click(screen.getByTestId('task-dismiss'))
     expect(await screen.findByRole('alert')).toBeTruthy()
     expect(screen.getByText(/already closed/)).toBeTruthy()
+  })
+})
+
+describe('CloseTaskActions permission (SI9: tasks_close needs marketplace:connect)', () => {
+  it.each(['owner', 'admin'])('offers Mark done to an %s', (role) => {
+    calls.role = role
+    setup()
+    expect(screen.getByTestId('task-mark-done')).toBeTruthy()
+    expect(screen.getByTestId('task-dismiss')).toBeTruthy()
+  })
+
+  it.each(['operator', 'reviewer'])('hides Mark done from a %s and says who can', (role) => {
+    calls.role = role
+    setup()
+    expect(screen.queryByTestId('task-mark-done')).toBeNull()
+    expect(screen.queryByTestId('task-dismiss')).toBeNull()
+    expect(screen.getByTestId('task-close-who').textContent).toBe('An owner or admin can mark this done.')
   })
 })
 

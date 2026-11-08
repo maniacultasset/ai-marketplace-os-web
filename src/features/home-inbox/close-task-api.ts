@@ -1,7 +1,7 @@
 /**
  * SI9: close an account task (`marketplace_error_review`, `permission_decision`).
  *
- *   POST /tasks/{task_id}/close  product:import, Idempotency-Key
+ *   POST /tasks/{task_id}/close  marketplace:connect (owner, admin), Idempotency-Key
  *        {resolution: done | dismissed, note?}  200 the task; the same close again is 200;
  *        another close of a closed task 409 INVALID_STATUS_TRANSITION; another task kind 422
  *
@@ -23,7 +23,7 @@ export function closeRefusal(e: unknown): string {
   if (!isApiError(e)) return describeError(e)
   if (e.status === 409) return 'This was already closed. The Inbox is up to date now.'
   if (e.status === 422) return 'This kind of task closes on its own once it is answered.'
-  if (e.status === 403) return 'Your role can’t close tasks. An owner or operator can.'
+  if (e.status === 403) return 'Your role can’t close tasks. An owner or admin can.'
   return describeError(e)
 }
 

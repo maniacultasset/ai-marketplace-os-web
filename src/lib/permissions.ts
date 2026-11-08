@@ -61,7 +61,7 @@ export const MATRIX: Readonly<Record<Role, ReadonlySet<Action>>> = {
  * `can(OP_ACTION['POST /issues/{issue_id}/dismiss'])`. Some are not obvious: dismissing an issue
  * needs `listing:approve`, cancelling a job needs `listing:generate`, a rules dry run needs
  * `listing:edit`, image upload needs `product:import`, brand documents upload/delete need
- * `settings:manage`.
+ * `settings:manage`, closing an account task needs `marketplace:connect` (owner, admin).
  */
 export const OP_ACTION = {
   'GET /auth/me': 'tenant:read',
@@ -133,7 +133,7 @@ export const OP_ACTION = {
   'POST /issues/{issue_id}/dismiss': 'listing:approve',
   'GET /tasks': 'tenant:read',
   'POST /tasks/{task_id}/answer': 'product:import',
-  'POST /tasks/{task_id}/close': 'product:import',
+  'POST /tasks/{task_id}/close': 'marketplace:connect',
   'GET /analytics': 'analytics:read',
   'GET /analytics/summary': 'analytics:read',
   'GET /admin/signup-requests': PLATFORM_ADMIN,

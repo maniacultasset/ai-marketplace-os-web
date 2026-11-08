@@ -5,7 +5,7 @@ import { Banner } from '@/components/la/banner'
 import { Icon } from '@/components/la/icons'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import { useCan } from '@/lib/permissions'
+import { OP_ACTION, useCan } from '@/lib/permissions'
 import { toast } from '@/lib/toast'
 import { closeRefusal, useCloseTask, type Resolution } from './close-task-api'
 
@@ -15,7 +15,15 @@ export function CloseTaskActions({ task }: { task: Pick<Task, 'id' | 'status'> &
   const can = useCan()
   const close = useCloseTask(task.id)
   const [refusal, setRefusal] = useState<string | null>(null)
-  if (!can('product:import') || task.status !== 'open') return null
+  if (task.status !== 'open') return null
+  // Backend SI9: tasks_close needs marketplace:connect (owner, admin). Others see who can.
+  if (!can(OP_ACTION['POST /tasks/{task_id}/close'])) {
+    return (
+      <p className="text-caption text-ink-3" data-testid="task-close-who">
+        An owner or admin can mark this done.
+      </p>
+    )
+  }
 
   const run = (r: Resolution) => {
     setRefusal(null)
