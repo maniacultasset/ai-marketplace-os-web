@@ -6,8 +6,13 @@
  * (Sentry with send_default_pii=False and scrubbing), routers/auth.py (IP and user agent on
  * sign-in and refresh, IP only on sign-out), ADR-0024 and core/config.py (LLM_GATEWAY=openrouter in
  * production: drafting, photo reading, embeddings and image edits all go through OpenRouter with
- * data collection denied), LISTING-AGENT-ANALYSIS §2.8 (no credentials in prompts, signed image URLs
- * ≤10 min), src/api/session.ts (refresh token in localStorage, access token in memory),
+ * data collection denied), LISTING-AGENT-ANALYSIS §2.8 (no credentials in prompts),
+ * ADR-0026, services/public_images.py and images-edge-worker.js (approved listing images copied to a
+ * public bucket and served at images.kuinn.in; a 1-day edge cache; removed on delete or replace, a
+ * daily sweep retries), vercel.json (site hosting, /api forwarded to api.kuinn.in), prod.env and
+ * api-edge-worker.js (EDGE_PROVIDER=cloudflare: Cloudflare ends TLS for api.kuinn.in),
+ * core/resolved_facts.py (manufacturer, marketer, packer, importer and consumer-care parties:
+ * legal name, address, email, phone, GSTIN), src/api/session.ts (refresh token in localStorage, access token in memory),
  * ADR-0023 and features/mfa/trusted-device.ts (trusted-browser token: localStorage here, a hash on
  * the server, 30 days or 7 for platform admins, removed with any password or authenticator change).
  * Company facts come from ./company (Certificate of Incorporation and Terms, 26 Oct 2026). `Ph` stays for any
@@ -91,6 +96,12 @@ export const POLICY_SECTIONS: PolicySection[] = [
             Your catalog: products, variants, attributes, prices, product images and the CSV files you import.
           </li>
           <li>
+            The party details marketplaces require on a listing, for the manufacturer, marketer, packer, importer and
+            consumer-care contact: legal name, address, email, phone number and GSTIN. These can identify a person, such as a
+            sole proprietor or a named support contact.
+          </li>
+          <li>Product photos, which may show people, such as models wearing or holding your products.</li>
+          <li>
             Listings and their history: every draft version, validation result, approval (who approved and when) and what was
             sent to each marketplace.
           </li>
@@ -114,8 +125,9 @@ export const POLICY_SECTIONS: PolicySection[] = [
         </ul>
         <p>
           We do not collect payment card details in this version, and we do not knowingly collect sensitive data about you
-          such as health or financial information. Product data you upload is about your products; please do not include
-          other people’s personal data in it.
+          such as health or financial information. Please add other people’s personal data only where a listing needs it, such
+          as a contact the marketplace requires or a model in a product photo, and only when you have their permission to
+          share it with us for that use.
         </p>
       </>
     ),
@@ -216,6 +228,16 @@ export const POLICY_SECTIONS: PolicySection[] = [
                 <td data-label="Where" className="px-4 py-2.5">India, asia-south1 (Mumbai)</td>
               </tr>
               <tr>
+                <td className="px-4 py-2.5 font-semibold">Vercel (Vercel Inc.)</td>
+                <td data-label="What for" className="px-4 py-2.5">Hosting the Kuinn website and web app. Requests made to kuinn.in/api pass through it to our API.</td>
+                <td data-label="Where" className="px-4 py-2.5">United States, served from its global network</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-2.5 font-semibold">Cloudflare (Cloudflare, Inc.)</td>
+                <td data-label="What for" className="px-4 py-2.5">The secure connection and network edge for all traffic to our API at api.kuinn.in, including sign-in details, login codes and catalog data; serving and caching public listing images at images.kuinn.in</td>
+                <td data-label="Where" className="px-4 py-2.5">United States, served from its global network</td>
+              </tr>
+              <tr>
                 <td className="px-4 py-2.5 font-semibold">OpenRouter (OpenRouter, Inc.)</td>
                 <td data-label="What for" className="px-4 py-2.5">Routes AI requests to the model providers below, with data collection turned off</td>
                 <td data-label="Where" className="px-4 py-2.5">United States</td>
@@ -245,8 +267,31 @@ export const POLICY_SECTIONS: PolicySection[] = [
         </div>
         <p>
           When you connect Amazon or Flipkart and approve a listing, we send that listing to the marketplace on your
-          instruction. From then on the marketplace’s own privacy policy applies to what it receives.
+          instruction, with its party details and links to its images. From then on the marketplace’s own privacy policy
+          applies to what it receives.
         </p>
+        <Sub>Public image links</Sub>
+        <p>
+          Marketplaces fetch listing images from a web link. When you send an approved listing, we copy the prepared version
+          of each of its images to a separate public storage bucket on Google Cloud in Mumbai, and give the marketplace a link
+          to it on images.kuinn.in, served through Cloudflare. Only images in the approved listing are copied, and packaging
+          label photos never are.
+        </p>
+        <ul>
+          <li>
+            Each link has a random name that says nothing about your brand or product, and the images cannot be listed or
+            browsed. Anyone who has a link can open that one image.
+          </li>
+          <li>
+            When you delete or replace an image in Kuinn, we delete its public copy straight away. If that fails, a daily job
+            tries again until it is gone.
+          </li>
+          <li>
+            Cloudflare may keep serving a cached copy for up to one day after it is deleted, and a browser or service that
+            already loaded the image may keep its own copy for longer. The copy a marketplace keeps is covered by its own
+            policy.
+          </li>
+        </ul>
         <p>
           We may disclose data when the law requires it, for example to comply with a valid order from a court or government
           authority in India.
@@ -260,11 +305,16 @@ export const POLICY_SECTIONS: PolicySection[] = [
     body: (
       <>
         <p>
-          Your data is stored on Google Cloud in the asia-south1 (Mumbai) region, India. Data sent to the providers above may
-          be processed outside India as described in their row.
+          Your data is stored on Google Cloud in the asia-south1 (Mumbai) region, India. On its way there, traffic passes
+          through Cloudflare’s network, and requests made through kuinn.in/api also pass through Vercel’s network. Both may
+          handle it outside India while it is in transit. Data sent to the other providers above may be processed outside
+          India as described in their row.
         </p>
         <ul>
-          <li>All traffic to Kuinn is encrypted in transit (HTTPS).</li>
+          <li>
+            All traffic to Kuinn is encrypted in transit (HTTPS). Cloudflare and Vercel decrypt it at their
+            edge and send the request on to our servers over a new encrypted connection.
+          </li>
           <li>
             Marketplace access tokens are encrypted with keys held in Google Cloud Key Management Service, and they are used
             only by the code that talks to each marketplace.
@@ -308,6 +358,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
                 ['Account, brand profile, catalog and listings', 'While the brand is active, then 30 days after it is offboarded'],
                 ['Imported CSV rows', '90 days after upload'],
                 ['Uploaded CSV files', 'Until you ask us to delete them, or the brand is offboarded'],
+                ['Public listing image copies', 'Until you delete or replace the image, or the brand is offboarded; edge caches may keep a copy for up to one day after'],
                 ['AI run and validation records', '13 months'],
                 ['Closed issues and finished tasks', '13 months'],
                 ['Audit log', '24 months after the brand’s data is deleted (never less than 12 months)'],

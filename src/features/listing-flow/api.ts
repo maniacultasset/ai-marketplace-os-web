@@ -8,17 +8,20 @@
  *   GET  /listings?product_id=    the product's listings, one per marketplace (cursor page)
  *   POST /listings/generate       Idempotency-Key; 202 JobAccepted; 409 LISTING_BUSY /
  *                                 INVALID_STATUS_TRANSITION (exists and not `created`), 422 category
+ *   GET  /listings/{id}/resolution ResolutionOut (SI11): polled while Kuinn or the marketplace works;
+ *                                 404 on a backend without it, read as "nothing to show"
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { api, unwrap } from '@/api/client'
-import { isNetworkError } from '@/api/errors'
+import { isNetworkError, isNotFound } from '@/api/errors'
 import { useIntentKey } from '@/api/idempotency'
 import { BUSY_REFETCH_MS, fetchListingsPage, useGenerateListing } from '@/features/listings/api'
 import { useCursorList } from '@/hooks/use-cursor-list'
 import { rememberJob } from '@/features/listings/job-memory'
 import { isBusy, type Listing, type Marketplace } from '@/features/listings/model'
 import { useKeys } from '@/lib/query-keys'
+import { WORKING_STATES } from './resolution-model'
 
 /** Re-read the cheap status alias while the marketplace is still deciding. */
 const STATUS_POLL_MS = 30_000
@@ -36,6 +39,32 @@ export function useListingStatus(listingId: string, opts: { poll?: boolean } = {
         ? STATUS_POLL_MS
         : false
     },
+    refetchIntervalInBackground: false,
+  })
+}
+
+/** Re-read the resolution while Kuinn or the marketplace is still working. */
+export const RESOLUTION_POLL_MS = 10_000
+
+/**
+ * "What Kuinn did" (GET /listings/{id}/resolution). A backend without the route answers 404: the
+ * hook then resolves to null, so the screen shows nothing instead of an error.
+ */
+export function useListingResolution(listingId: string, opts: { enabled?: boolean } = {}) {
+  const keys = useKeys()
+  return useQuery({
+    queryKey: keys.listings.resolution(listingId),
+    enabled: opts.enabled ?? true,
+    queryFn: async () => {
+      try {
+        return await unwrap(api.GET('/listings/{listing_id}/resolution', { params: { path: { listing_id: listingId } } }))
+      } catch (e) {
+        if (isNotFound(e)) return null
+        throw e
+      }
+    },
+    retry: (n, e) => !isNotFound(e) && n < 2,
+    refetchInterval: (q) => (q.state.data && WORKING_STATES.has(q.state.data.state) ? RESOLUTION_POLL_MS : false),
     refetchIntervalInBackground: false,
   })
 }

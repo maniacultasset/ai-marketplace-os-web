@@ -14,9 +14,11 @@ const MISSING_DATA: ReadonlySet<Issue['error_code']> = new Set([
  * problems get `image`, data the seller has not given yet gets FileWarning, anything else (a rule
  * or compliance violation, a rejected value) the alert triangle. A finding from the rules engine
  * is a rule violation even when the rule checks for a missing value, so it never takes the
- * missing-data glyph. The tile's tone (from severity) carries how bad it is.
+ * missing-data glyph. An issue only the marketplace can settle gets `store`. The tile's tone (from severity) carries how bad it is.
  */
-export function issueIcon(issue: Pick<Issue, 'field_path' | 'error_code'> & Partial<Pick<Issue, 'error_class' | 'source'>>): IconSource {
+export function issueIcon(issue: Pick<Issue, 'field_path' | 'error_code'> & Partial<Pick<Issue, 'error_class' | 'source' | 'lane'>>): IconSource {
+  // Only the marketplace can settle it (SI11 lane): its own glyph, never a missing-data one.
+  if (issue.lane === 'marketplace') return 'store'
   const path = issue.field_path ?? ''
   if (path === 'images' || path.startsWith('images.') || issue.error_code === 'IMAGE_NON_COMPLIANT') return CONCEPT_ICON.imageProblem
   if (issue.source === 'rules_engine' || issue.error_class === 'compliance_error') return 'alert'

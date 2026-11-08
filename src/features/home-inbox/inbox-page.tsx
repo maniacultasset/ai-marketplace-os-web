@@ -27,6 +27,7 @@ import {
   fmtCount,
   inboxStatuses,
   issueChip,
+  issueLane,
   issueTitle,
   itemKey,
   mergeInbox,
@@ -230,7 +231,7 @@ function ItemCard({
       ? [product?.sku, answered === 'answered' ? 'Answered' : answered === 'closed' ? 'Closed' : taskMeta(item.task)].filter(Boolean).join(' · ')
       : // A closed issue says so in words, first so the line's truncation never hides it.
         [
-          item.issue.status === 'open' ? null : issueChip(item.issue).label,
+          item.issue.status === 'open' ? (issueLane(item.issue)?.chip.label ?? null) : issueChip(item.issue).label,
           MARKETPLACE_LABEL[item.issue.marketplace],
           fieldLabel(item.issue.field_path),
         ]

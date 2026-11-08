@@ -12,7 +12,10 @@ import {
   inboxStatuses,
   inProgressTile,
   isCategoryIssue,
+  fixContext,
+  issueCause,
   issueChip,
+  issueLane,
   issueFixTrail,
   issueNextStep,
   issuePlainLabel,
@@ -535,5 +538,103 @@ describe('greeting', () => {
   it('falls back to Home without a name', () => {
     expect(greeting(null, 9)).toBe('Home')
     expect(greeting('   ', 9)).toBe('Home')
+  })
+})
+
+describe('SI11 lanes: who settles an issue', () => {
+  type Lane = NonNullable<Issue['lane']>
+  const open = (lane: Lane, marketplace: Issue['marketplace'] = 'amazon') => ({ status: 'open' as const, severity: 'error' as const, retry_class: 'user_action' as const, lane, marketplace })
+
+  it('one label per lane while open', () => {
+    const cases: [Lane, string, string][] = [
+      ['auto_repair', 'Kuinn is fixing', 'working'],
+      ['auto_content', 'Kuinn is fixing', 'working'],
+      ['ai_field', 'Kuinn is rewriting', 'working'],
+      ['retry', 'Trying again', 'working'],
+      ['seller', 'Needs you', 'needs-you'],
+      ['marketplace', 'Marketplace', 'paused'],
+      ['staff', 'Kuinn team', 'working'],
+    ]
+    for (const [lane, label, status] of cases) expect(issueChip(open(lane)), lane).toEqual({ status, label })
+  })
+
+  it('the next step says who acts, in plain words', () => {
+    expect(issueNextStep(open('ai_field'))).toBe('Kuinn is rewriting this field. A teammate approves the new text before it is sent.')
+    expect(issueNextStep(open('seller'))).toMatch(/^Needs your answer/)
+    expect(issueNextStep(open('marketplace'))).toBe('Only Amazon can approve this. Follow the step in the task, then resume.')
+    expect(issueNextStep(open('staff'))).toBe('Our team is checking this. Nothing is needed from you yet.')
+    // Only a value-format repair goes out again on its own; a text change waits for a teammate.
+    expect(issueNextStep(open('auto_repair'))).toMatch(/only how this value is sent to Amazon/)
+    expect(issueNextStep(open('auto_content'))).toMatch(/A teammate approves the change before it is sent/)
+  })
+
+  describe('a closed fix is "Fixed for you" only with proof', () => {
+    const repair = { status: 'auto_fixed' as const, severity: 'error' as const, retry_class: 'user_action' as const, resolution: 'deterministic_fix' as const, lane: 'auto_repair' as const, marketplace: 'amazon' as const, resolved_at: '2026-11-07T09:10:00Z' }
+    const text = { ...repair, status: 'resolved' as const, resolution: 'ai_correction' as const, lane: 'ai_field' as const, retry_class: 'ai_correct' as const }
+    const send = (at: string, outcome: string) => ({ kind: 'submission', at, outcome })
+    const ctx = (attempts: ReturnType<typeof send>[], approved = false) => ({ attempts, approved })
+
+    it('a value-format fix Amazon accepted after the resend', () => {
+      expect(issueChip(repair, ctx([send('2026-11-07T09:00:00Z', 'rejected'), send('2026-11-07T09:11:00Z', 'accepted')]))).toEqual({ status: 'live', label: 'Fixed for you' })
+    })
+
+    it('a value-format fix resent and not confirmed yet', () => {
+      const c = ctx([send('2026-11-07T09:00:00Z', 'rejected'), send('2026-11-07T09:11:00Z', 'pending')])
+      expect(issueChip(repair, c)).toEqual({ status: 'working', label: 'Resent, waiting for Amazon' })
+      // Not resent yet either: still waiting, never "Fixed".
+      expect(issueChip(repair, ctx([send('2026-11-07T09:00:00Z', 'rejected')])).label).toBe('Resent, waiting for Amazon')
+      // An accepted send from before the fix proves nothing.
+      expect(issueChip(repair, ctx([send('2026-11-07T09:00:00Z', 'accepted')])).label).toBe('Resent, waiting for Amazon')
+    })
+
+    it('a value-format fix before any send needed no resend', () => {
+      expect(issueChip(repair, ctx([])).label).toBe('Fixed for you')
+    })
+
+    it('a text fix waits for approval, then for Amazon', () => {
+      expect(issueChip(text, ctx([send('2026-11-07T09:00:00Z', 'rejected')]))).toEqual({ status: 'ready', label: 'Fix ready, needs approval' })
+      expect(issueNextStep(text, ctx([]))).toMatch(/A teammate who did not make the change approves it/)
+      expect(issueChip(text, ctx([send('2026-11-07T09:00:00Z', 'rejected'), send('2026-11-07T09:20:00Z', 'pending')], true)).label).toBe('Resent, waiting for Amazon')
+      expect(issueChip(text, ctx([send('2026-11-07T09:00:00Z', 'rejected'), send('2026-11-07T09:20:00Z', 'live')], true)).label).toBe('Fixed for you')
+      // Never sent: approved is enough, no resend was needed.
+      expect(issueChip(text, ctx([], true)).label).toBe('Fixed for you')
+      expect(issueChip(text, ctx([], false)).label).toBe('Fix ready, needs approval')
+    })
+
+    it('without the listing\'s attempts it never claims "Fixed for you"', () => {
+      expect(issueChip(repair)).toEqual({ status: 'draft', label: 'Kuinn changed this' })
+      expect(issueChip(text, null).label).toBe('Kuinn changed this')
+    })
+
+    it('fixContext reads the approval of the current version', () => {
+      expect(fixContext({ attempts: [] }, { current_version_id: 'v2', approved_version_id: 'v2' })).toEqual({ attempts: [], approved: true })
+      expect(fixContext({ attempts: [] }, { current_version_id: 'v2', approved_version_id: 'v1' })?.approved).toBe(false)
+      expect(fixContext(null, { current_version_id: 'v2' })).toBeNull()
+    })
+  })
+
+  it('a person closing it keeps today\'s label', () => {
+    expect(issueLane({ status: 'resolved', resolution: 'human_answer', lane: 'seller', marketplace: 'amazon' })).toBeNull()
+    expect(issueChip({ status: 'resolved', severity: 'error', resolution: 'human_answer', lane: 'seller', marketplace: 'amazon' }).label).toBe('Resolved')
+  })
+
+  it('a missing lane (an older API) falls back to today\'s label', () => {
+    expect(issueChip({ status: 'open', severity: 'error', lane: null })).toEqual({ status: 'needs-you', label: 'Needs you' })
+    expect(issueChip({ status: 'auto_fixed', severity: 'error' }).label).toBe('Auto-fixed')
+    expect(issueNextStep({ status: 'open', retry_class: 'user_action' })).toBe('Needs a person. Retrying alone will not fix it.')
+  })
+
+  it('an unknown future lane reads as our team, never as fixed', () => {
+    expect(issueChip({ status: 'open', severity: 'error', lane: 'brand_new' as Lane, marketplace: 'amazon' }).label).toBe('Kuinn team')
+  })
+
+  it('never claims Flipkart publishing: the marketplace lane names who approves', () => {
+    expect(issueNextStep(open('marketplace', 'flipkart'))).toBe('Only Flipkart can approve this. Follow the step in the task, then resume.')
+  })
+
+  it('cause in plain words', () => {
+    expect(issueCause({ cause: 'seller_fact', marketplace: 'amazon' })).toBe('A product fact')
+    expect(issueCause({ cause: 'mapping', marketplace: 'amazon' })).toBe('How the value is sent to Amazon')
+    expect(issueCause({ cause: null })).toBeNull()
   })
 })
