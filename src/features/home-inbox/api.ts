@@ -24,6 +24,7 @@ import { linkedIssues, type Issue } from '@/features/inbox/model'
 import { autoFixedOn, versionRef } from '@/features/listing-flow/auto-fix-model'
 import { listingDetailQuery } from '@/features/listings/api'
 import { productQuery } from '@/features/products/api'
+import { supportsCandidates } from '@/features/analytics-images/images/candidates-model'
 import { useKeys, type QueryKeys } from '@/lib/query-keys'
 import { summarizeListings, type ListingsSnapshot } from './model'
 
@@ -90,15 +91,17 @@ export function useProductsById(ids: readonly (string | null | undefined)[]): Pr
   const keys = useKeys()
   const unique = [...new Set(ids.filter((x): x is string => !!x))].slice(0, 25)
   const results = useQueries({ queries: unique.map((id) => ({ ...productQuery(keys, id), meta: { toast: false }, retry: false })) })
-  const map = new Map<string, { sku: string; title: string }>()
+  const map = new Map<string, ProductSummary>()
   unique.forEach((id, i) => {
     const d = results[i]?.data
-    if (d) map.set(id, { sku: d.sku, title: d.title })
+    if (d) map.set(id, { sku: d.sku, title: d.title, photoFixes: supportsCandidates(d.image_details) })
   })
   return { map, pending: results.some((r) => r.isPending) }
 }
 
-export type ProductsById = { map: Map<string, { sku: string; title: string }>; pending: boolean }
+/** `photoFixes`: the backend offers photo fixes on this product (SI7 image candidates). */
+export type ProductSummary = { sku: string; title: string; photoFixes?: boolean }
+export type ProductsById = { map: Map<string, ProductSummary>; pending: boolean }
 
 const ISSUE_STATUSES = ['open', 'auto_fixed', 'resolved', 'dismissed'] as const
 

@@ -48,8 +48,8 @@ describe('NeedsPhotosCard', () => {
     const withMain = product('b', ['k1'])
     const secondaryOnly = product('c', ['k2'])
     setup([product('a'), withMain, secondaryOnly], {
-      b: { ...withMain, image_details: [{ image_id: 'i1', slot: 'main', position: 0, status: 'ready', compliance_status: 'passed' }] },
-      c: { ...secondaryOnly, image_details: [{ image_id: 'i2', slot: 'secondary', position: 1, status: 'ready', compliance_status: 'passed' }] },
+      b: { ...withMain, image_details: [{ image_id: 'i1', slot: 'main', position: 0, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' }] },
+      c: { ...secondaryOnly, image_details: [{ image_id: 'i2', slot: 'secondary', position: 1, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' }] },
     })
     expect(screen.getByText('2 products need photos')).toBeTruthy()
     const links = screen.getAllByTestId('needs-photos-row')
@@ -58,7 +58,7 @@ describe('NeedsPhotosCard', () => {
 
   it('shows nothing when every product has a main photo', () => {
     const p = product('b', ['k1'])
-    setup([p], { b: { ...p, image_details: [{ image_id: 'i1', slot: 'main', position: 0, status: 'ready', compliance_status: 'passed' }] } })
+    setup([p], { b: { ...p, image_details: [{ image_id: 'i1', slot: 'main', position: 0, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' }] } })
     expect(screen.queryByTestId('needs-photos')).toBeNull()
   })
 

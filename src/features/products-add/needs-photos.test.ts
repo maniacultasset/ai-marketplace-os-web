@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { detailIdsToRead, NEEDS_PHOTOS_DETAIL_CAP, needsPhotos } from './needs-photos'
 
-const img = (slot: 'main' | 'secondary') => ({ image_id: `i-${slot}`, slot, position: 0, status: 'ready', compliance_status: 'passed' as const })
+const img = (slot: 'main' | 'secondary') => ({ image_id: `i-${slot}`, slot, position: 0, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' as const })
 
 describe('needsPhotos', () => {
   const none = { id: 'a', images: [] }
