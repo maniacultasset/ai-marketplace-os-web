@@ -10,16 +10,18 @@ function prefersReducedMotion() {
  * A number that counts up to its value once, on a critically damped curve (no overshoot), then
  * stays put. The final text is always the real value; the motion only runs on first show and is
  * skipped with reduced motion. When motion is allowed the first frame is 0, never the final value,
- * so the number does not flash before it counts. Non-numeric values ("—") render as they are.
+ * so the number does not flash before it counts. Non-numeric values render as they are.
+ * `start` holds the count at 0 until it turns true (e.g. once its line has been revealed), so the
+ * count plays where someone can see it.
  */
-export function CountUp({ value, duration = 900 }: { value: string; duration?: number }) {
+export function CountUp({ value, duration = 900, start = true }: { value: string; duration?: number; start?: boolean }) {
   const m = /^(\d[\d,]*)(.*)$/.exec(value)
   const target = m?.[1] ? Number(m[1].replace(/,/g, '')) : null
   const [shown, setShown] = useState<number | null>(() => (target !== null && target > 0 && !prefersReducedMotion() ? 0 : null))
   const played = useRef(false)
 
   useEffect(() => {
-    if (target === null || played.current) return
+    if (target === null || played.current || !start) return
     played.current = true
     let frame = 0
     if (target === 0 || prefersReducedMotion()) {
@@ -46,7 +48,7 @@ export function CountUp({ value, duration = 900 }: { value: string; duration?: n
       if (frame) played.current = false
       cancelAnimationFrame(frame)
     }
-  }, [target, duration])
+  }, [target, duration, start])
 
   if (!m || shown === null || target === 0) return <>{value}</>
   return (

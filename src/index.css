@@ -104,8 +104,18 @@
   --dur-spring: 480ms;
   /* Press feedback lands on pointer-down, fast. */
   --dur-press: 90ms;
+  /* Public page motion (calm, no bounce): only transform and opacity move. Reveals fade over
+     --dur-fade and rise --rise over --dur-rise on the spring; siblings that arrive together are
+     --stagger apart (capped at 4 steps by use-reveal.ts); hover responses take --dur-hover. */
+  --dur-fade: 320ms;
+  --dur-rise: 440ms;
+  --rise: 12px;
+  --stagger: 60ms;
+  --dur-hover: 200ms;
   /* Translucent chrome (sticky bars): canvas or surface at 78% with blur, content scrolls under. */
   --material-canvas: rgb(237 240 245 / 0.78);
+  /* Phones and touch screens: a lighter blur over a more solid fill, cheaper to draw while scrolling. */
+  --material-canvas-solid: rgb(237 240 245 / 0.9);
   --material-surface: rgb(251 252 253 / 0.8);
 
   /* icon tiles (raised squircles with a tinted fill) */
@@ -434,6 +444,12 @@
       animation: none !important;
       opacity: 0.7;
     }
+    /* Changes that would otherwise cut hard (the demo's panels and findings) keep a short dissolve:
+       same layer as the rule above, so the class's higher specificity wins. */
+    .motion-fade {
+      transition-property: opacity !important;
+      transition-duration: 150ms !important;
+    }
   }
 }
 
@@ -522,17 +538,66 @@
     }
   }
 }
+/* A 44px tall touch target around a small inline link (an email or phone number in running text),
+   without changing how the line looks. */
+@utility hit-area {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    top: min(0px, calc((100% - 44px) / 2));
+    bottom: min(0px, calc((100% - 44px) / 2));
+    left: -4px;
+    right: -4px;
+  }
+}
+/* A data table that turns into stacked rows on phones: the header row is kept for screen readers,
+   and each cell after the first prints its column name (data-label) above its value. */
+@utility stack-table {
+  @media (max-width: 639px) {
+    & thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    & tr {
+      display: block;
+      padding: 12px 16px;
+    }
+    & td {
+      display: block;
+      padding: 0;
+    }
+    & td[data-label]::before {
+      content: attr(data-label);
+      display: block;
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 600;
+      color: var(--ink-3);
+    }
+  }
+}
 /* Material: a translucent sticky bar. Content scrolls under it; the hairline below only appears
    once something is underneath ([data-scrolled]), so at rest the bar is part of the page. */
 @utility material-bar {
   background-color: var(--material-canvas);
-  -webkit-backdrop-filter: blur(18px) saturate(170%);
-  backdrop-filter: blur(18px) saturate(170%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
   border-bottom: 1px solid transparent;
   transition: border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
   &[data-scrolled] {
     border-bottom-color: var(--line);
     box-shadow: 0 6px 16px -10px rgb(var(--shade) / 0.18);
+  }
+  @media (pointer: coarse), (max-width: 767px) {
+    background-color: var(--material-canvas-solid);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
   }
   @media (prefers-reduced-transparency: reduce) {
     background-color: var(--canvas);
@@ -574,36 +639,90 @@
   }
 }
 /* Reveal on scroll (src/lib/use-reveal.ts): only once the hook has marked the scope, an element
-   waits below and transparent (no transition, so it never animates out), then springs up when
-   it enters view. --d staggers siblings;
-   data-reveal="pop" also scales up from 98% (hero surfaces). */
-[data-reveal-scope] [data-reveal][data-shown] {
+   waits below and transparent (no transition, so it never animates out), then rises --rise into
+   place when it enters view. The hook sets --d (batch stagger, or a pinned data-reveal-delay) and,
+   once the transition is over, data-settled, which drops the reveal transition so the element's
+   own hover and state transitions run at their own speed.
+   data-reveal="pop" adds a 98.5% scale, for small surfaces only (scaling a page-wide card blurs its
+   text while it runs). */
+[data-reveal-scope] [data-reveal][data-shown]:not([data-settled]) {
   transition:
-    opacity 420ms ease-out,
-    transform 640ms var(--ease-spring);
+    opacity var(--dur-fade) ease-out,
+    transform var(--dur-rise) var(--ease-spring);
   transition-delay: var(--d, 0ms);
 }
 [data-reveal-scope] [data-reveal]:not([data-shown]) {
   opacity: 0;
-  transform: translateY(16px);
+  transform: translateY(var(--rise));
 }
 [data-reveal-scope] [data-reveal="pop"]:not([data-shown]) {
-  transform: translateY(20px) scale(0.98);
+  transform: translateY(var(--rise)) scale(0.985);
 }
-/* A highlight drawn across a word (one flat fill growing left to right, never a gloss) once its
-   reveal has played. */
-[data-reveal-scope] [data-shown] mark[data-sweep],
-[data-reveal-scope] [data-shown][data-sweep] {
-  background-size: 100% 100%;
+/* A highlight drawn across a word: one flat fill that grows left to right (transform only) 200ms
+   after its line arrives. Fully drawn by default, so it shows without script and in tests. */
+mark[data-sweep] {
+  position: relative;
+  isolation: isolate;
+  background: transparent;
+}
+mark[data-sweep]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--danger-bg);
+  transform-origin: left center;
+}
+[data-reveal-scope] [data-reveal]:not([data-shown]) mark[data-sweep]::before {
+  transform: scaleX(0);
+}
+[data-reveal-scope] [data-reveal][data-shown]:not([data-settled]) mark[data-sweep]::before {
+  transition: transform 500ms var(--ease-spring) calc(var(--d, 0ms) + 200ms);
+}
+/* The hero marketplace strip: once its line is revealed, each tile rises 4px in turn (--i), then
+   the live marketplace's dot gives one soft ring. Never looped. */
+[data-reveal-scope] [data-shown] .strip-rise > li {
+  animation: rise-sm var(--dur-fade) var(--ease-spring) both;
+  animation-delay: calc(var(--d, 0ms) + 120ms + var(--i, 0) * 40ms);
+}
+.live-ring {
+  position: relative;
+  display: inline-block;
+}
+[data-reveal-scope] [data-shown] .live-ring::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0;
+  pointer-events: none;
+  animation: live-ring 700ms ease-out both;
+  animation-delay: calc(var(--d, 0ms) + 520ms);
 }
 @media (prefers-reduced-motion: reduce) {
-  /* Fade only: nothing travels. The highlight is simply there. */
+  /* Fade only: nothing travels. The highlight is simply there; the strip and the ring hold still. */
   [data-reveal-scope] [data-reveal]:not([data-shown]) {
     transform: none;
   }
-  mark[data-sweep] {
-    background-size: 100% 100% !important;
-    transition: none;
+  mark[data-sweep]::before {
+    transform: none !important;
+    transition: none !important;
+  }
+  [data-reveal-scope] [data-shown] .strip-rise > li,
+  [data-reveal-scope] [data-shown] .live-ring::after {
+    animation: none !important;
+  }
+}
+
+/* A caret that blinks calmly (the demo's typing caret); the parent decides when it may blink. */
+.caret-blink {
+  animation: otp-caret 1.06s steps(1, end) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .caret-blink {
+    animation: none;
   }
 }
 
@@ -669,6 +788,28 @@ svg.lucide[stroke-width="2"] {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+@keyframes rise-sm {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes live-ring {
+  from {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.8);
   }
 }
 
