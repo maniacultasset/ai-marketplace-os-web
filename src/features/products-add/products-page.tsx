@@ -33,6 +33,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { RelativeTime } from '@/features/products/format'
 import { Can, useCan } from '@/lib/permissions'
+import { AI_PAUSED_REASON } from '@/features/ai-credit/model'
+import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
 import { cn } from '@/lib/utils'
 import { AddMarketplaceDialog } from './add-marketplace-dialog'
 import { useCatalog, type LoadState } from './catalog'
@@ -401,6 +403,7 @@ export function ProductsPage() {
         }`
 
   const canGenerate = can('listing:generate')
+  const aiPaused = useAiPaused()
 
   return (
     <Page>
@@ -557,7 +560,11 @@ export function ProductsPage() {
         }
         bulkBar={(selected, clearSelection) => (
           <BulkBar count={selected.length} onClear={clearSelection}>
-            {canGenerate ? (
+            {canGenerate && aiPaused ? (
+              <UnavailableButton size="sm" reason={AI_PAUSED_REASON} data-testid="bulk-add-marketplace">
+                Add marketplace
+              </UnavailableButton>
+            ) : canGenerate ? (
               <Button size="sm" onClick={() => setAdding(selected)} data-testid="bulk-add-marketplace">
                 Add marketplace
               </Button>

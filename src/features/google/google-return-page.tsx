@@ -47,6 +47,7 @@ import { InviteGoogleAccept } from './invite-google'
 import { isCoarsePointer } from '@/lib/pointer'
 import { brandNameFrom, ownerNameFrom } from './prefill'
 import { captureReturn, completeOnce, reasonFor, type GoogleErrorReason } from './return-state'
+import { isTenantSuspended, SuspendedCard } from '@/features/public/suspended-card'
 import type { GoogleIntent } from './start'
 
 // ---------------------------------------------------------------------------------------------
@@ -63,6 +64,7 @@ type View =
   | { kind: 'details'; details: GoogleDetails; showForm: boolean }
   | { kind: 'invite'; details: GoogleDetails }
   | { kind: 'status'; status: SignupStatusOut; sent: boolean }
+  | { kind: 'suspended'; ref: string | null }
 
 export function GoogleReturnPage({ search }: { search: { handle?: string; error?: string } }) {
   const router = useRouter()
@@ -122,7 +124,7 @@ export function GoogleReturnPage({ search }: { search: { handle?: string; error?
         setView({ kind: 'error', reason: 'failed', ref: null })
       },
       (e: unknown) => {
-        if (live) setView({ kind: 'error', ...reasonFor(e) })
+        if (live) setView(failView(e))
       },
     )
     return () => {
@@ -133,7 +135,7 @@ export function GoogleReturnPage({ search }: { search: { handle?: string; error?
   }, [cap])
 
   const toLogin = () => void router.navigate({ to: '/login' })
-  const fail = (e: unknown) => setView({ kind: 'error', ...reasonFor(e) })
+  const fail = (e: unknown) => setView(failView(e))
 
   if (flow.step.kind !== 'credentials') return <SignInSteps flow={flow} email={email || 'Google account'} onSwitch={toLogin} />
 
@@ -161,7 +163,15 @@ export function GoogleReturnPage({ search }: { search: { handle?: string; error?
       return <GoogleStatus status={view.status} email={email} sent={view.sent} />
     case 'invite':
       return <InviteGoogleAccept details={view.details} bind={ticket!.bind} />
+    case 'suspended':
+      return <SuspendedCard reference={view.ref} onBack={toLogin} />
   }
+}
+
+/** A refused Google step: the brand paused (403 TENANT_SUSPENDED) has its own screen. */
+function failView(e: unknown): View {
+  if (isTenantSuspended(e)) return { kind: 'suspended', ref: isApiError(e) ? e.correlationId : null }
+  return { kind: 'error', ...reasonFor(e) }
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -70,7 +70,9 @@ import { EditDialog, SendBackDialog } from './dialogs'
 import { clock, fieldLabel, mpName } from './format'
 import { claimFindings, gateCounts, plural, type ErrorItem, type GateResult } from './gates'
 import { ListOnButton } from './list-on'
-import { approveAllTargets } from './review-model'
+import { approveAllTargets, approveBlockers } from './review-model'
+import { AI_PAUSED_REASON } from '@/features/ai-credit/model'
+import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
 import { STAGE_SUB } from './run-steps'
 import { ActionButton, CardSkeleton, GATE_CHIP, GateLegend, GateList, GateListSkeleton, ReadsAsSkeleton, ReviewTopSkeleton } from './ui'
 import { useListingChecks } from './use-listing-checks'
@@ -147,6 +149,8 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   // Approve / publish stay "…ing" until the listing refetch shows the new status, so the buttons
   // never snap back to their resting label for a moment before the page changes.
   const [settling, setSettling] = useState<'approve' | 'publish' | null>(null)
+  /** SI9: the blocking items an approve was refused for (422 VALIDATION_FAILED), for the version they belong to. */
+  const [blockers, setBlockers] = useState<{ version: string | null | undefined; items: ErrorItem[] } | null>(null)
 
   const mp = mpName(listing.marketplace)
   const product = checks.product.data
@@ -155,12 +159,16 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
     validation: listing.validation,
     can,
     maker: makerHint(history.rows, me.data?.user_id),
+    canApprove: listing.can_approve,
+    approveHint: listing.approve_hint,
     publishBuilt: BUILT['listings.publish'],
   })
   // The server is the authority on maker-checker; until the history is read, say so instead of guessing.
   // The reviewer sees what Kuinn fixed before approving: Approve waits for that read too.
+  // With the server's own answer (SI10 can_approve) there is nothing to wait for in the history.
+  const serverDecides = listing.can_approve === true || listing.can_approve === false
   const approveState: ActionState =
-    history.isPending && actions.approve.enabled
+    history.isPending && actions.approve.enabled && !serverDecides
       ? { show: true, enabled: false, reason: 'Checking who worked on this version…' }
       : fixesQ.isPending && actions.approve.enabled
         ? { show: true, enabled: false, reason: 'Checking what Kuinn fixed…' }
@@ -208,7 +216,11 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
       approveKey.reset()
       await refetchListing()
       const out = summarizeBatch(res)
-      if (out.failed.length && !out.ok.length) {
+      const blocking = approveBlockers(res, listing.id)
+      setBlockers(blocking ? { version: listing.current_version_id, items: blocking } : null)
+      if (blocking && rows.length === 1) {
+        toast.error(`Couldn’t approve ${mp}`, { description: 'The marketplace check found blocking issues. They are listed on this page.' })
+      } else if (out.failed.length && !out.ok.length) {
         const f = out.failed[0]!
         toast.error(rows.length > 1 ? 'Nothing was approved' : `Couldn’t approve ${mp}`, {
           description: `${f.message}${f.requestId ? ` Reference: ${f.requestId}` : ''}`,
@@ -254,7 +266,9 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
     </Banner>
   )
   // A brand where nobody else can approve learns it here, before the click (maker-checker).
-  const approvalBanner = approver === 'alone' && can('listing:approve') ? <ApproverNotice state="alone" className="mb-4" /> : infoBanner
+  const alone = approver === 'alone' || listing.approve_hint === 'no_other_approver'
+  const approvalBanner = alone && can('listing:approve') ? <ApproverNotice state="alone" className="mb-4" /> : infoBanner
+  const shownBlockers = blockers && blockers.version === listing.current_version_id ? blockers.items : null
 
   return (
     <div className="flex min-h-[calc(100svh-56px)] flex-col">
@@ -347,6 +361,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
             className={cn('grid items-start gap-4 transition-opacity duration-200 lg:grid-cols-[1.6fr_1fr]', busy && 'pointer-events-none opacity-60')}
           >
             <div className="flex min-w-0 flex-col gap-4">
+              {shownBlockers ? <ApproveBlockersCard items={shownBlockers} onClose={() => setBlockers(null)} /> : null}
               <ReadsAs
                 checks={checks}
                 listing={listing}
@@ -479,7 +494,9 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
 }
 
 /** "Generate again" (POST /listings/{id}/regenerate) after a photo value was removed here. */
-function RegenerateButton({ listing, state }: { listing: ListingDetail; state: ActionState }) {
+function RegenerateButton({ listing, state: given }: { listing: ListingDetail; state: ActionState }) {
+  const paused = useAiPaused()
+  const state: ActionState = paused && given.show ? { show: true, enabled: false, reason: AI_PAUSED_REASON } : given
   const navigate = useNavigate()
   const regenerate = useRegenerateListing(listing.id)
   const key = useIntentKey()
@@ -859,6 +876,44 @@ function GatesCard({
 }
 
 const WARNINGS_SHOWN = 3
+
+/** SI9: why approve was refused: the marketplace check's blocking items, and what to do about each. */
+function ApproveBlockersCard({ items, onClose }: { items: readonly ErrorItem[]; onClose: () => void }) {
+  return (
+    <LaCard emphasis="attention" data-testid="approve-blockers" role="alert">
+      <CardHead
+        icon="alert"
+        iconTone="warn"
+        title="Approve was stopped"
+        sub="The marketplace check found what it would refuse. Fix these, then approve."
+        action={
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Hide these issues">
+            <Icon name="x" size={16} />
+          </Button>
+        }
+      />
+      {items.length ? (
+        <ul className="m-0 mt-3 flex list-none flex-col p-0">
+          {items.map((f, i) => (
+            <li key={i} className="flex items-start gap-3 border-b border-attention-line py-3 last:border-b-0 last:pb-0">
+              <StatusChip status={f.severity === 'error' ? 'blocked' : 'needs-you'} iconOnly label={f.severity === 'error' ? 'Blocking' : 'Warning'} />
+              <div className="min-w-0 flex-1">
+                <p className="text-body text-ink">{f.message}</p>
+                <p className="text-caption text-ink-3">
+                  <span title={f.field}>{fieldLabel(f.field)}</span>
+                  {f.value_submitted ? ` · sent “${f.value_submitted}”` : ''}
+                </p>
+                {f.suggestion ? <p className="mt-0.5 text-small text-ink-2">{f.suggestion}</p> : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-3 text-body text-ink-2">Run checks to see the details.</p>
+      )}
+    </LaCard>
+  )
+}
 
 function FindingsCard({ findings }: { findings: readonly ErrorItem[] }) {
   const [allWarnings, setAllWarnings] = useState(false)

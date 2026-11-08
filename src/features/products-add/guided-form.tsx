@@ -61,6 +61,7 @@ import { CategorySelect } from '@/features/products/category-select'
 import { invalidateListingWork } from '@/features/listings/api'
 import { useSession } from '@/lib/auth'
 import { OP_ACTION, useCan } from '@/lib/permissions'
+import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
 import { useKeys } from '@/lib/query-keys'
 import { toast } from '@/lib/toast'
 import { focusFirstInvalid } from '@/lib/validation'
@@ -157,6 +158,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
   const keys = useKeys()
   const qc = useQueryClient()
   const can = useCan()
+  const aiPaused = useAiPaused()
   const { tenantId } = useSession()
   const draftKey = `${DRAFT_PREFIX}${tenantId ?? 'none'}`
   const [initial] = useState(() => readDraft(draftKey))
@@ -440,7 +442,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
       setPhase(null)
       return
     }
-    if (listOn.length && can('listing:generate')) {
+    if (listOn.length && can('listing:generate') && !aiPaused) {
       // The agent reads photos once their check has prepared them: wait for that (briefly), so
       // the first draft already has the photos.
       if (imagesRef.current.some((i) => i.stage.kind === 'done')) {
@@ -463,7 +465,9 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
       }
     } else {
       toast.success('Product saved', {
-        description: listOn.length ? 'Your role can’t start drafts. An owner or operator can.' : 'No marketplace was chosen, so no draft was started.',
+        description: listOn.length && aiPaused
+          ? 'AI drafting is paused, so no draft was started. Start it from the product once drafting is back.'
+          : listOn.length ? 'Your role can’t start drafts. An owner or operator can.' : 'No marketplace was chosen, so no draft was started.',
       })
     }
     setBusy(null)
@@ -476,7 +480,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
   const isPending = busy !== null
   const nextSection = SECTIONS[idx + 1]
   const phaseLabel = phase ? PHASE_LABEL(phase) : null
-  const sendLabel = busy === 'send' && phaseLabel ? phaseLabel : listOn.length ? 'Send to agent now' : 'Save product'
+  const sendLabel = busy === 'send' && phaseLabel ? phaseLabel : listOn.length && !aiPaused ? 'Send to agent now' : 'Save product'
 
   // Phones: the section list scrolls sideways; keep the current one in view. 'nearest' never moves the page.
   useEffect(() => {

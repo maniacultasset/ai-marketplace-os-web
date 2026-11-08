@@ -1,6 +1,7 @@
 import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
 import { isApiError, isMfaRequired } from '@/api/errors'
 import { getSession } from '@/api/session'
+import { isAiPausedError, markAiPaused } from '@/features/ai-credit/model'
 import { toastError } from '@/lib/toast'
 
 declare module '@tanstack/react-query' {
@@ -13,6 +14,15 @@ declare module '@tanstack/react-query' {
       errorTitle?: string
     }
   }
+}
+
+/** 503 AI_CREDIT_EXHAUSTED / AI_PROVIDER_KEY_INVALID: show the pause banner now and re-read /auth/me. */
+function notePause(client: QueryClient, error: unknown): boolean {
+  if (!isAiPausedError(error)) return false
+  markAiPaused()
+  const { tenantId } = getSession()
+  if (tenantId) void client.invalidateQueries({ queryKey: ['t', tenantId, 'me'] })
+  return true
 }
 
 function refetchMeAfter403(client: QueryClient, error: unknown) {
@@ -31,6 +41,8 @@ export function createQueryClient() {
     mutationCache: new MutationCache({
       onError: (error, _vars, _ctx, mutation) => {
         refetchMeAfter403(client, error)
+        // The app-wide banner says it once; no toast per refused generate.
+        if (notePause(client, error)) return
         if (mutation.meta?.toast === false) return
         if (isApiError(error) && error.status === 401) return // session handling redirects
         toastError(error, mutation.meta?.errorTitle)

@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
 import { Page, PageHeader } from '@/components/app/page-header'
 import { RequireAction } from '@/components/states/require-action'
+import { AiCreditCard } from '@/features/ai-credit/ai-credit-card'
 import { TENANT_TABS, type TenantTab } from '@/features/signup-admin/tenants-model'
 import { TenantsRefreshButton, TenantsTable } from '@/features/signup-admin/tenants-table'
 
@@ -23,6 +24,7 @@ export const Route = createFileRoute('/_app/admin/brands')({
             description="Every brand on Kuinn, newest first. Activate a brand, or give a trial more days."
             actions={<TenantsRefreshButton />}
           />
+          <AiCreditCard />
           <TenantsTable tab={tab} onTabChange={(next) => void navigate({ search: { status: next === 'all' ? undefined : next }, replace: true })} />
         </RequireAction>
       </Page>

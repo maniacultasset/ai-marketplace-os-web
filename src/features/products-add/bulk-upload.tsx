@@ -33,6 +33,8 @@ import { useImportReport } from '@/features/imports/import-report'
 import { markJobLive, useImportJob } from '@/features/imports/use-import-job'
 import { CategoryCodes } from '@/features/products/category-select'
 import { useCan } from '@/lib/permissions'
+import { AI_PAUSED_REASON } from '@/features/ai-credit/model'
+import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
 import { useKeys } from '@/lib/query-keys'
 import { cn } from '@/lib/utils'
 import { useAllListings, useAllProducts, walkPages } from './catalog'
@@ -370,6 +372,7 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
   const keys = useKeys()
   const qc = useQueryClient()
   const can = useCan()
+  const aiPaused = useAiPaused()
   const history = useImportHistory()
   const polling = useImportJob(jobId, () => importId)
   const job = polling.job
@@ -607,6 +610,8 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
         )}
         {results ? null : !can('listing:generate') ? (
           <UnavailableButton reason="Your role can’t start drafts. An owner or operator can.">Send to the agent</UnavailableButton>
+        ) : aiPaused ? (
+          <UnavailableButton reason={AI_PAUSED_REASON} data-testid="bulk-send">Send to the agent</UnavailableButton>
         ) : (
           <Button className="min-w-44" disabled={!done || plan.send.length === 0 || !!sending} onClick={() => void send()} data-testid="bulk-send">
             {sending ? <Spinner data-icon="inline-start" aria-hidden /> : null}

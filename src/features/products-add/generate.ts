@@ -14,6 +14,7 @@ import { describeError, isApiError } from '@/api/errors'
 import { idempotencyHeader, newIdempotencyKey } from '@/api/idempotency'
 import type { Schema } from '@/api/types'
 import type { Listing, Marketplace, Product } from './catalog-model'
+import { AI_PAUSED_TEXT, isAiPausedError, markAiPaused } from '@/features/ai-credit/model'
 
 export type JobAccepted = Schema<'JobAccepted'>
 
@@ -67,6 +68,7 @@ export type ItemOutcome =
 /** A sentence for a refused generate request. */
 export function generateErrorMessage(err: unknown): string {
   if (!isApiError(err)) return describeError(err)
+  if (isAiPausedError(err)) return AI_PAUSED_TEXT
   const field = err.details[0]?.loc?.at(-1)
   if (err.status === 422 && field === 'category') return 'No marketplace template for this category yet.'
   if (err.status === 422 && field === 'product_id') return 'Variants are listed through their style.'
@@ -111,6 +113,11 @@ export async function generateMany(
           out[i] = { kind: 'accepted', item, accepted: await send(item) }
         } catch (error) {
           if (isApiError(error) && error.status === 429) stop = error
+          // AI drafting is paused for everyone: the rest would be refused the same way.
+          if (isAiPausedError(error)) {
+            stop = error
+            markAiPaused()
+          }
           out[i] = { kind: 'failed', item, error, message: generateErrorMessage(error) }
         }
       }

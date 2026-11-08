@@ -232,7 +232,7 @@ export function ProfileEditor({ profile, canEdit }: { profile: Versioned<TenantO
             <div>
               <dt className="sr-only">Status</dt>
               <dd>
-                <TenantStatusBadge status={t.status} />
+                <TenantStatusBadge status={t.status} trialEndsAt={t.trial_ends_at} />
               </dd>
             </div>
           </dl>
