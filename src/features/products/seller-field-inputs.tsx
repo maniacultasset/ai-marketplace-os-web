@@ -73,7 +73,9 @@ function UnitInput({
   invalid,
   describedBy,
   inputMode = 'decimal',
+  placeholder,
 }: {
+  placeholder?: string
   id: string
   label: string
   unit: string
@@ -94,7 +96,7 @@ function UnitInput({
         inputMode={inputMode}
         autoComplete="off"
         maxLength={10}
-        placeholder="0"
+        placeholder={placeholder}
         aria-label={label}
         aria-invalid={invalid ? true : undefined}
         aria-describedby={describedBy}
@@ -157,6 +159,7 @@ export function PackageFields({
               key={d}
               id={`${id}-${d}`}
               label={`${DIM_LABEL[d]} in cm`}
+              placeholder={DIM_LABEL[d].charAt(0)}
               unit="cm"
               value={value[d]}
               onChange={(v) => set(d, v)}
@@ -171,6 +174,7 @@ export function PackageFields({
         <UnitInput
           id={`${id}-weight`}
           label="Package weight in grams"
+          placeholder="Weight"
           unit="g"
           value={value.weight}
           onChange={(v) => set('weight', v)}

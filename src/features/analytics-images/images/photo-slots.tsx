@@ -25,7 +25,7 @@ export interface TileState {
 
 export function PhotoSlotGrid({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn('grid w-full max-w-[560px] grid-cols-3 gap-2.5 sm:gap-3', className)} data-testid="photo-slots">
+    <div className={cn('grid w-full max-w-[520px] grid-cols-3 gap-2.5 sm:gap-3', className)} data-testid="photo-slots">
       {children}
     </div>
   )
@@ -91,7 +91,7 @@ export function PhotoTile({
             className={cn('absolute inset-0 size-full object-cover transition-opacity duration-200 motion-reduce:transition-none', loaded ? 'opacity-100' : 'opacity-0')}
           />
         ) : (
-          <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-2 text-center">
+          <span className={cn('absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-2 text-center', !large && 'pb-7')}>
             <span
               className={cn(
                 'flex items-center justify-center rounded-tile bg-surface text-ink-2 shadow-raised-sm',

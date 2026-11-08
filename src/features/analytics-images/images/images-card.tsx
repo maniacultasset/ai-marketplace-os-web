@@ -177,13 +177,13 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
       if (st.kind === 'invalid') return { filled: false, status: st.message, tone: 'bad' }
       if (st.kind === 'uploading') return { filled: true, previewUrl: mine.previewUrl, status: 'Uploading…', tone: 'busy' }
       if (st.kind === 'failed') return { filled: false, status: describeError(st.error), tone: 'bad' }
-      return { filled: true, previewUrl: mine.previewUrl, status: 'Uploaded. Checking it now.', tone: 'ok' }
+      return { filled: true, previewUrl: mine.previewUrl, status: 'Uploaded, checking…', tone: 'busy' }
     }
     const held = details.find((d) => photoSlotOf(d.slot, d.role) === def.id && (def.slot === 'size_chart' || (d.colourway_id ?? null) === cw))
     if (!held) return { filled: false, status: def.required ? 'Required' : 'Recommended' }
-    if (held.compliance_status === 'passed') return { filled: true, status: 'Added and checked', tone: 'ok' }
-    if (held.compliance_status === 'failed') return { filled: true, status: 'Added. Its check found problems, see below.', tone: 'bad' }
-    return { filled: true, status: 'Added. Checking it now.', tone: 'busy' }
+    if (held.compliance_status === 'passed') return { filled: true, status: 'Checked', tone: 'ok' }
+    if (held.compliance_status === 'failed') return { filled: true, status: 'Needs a fix, see below', tone: 'bad' }
+    return { filled: true, status: 'Checking…', tone: 'busy' }
   }
 
   // Image candidates (SI7). The list call says whether the backend has them: a 404 or 405 means

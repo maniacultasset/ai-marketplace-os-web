@@ -771,7 +771,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               neededWeight={need('package_weight')}
               submitCount={submitCount}
             />
-            <p className="text-caption text-ink-3">Flipkart asks for these when you list. They are kept with the product and not sent to Amazon.</p>
+            <p className="text-caption text-ink-3">Flipkart asks for the HSN code and the package when you list there. Both marketplaces ask for the country of origin.</p>
           </div>
         )
       case 'care':
@@ -936,8 +936,8 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               {listOn.length ? (
                 <ul className="mt-3 flex flex-col gap-2.5">
                   {listOn.map((m) => (
-                    <li key={m} className="flex items-center justify-between gap-2 text-small">
-                      <MarketplaceName id={m} size="sm" />
+                    <li key={m} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-small">
+                      <MarketplaceName id={m} size="sm" className="shrink-0" />
                       <TagChip tone="plain" className="shrink-0">
                         Checked after drafting
                       </TagChip>

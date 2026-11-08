@@ -127,8 +127,8 @@ describe('ProductImagesCard photo tiles (SI12)', () => {
         { image_id: I2, slot: 'secondary' as const, role: 'back' as const, position: 1, status: 'ready', origin: 'seller' as const, compliance_status: 'pending' as const },
       ],
     })
-    expect(within(screen.getByTestId('photo-slot-front')).getByText('Added and checked')).toBeTruthy()
-    expect(within(screen.getByTestId('photo-slot-back')).getByText('Added. Checking it now.')).toBeTruthy()
+    expect(within(screen.getByTestId('photo-slot-front')).getByText('Checked')).toBeTruthy()
+    expect(within(screen.getByTestId('photo-slot-back')).getByText('Checking…')).toBeTruthy()
     expect(within(screen.getByTestId('photo-slot-close_up')).getByText('Recommended')).toBeTruthy()
     expect(screen.getByLabelText('Replace front photo')).toBeTruthy()
     expect(screen.getByLabelText('Add close-up photo')).toBeTruthy()
