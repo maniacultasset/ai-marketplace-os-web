@@ -27,6 +27,7 @@ const cand = (over: Partial<Candidate> = {}): Candidate => ({
   preview_url: 'https://storage.test/candidate.png',
   source_preview_url: 'https://storage.test/source.jpg',
   created_at: new Date().toISOString(),
+  cost_usd: '0.04',
   ...over,
 })
 

@@ -24,6 +24,7 @@ const cand = (over: Partial<Candidate> = {}): Candidate => ({
   status: 'ready',
   source_image_id: MAIN,
   created_at: '2026-11-08T09:00:00Z',
+  cost_usd: '0',
   ...over,
 })
 const err422 = (field: string) =>
