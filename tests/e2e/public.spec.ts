@@ -7,11 +7,11 @@ import { expect, test } from './fixtures'
 test.describe('public pages', () => {
   test('landing shows one call to action and honest marketplace status', async ({ page }) => {
     await page.goto('/')
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Two marketplaces')
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('brand’s voice')
     await expect(page.getByTestId('hero-example')).toContainText('Example')
-    await expect(page.getByTestId('market-in-setup')).toContainText('Amazon')
-    await expect(page.getByTestId('market-pending')).toContainText('Flipkart')
-    await expect(page.locator('[data-status="live"]')).toHaveCount(0)
+    await expect(page.getByTestId('market-live')).toContainText('Amazon')
+    await expect(page.getByTestId('market-soon')).toContainText('Flipkart')
+    await expect(page.getByTestId('market-roadmap')).toContainText('Myntra')
     await page.getByTestId('landing-cta').click()
     await expect(page).toHaveURL(/\/signup$/)
   })
