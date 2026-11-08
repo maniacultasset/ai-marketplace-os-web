@@ -53,10 +53,20 @@ import {
 import type { Schema } from '@/api/types'
 import { CONTROL_MSG, hasStrayControlChars } from '@/lib/validation'
 import { audienceServerMessage, brandNameProblem, GENDERS, type Gender } from '@/features/products/audience'
+import {
+  countryProblem,
+  emptyPackage,
+  hsnProblem,
+  normalizeCountry,
+  packageEmpty,
+  packageProblems,
+  toPackageIn,
+  type PackageDraft,
+} from '@/features/products/seller-fields'
 
 export { skuProblem }
 
-export type SectionId = 'identity' | 'category' | 'fabric' | 'size' | 'media' | 'price' | 'care' | 'variants'
+export type SectionId = 'identity' | 'category' | 'fabric' | 'size' | 'media' | 'price' | 'shipping' | 'care' | 'variants'
 
 export const SECTIONS: readonly { id: SectionId; label: string }[] = [
   { id: 'identity', label: 'Identity' },
@@ -65,6 +75,7 @@ export const SECTIONS: readonly { id: SectionId; label: string }[] = [
   { id: 'size', label: 'Size chart' },
   { id: 'media', label: 'Images' },
   { id: 'price', label: 'Price' },
+  { id: 'shipping', label: 'Tax and shipping' },
   { id: 'care', label: 'Care and legal' },
   { id: 'variants', label: 'Variants' },
 ]
@@ -128,6 +139,14 @@ export interface GuidedValues {
   /** SI8: lists under its own brand name (else the brand profile's). */
   ownBrand: boolean
   brandName: string
+  /** SI12: HSN code (4, 6 or 8 digits). */
+  hsn: string
+  /** The HSN shown is the category's suggestion and the seller has not changed it. */
+  hsnSuggested: boolean
+  /** SI12: two-letter country of origin; '' = not chosen. */
+  country: string
+  /** SI12: the shipping package. */
+  pkg: PackageDraft
 }
 
 export const emptyGuided = (): GuidedValues => ({
@@ -147,6 +166,10 @@ export const emptyGuided = (): GuidedValues => ({
   gender: '',
   ownBrand: false,
   brandName: '',
+  hsn: '',
+  hsnSuggested: false,
+  country: '',
+  pkg: emptyPackage(),
 })
 
 /**
@@ -175,6 +198,10 @@ export function reviveGuided(raw: Partial<GuidedValues> & { attrs?: Record<strin
     gender: raw.gender && (GENDERS as readonly string[]).includes(raw.gender) ? raw.gender : '',
     ownBrand: raw.ownBrand === true,
     brandName: typeof raw.brandName === 'string' ? raw.brandName : '',
+    hsn: typeof raw.hsn === 'string' ? raw.hsn : '',
+    hsnSuggested: raw.hsnSuggested === true,
+    country: typeof raw.country === 'string' ? raw.country : '',
+    pkg: { ...base.pkg, ...(raw.pkg ?? {}) },
   }
 }
 
@@ -195,7 +222,10 @@ export function isEmptyGuided(v: GuidedValues): boolean {
     !normalizeBarcode(v.barcode.value) &&
     !v.barcode.exempt &&
     !v.gender &&
-    !v.ownBrand
+    !v.ownBrand &&
+    (!v.hsn.trim() || v.hsnSuggested) &&
+    !v.country &&
+    packageEmpty(v.pkg)
   )
 }
 
@@ -205,7 +235,7 @@ export type GuidedErrors = Partial<Record<string, string>>
 export interface GuidedContext {
   /** The brand has a default manufacturer (null while it loads). */
   brandManufacturer: boolean | null
-  /** A main image is picked for this product. */
+  /** A Front (main) image is picked for this product. */
   hasMain: boolean
   /** Images picked, any slot. */
   imageCount: number
@@ -261,6 +291,11 @@ export function validateGuided(v: GuidedValues): GuidedErrors {
   if (v.ownManufacturer) for (const [k, msg] of Object.entries(partyProblems(v.manufacturer))) e[`manufacturer.${k}`] = msg
   const barcode = v.barcode.exempt ? null : barcodeProblem(v.barcode.type, v.barcode.value)
   if (barcode) e[BARCODE_KEY] = barcode
+  const hsn = hsnProblem(v.hsn)
+  if (hsn) e.hsn_code = hsn
+  const country = countryProblem(v.country)
+  if (country) e.country_of_origin = country
+  Object.assign(e, packageProblems(v.pkg))
   const seen = new Set([...ATTR_FIELDS.map((f) => f.key), 'fiber_composition', 'fabric_composition', 'size_measurements'])
   v.extra.forEach((x, i) => {
     const key = x.key.trim()
@@ -286,6 +321,7 @@ export function sectionOfError(key: string): SectionId {
   if (key === 'mrp' || key === 'selling_price') return 'price'
   if (key.startsWith('size_chart')) return 'size'
   if (key === 'images') return 'media'
+  if (key === 'hsn_code' || key === 'country_of_origin' || key === 'package' || key.startsWith('package.')) return 'shipping'
   if (key.startsWith('manufacturer')) return 'care'
   if (key.startsWith('composition.') || key === 'attr.fiber_composition' || key.startsWith('extra.')) return 'fabric'
   if (key.startsWith('attr.')) return ATTR_FIELDS.find((f) => `attr.${f.key}` === key)?.section ?? 'fabric'
@@ -313,6 +349,13 @@ const WITHIN: readonly string[] = [
   'images',
   'mrp',
   'selling_price',
+  'hsn_code',
+  'package',
+  'package.length',
+  'package.breadth',
+  'package.height',
+  'package.weight',
+  'country_of_origin',
   'attr.wash_care',
   'attr.iron_care',
   'manufacturer',
@@ -362,6 +405,10 @@ export function toProductCreate(v: GuidedValues, uploads?: { id: string; images:
   if (chart) body.size_chart = chart
   if (v.ownManufacturer) body.manufacturer = toPartyIn(v.manufacturer)
   Object.assign(body, barcodeCreateFields(v.barcode))
+  if (v.hsn.trim()) body.hsn_code = v.hsn.trim()
+  if (v.country.trim()) body.country_of_origin = normalizeCountry(v.country)
+  const pkg = toPackageIn(v.pkg)
+  if (pkg) body.package = pkg
   if (uploads && uploads.images.length) {
     body.id = uploads.id
     body.image_uploads = uploads.images
@@ -381,6 +428,7 @@ const compositionComplete = (rows: readonly FibreRow[]) => {
 export function missingCriticalBy(v: GuidedValues, ctx: GuidedContext = noContext): { label: string; section: SectionId }[] {
   const out: { label: string; section: SectionId }[] = []
   const empty = (k: string) => !(v.attrs[k] ?? '').trim()
+  if (!ctx.hasMain) out.push({ label: 'Front photo', section: 'media' })
   if (empty('fabric_type')) out.push({ label: 'Fabric type', section: 'fabric' })
   if (!compositionComplete(v.composition)) out.push({ label: 'Fabric composition', section: 'fabric' })
   if (!v.mrp.trim()) out.push({ label: 'MRP', section: 'price' })
@@ -415,6 +463,7 @@ export function sectionStates(v: GuidedValues, ctx: GuidedContext = noContext, s
     size: sizeChartCount(v.sizeChart) > 0,
     media: ctx.imageCount > 0,
     price: !!(v.mrp.trim() || v.sellingPrice.trim()),
+    shipping: !!(v.hsn.trim() || v.country.trim()) || !packageEmpty(v.pkg),
     care: ATTR_FIELDS.some((f) => f.section === 'care' && (v.attrs[f.key] ?? '').trim()) || v.ownManufacturer,
     variants: false,
   }
@@ -487,13 +536,15 @@ export function mapCreateErrors(
       continue
     }
     if (key === 'images') msg = 'An image could not be attached. Remove it and add it again.'
+    // `package.length_cm` → the editor's `package.length`.
+    if (key.startsWith('package.')) key = key.replace(/_(cm|g)$/, '')
     if (key === 'brand_name' || key === 'gender') msg = audienceServerMessage(key, err.type, msg)
     if (isBarcodeErrorKey(key)) {
       key = BARCODE_KEY
       msg = barcodeServerMessage(err.type, v.barcode)
     }
-    const known = ['sku', 'title', 'category', 'style_number', 'brand_name', 'gender', 'mrp', 'selling_price', 'size_chart', 'images', BARCODE_KEY]
-    if (!(known.includes(key) || /^(attr|extra|size_chart|manufacturer)\./.test(key))) {
+    const known = ['sku', 'title', 'category', 'style_number', 'brand_name', 'gender', 'mrp', 'selling_price', 'size_chart', 'images', 'hsn_code', 'country_of_origin', 'package', BARCODE_KEY]
+    if (!(known.includes(key) || /^(attr|extra|size_chart|manufacturer|package)\./.test(key))) {
       unmapped = true
       continue
     }

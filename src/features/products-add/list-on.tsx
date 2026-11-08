@@ -44,15 +44,21 @@ export function ListOnPicker({
 }) {
   return (
     <fieldset className={className} aria-busy={connected === null ? true : undefined}>
-      <legend className="font-display text-h3 text-ink">List on</legend>
+      <legend className="font-display text-h3 text-ink">Sell on</legend>
       <div className="mt-3 flex flex-wrap gap-2.5">
         {MARKETPLACES.map((m) => {
           if (!m.supported) {
+            // Meesho is on the roadmap (client input, 8 Nov): it says so. The others are not planned yet.
+            const soon = m.id === 'meesho'
             return (
-              <UnavailableHint key={m.id} reason={`${m.name}: ${NOT_YET.waitlist}`}>
-                <span className="flex h-11 items-center gap-2.5 rounded-control border border-dashed border-line-strong pr-4 pl-2 font-medium text-ink-3">
+              <UnavailableHint key={m.id} reason={soon ? 'Meesho is coming soon. It can’t be chosen yet.' : `${m.name}: ${NOT_YET.waitlist}`}>
+                <span
+                  className={cn('flex h-11 items-center gap-2.5 rounded-control border border-dashed border-line-strong pl-2 font-medium text-ink-3', soon ? 'pr-3' : 'pr-4')}
+                  data-testid={soon ? 'list-on-soon-meesho' : undefined}
+                >
                   <MarketplaceTile id={m.id} size="sm" />
                   {m.short}
+                  {soon ? <ComingSoon /> : null}
                 </span>
               </UnavailableHint>
             )
@@ -97,7 +103,7 @@ export function ListOnPicker({
       </div>
       <p className="mt-2 text-caption text-ink-3">
         Pre-selected from your connected marketplaces. A draft can be prepared before you connect; sending it needs a connection.
-        Myntra, AJIO, Meesho and Nykaa are not available yet.
+        Meesho is coming soon. Myntra, AJIO and Nykaa are not available yet.
       </p>
     </fieldset>
   )

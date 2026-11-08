@@ -6,6 +6,7 @@
  */
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { fieldHintId, Icon, LaField, Segmented } from '@/components/la'
+import { chipFor, type ChipProps } from './field-sources'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -50,7 +51,9 @@ export function TextField({
   inputMode,
   autoComplete = 'off',
   className,
-}: {
+  source,
+  needed,
+}: ChipProps & {
   id: string
   label: ReactNode
   value: string
@@ -79,8 +82,7 @@ export function TextField({
       error={error}
       hint={hint}
       critical={critical}
-      needsInput={critical && !filled && !error}
-      source={filled ? { kind: 'you' } : undefined}
+      {...chipFor(filled, { source, needed }, critical, error)}
       submitCount={submitCount}
       confirmFix
       className={className}
@@ -118,7 +120,9 @@ export function MoneyField({
   hint,
   critical,
   submitCount,
-}: {
+  source,
+  needed,
+}: ChipProps & {
   id: string
   label: ReactNode
   value: string
@@ -137,8 +141,7 @@ export function MoneyField({
       error={error}
       hint={hint}
       critical={critical}
-      needsInput={critical && !filled && !error}
-      source={filled ? { kind: 'you' } : undefined}
+      {...chipFor(filled, { source, needed }, critical, error)}
       submitCount={submitCount}
       confirmFix
     >
@@ -185,7 +188,9 @@ export function PickOrOtherField({
   critical,
   submitCount,
   otherPlaceholder,
-}: {
+  source,
+  needed,
+}: ChipProps & {
   id: string
   label: ReactNode
   value: string
@@ -210,8 +215,7 @@ export function PickOrOtherField({
       error={error}
       hint={hint}
       critical={critical}
-      needsInput={critical && !filled && !error}
-      source={filled ? { kind: 'you' } : undefined}
+      {...chipFor(filled, { source, needed }, critical, error)}
       submitCount={submitCount}
       confirmFix
     >
@@ -283,7 +287,8 @@ export function CompositionEditor({
   onBlur,
   submitCount,
   critical = true,
-}: {
+  source,
+}: Pick<ChipProps, 'source'> & {
   id: string
   rows: readonly FibreRow[]
   onChange: (rows: FibreRow[]) => void
@@ -316,8 +321,7 @@ export function CompositionEditor({
       error={totalError}
       hint={filled ? undefined : 'Each fibre and its percent, as on the label. Never guessed.'}
       critical={critical}
-      needsInput={critical && !filled && !totalError}
-      source={filled ? { kind: 'you' } : undefined}
+      {...chipFor(filled, { source }, critical, totalError)}
       submitCount={submitCount}
       confirmFix
     >

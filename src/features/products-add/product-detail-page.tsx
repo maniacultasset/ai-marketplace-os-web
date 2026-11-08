@@ -808,7 +808,14 @@ function MarketplaceCard({
   )
 }
 
+/** SI12 "Sell on" for a saved product: the marketplaces it has a listing on, and the connected ones. */
+function useSellOn(data: DetailData): Marketplace[] {
+  const { connected } = useConnectedMarketplaces()
+  return (['amazon', 'flipkart'] as const).filter((m) => !!data.listings[m] || !!connected?.includes(m))
+}
+
 function OverviewTab({ data, session, onEdit }: { data: DetailData; session: ProductEditSession; onEdit?: () => void }) {
+  const sellOn = useSellOn(data)
   if (session.editing)
     return (
       <div className="max-w-4xl">
@@ -816,6 +823,7 @@ function OverviewTab({ data, session, onEdit }: { data: DetailData; session: Pro
           session={session}
           categoryLock={data.listingsPending ? 'pending' : data.listingsFailed ? 'unknown' : listingsIn(data).length ? 'locked' : 'open'}
           onRetryCategoryLock={data.retryListings}
+          sellOn={sellOn}
         />
       </div>
     )
@@ -829,6 +837,7 @@ function OverviewTab({ data, session, onEdit }: { data: DetailData; session: Pro
           isStyle={session.isStyle}
           variants={data.variants}
           source={session.source}
+          sellOn={sellOn}
           onEdit={onEdit}
           categoryAction={
             // SI9: offered only by a backend that has it (its product read carries photo_read), to

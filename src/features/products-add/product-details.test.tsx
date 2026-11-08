@@ -1,4 +1,6 @@
-import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { act, cleanup, fireEvent, render as rtlRender, renderHook, screen } from '@testing-library/react'
+import type { ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ProductDetail } from '@/features/products/api'
 
@@ -13,6 +15,14 @@ const { useProductEditSession } = await import('./product-edit-session')
 const { ProductDetailsEditor } = await import('./product-details')
 
 afterEach(cleanup)
+
+// The editor reads what each marketplace needs (GET /catalog/requirements): give it a client.
+const qc = new QueryClient({ defaultOptions: { queries: { retry: false, enabled: false } } })
+const wrap = (ui: ReactElement) => <QueryClientProvider client={qc}>{ui}</QueryClientProvider>
+const render = (ui: ReactElement) => {
+  const view = rtlRender(wrap(ui))
+  return { ...view, rerender: (next: ReactElement) => view.rerender(wrap(next)) }
+}
 
 // Radix Switch measures itself; jsdom has no ResizeObserver.
 globalThis.ResizeObserver ??= class {

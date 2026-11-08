@@ -5,6 +5,7 @@
  * Controlled and stateless about rules: the caller passes the draft and the `barcode` error.
  */
 import { fieldHintId, LaField } from '@/components/la'
+import { chipFor, type ChipProps } from './field-sources'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
@@ -24,7 +25,9 @@ export function BarcodeField({
   submitCount,
   level = 'item',
   className,
-}: {
+  source,
+  needed,
+}: ChipProps & {
   id: string
   value: BarcodeDraft
   onChange: (v: BarcodeDraft) => void
@@ -47,7 +50,7 @@ export function BarcodeField({
       htmlFor={labelFor}
       hint={hint}
       error={error}
-      source={filled ? { kind: 'you' } : undefined}
+      {...chipFor(filled, { source, needed }, false, error)}
       submitCount={submitCount}
       confirmFix
       className={className}

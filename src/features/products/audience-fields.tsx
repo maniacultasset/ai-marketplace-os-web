@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { AUDIENCE_HINT, BRAND_HINT, GENDER_LABEL, GENDERS, type Gender } from './audience'
+import { chipFor, type ChipProps } from './field-sources'
 
 /** Radix Select can't hold an empty value: "Not set" is this sentinel. */
 const NONE = '__none__'
@@ -19,7 +20,9 @@ export function AudienceSelect({
   submitCount,
   allowClear,
   className,
-}: {
+  source,
+  needed,
+}: ChipProps & {
   id: string
   value: Gender | ''
   onChange: (v: Gender | '') => void
@@ -35,7 +38,7 @@ export function AudienceSelect({
       htmlFor={id}
       hint={AUDIENCE_HINT}
       error={error}
-      source={value ? { kind: 'you' } : undefined}
+      {...chipFor(!!value, { source, needed }, false, error)}
       submitCount={submitCount}
       confirmFix
       className={className}

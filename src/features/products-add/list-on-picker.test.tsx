@@ -35,6 +35,15 @@ describe('ListOnPicker', () => {
     expect(closed.parentElement?.getAttribute('aria-disabled')).toBe('true')
   })
 
+  it('is titled Sell on and shows Meesho as Coming soon, never choosable (SI12)', () => {
+    picker(['amazon'])
+    expect(screen.getByRole('group', { name: 'Sell on' })).toBeTruthy()
+    const meesho = screen.getByTestId('list-on-soon-meesho')
+    expect(meesho.textContent).toContain('Meesho')
+    expect(meesho.textContent).toContain('Coming soon')
+    expect(screen.queryByRole('checkbox', { name: /Meesho/ })).toBeNull()
+  })
+
   it('lets a brand with Flipkart connected choose it', () => {
     picker(['amazon', 'flipkart'], ['flipkart'])
     expect(screen.getByRole('checkbox', { name: 'Flipkart' }).getAttribute('aria-checked')).toBe('true')

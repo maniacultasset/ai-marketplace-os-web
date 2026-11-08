@@ -21,10 +21,12 @@ import {
   rebaseDraft,
   toEditDraft,
   validateEdit,
+  withHsnSuggestion,
   type EditDraft,
   type EditErrors,
   type ManufacturerSource,
 } from '@/features/products/edit-model'
+import { fromSizeChart, type SizeChart } from '@/features/products/intake-model'
 import { toast } from '@/lib/toast'
 
 export type SaveOutcome = 'saved' | 'unchanged' | 'invalid' | 'stale' | 'failed'
@@ -70,10 +72,12 @@ export function useProductEditSession(
   for (const [k, v] of Object.entries(client)) if (submitted > 0 || touched.has(k)) errors[k] ??= v
   const body = buildPatch(baseDraft, d, isVariant, barcodeLevel)
   const dirty = Object.keys(body).length > 0
+  /** Only the HSN suggestion would be saved: not a change the seller made, so Cancel never asks. */
+  const onlySuggestion = d.hsnSuggested && Object.keys(body).every((k) => k === 'hsn_code')
 
   const start = () => {
     setBase(product)
-    setD(draftOf(product))
+    setD(withHsnSuggestion(draftOf(product), product))
     setTouched(new Set())
     setSubmitted(0)
     setServer({})
@@ -89,7 +93,7 @@ export function useProductEditSession(
     setError(null)
   }
   /** Cancel: with unsaved changes it asks first (inline, never a browser dialog). */
-  const cancel = () => (dirty ? setConfirmCancel(true) : stop())
+  const cancel = () => (dirty && !onlySuggestion ? setConfirmCancel(true) : stop())
 
   const touch = (k: string) => setTouched((t) => (t.has(k) ? t : new Set(t).add(k)))
   const patch = (p: Partial<EditDraft>, ...clear: string[]) => {
@@ -98,6 +102,8 @@ export function useProductEditSession(
     if (clear.length) setServer((s) => Object.fromEntries(Object.entries(s).filter(([k]) => !clear.some((c) => k === c || k.startsWith(`${c}.`)))))
   }
   const setAttr = (k: string, v: string) => patch({ attrs: { ...d.attrs, [k]: v } }, `attr.${k}`)
+  /** SI12: the rows read from the size-chart photo go into the editor for the seller to check and save. */
+  const loadSizeChart = (chart: SizeChart, imageId: string) => patch({ sizeChart: fromSizeChart(chart), sizeChartImageId: imageId }, 'size_chart')
 
   /** Someone else's version is the new base; the person's own changes go on top of it. */
   const rebaseOnto = (fresh: ProductDetail) => {
@@ -173,6 +179,8 @@ export function useProductEditSession(
     stale,
     error,
     dirty,
+    onlySuggestion,
+    loadSizeChart,
     saving,
     save,
     isVariant,

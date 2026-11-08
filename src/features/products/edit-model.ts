@@ -47,6 +47,16 @@ import {
 } from './barcode'
 import { ATTRIBUTE_TEXT_MAX, codePoints, productTitleProblem } from './schema'
 import { audienceServerMessage, brandNameProblem, hasAudience, hasBrandName, type Gender } from './audience'
+import {
+  countryProblem,
+  fromPackageOut,
+  hsnProblem,
+  normalizeCountry,
+  packagePatch,
+  packageProblems,
+  samePackage,
+  type PackageDraft,
+} from './seller-fields'
 
 type Product = Schema<'ProductOut'>
 export type ProductPatchBody = Schema<'ProductPatch'>
@@ -75,6 +85,20 @@ export interface EditDraft {
   /** Lists under its own brand name (else the brand profile's). */
   ownBrand: boolean
   brandName: string
+  /** SI12: HSN code; '' = none. */
+  hsn: string
+  /** The HSN shown is the category's suggestion, not saved yet (saving confirms it). */
+  hsnSuggested: boolean
+  /** SI12: two-letter country of origin (the effective one: own, the style's or the brand's). */
+  country: string
+  /** SI12: the shipping package. */
+  pkg: PackageDraft
+  /**
+   * SI12: the size-chart photo the chart rows were read from (the suggestion loaded into the
+   * editor). Sent as `size_chart_image_id` with the chart, as its evidence. Null once the seller
+   * starts a chart of their own or clears it.
+   */
+  sizeChartImageId: string | null
 }
 
 /**
@@ -116,7 +140,19 @@ export function toEditDraft(p: Product, source: ManufacturerSource = manufacture
     gender: p.gender ?? '',
     ownBrand: !!p.brand_name?.trim() && p.brand_name_inherited !== true,
     brandName: p.brand_name_inherited === true ? '' : (p.brand_name ?? ''),
+    hsn: p.hsn_code ?? '',
+    hsnSuggested: false,
+    country: p.country_of_origin ?? '',
+    pkg: fromPackageOut(p.package),
+    sizeChartImageId: null,
   }
+}
+
+/** The draft with the product's HSN suggestion filled in, while it has no HSN code. */
+export function withHsnSuggestion(d: EditDraft, p: Pick<Product, 'hsn_code' | 'suggestions'>): EditDraft {
+  const s = p.suggestions?.hsn_code?.value
+  if (p.hsn_code || d.hsn.trim() || !s) return d
+  return { ...d, hsn: s, hsnSuggested: true }
 }
 
 /** Which inputs a row may edit: a variant has no style number, size chart or colour. */
@@ -159,6 +195,11 @@ export function validateEdit(d: EditDraft, isVariant: boolean): EditErrors {
   if (d.ownManufacturer) for (const [k, msg] of Object.entries(partyProblems(d.manufacturer))) e[`manufacturer.${k}`] = msg
   const barcode = d.barcode.exempt ? null : barcodeProblem(d.barcode.type, d.barcode.value)
   if (barcode) e[BARCODE_KEY] = barcode
+  const hsn = hsnProblem(d.hsn)
+  if (hsn) e.hsn_code = hsn
+  const country = countryProblem(d.country)
+  if (country) e.country_of_origin = country
+  Object.assign(e, packageProblems(d.pkg))
   return e
 }
 
@@ -189,8 +230,16 @@ export function buildPatch(base: EditDraft, d: EditDraft, isVariant: boolean, ba
   if (Object.keys(attributes).length) body.attributes = attributes
   if (!isVariant) {
     const chart = toSizeChart(d.sizeChart)
-    if (JSON.stringify(chart) !== JSON.stringify(toSizeChart(base.sizeChart))) body.size_chart = chart
+    if (JSON.stringify(chart) !== JSON.stringify(toSizeChart(base.sizeChart))) {
+      body.size_chart = chart
+      // The photo it was read from is the chart's evidence (only with a chart).
+      if (chart && d.sizeChartImageId) body.size_chart_image_id = d.sizeChartImageId
+    }
   }
+  if (d.hsn.trim() !== base.hsn.trim()) body.hsn_code = d.hsn.trim() || null
+  if (normalizeCountry(d.country) !== normalizeCountry(base.country)) body.country_of_origin = d.country.trim() ? normalizeCountry(d.country) : null
+  const pkg = packagePatch(base.pkg, d.pkg)
+  if (pkg !== undefined) body.package = pkg
   if (d.ownManufacturer && (!base.ownManufacturer || !samePartyDraft(d.manufacturer, base.manufacturer))) body.manufacturer = toPartyIn(d.manufacturer)
   else if (!d.ownManufacturer && base.ownManufacturer) body.manufacturer = null
   Object.assign(body, barcodePatchFields(base.barcode, d.barcode, barcodeLevel))
@@ -233,7 +282,9 @@ export function mapPatchErrors(
       key = BARCODE_KEY
       msg = barcodeServerMessage(err.type, d.barcode)
     }
-    if (!/^(title|category|style_number|brand_name$|gender$|mrp|selling_price|size_chart|barcode$|attr\.|manufacturer\.)/.test(key)) {
+    if (key === 'size_chart_image_id') key = 'size_chart'
+    if (key.startsWith('package.')) key = key.replace(/_(cm|g)$/, '')
+    if (!/^(title|category|style_number|brand_name$|gender$|mrp|selling_price|size_chart|barcode$|attr\.|manufacturer\.|hsn_code$|country_of_origin$|package)/.test(key)) {
       unmapped = true
       continue
     }
@@ -269,6 +320,13 @@ export function rebaseDraft(original: EditDraft, mine: EditDraft, fresh: EditDra
     out.ownBrand = mine.ownBrand
     out.brandName = mine.brandName
   }
+  if (mine.hsn.trim() !== original.hsn.trim()) {
+    out.hsn = mine.hsn
+    out.hsnSuggested = mine.hsnSuggested
+  }
+  if (normalizeCountry(mine.country) !== normalizeCountry(original.country)) out.country = mine.country
+  if (!samePackage(mine.pkg, original.pkg)) out.pkg = mine.pkg
+  if (out.sizeChart === mine.sizeChart) out.sizeChartImageId = mine.sizeChartImageId
   return out
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Schema } from '@/api/types'
-import { buildPatch, changedOnServer, editableAttrs, manufacturerSource, mapPatchErrors, rebaseDraft, toEditDraft, validateEdit } from './edit-model'
+import { buildPatch, changedOnServer, editableAttrs, manufacturerSource, mapPatchErrors, rebaseDraft, toEditDraft, validateEdit, withHsnSuggestion } from './edit-model'
 import { emptySizeRow } from './intake-model'
 
 const product = (over: Partial<Schema<'ProductOut'>> = {}): Schema<'ProductOut'> => ({
@@ -216,5 +216,70 @@ describe('barcode edit', () => {
     const out = rebaseDraft(original, mine, theirs)
     expect(out.barcode).toEqual(mine.barcode)
     expect(out.title).toBe('Renamed')
+  })
+})
+
+describe('SI12 seller fields in the editor', () => {
+  it('reads HSN, country and package, and patches only what changed', () => {
+    const base = toEditDraft(product({ hsn_code: '6109', country_of_origin: 'IN', package: { length_cm: '30.00', breadth_cm: '25.00', height_cm: '3.00', weight_g: 250 } }))
+    expect(base).toMatchObject({ hsn: '6109', country: 'IN', pkg: { length: '30', breadth: '25', height: '3', weight: '250' } })
+    expect(buildPatch(base, base, false)).toEqual({})
+    expect(buildPatch(base, { ...base, hsn: '610910', country: 'bd', pkg: { ...base.pkg, weight: '300' } }, false)).toEqual({
+      hsn_code: '610910',
+      country_of_origin: 'BD',
+      package: { weight_g: 300 },
+    })
+    expect(buildPatch(base, { ...base, hsn: '', country: '', pkg: { length: '', breadth: '', height: '', weight: '' } }, false)).toEqual({
+      hsn_code: null,
+      country_of_origin: null,
+      package: null,
+    })
+  })
+
+  it('checks HSN, country and package like the backend', () => {
+    const d = toEditDraft(product())
+    expect(validateEdit({ ...d, hsn: '61', country: 'India', pkg: { length: '30', breadth: '', height: '', weight: '0' } }, false)).toMatchObject({
+      hsn_code: expect.any(String),
+      country_of_origin: expect.any(String),
+      package: expect.any(String),
+      'package.weight': expect.any(String),
+    })
+  })
+
+  it('offers the HSN suggestion only while the product has none', () => {
+    const p = product({ hsn_code: null, suggestions: { hsn_code: { value: '6109', basis: 'category' } } })
+    const d = withHsnSuggestion(toEditDraft(p), p)
+    expect(d).toMatchObject({ hsn: '6109', hsnSuggested: true })
+    // Saving confirms it: it is part of the patch.
+    expect(buildPatch(toEditDraft(p), d, false)).toEqual({ hsn_code: '6109' })
+    const own = product({ hsn_code: '6205', suggestions: { hsn_code: { value: '6109', basis: 'category' } } })
+    expect(withHsnSuggestion(toEditDraft(own), own).hsn).toBe('6205')
+  })
+
+  it('sends the size-chart photo as evidence with a chart read from it, never alone', () => {
+    const base = toEditDraft(product({ size_chart: null }))
+    const read = { ...base, sizeChart: { unit: 'cm' as const, basis: 'garment' as const, rows: [{ ...emptySizeRow('M'), chest: '102' }] }, sizeChartImageId: 'img-1' }
+    expect(buildPatch(base, read, false)).toEqual({
+      size_chart: { unit: 'cm', basis: 'garment', rows: [{ size: 'M', chest: 102 }] },
+      size_chart_image_id: 'img-1',
+    })
+    expect(buildPatch(base, { ...base, sizeChartImageId: 'img-1' }, false)).toEqual({})
+  })
+
+  it('maps package and size-chart photo errors onto their fields', () => {
+    const d = toEditDraft(product())
+    const { fields, unmapped } = mapPatchErrors(
+      {
+        type: 'VALIDATION_FAILED',
+        details: [
+          { loc: ['body', 'package', 'weight_g'], msg: 'too heavy' },
+          { loc: ['body', 'size_chart_image_id'], msg: 'not a size chart' },
+          { loc: ['body', 'hsn_code'], msg: 'bad' },
+        ],
+      },
+      d,
+    )
+    expect(unmapped).toBe(false)
+    expect(Object.keys(fields).sort()).toEqual(['hsn_code', 'package.weight', 'size_chart'])
   })
 })
