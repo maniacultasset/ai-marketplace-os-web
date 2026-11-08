@@ -1,13 +1,14 @@
 /**
  * "See it work": the landing page's How it works section as one example listing travelling the
- * workflow (import, validate, fix, approve, publish), drawn with the real kit. It is labelled as an
- * example and is never app data. The example checks a title written by hand, so Generate stays on
- * the rail greyed as "Not in this example" and is skipped, not faked.
+ * workflow (import, draft, check, fix, approve, publish to Amazon), drawn with the real kit. It is
+ * labelled as an example and is never app data.
  *
  * Plays only while at least 40% of it is on screen and the tab is visible, and loops with a calm
- * hold on Live. Pause, Replay and the step rail are real controls. With reduced motion (or no
- * IntersectionObserver) nothing autoplays: it shows the finished state and each step can be viewed
- * on its own; changes are cross-fades only. Motion is transform and opacity on the spring token.
+ * hold on Live. Pause and Replay sit in a toolbar right above the stage (so a phone reaches them
+ * before the motion), and Pause freezes everything, the caret included. The narration is announced
+ * only after a person picks a step, pauses or replays, never on every autoplay beat. With reduced
+ * motion (or no IntersectionObserver) nothing autoplays: it shows the finished state, each step can
+ * be viewed on its own and changes are short dissolves. Motion is transform and opacity only.
  */
 import { Pause, Play, RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
@@ -22,6 +23,7 @@ import {
   beatDelay,
   checksAt,
   DEMO,
+  DRAFT,
   FINAL,
   FIX_BEATS,
   FIX_MIDDLE,
@@ -66,6 +68,8 @@ function usePrefersReducedMotion() {
 
 /** Moves in with the spring; reduced motion keeps only the fade. */
 const SPRING = 'transition-[opacity,transform] duration-[var(--dur-spring)] ease-[var(--ease-spring)] motion-reduce:transform-none'
+/** Same, plus a short dissolve under reduced motion instead of a hard cut (index.css). */
+const SPRING_FADE = cn(SPRING, 'motion-fade')
 /** An element that arrives: `shown` false sits a little below and transparent. */
 const arrive = (shown: boolean, from = 'translate-y-2') => cn(SPRING, shown ? 'translate-y-0 opacity-100' : cn(from, 'opacity-0'))
 const delay = (ms: number): CSSProperties => ({ transitionDelay: `${ms}ms` })
@@ -144,13 +148,23 @@ function CardField({ label, value, filled, scan, d, className }: { label: string
 }
 
 /** The title with the marks the rules raised, the overflow past Flipkart's limit and the caret. */
-function TitleText({ head, tail, caret, markBanned, markOverflow }: { head: string; tail: string; caret: 'head' | 'end' | null; markBanned: boolean; markOverflow: boolean }) {
-  const caretEl = (
-    <span
-      aria-hidden
-      className={cn('mx-px inline-block h-[1.15em] w-[2px] translate-y-[0.2em] rounded-full bg-brand', caret && 'motion-safe:animate-pulse')}
-    />
-  )
+function TitleText({
+  head,
+  tail,
+  caret,
+  markBanned,
+  markOverflow,
+  playing,
+}: {
+  head: string
+  tail: string
+  caret: 'head' | 'end' | null
+  markBanned: boolean
+  markOverflow: boolean
+  /** The caret blinks only while the demo plays; paused, it holds still. */
+  playing: boolean
+}) {
+  const caretEl = <span aria-hidden className={cn('mx-px inline-block h-[1.15em] w-[2px] translate-y-[0.2em] rounded-full bg-brand', caret && playing && 'caret-blink')} />
   const word = head.trimEnd()
   const space = head.slice(word.length)
   // Characters past the limit, counted on the text as it stands.
@@ -213,32 +227,30 @@ function CountChip({ len, judged }: { len: number; judged: boolean }) {
 function headerChip(scene: SceneId, beat: number): { status: ChipStatus; label: string } {
   switch (scene) {
     case 'import':
-      return { status: 'draft', label: 'Draft' }
-    case 'validate':
-      return beat >= 6 ? { status: 'needs-you', label: 'Needs you' } : { status: 'working', label: 'Checking' }
+      return { status: 'draft', label: 'Imported' }
+    case 'draft':
+      return beat >= 4 ? { status: 'draft', label: 'Draft ready' } : { status: 'working', label: 'Drafting' }
+    case 'check':
+      return beat >= 6 ? { status: 'needs-you', label: 'Needs a fix' } : { status: 'working', label: 'Checking' }
     case 'fix':
       if (beat >= FIX_BEATS.allPass) return { status: 'ready', label: 'Ready for approval' }
       if (beat >= FIX_BEATS.recheck) return { status: 'working', label: 'Checking again' }
-      return { status: 'needs-you', label: 'Editing' }
+      return { status: 'working', label: 'Fixing' }
     case 'approve':
       return beat >= 3 ? { status: 'ready', label: 'Approved' } : { status: 'ready', label: 'Ready for approval' }
     case 'publish':
       if (beat >= 3) return { status: 'live', label: 'Live' }
-      return { status: 'working', label: 'Waiting for Flipkart' }
+      return { status: 'working', label: 'Waiting for Amazon' }
   }
 }
 
-/** One panel in the stack. All panels share a grid cell so the stage keeps its height. */
+/** One panel in the stack. All panels share a grid cell so the stage keeps its height. No scale:
+ *  a panel only rises and fades, so its text stays sharp while it moves. */
 function Panel({ on, children, className }: { on: boolean; children: ReactNode; className?: string }) {
   return (
     <div
       inert={!on}
-      className={cn(
-        'col-start-1 row-start-1 min-w-0',
-        SPRING,
-        on ? 'translate-y-0 scale-100 opacity-100' : 'pointer-events-none translate-y-3 scale-[0.985] opacity-0',
-        className,
-      )}
+      className={cn('col-start-1 row-start-1 min-w-0', SPRING_FADE, on ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-2 opacity-0', className)}
     >
       {children}
     </div>
@@ -254,7 +266,7 @@ function PanelTitle({ children, aside }: { children: ReactNode; aside?: ReactNod
   )
 }
 
-function Stage({ pos }: { pos: Pos }) {
+function Stage({ pos, playing }: { pos: Pos; playing: boolean }) {
   const scene = SCENES[pos.scene] ?? 'import'
   const b = pos.beat
   const at = (s: SceneId) => SCENES.indexOf(s)
@@ -262,7 +274,7 @@ function Stage({ pos }: { pos: Pos }) {
 
   // Product card
   const filled = past('import') || b >= 2
-  const scanField = scene === 'validate' ? (b === 1 ? 'sku' : b === 2 ? 'price' : b >= 3 && b <= 5 ? 'title' : null) : null
+  const scanField = scene === 'check' ? (b === 1 ? 'sku' : b === 2 ? 'price' : b >= 3 && b <= 5 ? 'title' : null) : null
   const t =
     scene === 'fix'
       ? fixedText(b)
@@ -270,14 +282,15 @@ function Stage({ pos }: { pos: Pos }) {
         ? fixedText(FIX_BEATS.allPass)
         : { head: 'Best ', tail: FIX_TAIL, caret: null }
   const len = [...(t.head + FIX_MIDDLE + t.tail)].length
-  const judged = past('validate') || (scene === 'validate' && b >= 4)
+  const judged = past('check') || (scene === 'check' && b >= 4)
   const markOverflow = judged
-  const markBanned = past('validate') || (scene === 'validate' && b >= 5)
+  const markBanned = past('check') || (scene === 'check' && b >= 5)
 
   // Lower panel
   const checks = checksAt(scene, b)
   const findings = heroFindings()
-  const showFindings = scene === 'fix' ? b < FIX_BEATS.recheck : scene === 'validate' && b >= 6
+  const showFindings = scene === 'fix' ? b < FIX_BEATS.recheck : scene === 'check' && b >= 6
+  const drafted = past('draft') ? DRAFT.bullets.length + 1 : scene === 'draft' ? b : 0
   const allPass = scene === 'fix' && b >= FIX_BEATS.allPass
   const chip = headerChip(scene, b)
 
@@ -322,7 +335,7 @@ function Stage({ pos }: { pos: Pos }) {
                   {HERO_EXAMPLE.title}
                 </p>
                 <p className="col-start-1 row-start-1 text-small leading-5 text-ink">
-                  <TitleText head={t.head} tail={t.tail} caret={t.caret} markBanned={markBanned} markOverflow={markOverflow} />
+                  <TitleText head={t.head} tail={t.tail} caret={t.caret} markBanned={markBanned} markOverflow={markOverflow} playing={playing} />
                 </p>
               </div>
             }
@@ -361,15 +374,38 @@ function Stage({ pos }: { pos: Pos }) {
               <p className="flex items-center gap-2 text-small font-medium text-ink">
                 <Icon name="check" size={14} className="text-success" />1 product created with 1 variant
               </p>
-              <p className="flex flex-wrap items-center gap-2 text-small text-ink-2">
-                <Icon name="spark" size={14} className="text-ink-3" />
-                Generate skipped
-                <TagChip tone="plain">Title written by hand</TagChip>
+              <p className="flex items-center gap-2 text-small text-ink-2">
+                <Icon name="spark" size={14} className="text-brand" />
+                Next, the agent drafts the bullets and description
               </p>
             </div>
           </Panel>
 
-          <Panel on={scene === 'validate' || scene === 'fix'}>
+          <Panel on={scene === 'draft'}>
+            <PanelTitle aside={<SourceBadge source={{ kind: 'brand-profile' }} />}>Drafted in your brand’s voice</PanelTitle>
+            <p className="text-caption font-bold text-ink-2">Bullets</p>
+            <ul className="mt-1.5 flex flex-col gap-1.5">
+              {DRAFT.bullets.map((line, i) => (
+                <li key={line} className="grid text-small leading-5 text-ink">
+                  <span aria-hidden className={cn('col-start-1 row-start-1 mt-1.5 h-2.5 rounded-full bg-subtle transition-opacity duration-300', i === 0 ? 'w-4/5' : i === 1 ? 'w-1/2' : 'w-2/3', drafted > i ? 'opacity-0' : 'opacity-100')} />
+                  <span className={cn('col-start-1 row-start-1 flex gap-2', arrive(drafted > i, 'translate-y-1'), 'motion-fade')}>
+                    <span aria-hidden className="mt-2 size-1 shrink-0 rounded-full bg-ink-3" />
+                    {line}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-caption font-bold text-ink-2">Description</p>
+            <div className="mt-1.5 grid text-small leading-5 text-ink-2">
+              <span aria-hidden className={cn('col-start-1 row-start-1 mt-1.5 flex flex-col gap-2 transition-opacity duration-300', drafted > DRAFT.bullets.length ? 'opacity-0' : 'opacity-100')}>
+                <span className="h-2.5 w-full rounded-full bg-subtle" />
+                <span className="h-2.5 w-3/5 rounded-full bg-subtle" />
+              </span>
+              <p className={cn('col-start-1 row-start-1', arrive(drafted > DRAFT.bullets.length, 'translate-y-1'), 'motion-fade')}>{DRAFT.description}</p>
+            </div>
+          </Panel>
+
+          <Panel on={scene === 'check' || scene === 'fix'}>
             <div className="grid gap-4 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
               <div>
                 <PanelTitle aside={<SourceBadge source={{ kind: 'rule' }} />}>{scene === 'fix' && b >= FIX_BEATS.recheck ? 'Checks, run again' : 'Checks'}</PanelTitle>
@@ -391,13 +427,13 @@ function Stage({ pos }: { pos: Pos }) {
                 </ul>
               </div>
               <div className="grid min-w-0">
-                <div className={cn('col-start-1 row-start-1 min-w-0', SPRING, allPass ? 'opacity-0' : 'opacity-100')}>
+                <div className={cn('col-start-1 row-start-1 min-w-0', SPRING_FADE, allPass ? 'opacity-0' : 'opacity-100')}>
                   <PanelTitle
                     aside={
                       scene === 'fix' && b < FIX_BEATS.recheck ? (
-                        <span className="flex items-center gap-1.5 text-caption text-ink-2">
-                          <Avatar name={DEMO.editor} tone="neutral" />
-                          {DEMO.editor} is editing
+                        <span className="flex items-center gap-1.5 text-caption font-semibold text-brand">
+                          <Icon name="spark" size={14} />
+                          Kuinn is fixing
                         </span>
                       ) : null
                     }
@@ -408,7 +444,7 @@ function Stage({ pos }: { pos: Pos }) {
                     {findings.map((f, i) => (
                       <li
                         key={`${f.marketplace}:${f.code}`}
-                        className={cn('flex gap-2 rounded-tile border border-line bg-sunken p-2.5', arrive(showFindings, '-translate-y-3'))}
+                        className={cn('flex gap-2 rounded-tile border border-line bg-sunken p-2.5', arrive(showFindings, '-translate-y-2'), 'motion-fade')}
                         style={delay(showFindings ? i * 130 : 0)}
                       >
                         <MarketplaceTile id={f.marketplace} size="xs" className="shadow-none" />
@@ -425,13 +461,13 @@ function Stage({ pos }: { pos: Pos }) {
                     ))}
                   </ul>
                 </div>
-                <div className={cn('col-start-1 row-start-1 self-start', arrive(allPass, 'translate-y-3 scale-[0.98]'))}>
-                  <PanelTitle>Findings</PanelTitle>
+                <div className={cn('col-start-1 row-start-1 self-start', arrive(allPass, 'translate-y-2'), 'motion-fade')}>
+                  <PanelTitle aside={<TagChip tone="brand" className="gap-1"><Icon name="check" size={14} />Fixed for you</TagChip>}>Findings</PanelTitle>
                   <div className="flex items-start gap-3 rounded-tile border border-success-line bg-success-tint p-3.5">
                     <IconTile icon="check" tone="ok" size="sm" />
                     <div>
                       <p className="text-small font-semibold text-success-ink">All 5 checks pass on Amazon and Flipkart</p>
-                      <p className="mt-1 text-caption text-ink-2">The rules decided. Next, someone other than {DEMO.editor} approves it.</p>
+                      <p className="mt-1 text-caption text-ink-2">Both changes are marked, so your team can see what Kuinn changed. Next, someone other than {DEMO.editor} approves it.</p>
                     </div>
                   </div>
                 </div>
@@ -446,7 +482,7 @@ function Stage({ pos }: { pos: Pos }) {
                 <Avatar name={DEMO.editor} tone="neutral" />
                 <div className="min-w-0 flex-1">
                   <p className="text-small font-semibold text-ink">{DEMO.editor}</p>
-                  <p className="text-caption text-ink-2">Edited the title</p>
+                  <p className="text-caption text-ink-2">Started the draft</p>
                 </div>
                 <TagChip tone="plain">Cannot approve</TagChip>
               </li>
@@ -454,7 +490,7 @@ function Stage({ pos }: { pos: Pos }) {
                 <Avatar name={DEMO.approver} tone="brand" />
                 <div className="min-w-0 flex-1">
                   <p className="text-small font-semibold text-ink">{DEMO.approver}</p>
-                  <p className="text-caption text-ink-2">Reviewed the title and its 5 checks</p>
+                  <p className="text-caption text-ink-2">Reviewed the fixes and the 5 checks</p>
                 </div>
                 <span className="grid">
                   <span
@@ -475,12 +511,12 @@ function Stage({ pos }: { pos: Pos }) {
             </ul>
             <p className={cn('mt-3 flex items-start gap-2 text-caption text-ink-2', arrive(scene === 'approve' && b >= 3))}>
               <Icon name="users" size={14} className="mt-px shrink-0 text-brand" />
-              Maker and checker are different people: whoever edited a listing cannot approve it.
+              Whoever starts or edits a listing cannot approve it.
             </p>
           </Panel>
 
           <Panel on={scene === 'publish'}>
-            <PanelTitle aside={<MarketplaceTile id="flipkart" size="xs" className="shadow-none" />}>Publishing to Flipkart</PanelTitle>
+            <PanelTitle aside={<MarketplaceTile id="amazon" size="xs" className="shadow-none" />}>Publishing to Amazon</PanelTitle>
             <ol className="relative flex flex-col gap-3 pl-1">
               <span aria-hidden className="absolute top-3 bottom-3 left-[13px] w-px bg-line" />
               <li className="relative flex items-center gap-3">
@@ -489,7 +525,7 @@ function Stage({ pos }: { pos: Pos }) {
               </li>
               <li className={cn('relative flex flex-wrap items-center gap-x-3 gap-y-1.5', arrive(scene === 'publish' && b >= 1))}>
                 <CheckGlyph state={scene === 'publish' && b >= 2 ? 'pass' : 'pending'} />
-                <span className="text-small text-ink">Sent to Flipkart</span>
+                <span className="text-small text-ink">Sent to Amazon</span>
                 <span className="grid">
                   <span className={cn('col-start-1 row-start-1', SPRING, scene === 'publish' && b >= 2 ? 'opacity-0' : 'opacity-100')}>
                     <StatusChip status="working">Waiting for confirmation</StatusChip>
@@ -511,17 +547,17 @@ function Stage({ pos }: { pos: Pos }) {
               </li>
               <li className={cn('relative flex items-center gap-3', arrive(scene === 'publish' && b >= 2))}>
                 <CheckGlyph state="pass" />
-                <span className="text-small font-semibold text-ink">Flipkart confirmed the listing</span>
+                <span className="text-small font-semibold text-ink">Amazon confirmed the listing</span>
               </li>
             </ol>
             <div
               className={cn(
                 'mt-4 flex flex-wrap items-center gap-3 rounded-tile border border-success-line bg-success-tint p-3.5',
-                arrive(scene === 'publish' && b >= 3, 'translate-y-3 scale-[0.98]'),
+                arrive(scene === 'publish' && b >= 3, 'translate-y-2'),
               )}
             >
-              <StatusChip status="live">Live on Flipkart</StatusChip>
-              <span className="text-caption text-ink-2">Shown as Live only after Flipkart confirmed it.</span>
+              <StatusChip status="live">Live on Amazon</StatusChip>
+              <span className="text-caption text-ink-2">Shown as Live only after Amazon confirmed it.</span>
             </div>
           </Panel>
         </div>
@@ -589,34 +625,19 @@ function Rail({ current, progress, onPick, playing }: { current: SceneId; progre
       ) : null}
       {RAIL.map((s) => {
         const on = s.id === current
-        const inner = (
-          <>
-            <IconTile icon={s.icon} tone={s.notInExample ? 'neutral' : on ? 'brand' : 'neutral'} size="sm" flat={!on} className="transition-colors duration-300" />
-            <span className="flex min-w-0 flex-col items-center gap-0.5 lg:items-start">
-              <span className={cn('text-[14px] leading-5 font-semibold transition-colors duration-300', on ? 'text-ink' : s.notInExample ? 'text-ink-3' : 'text-ink-2')}>{s.title}</span>
-              {s.notInExample ? <span className="text-[11px] leading-4 font-semibold text-ink-3">Not in this example</span> : null}
-            </span>
-          </>
-        )
-        const cell = 'relative z-[1] flex h-full w-full flex-col items-center justify-start gap-1.5 rounded-lg px-2 py-2.5 text-center lg:flex-row lg:justify-start lg:gap-2.5 lg:px-3 lg:text-left'
         return (
           <li key={s.id} data-rail={s.id} className="min-w-0">
-            {s.notInExample ? (
-              <div className={cell} aria-label="Generate, not part of this example">
-                {inner}
-              </div>
-            ) : (
-              <button
-                type="button"
-                aria-current={on ? 'step' : undefined}
-                aria-label={`${s.title}${on ? ', current step' : ''}`}
-                onClick={() => onPick(s.id as SceneId)}
-                data-testid={`demo-step-${s.id}`}
-                className={cn(cell, 'focus-ring tactile press min-h-14 cursor-pointer hover:bg-hover/60 aria-[current=step]:hover:bg-transparent')}
-              >
-                {inner}
-              </button>
-            )}
+            <button
+              type="button"
+              aria-current={on ? 'step' : undefined}
+              aria-label={`${s.title}${on ? ', current step' : ''}`}
+              onClick={() => onPick(s.id)}
+              data-testid={`demo-step-${s.id}`}
+              className="focus-ring tactile press relative z-[1] flex h-full min-h-14 w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-center hover:bg-hover/60 aria-[current=step]:hover:bg-transparent lg:flex-row lg:justify-start lg:gap-2.5 lg:px-3 lg:text-left"
+            >
+              <IconTile icon={s.icon} tone={on ? 'brand' : 'neutral'} size="sm" flat={!on} className="transition-colors duration-300" />
+              <span className={cn('text-[14px] leading-5 font-semibold transition-colors duration-300', on ? 'text-ink' : 'text-ink-2')}>{s.title}</span>
+            </button>
           </li>
         )
       })}
@@ -634,6 +655,9 @@ export function HowItWorksDemo() {
   const autoplay = canObserve && !reduced
   const [pos, setPos] = useState<Pos>(() => (autoplay ? START : FINAL))
   const [wantsPlay, setWantsPlay] = useState(autoplay)
+  // Autoplay narration stays silent for screen readers; once a person picks a step, pauses or
+  // replays, each step they reach is announced.
+  const [userActed, setUserActed] = useState(false)
   const [inView, setInView] = useState(!canObserve)
   const [pageVisible, setPageVisible] = useState(() => typeof document === 'undefined' || document.visibilityState !== 'hidden')
   const root = useRef<HTMLDivElement>(null)
@@ -670,10 +694,16 @@ export function HowItWorksDemo() {
 
   const pick = (s: SceneId) => {
     const i = SCENES.indexOf(s)
+    setUserActed(true)
     // Playing: run the step from its start. Paused or reduced motion: show it finished.
     setPos({ scene: i, beat: wantsPlay && !reduced ? 0 : LAST_BEAT[s] })
   }
+  const togglePlay = () => {
+    setUserActed(true)
+    setWantsPlay((w) => !w)
+  }
   const replay = () => {
+    setUserActed(true)
     setPos(START)
     setWantsPlay(true)
   }
@@ -687,10 +717,40 @@ export function HowItWorksDemo() {
       <Rail current={scene} progress={progress} onPick={pick} playing={playing} />
 
       <div className="grid min-w-0 gap-4 md:gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <Stage pos={shown} />
+        <div className="flex min-w-0 flex-col gap-3">
+          {/* The controls sit right above the moving stage, so they are reached before the motion. */}
+          <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <p className="text-caption font-semibold text-ink-2 tabular-nums" aria-hidden>
+              Step {stepNo} of {SCENES.length}
+              <span className="font-normal text-ink-3"> · Example listing</span>
+            </p>
+            {reduced ? (
+              <p className="text-caption text-ink-2">Animation is off because your device asks for reduced motion. Choose a step to see it.</p>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="min-h-11 lg:min-h-9"
+                  onClick={togglePlay}
+                  aria-label={wantsPlay ? 'Pause animation' : 'Play animation'}
+                  data-testid="demo-play"
+                >
+                  <IconGlyph icon={wantsPlay ? Pause : Play} size={16} />
+                  {wantsPlay ? 'Pause' : 'Play'}
+                </Button>
+                <Button type="button" variant="ghost" className="min-h-11 lg:min-h-9" onClick={replay} aria-label="Replay animation" data-testid="demo-replay">
+                  <IconGlyph icon={RotateCcw} size={16} />
+                  Replay
+                </Button>
+              </div>
+            )}
+          </div>
+          <Stage pos={shown} playing={playing} />
+        </div>
 
-        <div className="flex min-w-0 flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-raised-md md:p-6">
-          <div key={scene} className="flex flex-col gap-3 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-500">
+        <div className="flex min-w-0 flex-col gap-4 self-start rounded-card border border-line bg-surface p-5 shadow-raised-md md:p-6 lg:mt-14">
+          <div key={scene} className="flex flex-col gap-3 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-[320ms]">
             <div className="flex items-center gap-3">
               <IconTile icon={step.icon} tone="brand" />
               <div>
@@ -702,38 +762,21 @@ export function HowItWorksDemo() {
           </div>
           <div className="border-t border-line pt-4">
             <p className="text-caption font-bold text-ink-2">In this example</p>
-            <p aria-live="polite" aria-atomic="true" data-testid="demo-narration" className="mt-1.5 text-[15px] leading-[1.55] text-ink">
+            <p
+              aria-live={playing && !userActed ? 'off' : 'polite'}
+              aria-atomic="true"
+              data-testid="demo-narration"
+              className="mt-1.5 text-[15px] leading-[1.55] text-ink"
+            >
               {NARRATION[scene]}
             </p>
-          </div>
-          <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
-            {reduced ? (
-              <p className="text-caption text-ink-2">Animation is off because your device asks for reduced motion. Choose a step to see it.</p>
-            ) : (
-              <>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="max-sm:h-11"
-                  onClick={() => setWantsPlay((w) => !w)}
-                  data-testid="demo-play"
-                >
-                  <IconGlyph icon={wantsPlay ? Pause : Play} size={16} />
-                  {wantsPlay ? 'Pause' : 'Play'}
-                </Button>
-                <Button type="button" variant="ghost" className="max-sm:h-11" onClick={replay} data-testid="demo-replay">
-                  <IconGlyph icon={RotateCcw} size={16} />
-                  Replay
-                </Button>
-              </>
-            )}
           </div>
         </div>
       </div>
 
-      <figcaption id="demo-caption" className="text-caption text-ink-2">
-        An illustrative example of one listing going through the workflow. Not real product data. Flipkart publishing stays switched off
-        until our Flipkart access is confirmed.
+      <figcaption id="demo-caption" className="max-w-[70ch] text-caption text-ink-2">
+        An example listing, not real product data. Flipkart is shown so you can compare its rules with Amazon’s. Publishing to Flipkart
+        starts once Flipkart approves our access.
       </figcaption>
     </figure>
   )

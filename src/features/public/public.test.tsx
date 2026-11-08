@@ -1,12 +1,12 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { isValidElement } from 'react'
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MARKETPLACES } from '@/components/la/marketplace'
 import { HeroFinding } from './hero-finding'
 import { HowItWorksDemo } from './how-it-works-demo'
 import { Benefits } from './benefits'
 import { MarketplaceStrip } from './marketplace-strip'
-import { advance, checksAt, FINAL, FIX_BEATS, FIX_HEAD, FIX_TAIL, FIXED_TITLE, fixedText, LAST_BEAT, LIMIT, NARRATION, RAIL, SCENES, START } from './how-it-works-script'
+import { advance, checksAt, DRAFT, FINAL, FIX_BEATS, FIX_HEAD, FIX_TAIL, FIXED_TITLE, fixedText, LAST_BEAT, LIMIT, NARRATION, RAIL, SCENES, START } from './how-it-works-script'
 import { DESCRIBES_YOU, HERO_EXAMPLE, heroFindings, heroTitleLength, BENEFITS, MARKET_STATUS, signupChip, STAGE_CHIP, stageOf } from './model'
 import { Ph, POLICY_SECTIONS } from './privacy-policy'
 import { LEGAL_EMAIL, TERMS_SECTIONS } from './terms'
@@ -36,10 +36,11 @@ describe('hero example (seeded kurta-set rules)', () => {
     expect(f.map((x) => `${x.marketplace}:${x.code}`)).toEqual(['flipkart:FIELD_TOO_LONG', 'amazon:BANNED_TERM', 'flipkart:BANNED_TERM'])
     expect(f[0]?.message).toContain(String(heroTitleLength()))
   })
-  it('renders as a labelled example with no interactive controls', () => {
+  it('renders as a labelled example with no interactive controls and shows the "Fixed for you" trail', () => {
     render(<HeroFinding />)
     expect(screen.getByText('Example')).toBeTruthy()
-    expect(screen.getByText(/illustrative example/i)).toBeTruthy()
+    expect(screen.getByText(/An example listing, not real product data/)).toBeTruthy()
+    expect(screen.getByText('Fixed for you')).toBeTruthy()
     expect(screen.queryAllByRole('button')).toHaveLength(0)
     expect(screen.queryAllByRole('link')).toHaveLength(0)
     expect(screen.getByText(`${heroTitleLength()} / ${HERO_EXAMPLE.limits.flipkart} characters`)).toBeTruthy()
@@ -85,6 +86,8 @@ describe('marketplace strip', () => {
     expect(screen.getByTestId('strip-amazon').textContent).toBe('Amazon●Live')
     expect(screen.getByTestId('strip-flipkart').textContent).toContain('Coming soon')
     for (const id of ['myntra', 'ajio', 'meesho', 'nykaa']) expect(screen.getByTestId(`strip-${id}`).textContent).toContain('On the roadmap')
+    // The roadmap and coming-soon stages carry their own glyphs: never a dash, never "paused" bars.
+    expect(container.textContent).not.toMatch(/[–—❚]/)
     const muted = [...container.querySelectorAll('[data-slot="marketplace-tile"][data-muted]')].map((t) => t.getAttribute('data-marketplace'))
     expect(muted).toEqual(['flipkart', 'myntra', 'ajio', 'meesho', 'nykaa'])
   })
@@ -126,7 +129,7 @@ describe('privacy policy', () => {
 })
 
 describe('how it works demo: script', () => {
-  it('edits the hero title by removing the banned word and the sleeve/occasion tail', () => {
+  it('removes the banned word and the sleeve/occasion tail from the hero title', () => {
     expect(HERO_EXAMPLE.title.startsWith(FIX_HEAD)).toBe(true)
     expect(HERO_EXAMPLE.title.endsWith(FIX_TAIL)).toBe(true)
     expect([...FIXED_TITLE].length).toBeLessThanOrEqual(LIMIT)
@@ -139,7 +142,8 @@ describe('how it works demo: script', () => {
   })
   it('fails the same checks the hero findings raise, then passes them all only after the recheck', () => {
     const states = (s: Parameters<typeof checksAt>[0], b: number) => checksAt(s, b).map((c) => c.state)
-    expect(states('validate', LAST_BEAT.validate)).toEqual(['pass', 'pass', 'fail', 'fail', 'fail'])
+    expect(states('draft', LAST_BEAT.draft)).toEqual(['pending', 'pending', 'pending', 'pending', 'pending'])
+    expect(states('check', LAST_BEAT.check)).toEqual(['pass', 'pass', 'fail', 'fail', 'fail'])
     expect(states('fix', FIX_BEATS.tailDone)).toEqual(['pass', 'pass', 'fail', 'fail', 'fail'])
     expect(states('fix', FIX_BEATS.allPass)).toEqual(['pass', 'pass', 'pass', 'pass', 'pass'])
     expect(checksAt('fix', FIX_BEATS.allPass)[2]?.detail).toBe(`${[...FIXED_TITLE].length} / ${LIMIT}`)
@@ -154,17 +158,34 @@ describe('how it works demo: script', () => {
     expect(seen).toEqual([...SCENES])
     expect(advance(FINAL)).toEqual(START)
   })
-  it('keeps Generate on the rail as not in this example, never as a played step', () => {
-    const gen = RAIL.find((r) => r.id === 'generate')
-    expect(gen?.notInExample).toBe(true)
-    expect(gen?.body).not.toMatch(/will/)
-    expect(NARRATION.import).not.toMatch(/in development/i)
-    expect(SCENES as readonly string[]).not.toContain('generate')
-    expect(NARRATION.publish).toMatch(/Live only after Flipkart confirms/)
+  it('plays all six steps, drafting included, and publishes to Amazon, the live marketplace', () => {
+    expect([...SCENES]).toEqual(['import', 'draft', 'check', 'fix', 'approve', 'publish'])
+    expect(RAIL.map((r) => r.title)).toEqual(['Import', 'Draft', 'Check', 'Fix', 'Approve', 'Publish'])
+    expect(DRAFT.bullets.length).toBeGreaterThan(0)
+    expect(NARRATION.publish).toMatch(/Live only after Amazon confirms/)
+    expect(NARRATION.fix).toMatch(/Fixed for you/)
+    for (const text of [...Object.values(NARRATION), ...RAIL.map((r) => r.body)]) expect(text).not.toMatch(/Sent to Flipkart|Live on Flipkart/)
   })
 })
 
-describe('how it works demo: static fallback (no IntersectionObserver)', () => {
+/** A stand-in IntersectionObserver that reports every observed element fully on screen. */
+class OnScreenObserver {
+  private cb: IntersectionObserverCallback
+  constructor(cb: IntersectionObserverCallback) {
+    this.cb = cb
+  }
+  observe(target: Element) {
+    const rect = { height: 2000 } as DOMRectReadOnly
+    this.cb([{ target, isIntersecting: true, intersectionRatio: 1, intersectionRect: rect } as IntersectionObserverEntry], this as unknown as IntersectionObserver)
+  }
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return []
+  }
+}
+
+describe('how it works demo', () => {
   const realMatchMedia = window.matchMedia
   const setReduced = (reduce: boolean) => {
     window.matchMedia = ((query: string) => ({
@@ -181,44 +202,65 @@ describe('how it works demo: static fallback (no IntersectionObserver)', () => {
   beforeEach(cleanup)
   afterEach(() => {
     cleanup()
+    vi.unstubAllGlobals()
     window.matchMedia = realMatchMedia
   })
 
-  it('renders every step label, the controls, and the finished state without autoplay', () => {
+  it('without IntersectionObserver renders every step, the controls and the finished state, without autoplay', () => {
     setReduced(false)
     expect(typeof IntersectionObserver).toBe('undefined')
     render(<HowItWorksDemo />)
-    for (const s of RAIL) expect(screen.getAllByText(s.title).length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Not in this example').length).toBeGreaterThan(0)
-    expect(screen.queryByText(/in development/i)).toBeNull()
-    expect(screen.queryByRole('button', { name: /^Generate/ })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Play' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Replay' })).toBeTruthy()
+    for (const s of RAIL) expect(screen.getByTestId(`demo-step-${s.id}`)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Play animation' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Replay animation' })).toBeTruthy()
     const current = screen.getByRole('button', { name: /Publish, current step/ })
     expect(current.getAttribute('aria-current')).toBe('step')
     expect(screen.getByTestId('demo-narration').textContent).toBe(NARRATION.publish)
-    expect(screen.getByText('Example')).toBeTruthy()
+    expect(screen.getAllByText('Live on Amazon').length).toBeGreaterThan(0)
   })
 
   it('lets a person view any step and announces it politely', () => {
     setReduced(false)
     render(<HowItWorksDemo />)
-    fireEvent.click(screen.getByTestId('demo-step-validate'))
+    fireEvent.click(screen.getByTestId('demo-step-draft'))
     const narration = screen.getByTestId('demo-narration')
     expect(narration.getAttribute('aria-live')).toBe('polite')
-    expect(narration.textContent).toBe(NARRATION.validate)
-    expect(screen.getByTestId('demo-step-validate').getAttribute('aria-current')).toBe('step')
+    expect(narration.textContent).toBe(NARRATION.draft)
+    expect(screen.getByTestId('demo-step-draft').getAttribute('aria-current')).toBe('step')
     expect(screen.getByTestId('demo-step-publish').getAttribute('aria-current')).toBeNull()
   })
 
-  it('with reduced motion shows no play controls, only the steps', () => {
-    setReduced(true)
+  it('puts the pause control before the moving stage, and it toggles play and pause', () => {
+    setReduced(false)
+    vi.stubGlobal('IntersectionObserver', OnScreenObserver)
     render(<HowItWorksDemo />)
-    expect(screen.queryByRole('button', { name: 'Play' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull()
+    const pause = screen.getByTestId('demo-play')
+    const stage = screen.getByTestId('demo-stage')
+    // Reached before the motion in reading order, so a phone does not scroll past it to stop it.
+    expect(pause.compareDocumentPosition(stage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // Autoplaying: the control offers Pause, and the narration stays quiet for screen readers.
+    expect(pause.getAttribute('aria-label')).toBe('Pause animation')
+    expect(screen.getByTestId('demo-narration').getAttribute('aria-live')).toBe('off')
+    fireEvent.click(pause)
+    expect(pause.getAttribute('aria-label')).toBe('Play animation')
+    expect(pause.textContent).toContain('Play')
+    // Paused: nothing blinks, and what the person picks is announced.
+    expect(stage.querySelector('.caret-blink')).toBeNull()
+    expect(screen.getByTestId('demo-narration').getAttribute('aria-live')).toBe('polite')
+    fireEvent.click(pause)
+    expect(pause.getAttribute('aria-label')).toBe('Pause animation')
+  })
+
+  it('with reduced motion shows no play controls, never blinks and keeps every step viewable', () => {
+    setReduced(true)
+    vi.stubGlobal('IntersectionObserver', OnScreenObserver)
+    render(<HowItWorksDemo />)
+    expect(screen.queryByTestId('demo-play')).toBeNull()
+    expect(screen.queryByTestId('demo-replay')).toBeNull()
     expect(screen.getByText(/reduced motion/)).toBeTruthy()
     fireEvent.click(screen.getByTestId('demo-step-fix'))
     expect(screen.getByTestId('demo-narration').textContent).toBe(NARRATION.fix)
+    expect(screen.getByTestId('demo-stage').querySelector('.caret-blink')).toBeNull()
   })
 })
 
