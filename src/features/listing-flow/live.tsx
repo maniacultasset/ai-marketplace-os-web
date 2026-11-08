@@ -7,6 +7,7 @@
  *   GET /listings/{id}/submissions, GET /listings/{id}/history, GET /listings?product_id=,
  *   GET /products/{id}. Action: "Check status now" is POST /listings/{id}/refresh-status
  *   (Idempotency-Key; 429 inside 5 minutes).
+ *   SI11 "What Kuinn did": GET /listings/{id}/resolution (Amazon only), the tries and each step.
  */
 import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
@@ -27,11 +28,13 @@ import { NOT_BUYABLE_NEXT } from '@/lib/listing-chip'
 import { useCan } from '@/lib/permissions'
 import { toast, toastError } from '@/lib/toast'
 import { cn } from '@/lib/utils'
-import { useListingStatus, useProductListings } from './api'
+import { useListingResolution, useListingStatus, useProductListings } from './api'
 import { clock, mpName } from './format'
 import { plural } from './gates'
 import { ListOnButton } from './list-on'
 import { liveProof, maskId, type Proof } from './proof'
+import { hasResolution, resolutionView } from './resolution-model'
+import { ResolutionActionLink, ResolutionCard, ResolutionSkeleton } from './resolution-timeline'
 import { CardSkeleton, KeyValues, Timeline, TimelineItem, type DotTone } from './ui'
 
 export function LiveScreen({ listingId }: { listingId: string }) {
@@ -284,6 +287,7 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
         </LaCard>
 
         <div className="flex min-w-0 flex-col gap-4">
+          <WhatKuinnDid listing={listing} />
           <AgentDid listing={listing} />
           <LaCard data-testid="next">
             <h3 className="text-h3 text-ink">Next</h3>
@@ -339,6 +343,23 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
         {proof.state === 'live' ? `${title} is live on ${mp}` : ''}
       </span>
     </Page>
+  )
+}
+
+/** SI11: the resolution read, Amazon only. Nothing when the backend has no route or nothing to say. */
+function WhatKuinnDid({ listing }: { listing: ListingDetail }) {
+  const amazon = listing.marketplace === 'amazon'
+  const q = useListingResolution(listing.id, { enabled: amazon })
+  if (!amazon) return null
+  if (q.isPending) return <ResolutionSkeleton />
+  if (!q.data || !hasResolution(q.data)) return null
+  const view = resolutionView(q.data, { marketplace: listing.marketplace, marketplaceState: listing.marketplace_state })
+  return (
+    <ResolutionCard
+      view={view}
+      marketplace={listing.marketplace}
+      action={view.action.kind === 'none' ? null : <ResolutionActionLink action={view.action} listingId={listing.id} marketplace={listing.marketplace} />}
+    />
   )
 }
 
