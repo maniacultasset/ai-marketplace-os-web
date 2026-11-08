@@ -1,7 +1,8 @@
 /**
  * "See it work": the landing page's How it works section as one example listing travelling the
  * workflow (import, validate, fix, approve, publish), drawn with the real kit. It is labelled as an
- * example and is never app data. Generate stays greyed as In development and is skipped, not faked.
+ * example and is never app data. The example checks a title written by hand, so Generate stays on
+ * the rail greyed as "Not in this example" and is skipped, not faked.
  *
  * Plays only while at least 40% of it is on screen and the tab is visible, and loops with a calm
  * hold on Live. Pause, Replay and the step rail are real controls. With reduced motion (or no
@@ -363,7 +364,7 @@ function Stage({ pos }: { pos: Pos }) {
               <p className="flex flex-wrap items-center gap-2 text-small text-ink-2">
                 <Icon name="spark" size={14} className="text-ink-3" />
                 Generate skipped
-                <TagChip tone="plain">In development</TagChip>
+                <TagChip tone="plain">Title written by hand</TagChip>
               </p>
             </div>
           </Panel>
@@ -590,18 +591,18 @@ function Rail({ current, progress, onPick, playing }: { current: SceneId; progre
         const on = s.id === current
         const inner = (
           <>
-            <IconTile icon={s.icon} tone={s.inDevelopment ? 'neutral' : on ? 'brand' : 'neutral'} size="sm" flat={!on} className="transition-colors duration-300" />
+            <IconTile icon={s.icon} tone={s.notInExample ? 'neutral' : on ? 'brand' : 'neutral'} size="sm" flat={!on} className="transition-colors duration-300" />
             <span className="flex min-w-0 flex-col items-center gap-0.5 lg:items-start">
-              <span className={cn('text-[14px] leading-5 font-semibold transition-colors duration-300', on ? 'text-ink' : s.inDevelopment ? 'text-ink-3' : 'text-ink-2')}>{s.title}</span>
-              {s.inDevelopment ? <span className="text-[11px] leading-4 font-semibold text-ink-3">In development</span> : null}
+              <span className={cn('text-[14px] leading-5 font-semibold transition-colors duration-300', on ? 'text-ink' : s.notInExample ? 'text-ink-3' : 'text-ink-2')}>{s.title}</span>
+              {s.notInExample ? <span className="text-[11px] leading-4 font-semibold text-ink-3">Not in this example</span> : null}
             </span>
           </>
         )
         const cell = 'relative z-[1] flex h-full w-full flex-col items-center justify-start gap-1.5 rounded-lg px-2 py-2.5 text-center lg:flex-row lg:justify-start lg:gap-2.5 lg:px-3 lg:text-left'
         return (
           <li key={s.id} data-rail={s.id} className="min-w-0">
-            {s.inDevelopment ? (
-              <div className={cell} aria-label="Generate, in development, skipped in this example">
+            {s.notInExample ? (
+              <div className={cell} aria-label="Generate, not part of this example">
                 {inner}
               </div>
             ) : (

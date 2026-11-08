@@ -136,9 +136,11 @@ describe('how it works demo: script', () => {
     expect(seen).toEqual([...SCENES])
     expect(advance(FINAL)).toEqual(START)
   })
-  it('keeps Generate on the rail as in development, never as a played step', () => {
+  it('keeps Generate on the rail as not in this example, never as a played step', () => {
     const gen = RAIL.find((r) => r.id === 'generate')
-    expect(gen?.inDevelopment).toBe(true)
+    expect(gen?.notInExample).toBe(true)
+    expect(gen?.body).not.toMatch(/will/)
+    expect(NARRATION.import).not.toMatch(/in development/i)
     expect(SCENES as readonly string[]).not.toContain('generate')
     expect(NARRATION.publish).toMatch(/Live only after Flipkart confirms/)
   })
@@ -169,7 +171,8 @@ describe('how it works demo: static fallback (no IntersectionObserver)', () => {
     expect(typeof IntersectionObserver).toBe('undefined')
     render(<HowItWorksDemo />)
     for (const s of RAIL) expect(screen.getAllByText(s.title).length).toBeGreaterThan(0)
-    expect(screen.getAllByText('In development').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Not in this example').length).toBeGreaterThan(0)
+    expect(screen.queryByText(/in development/i)).toBeNull()
     expect(screen.queryByRole('button', { name: /^Generate/ })).toBeNull()
     expect(screen.getByRole('button', { name: 'Play' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Replay' })).toBeTruthy()

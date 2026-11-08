@@ -11,7 +11,7 @@ import { PublicLayout } from '@/components/app/public-layout'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { Icon, IconTile, type IconSource } from '@/components/la/icons'
 import { MarketplaceTile } from '@/components/la/marketplace'
-import { StatusChip, TagChip } from '@/components/la/status-chip'
+import { StatusChip } from '@/components/la/status-chip'
 import { Button } from '@/components/ui/button'
 import { useReveal } from '@/lib/use-reveal'
 import { cn } from '@/lib/utils'
@@ -49,12 +49,14 @@ const PROBLEMS: readonly { icon: IconSource; title: string; body: string; cost: 
   },
 ]
 
-/** The drafting agent is not built yet (analysis §gaps 1: only a deterministic stub), so this is its brief. */
+/** What the live drafting agent does. Each line is a shipped feature; no counts or rates. */
 const AGENT_DOES = [
   'Draft the title, bullets, description and keywords',
   'Propose attributes that match the category’s template',
   'Write with the tone, glossary and banned terms in your brand profile',
-  'Fix only the fields a rule flagged, using the rule’s message as its instruction',
+  'Read details from your product photos for you to confirm',
+  'Fix safe errors by itself and mark each one “Fixed for you”, so every change stays visible',
+  'Make a clean white-background main image from your own photo, for you to approve',
 ]
 
 const AGENT_NEVER = [
@@ -66,10 +68,10 @@ const AGENT_NEVER = [
 ]
 
 /** A real sequence, so the steps keep their numbers; the icons match the workflow strip above. */
-const BULK: readonly { title: string; body: string; icon: IconSource; inDevelopment?: true }[] = [
+const BULK: readonly { title: string; body: string; icon: IconSource }[] = [
   { title: 'Upload', icon: 'upload', body: 'Your catalog as a CSV file.' },
   { title: 'Map', icon: CONCEPT_ICON.columns, body: 'Columns become products and variants.' },
-  { title: 'Generate', icon: CONCEPT_ICON.agent, body: 'Drafts for every product in the background, once the agent is ready.', inDevelopment: true },
+  { title: 'Generate', icon: CONCEPT_ICON.agent, body: 'Drafts for every product in the background, in your brand’s voice.' },
   { title: 'Validate', icon: CONCEPT_ICON.rules, body: 'Field-level results per row and per marketplace.' },
   { title: 'Review', icon: CONCEPT_ICON.review, body: 'Approve row by row with the error beside the field.' },
   { title: 'Retry', icon: CONCEPT_ICON.retry, body: 'Rerun only the rows that failed. The rest stay as they are.' },
@@ -165,8 +167,8 @@ export function Landing() {
               </h1>
               <p data-reveal style={d(1, 90)} className="mt-6 max-w-[46ch] text-[18px] leading-[1.55] text-ink-2">
                 Keep each product as one record. Kuinn turns it into a listing for every marketplace you sell on, checks
-                each field against that marketplace’s rules and waits for someone on your team to approve before anything
-                is sent. Drafting in your brand’s voice is in development.
+                each field against that marketplace’s rules, drafts in your brand’s voice, and waits for someone on your
+                team to approve before anything is sent.
               </p>
               <div data-reveal style={d(2, 90)} className="mt-8 flex flex-wrap items-center gap-3 sm:gap-4">
                 <Button asChild size="lg">
@@ -239,19 +241,14 @@ export function Landing() {
         {/* AI proposes, rules decide */}
         <Section
           title={<>AI proposes.<br /> The rules engine decides.</>}
-          lede="Writing is a job for a model. Checking is not. Your seller account depends on keeping those two jobs apart, so they are never done by the same thing. The drafting agent is still in development; the rules and the approval step it will answer to come first."
+          lede="Writing is a job for a model. Checking is not. Your seller account depends on keeping those two jobs apart, so they are never done by the same thing. Every draft the agent writes answers to the same rules and the same approval step."
           className="bg-surface"
         >
           <div className="grid gap-4 md:grid-cols-2">
             <div data-reveal className="rounded-card border border-line bg-surface p-6 shadow-raised-md md:p-7">
               <div className="flex items-center gap-3">
                 <IconTile icon="spark" tone="brand" />
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-                  <h3 className="text-h3 text-ink">What the agent will do</h3>
-                  <TagChip tone="plain" className="whitespace-nowrap sm:ml-auto">
-                    In development
-                  </TagChip>
-                </div>
+                <h3 className="text-h3 text-ink">What the agent does</h3>
               </div>
               <ul className="mt-4 flex flex-col gap-3">
                 {AGENT_DOES.map((t) => (
@@ -295,10 +292,7 @@ export function Landing() {
                     {String(i + 1).padStart(2, '0')}
                   </span>
                 </div>
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                  <h3 className="text-h3 text-ink">{s.title}</h3>
-                  {s.inDevelopment ? <TagChip tone="plain" className="whitespace-nowrap">In development</TagChip> : null}
-                </div>
+                <h3 className="text-h3 text-ink">{s.title}</h3>
                 <p className="text-small text-ink-2">{s.body}</p>
               </li>
             ))}
