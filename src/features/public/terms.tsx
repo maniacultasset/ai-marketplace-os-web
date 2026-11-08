@@ -7,6 +7,7 @@ import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { PublicLayout } from '@/components/app/public-layout'
 import { COMPANY, COMPANY_ADDRESS } from './company'
+import { LegalContents } from './legal-contents'
 import { useDocumentTitle } from './use-document-title'
 
 export const TERMS_EFFECTIVE = '26 October 2026'
@@ -20,13 +21,13 @@ export interface TermsSection {
 }
 
 const PrivacyLink = () => (
-  <Link to="/privacy" className="font-semibold text-brand underline-offset-4 hover:underline">
+  <Link to="/privacy" className="hit-area font-semibold text-brand underline-offset-4 hover:underline">
     Privacy Policy
   </Link>
 )
 
 const Mail = () => (
-  <a href={`mailto:${LEGAL_EMAIL}`} className="font-semibold text-brand underline-offset-4 hover:underline">
+  <a href={`mailto:${LEGAL_EMAIL}`} className="hit-area font-semibold text-brand underline-offset-4 hover:underline">
     {LEGAL_EMAIL}
   </a>
 )
@@ -363,7 +364,7 @@ export const TERMS_SECTIONS: TermsSection[] = [
         ))}
         <span className="mt-3 block">
           Phone:{' '}
-          <a href={COMPANY.phoneHref} className="font-semibold text-brand underline-offset-4 hover:underline">
+          <a href={COMPANY.phoneHref} className="hit-area font-semibold text-brand underline-offset-4 hover:underline">
             {COMPANY.phone}
           </a>
         </span>
@@ -379,40 +380,27 @@ export function Terms() {
   useDocumentTitle('Terms and Conditions')
   return (
     <PublicLayout>
-      <div className="mx-auto max-w-[1200px] px-4 py-10 md:px-8 md:py-14">
-        <header className="max-w-[72ch]">
+      <div className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6 md:px-8 md:py-14 2xl:max-w-[1320px]">
+        <header className="max-w-[62ch]">
           <h1 className="font-display text-[clamp(2rem,4vw,2.75rem)] leading-[1.1] font-bold tracking-[-0.015em] text-ink">
             Terms and Conditions
           </h1>
-          <p className="mt-3 text-body text-ink-2">
-            Effective date: {TERMS_EFFECTIVE} · Last updated: {TERMS_UPDATED}
+          <p className="mt-3 flex flex-col text-body text-ink-2 sm:flex-row sm:flex-wrap sm:gap-x-2">
+            <span>Effective date: {TERMS_EFFECTIVE}</span>
+            <span aria-hidden className="max-sm:hidden">
+              ·
+            </span>
+            <span>Last updated: {TERMS_UPDATED}</span>
           </p>
         </header>
-        <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[220px_minmax(0,1fr)]">
-          <nav aria-label="On this page" className="lg:sticky lg:top-24 lg:self-start">
-            <details open className="group rounded-card border border-line bg-surface p-4 shadow-raised-sm lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
-              <summary className="cursor-pointer text-small font-bold text-ink lg:pointer-events-none lg:list-none">On this page</summary>
-              <ol className="mt-3 flex flex-col gap-1 text-small">
-                {TERMS_SECTIONS.map((s, i) => (
-                  <li key={s.id}>
-                    <a
-                      href={`#${s.id}`}
-                      className="tactile flex gap-2 rounded-control px-2 py-1.5 text-ink-2 hover:bg-hover hover:text-ink active:bg-pressed"
-                    >
-                      <span className="w-5 shrink-0 text-ink-3 tabular-nums">{s.id === 'contact' ? null : `${i + 1}.`}</span>
-                      {s.title}
-                    </a>
-                  </li>
-                ))}
-              </ol>
-            </details>
-          </nav>
-          <article className="legal max-w-[72ch] text-[15px] leading-[1.65] text-ink">
+        <div className="mt-8 grid grid-cols-1 gap-8 lg:mt-10 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-14">
+          <LegalContents sections={TERMS_SECTIONS} number={(id, i) => (id === 'contact' ? null : `${i + 1}.`)} />
+          <article className="legal min-w-0 max-w-[62ch] text-[15px] leading-[1.65] text-ink">
             <div className="mb-8 flex flex-col gap-3">
               <p>
                 These Terms and Conditions (“Terms”) govern your access to and use of <strong>Kuinn</strong>, including its
                 website at{' '}
-                <a href={COMPANY.website} className="font-semibold text-brand underline-offset-4 hover:underline">
+                <a href={COMPANY.website} className="hit-area font-semibold text-brand underline-offset-4 hover:underline">
                   {COMPANY.website}
                 </a>
                 , software, AI agents, integrations, and related services (collectively, the “Service”).
@@ -431,7 +419,7 @@ export function Terms() {
             {TERMS_SECTIONS.map((s, i) => (
               <section key={s.id} id={s.id} aria-labelledby={`${s.id}-h`} className="scroll-mt-24 border-t border-line pt-8 pb-4">
                 <h2 id={`${s.id}-h`} className="text-h2 text-ink">
-                  <a href={`#${s.id}`} className="group/anchor no-underline">
+                  <a href={`#${s.id}`} className="group/anchor -my-[9px] inline-block py-[9px] no-underline">
                     {/* The contact block closes the Terms and is not a numbered section in the company's text. */}
                     {s.id === 'contact' ? null : <span className="mr-2 text-ink-3 tabular-nums">{i + 1}.</span>}
                     {s.title}
@@ -447,7 +435,7 @@ export function Terms() {
             ))}
             <p className="mt-8 border-t border-line pt-6 text-small text-ink-2">
               Read our <PrivacyLink />, or{' '}
-              <Link to="/" className="font-semibold text-brand underline-offset-4 hover:underline">
+              <Link to="/" className="hit-area font-semibold text-brand underline-offset-4 hover:underline">
                 go back to the home page
               </Link>
               .

@@ -16,6 +16,7 @@ import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { PublicLayout } from '@/components/app/public-layout'
 import { COMPANY, COMPANY_ADDRESS } from './company'
+import { LegalContents } from './legal-contents'
 import { useDocumentTitle } from './use-document-title'
 
 /** A fact still to be supplied, impossible to miss on the page. */
@@ -32,7 +33,7 @@ export const POLICY_UPDATED = '8 November 2026'
 export const GRIEVANCE_OFFICER = 'Mukul Jasoria, Director'
 
 const Mail = () => (
-  <a href={`mailto:${COMPANY.email}`} className="font-semibold text-brand underline-offset-4 hover:underline">
+  <a href={`mailto:${COMPANY.email}`} className="hit-area font-semibold text-brand underline-offset-4 hover:underline">
     {COMPANY.email}
   </a>
 )
@@ -138,7 +139,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
         <p>
           The lawful basis for each purpose above is{' '}
           the consent you give when you request access and agree to our{' '}
-          <Link to="/terms" className="font-semibold text-brand underline-offset-4 hover:underline">
+          <Link to="/terms" className="hit-area font-semibold text-brand underline-offset-4 hover:underline">
             Terms and Conditions
           </Link>
           , and, where the law requires us to keep or share data, the legitimate uses in section 7 of the DPDP Act. You can
@@ -199,7 +200,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
       <>
         <p>We share data only with these service providers, and only for the purposes above:</p>
         <div className="my-4 max-w-full min-w-0 overflow-x-auto rounded-card border border-line bg-surface shadow-raised-md">
-          <table className="w-full min-w-[520px] text-left text-small">
+          <table className="stack-table w-full text-left text-small sm:min-w-[520px]">
             <thead className="bg-sunken text-ink-2">
               <tr>
                 <th className="px-4 py-2.5 font-semibold">Provider</th>
@@ -210,18 +211,18 @@ export const POLICY_SECTIONS: PolicySection[] = [
             <tbody className="divide-y divide-line text-ink">
               <tr>
                 <td className="px-4 py-2.5 font-semibold">Google Cloud</td>
-                <td className="px-4 py-2.5">Hosting (Cloud Run), database (Cloud SQL), file storage, key management (Cloud KMS), logs</td>
-                <td className="px-4 py-2.5">India, asia-south1 (Mumbai)</td>
+                <td data-label="What for" className="px-4 py-2.5">Hosting (Cloud Run), database (Cloud SQL), file storage, key management (Cloud KMS), logs</td>
+                <td data-label="Where" className="px-4 py-2.5">India, asia-south1 (Mumbai)</td>
               </tr>
               <tr>
                 <td className="px-4 py-2.5 font-semibold">OpenAI (OpenAI, L.L.C.)</td>
-                <td className="px-4 py-2.5">Text embeddings of your brand profile and brand documents (and, once launched, drafting listing content)</td>
-                <td className="px-4 py-2.5">United States</td>
+                <td data-label="What for" className="px-4 py-2.5">Text embeddings of your brand profile and brand documents (and, once launched, drafting listing content)</td>
+                <td data-label="Where" className="px-4 py-2.5">United States</td>
               </tr>
               <tr>
                 <td className="px-4 py-2.5 font-semibold">Sentry (Functional Software, Inc.)</td>
-                <td className="px-4 py-2.5">Error monitoring</td>
-                <td className="px-4 py-2.5">Outside India, in Sentry’s hosting region</td>
+                <td data-label="What for" className="px-4 py-2.5">Error monitoring</td>
+                <td data-label="Where" className="px-4 py-2.5">Outside India, in Sentry’s hosting region</td>
               </tr>
             </tbody>
           </table>
@@ -279,7 +280,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
           period ends.
         </p>
         <div className="my-4 max-w-full min-w-0 overflow-x-auto rounded-card border border-line bg-surface shadow-raised-md">
-          <table className="w-full min-w-[520px] text-left text-small">
+          <table className="stack-table w-full text-left text-small sm:min-w-[520px]">
             <thead className="bg-sunken text-ink-2">
               <tr>
                 <th className="px-4 py-2.5 font-semibold">Data</th>
@@ -301,7 +302,7 @@ export const POLICY_SECTIONS: PolicySection[] = [
               ].map(([what, how], i) => (
                 <tr key={i}>
                   <td className="px-4 py-2.5 font-semibold">{what}</td>
-                  <td className="px-4 py-2.5">{how}</td>
+                  <td data-label="Kept for" className="px-4 py-2.5">{how}</td>
                 </tr>
               ))}
             </tbody>
@@ -442,8 +443,8 @@ export function PrivacyPolicy() {
   useDocumentTitle('Privacy policy')
   return (
     <PublicLayout>
-      <div className="mx-auto max-w-[1200px] px-4 py-10 md:px-8 md:py-14">
-        <header className="max-w-[72ch]">
+      <div className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6 md:px-8 md:py-14 2xl:max-w-[1320px]">
+        <header className="max-w-[62ch]">
           <h1 className="font-display text-[clamp(2rem,4vw,2.75rem)] leading-[1.1] font-bold tracking-[-0.015em] text-ink">
             Privacy policy
           </h1>
@@ -451,30 +452,13 @@ export function PrivacyPolicy() {
             Last updated: {POLICY_UPDATED}. Applies to the Kuinn website, web app and API.
           </p>
         </header>
-        <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[220px_minmax(0,1fr)]">
-          <nav aria-label="On this page" className="lg:sticky lg:top-24 lg:self-start">
-            <details open className="group rounded-card border border-line bg-surface p-4 shadow-raised-sm lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
-              <summary className="cursor-pointer text-small font-bold text-ink lg:pointer-events-none lg:list-none">On this page</summary>
-              <ol className="mt-3 flex flex-col gap-1 text-small">
-                {POLICY_SECTIONS.map((s, i) => (
-                  <li key={s.id}>
-                    <a
-                      href={`#${s.id}`}
-                      className="tactile flex gap-2 rounded-control px-2 py-1.5 text-ink-2 hover:bg-hover hover:text-ink active:bg-pressed"
-                    >
-                      <span className="w-5 shrink-0 text-ink-3 tabular-nums">{i + 1}.</span>
-                      {s.title}
-                    </a>
-                  </li>
-                ))}
-              </ol>
-            </details>
-          </nav>
-          <article className="legal max-w-[72ch] text-[15px] leading-[1.65] text-ink">
+        <div className="mt-8 grid grid-cols-1 gap-8 lg:mt-10 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-14">
+          <LegalContents sections={POLICY_SECTIONS} number={(_, i) => `${i + 1}.`} />
+          <article className="legal min-w-0 max-w-[62ch] text-[15px] leading-[1.65] text-ink">
             {POLICY_SECTIONS.map((s, i) => (
               <section key={s.id} id={s.id} aria-labelledby={`${s.id}-h`} className="scroll-mt-24 border-t border-line pt-8 pb-4 first:border-t-0 first:pt-0">
                 <h2 id={`${s.id}-h`} className="text-h2 text-ink">
-                  <a href={`#${s.id}`} className="group/anchor no-underline">
+                  <a href={`#${s.id}`} className="group/anchor -my-[9px] inline-block py-[9px] no-underline">
                     <span className="mr-2 text-ink-3 tabular-nums">{i + 1}.</span>
                     {s.title}
                     <span aria-hidden className="ml-2 text-brand opacity-0 group-hover/anchor:opacity-100 group-focus-visible/anchor:opacity-100">
@@ -489,7 +473,7 @@ export function PrivacyPolicy() {
             ))}
             <p className="mt-8 border-t border-line pt-6 text-small text-ink-2">
               Questions? Write to <Mail />, or{' '}
-              <Link to="/" className="font-semibold text-brand underline-offset-4 hover:underline">
+              <Link to="/" className="hit-area font-semibold text-brand underline-offset-4 hover:underline">
                 go back to the home page
               </Link>
               .
