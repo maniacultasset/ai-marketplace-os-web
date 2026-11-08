@@ -163,7 +163,7 @@ export const PRODUCTS: readonly HeroProduct[] = [
     photoFact: { label: 'Colour', value: 'Pink' },
     draftTitle: "Men's Linen Shirt, Pastel Pink, Regular Fit, Full Sleeves",
     title: "Men's Linen Shirt, Pastel Pink, Regular Fit, Full Sleeves",
-    bullets: ['Pure linen that breathes in the heat', 'Spread collar, full sleeves, chest pocket'],
+    bullets: ['Breathable linen for warm days', 'Spread collar, full sleeves, chest pocket'],
     price: '₹1,599',
     mrp: '₹2,799',
     sizes: ['S', 'M', 'L', 'XL', 'XXL'],
