@@ -71,7 +71,7 @@ import { clock, fieldLabel, mpName } from './format'
 import { claimFindings, gateCounts, plural, type ErrorItem, type GateResult } from './gates'
 import { ListOnButton } from './list-on'
 import { approveAllTargets, approveBlockers } from './review-model'
-import { AI_PAUSED_REASON } from '@/features/ai-credit/model'
+import { AI_PAUSED_REASON, isAiPausedError } from '@/features/ai-credit/model'
 import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
 import { STAGE_SUB } from './run-steps'
 import { ActionButton, CardSkeleton, GATE_CHIP, GateLegend, GateList, GateListSkeleton, ReadsAsSkeleton, ReviewTopSkeleton } from './ui'
@@ -518,6 +518,8 @@ function RegenerateButton({ listing, state: given }: { listing: ListingDetail; s
             },
             onError: (e) => {
               if (isApiError(e) && !e.isNetwork) key.reset()
+              // A pause shows in the app-wide banner instead.
+              if (isAiPausedError(e)) return
               toastError(e, 'Couldn’t start a new generation')
             },
           },

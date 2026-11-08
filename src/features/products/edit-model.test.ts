@@ -31,6 +31,21 @@ describe('product edit', () => {
     expect(d.sizeChart.rows[0]).toEqual({ ...emptySizeRow('M'), chest: '40' })
   })
 
+  it('edits audience and brand only on a backend that sends them (SI8)', () => {
+    const old = toEditDraft(product())
+    expect(old.hasAudience).toBe(false)
+    expect(buildPatch(old, { ...old, gender: 'men' }, false)).toEqual({})
+    const base = toEditDraft(product({ gender: null, brand_name: 'Store', brand_name_inherited: true }))
+    expect(base).toMatchObject({ hasAudience: true, ownBrand: false, brandName: '' })
+    expect(buildPatch(base, { ...base, gender: 'men' }, false)).toEqual({ gender: 'men' })
+    expect(buildPatch(base, { ...base, ownBrand: true, brandName: 'Rang' }, false)).toEqual({ brand_name: 'Rang' })
+    const own = toEditDraft(product({ gender: 'women', brand_name: 'Rang', brand_name_inherited: false }))
+    expect(buildPatch(own, { ...own, ownBrand: false }, false)).toEqual({ brand_name: null })
+    expect(buildPatch(own, { ...own, gender: '' }, false)).toEqual({ gender: null })
+    // Style level: never from a variant.
+    expect(buildPatch(own, { ...own, gender: 'men' }, true)).toEqual({})
+  })
+
   it('sends nothing when nothing changed (money compared by value)', () => {
     const base = toEditDraft(product())
     expect(buildPatch(base, { ...base, mrp: '1299', sellingPrice: '₹999' }, false)).toEqual({})

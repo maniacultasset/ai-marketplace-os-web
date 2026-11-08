@@ -37,7 +37,7 @@ import { useTaskIssues } from './api'
 import { CloseTaskActions } from './close-task'
 import { supportsClose } from './close-task-api'
 import { CodeBlock } from './parts'
-import { AI_PAUSED_REASON } from '@/features/ai-credit/model'
+import { AI_PAUSED_REASON, isAiPausedError } from '@/features/ai-credit/model'
 import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
 
 export function AccountTask({ task, kind, remaining }: { task: Task; kind: AccountReviewKind; remaining: number }) {
@@ -161,6 +161,8 @@ function RegenerateAction({ listing }: { listing: ListingDetail }) {
             },
             onError: (e) => {
               if (isApiError(e) && !e.isNetwork) key.reset()
+              // A pause shows in the app-wide banner instead.
+              if (isAiPausedError(e)) return
               toastError(e, 'Couldn’t start a new generation')
             },
           },

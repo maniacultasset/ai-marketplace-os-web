@@ -149,7 +149,7 @@ function DetailSkeletonBody({ tab }: { tab: DetailTab }) {
       return (
         <LaCard pad="none" className="overflow-hidden">
           <div className="p-5">
-            <CardHead title="Variants" sub={hasColour ? 'Each size and colour you make, as its own SKU.' : 'Each size and colour you make, as its own SKU. The colour is in each variant’s SKU.'} />
+            <CardHead title="Variants" sub="Each size and colour you make, as its own SKU. The colour is in each variant’s SKU." />
           </div>
           <VariantRowsSkeleton />
         </LaCard>
@@ -947,7 +947,7 @@ function VariantsTab({ data }: { data: DetailData }) {
   return (
     <LaCard pad="none" className="overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 p-5">
-        <CardHead title="Variants" sub="Each size and colour you make, as its own SKU. The colour is in each variant’s SKU." />
+        <CardHead title="Variants" sub={hasColour ? 'Each size and colour you make, as its own SKU.' : 'Each size and colour you make, as its own SKU. The colour is in each variant’s SKU.'} />
         <Can action="product:import">
           <Button variant="secondary" size="sm" asChild>
             <Link to="/add/variants" search={{ product: data.product.id }}>

@@ -27,6 +27,13 @@ describe('guided form', () => {
     })
   })
 
+  it('sends the audience and an own brand only when set (SI8)', () => {
+    expect(toProductCreate({ ...filled(), gender: 'women' }).gender).toBe('women')
+    expect('brand_name' in toProductCreate({ ...filled(), brandName: 'Rang' })).toBe(false)
+    expect(toProductCreate({ ...filled(), ownBrand: true, brandName: ' Rang ' }).brand_name).toBe('Rang')
+    expect(validateGuided({ ...filled(), ownBrand: true, brandName: '' }).brand_name).toMatch(/Enter the brand name/)
+  })
+
   it('rejects an extra attribute that repeats a form field', () => {
     expect(validateGuided({ ...filled(), extra: [{ key: 'fit', value: 'x' }] })['extra.0.key']).toBeDefined()
   })

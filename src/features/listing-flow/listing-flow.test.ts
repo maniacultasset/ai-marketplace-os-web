@@ -4,9 +4,9 @@ import { clock, fieldLabel } from './format'
 import { applicableRules, claimFindings, currentFindings, fieldGate, findingGate, gateCounts, rollUpGates, ruleGate, type ErrorItem } from './gates'
 import { mappingRows, payloadField } from './mapping'
 import { externalIdFromUrl, liveProof, maskId } from './proof'
-import { approveAllTargets, editToContent, sendBackItem, validateEdit, validateSendBack } from './review-model'
+import { approveAllTargets, approveBlockers, editToContent, sendBackItem, validateEdit, validateSendBack } from './review-model'
 import { runIsActive, runSteps } from './run-steps'
-import { contentAuthor, type AuditEvent, type Listing, type Submission, type ValidationSummary } from '@/features/listings/model'
+import { contentAuthor, listingActions, type AuditEvent, type Listing, type Submission, type ValidationSummary } from '@/features/listings/model'
 
 const V1 = '0b1c2d3e-0000-4000-8000-0000000004a1'
 const V0 = '0b1c2d3e-0000-4000-8000-0000000004a0'
@@ -271,6 +271,55 @@ describe('live proof', () => {
     const l = { status: 'approved', marketplace_state: 'not_submitted', live_url: null } as const
     expect(liveProof(l, null, []).state).toBe('not-sent')
     expect(liveProof(l, { status: 'published', marketplace_state: 'rejected' }, [sub({ outcome: 'rejected' })]).state).toBe('problem')
+  })
+
+  it('says live but not buyable for a published, inactive listing, with its ASIN (SI9)', () => {
+    const l = { status: 'published', marketplace_state: 'inactive', live_url: null, external_id: 'B0C9X12345' } as const
+    const p = liveProof(l, null, [sub({ outcome: 'accepted', resolved_at: null })])
+    expect(p.state).toBe('not-buyable')
+    expect(p.externalId).toBe('B0C9X12345')
+    // Without SI9 the ID still comes from the link.
+    expect(liveProof({ ...l, external_id: undefined, live_url: 'https://www.amazon.in/dp/B0AAAAAAAA' }, null, []).externalId).toBe('B0AAAAAAAA')
+    // Inactive while blocked is still a problem.
+    expect(liveProof({ ...l, status: 'blocked' }, null, []).state).toBe('problem')
+  })
+})
+
+describe('approve gate (SI9, SI10)', () => {
+  const base = {
+    listing: { status: 'validated', status_reason: null, current_version_id: V1, approved_version_id: null },
+    validation: { passed: true, listing_version_id: V1 },
+    can: () => true,
+    publishBuilt: true,
+  } as const
+
+  it('follows the server’s can_approve and approve_hint over the history guess', () => {
+    expect(listingActions({ ...base, maker: 'edited', canApprove: true }).approve.enabled).toBe(true)
+    const own = listingActions({ ...base, canApprove: false, approveHint: 'own_work' }).approve
+    expect(own).toMatchObject({ enabled: false, reason: 'You made this version, so a teammate approves it.' })
+    expect(listingActions({ ...base, canApprove: false, approveHint: 'no_other_approver' }).approve.reason).toMatch(/Invite one in Team/)
+  })
+
+  it('falls back to the history when the backend sends no can_approve', () => {
+    expect(listingActions({ ...base, maker: 'edited', canApprove: null }).approve.enabled).toBe(false)
+    expect(listingActions({ ...base, maker: null }).approve.enabled).toBe(true)
+  })
+
+  it('reads the blocking items from a refused approve', () => {
+    const warn = item({ severity: 'warning', field: 'title', message: 'Long title' })
+    const block = item({ field: 'attributes.department', message: 'Department is required' })
+    const res = {
+      items: [
+        {
+          listing_id: 'l1',
+          http_status: 422,
+          error: { ...report([warn, block]), error_code: 'VALIDATION_FAILED' as const },
+        },
+        { listing_id: 'l2', http_status: 200 },
+      ],
+    }
+    expect(approveBlockers(res, 'l1')).toEqual([block, warn])
+    expect(approveBlockers(res, 'l2')).toBeNull()
   })
 })
 

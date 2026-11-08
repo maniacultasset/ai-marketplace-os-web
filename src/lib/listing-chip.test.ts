@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { listingChip } from './listing-chip'
+import { isNotBuyable, listingChip } from './listing-chip'
 
 describe('listingChip', () => {
   it('only says Live when the marketplace itself reports live', () => {
@@ -17,5 +17,11 @@ describe('listingChip', () => {
   it('treats generating and publishing as working', () => {
     expect(listingChip({ status: 'generating', marketplace_state: 'not_submitted' }).status).toBe('working')
     expect(listingChip({ status: 'publishing', marketplace_state: 'processing' }).status).toBe('working')
+  })
+  it('says a published, inactive listing is live but not buyable yet (SI9)', () => {
+    const l = { status: 'published', marketplace_state: 'inactive' } as const
+    expect(listingChip(l)).toEqual({ status: 'working', label: 'Live, not buyable yet' })
+    expect(isNotBuyable(l)).toBe(true)
+    expect(isNotBuyable({ status: 'blocked', marketplace_state: 'inactive' })).toBe(false)
   })
 })
