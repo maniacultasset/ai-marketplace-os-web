@@ -1,5 +1,5 @@
 /**
- * The script behind the landing page's "See it work" demo (how-it-works-demo.tsx): one example
+ * The script behind the landing page's "See how it works" demo (how-it-works-demo.tsx): one example
  * listing taken from import to Live, step by step. Pure data and timing so it can be tested on its
  * own. The example is the hero's kurta set (HERO_EXAMPLE), so the limits and the banned term are
  * the real seeded rules and every count is computed from the text, never typed.
@@ -13,12 +13,23 @@ export const DEMO = {
   sku: 'KS-104-IND-M',
   price: '₹1,899',
   file: 'kurta-sets.csv',
+  /** Starts the draft, so the maker-checker rule keeps them from approving it. */
   editor: 'Arjun',
   approver: 'Meera',
 } as const
 
-/** What the person deletes: the banned word up front, the sleeve length and occasion at the end
- *  (the hero finding's own fix: "Move the sleeve length and occasion into a bullet"). */
+/** What the agent drafts in the Draft step. The title stays the one from the CSV. */
+export const DRAFT = {
+  bullets: [
+    'Handloom cotton kurta in indigo, with a straight palazzo and a printed dupatta',
+    'Regular fit with three-quarter sleeves',
+    'Easy to wear from office days to festive evenings',
+  ],
+  description: 'Woven from breathable handloom cotton, this indigo set pairs a straight kurta with a palazzo and a printed dupatta.',
+} as const
+
+/** What Kuinn removes: the banned word up front, and the sleeve length and occasion at the end,
+ *  which the drafted bullets already cover. */
 export const FIX_HEAD = 'Best '
 export const FIX_TAIL = ', Three-Quarter Sleeves, Festive and Office Wear'
 const FULL = HERO_EXAMPLE.title
@@ -26,45 +37,38 @@ export const FIX_MIDDLE = FULL.slice(FIX_HEAD.length, FULL.length - FIX_TAIL.len
 export const FIXED_TITLE = FIX_MIDDLE
 export const LIMIT = HERO_EXAMPLE.limits.flipkart
 
-export type SceneId = 'import' | 'validate' | 'fix' | 'approve' | 'publish'
+export type SceneId = 'import' | 'draft' | 'check' | 'fix' | 'approve' | 'publish'
 
 export interface RailStep {
-  id: SceneId | 'generate'
+  id: SceneId
   title: string
   body: string
   icon: IconSource
-  /** On the rail but not played: this example checks a title written by hand. */
-  notInExample?: true
 }
 
-/** The rail. The five landing cards keep their words; Fix is the step between a finding and approval. */
+/** The rail: the six steps every listing takes, each one played by the example. */
 export const RAIL: readonly RailStep[] = [
-  { id: 'import', icon: 'upload', title: 'Import', body: 'Upload a CSV or add one product at a time. Each row becomes one clean product with its variants.' },
-  {
-    id: 'generate',
-    icon: 'spark',
-    title: 'Generate',
-    body: 'The agent drafts the title, bullets, description and attributes in your brand’s voice.',
-    notInExample: true,
-  },
-  { id: 'validate', icon: CONCEPT_ICON.rules, title: 'Validate', body: 'A rules engine written as code checks every field against each marketplace’s limits. No model decides pass or fail.' },
-  { id: 'fix', icon: CONCEPT_ICON.edit, title: 'Fix', body: 'A person edits the field a rule flagged, then the same rules check the new text again.' },
-  { id: 'approve', icon: CONCEPT_ICON.approval, title: 'Approve', body: 'A person reviews the draft beside its field-level results. Whoever edited a listing cannot approve it.' },
-  { id: 'publish', icon: 'store', title: 'Publish', body: 'Approved listings go to the marketplace. A listing shows as Live only after the marketplace confirms it.' },
+  { id: 'import', icon: 'upload', title: 'Import', body: 'Upload a CSV or add one product. Each row becomes a product with its sizes and colours.' },
+  { id: 'draft', icon: 'spark', title: 'Draft', body: 'The agent writes the title, bullets and description in your brand’s voice.' },
+  { id: 'check', icon: CONCEPT_ICON.rules, title: 'Check', body: 'Every field is tested against the marketplace’s rules. No model decides pass or fail.' },
+  { id: 'fix', icon: CONCEPT_ICON.edit, title: 'Fix', body: 'Safe errors are fixed and marked. Anything else reaches your team with the fix shown beside it.' },
+  { id: 'approve', icon: CONCEPT_ICON.approval, title: 'Approve', body: 'A second person reviews the listing and its checks, then approves it.' },
+  { id: 'publish', icon: 'store', title: 'Publish', body: 'Kuinn sends it to Amazon. It shows as Live once Amazon confirms.' },
 ]
 
-export const SCENES: readonly SceneId[] = ['import', 'validate', 'fix', 'approve', 'publish']
+export const SCENES: readonly SceneId[] = RAIL.map((r) => r.id)
 
 const fullLen = heroTitleLength()
 const fixedLen = [...FIXED_TITLE].length
 
-/** What the example shows at each step, read out politely once per step. */
+/** What the example shows at each step. Read out only when a person picks a step. */
 export const NARRATION: Record<SceneId, string> = {
-  import: `A row from ${DEMO.file} becomes one product with its SKU, title and price. Generate is skipped here: this example checks a title written by hand.`,
-  validate: `The rules check each field. The title is ${fullLen} characters, over Flipkart’s ${LIMIT}, and it uses the banned word “Best”.`,
-  fix: `${DEMO.editor} removes “Best” and moves the sleeve length and occasion out of the title. At ${fixedLen} characters, every check passes.`,
-  approve: `${DEMO.approver} approves it. ${DEMO.editor} edited the listing, so the approval has to come from someone else.`,
-  publish: 'Sent to Flipkart and waiting. It shows as Live only after Flipkart confirms.',
+  import: `A row from ${DEMO.file} becomes one product with its SKU, title and price.`,
+  draft: `${DEMO.editor} starts the draft. Kuinn writes the bullets and description in your brand’s voice. This example keeps the title from the CSV, so you can watch the checks catch it.`,
+  check: `The rules check each field. The title is ${fullLen} characters, which is over Flipkart’s ${LIMIT}. It also uses the banned word “Best”.`,
+  fix: `Kuinn removes “Best” and the sleeve and occasion words the bullets already cover. Each change is marked “Fixed for you”. At ${fixedLen} characters, every check passes.`,
+  approve: `${DEMO.approver} reviews the fixes and approves. ${DEMO.editor} started the draft, so the approval has to come from someone else.`,
+  publish: 'Kuinn sends the listing to Amazon and waits for Amazon to confirm it.',
 }
 
 /* Timing. A scene is a run of beats; each beat waits its delay, then the next one plays. The last
@@ -82,7 +86,8 @@ export const FIX_BEATS = {
 
 export const LAST_BEAT: Record<SceneId, number> = {
   import: 3,
-  validate: 7,
+  draft: 5,
+  check: 7,
   fix: FIX_BEATS.allPass,
   approve: 3,
   publish: 3,
@@ -92,7 +97,10 @@ export function beatDelay(scene: SceneId, beat: number): number {
   switch (scene) {
     case 'import':
       return [700, 750, 950, 2000][beat] ?? 600
-    case 'validate':
+    case 'draft':
+      // 0 panel in · 1..3 one bullet each · 4 description · 5 hold
+      return [650, 700, 700, 700, 900, 2400][beat] ?? 600
+    case 'check':
       return [550, 600, 600, 700, 800, 800, 1000, 2600][beat] ?? 600
     case 'fix': {
       if (beat === 0) return 900
@@ -165,8 +173,8 @@ export function checksAt(scene: SceneId, beat: number): Check[] {
   ]
   const first: CheckState[] = ['pass', 'pass', 'fail', 'fail', 'fail']
   let states: CheckState[]
-  if (scene === 'import') states = rows.map(() => 'pending')
-  else if (scene === 'validate') {
+  if (scene === 'import' || scene === 'draft') states = rows.map(() => 'pending')
+  else if (scene === 'check') {
     // beat 2 required · 3 Amazon length · 4 Flipkart length · 5 both banned-term checks
     const done = [2, 3, 4, 5, 5]
     states = first.map((s, i) => (beat >= (done[i] ?? 9) ? s : 'pending'))

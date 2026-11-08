@@ -6,11 +6,13 @@
 export const COMPANY = {
   product: 'Kuinn',
   legalName: 'Maniacult Technology Pvt Ltd',
-  addressLines: ['RZ H-74, Street 9', 'Raghu Nagar, New Delhi 110045', 'India'],
+  addressLines: ['RZ H\u201174, Street 9', 'Raghu Nagar, New\u00a0Delhi\u00a0110045', 'India'],
   email: 'mukul@kuinn.in',
   phone: '+91 87004 24741',
   phoneHref: 'tel:+918700424741',
   website: 'https://kuinn.in',
 } as const
 
+/** U+2011 in "H-74" is a non-breaking hyphen and "New Delhi 110045" keeps non-breaking spaces, so
+ *  neither splits across lines. */
 export const COMPANY_ADDRESS = COMPANY.addressLines.join(', ')

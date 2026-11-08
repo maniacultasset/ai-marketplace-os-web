@@ -18,6 +18,7 @@ import { Icon, IconTile } from '@/components/la/icons'
 import { StatusChip } from '@/components/la/status-chip'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { useCheckSignupStatus, useCreateSignup } from '@/features/signup-admin/api'
@@ -374,8 +375,8 @@ function LiveStatus({ creds }: { creds: SignupStatusBody }) {
       <div aria-live="polite" className="mt-3">
         {check.isPending && !result ? (
           <div className="flex flex-col gap-2" aria-label="Checking status…">
-            <div className="h-4 w-2/3 animate-pulse rounded bg-subtle" />
-            <div className="h-4 w-1/2 animate-pulse rounded bg-subtle" />
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-4 w-1/2" />
           </div>
         ) : error ? (
           <FormAlert message={error.message} reference={error.ref} />
