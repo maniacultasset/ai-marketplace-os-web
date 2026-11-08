@@ -238,6 +238,15 @@ export const attrText = (p: Product, key: string): string | null => {
   return typeof v === 'string' && v.trim() ? v.trim() : typeof v === 'number' ? String(v) : null
 }
 
+/**
+ * A variant's colour or size: its own axis (SI8 `variant_attributes`) first, then the fact of the
+ * same name (older backends send only `attributes.size`).
+ */
+export const variantAxis = (p: Product, key: 'color' | 'size'): string | null => {
+  const own = p.variant_attributes?.[key]
+  return typeof own === 'string' && own.trim() ? own.trim() : attrText(p, key)
+}
+
 export const matrixKey = (colour: string | null, size: string) => `${colour ?? ''}\u0000${size}`
 
 export function variantMatrix(variants: readonly Product[]): VariantMatrix {
@@ -246,8 +255,8 @@ export function variantMatrix(variants: readonly Product[]): VariantMatrix {
   const cells = new Map<string, Product>()
   const none: VariantMatrix = { colours: [], sizes: [], cells: new Map(), loose: [...variants] }
   for (const v of variants) {
-    const size = attrText(v, 'size')
-    const colour = attrText(v, 'color')
+    const size = variantAxis(v, 'size')
+    const colour = variantAxis(v, 'color')
     // A grid needs sizes as columns; a colour-only family is a plain list.
     if (!size) return none
     const key = matrixKey(colour, size)

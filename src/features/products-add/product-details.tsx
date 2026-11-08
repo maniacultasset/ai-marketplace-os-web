@@ -8,7 +8,8 @@
  */
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { isApiError } from '@/api/errors'
-import { Banner, CardHead, CONCEPT_ICON, fieldHintId, Icon, IconGlyph, LaCard, LaField, SourceBadge, TagChip } from '@/components/la'
+import { Banner, CardHead, CONCEPT_ICON, fieldHintId, Icon, IconGlyph, LaCard, LaField, SourceBadge, StatusChip, TagChip } from '@/components/la'
+import { brandView, GENDER_LABEL, hasAudience, hasBrandName, photoReadView, variantAxes } from '@/features/products/audience'
 import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -85,6 +86,7 @@ export function ProductDetailsCard({
   variants = [],
   source,
   onEdit,
+  categoryAction,
 }: {
   product: ProductDetail
   isVariant: boolean
@@ -94,8 +96,13 @@ export function ProductDetailsCard({
   variants?: readonly BarcodeHolder[]
   source: ManufacturerSource
   onEdit?: () => void
+  /** "Change category" (SI9 recategorize), once the product has listings. */
+  categoryAction?: ReactNode
 }) {
   const a = product.attributes ?? {}
+  const brand = brandView(product)
+  const axes = isVariant ? variantAxes(product) : []
+  const photoRead = product.photo_read ? photoReadView(product.photo_read) : null
   const text = (k: string) => {
     const v = a[k]
     return typeof v === 'string' ? v.trim() : v == null ? '' : formatAttributeValue(v, product.attribute_literals[k])
@@ -137,8 +144,25 @@ export function ProductDetailsCard({
         <dl className={cn('mt-4 text-small', KV_GRID)}>
           <Row k="Category">
             {humanizeSlug(product.category)} <SourceBadge source={{ kind: 'you' }} />
+            {categoryAction}
           </Row>
           {isVariant ? null : <Row k="Style number">{product.style_number ? <span className="font-mono">{product.style_number}</span> : <Missing />}</Row>}
+          {axes.map((x) => (
+            <Row key={x.key} k={x.label} attr={`variant.${x.key}`}>
+              <span data-testid={`variant-axis-${x.key}`}>{x.value}</span>
+            </Row>
+          ))}
+          {hasBrandName(product) ? (
+            <Row k="Brand" attr="brand_name">
+              {brand.name ? <span data-testid="product-brand">{brand.name}</span> : <Missing>Your store name</Missing>}
+              {brand.inherited ? <SourceBadge source={{ kind: 'brand-profile' }} /> : null}
+            </Row>
+          ) : null}
+          {hasAudience(product) && !isVariant ? (
+            <Row k="Audience" attr="gender">
+              {product.gender ? <span data-testid="product-gender">{GENDER_LABEL[product.gender]}</span> : <Missing>Needed for Amazon</Missing>}
+            </Row>
+          ) : null}
           <Row k="Barcode" attr="identifier">
             {product.product_identifier ? (
               <span className="font-mono tabular-nums" data-testid="product-barcode">
@@ -235,6 +259,12 @@ export function ProductDetailsCard({
                 ))}
               </tbody>
             </table>
+          </div>
+        ) : null}
+        {photoRead ? (
+          <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line pt-4 text-small" data-testid="photo-read">
+            <StatusChip status={photoRead.chip}>{photoRead.label}</StatusChip>
+            <span className="text-ink-2">{photoRead.detail}</span>
           </div>
         ) : null}
         <PhotoFactsGroup product={product} rows={photoRows} />

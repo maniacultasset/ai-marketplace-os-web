@@ -3,14 +3,11 @@
  * paused (its trial ended or Kuinn staff paused it). Never "wrong password": the person did
  * nothing wrong, so the screen says what happened and the one next step.
  */
-import { isApiError } from '@/api/errors'
 import { IconTile } from '@/components/la/icons'
 import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
 import { SUPPORT_EMAIL, supportMailto } from '@/lib/support'
 import { AuthCard, AuthFrame } from './auth-frame'
-
-export const isTenantSuspended = (e: unknown) => isApiError(e) && e.type === 'TENANT_SUSPENDED'
 
 export function SuspendedCard({ reference, onBack }: { reference: string | null; onBack: () => void }) {
   const body = reference ? `My brand's access is paused. Reference: ${reference}` : "My brand's access is paused."

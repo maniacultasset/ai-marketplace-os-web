@@ -20,7 +20,8 @@ const BY_MARKETPLACE: Record<MarketplaceState, ChipView> = {
   pending_review: { status: 'working', label: 'In marketplace review' },
   live: { status: 'live', label: 'Live' },
   partially_live: { status: 'partly-live', label: 'Partly live' },
-  inactive: { status: 'not-listed', label: 'Inactive' },
+  // SI9: published and inactive = Amazon has the product page (ASIN) but it is not buyable yet.
+  inactive: { status: 'working', label: 'Live, not buyable yet' },
   rejected: { status: 'error', label: 'Rejected' },
   removed: { status: 'not-listed', label: 'Removed' },
 }
@@ -35,6 +36,14 @@ const BY_STATUS: Record<Exclude<ListingStatus, 'published'>, ChipView> = {
   blocked: { status: 'blocked', label: 'Blocked' },
   failed: { status: 'error', label: 'Error' },
 }
+
+/** SI9: on the marketplace (it has its ID) but not buyable yet. */
+export const isNotBuyable = (l: { status: ListingStatus; marketplace_state: MarketplaceState }) =>
+  l.status === 'published' && l.marketplace_state === 'inactive'
+
+/** The one next step for "Live, not buyable yet". */
+export const NOT_BUYABLE_NEXT =
+  'Amazon made the product page but is not selling it yet. This often clears within a day. If it does not, check price, stock and any listing issue in Seller Central, then check status here.'
 
 export function listingChip(l: { status: ListingStatus; marketplace_state: MarketplaceState }): ChipView {
   if (l.status === 'published') return BY_MARKETPLACE[l.marketplace_state]

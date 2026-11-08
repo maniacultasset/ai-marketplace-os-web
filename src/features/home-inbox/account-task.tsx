@@ -34,7 +34,11 @@ import { useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
 import { toastError } from '@/lib/toast'
 import { useTaskIssues } from './api'
+import { CloseTaskActions } from './close-task'
+import { supportsClose } from './close-task-api'
 import { CodeBlock } from './parts'
+import { AI_PAUSED_REASON } from '@/features/ai-credit/model'
+import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
 
 export function AccountTask({ task, kind, remaining }: { task: Task; kind: AccountReviewKind; remaining: number }) {
   const keys = useKeys()
@@ -79,7 +83,7 @@ export function AccountTask({ task, kind, remaining }: { task: Task; kind: Accou
         </>
       )}
 
-      <p className="text-caption text-ink-3">You can’t close this from here yet.</p>
+      {supportsClose(task) ? <CloseTaskActions task={task} /> : <p className="text-caption text-ink-3">You can’t close this from here yet.</p>}
       {remaining > 0 ? <p className="text-center text-small text-ink-3 lg:hidden">{remaining} more after this</p> : null}
     </div>
   )
@@ -138,7 +142,9 @@ function RegenerateAction({ listing }: { listing: ListingDetail }) {
   const navigate = useNavigate()
   const regenerate = useRegenerateListing(listing.id)
   const key = useIntentKey()
-  const state = listingActions({ listing, validation: listing.validation, can, publishBuilt: BUILT['listings.publish'] }).regenerate
+  const paused = useAiPaused()
+  const base = listingActions({ listing, validation: listing.validation, can, publishBuilt: BUILT['listings.publish'] }).regenerate
+  const state = paused && base.show ? { show: true, enabled: false, reason: AI_PAUSED_REASON } : base
   return (
     <ActionButton
       state={state}

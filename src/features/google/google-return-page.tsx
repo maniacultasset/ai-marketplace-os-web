@@ -47,7 +47,8 @@ import { InviteGoogleAccept } from './invite-google'
 import { isCoarsePointer } from '@/lib/pointer'
 import { brandNameFrom, ownerNameFrom } from './prefill'
 import { captureReturn, completeOnce, reasonFor, type GoogleErrorReason } from './return-state'
-import { isTenantSuspended, SuspendedCard } from '@/features/public/suspended-card'
+import { SuspendedCard } from '@/features/public/suspended-card'
+import { isTenantSuspended } from '@/features/public/suspended'
 import type { GoogleIntent } from './start'
 
 // ---------------------------------------------------------------------------------------------
