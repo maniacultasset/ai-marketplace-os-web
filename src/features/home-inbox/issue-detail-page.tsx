@@ -44,6 +44,7 @@ import {
   issueChip,
   issueClassLine,
   issueFixTrail,
+  issueCause,
   issueNextStep,
   issuePlainLabel,
   issueTimeline,
@@ -301,6 +302,7 @@ function IssueBody({ issue }: { issue: Issue }) {
           ['Affects', issueAffects(issue)],
           ['Class', issueClassLine(issue)],
           ['Next step', issueNextStep(issue)],
+          ...(issueCause(issue) ? ([['Cause', issueCause(issue)]] as [string, ReactNode][]) : []),
           ...(issue.value_submitted ? ([['Value sent', <code key="v" className="font-mono text-caption">{issue.value_submitted}</code>]] as [string, ReactNode][]) : []),
         ]}
       />

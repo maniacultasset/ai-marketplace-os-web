@@ -12,7 +12,9 @@ import {
   inboxStatuses,
   inProgressTile,
   isCategoryIssue,
+  issueCause,
   issueChip,
+  issueLane,
   issueFixTrail,
   issueNextStep,
   issuePlainLabel,
@@ -535,5 +537,64 @@ describe('greeting', () => {
   it('falls back to Home without a name', () => {
     expect(greeting(null, 9)).toBe('Home')
     expect(greeting('   ', 9)).toBe('Home')
+  })
+})
+
+describe('SI11 lanes: who settles an issue', () => {
+  type Lane = NonNullable<Issue['lane']>
+  const open = (lane: Lane, marketplace: Issue['marketplace'] = 'amazon') => ({ status: 'open' as const, severity: 'error' as const, retry_class: 'user_action' as const, lane, marketplace })
+
+  it('one label per lane while open', () => {
+    const cases: [Lane, string, string][] = [
+      ['auto_repair', 'Kuinn is fixing', 'working'],
+      ['auto_content', 'Kuinn is fixing', 'working'],
+      ['ai_field', 'Kuinn is rewriting', 'working'],
+      ['retry', 'Trying again', 'working'],
+      ['seller', 'Needs you', 'needs-you'],
+      ['marketplace', 'Marketplace', 'paused'],
+      ['staff', 'Kuinn team', 'working'],
+    ]
+    for (const [lane, label, status] of cases) expect(issueChip(open(lane)), lane).toEqual({ status, label })
+  })
+
+  it('the next step says who acts, in plain words', () => {
+    expect(issueNextStep(open('ai_field'))).toBe('Kuinn is rewriting this field. A teammate approves the new text before it is sent.')
+    expect(issueNextStep(open('seller'))).toMatch(/^Needs your answer/)
+    expect(issueNextStep(open('marketplace'))).toBe('Only Amazon can approve this. Follow the step in the task, then resume.')
+    expect(issueNextStep(open('staff'))).toBe('Our team is checking this. Nothing is needed from you yet.')
+    // Only a value-format repair goes out again on its own; a text change waits for a teammate.
+    expect(issueNextStep(open('auto_repair'))).toMatch(/only how this value is sent to Amazon/)
+    expect(issueNextStep(open('auto_content'))).toMatch(/A teammate approves the change before it is sent/)
+  })
+
+  it('"Fixed for you" once Kuinn closed it', () => {
+    expect(issueChip({ status: 'auto_fixed', severity: 'error', resolution: 'deterministic_fix', lane: 'auto_repair', marketplace: 'amazon' })).toEqual({ status: 'live', label: 'Fixed for you' })
+    expect(issueChip({ status: 'resolved', severity: 'error', resolution: 'ai_correction', lane: 'ai_field', marketplace: 'amazon' }).label).toBe('Fixed for you')
+    expect(issueNextStep({ status: 'resolved', resolution: 'ai_correction', retry_class: 'ai_correct', lane: 'ai_field', marketplace: 'amazon' })).toMatch(/teammate approves the new text/)
+  })
+
+  it('a person closing it keeps today\'s label', () => {
+    expect(issueLane({ status: 'resolved', resolution: 'human_answer', lane: 'seller', marketplace: 'amazon' })).toBeNull()
+    expect(issueChip({ status: 'resolved', severity: 'error', resolution: 'human_answer', lane: 'seller', marketplace: 'amazon' }).label).toBe('Resolved')
+  })
+
+  it('a missing lane (an older API) falls back to today\'s label', () => {
+    expect(issueChip({ status: 'open', severity: 'error', lane: null })).toEqual({ status: 'needs-you', label: 'Needs you' })
+    expect(issueChip({ status: 'auto_fixed', severity: 'error' }).label).toBe('Auto-fixed')
+    expect(issueNextStep({ status: 'open', retry_class: 'user_action' })).toBe('Needs a person. Retrying alone will not fix it.')
+  })
+
+  it('an unknown future lane reads as our team, never as fixed', () => {
+    expect(issueChip({ status: 'open', severity: 'error', lane: 'brand_new' as Lane, marketplace: 'amazon' }).label).toBe('Kuinn team')
+  })
+
+  it('never claims Flipkart publishing: the marketplace lane names who approves', () => {
+    expect(issueNextStep(open('marketplace', 'flipkart'))).toBe('Only Flipkart can approve this. Follow the step in the task, then resume.')
+  })
+
+  it('cause in plain words', () => {
+    expect(issueCause({ cause: 'seller_fact', marketplace: 'amazon' })).toBe('A product fact')
+    expect(issueCause({ cause: 'mapping', marketplace: 'amazon' })).toBe('How the value is sent to Amazon')
+    expect(issueCause({ cause: null })).toBeNull()
   })
 })

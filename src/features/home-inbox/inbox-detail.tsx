@@ -34,6 +34,7 @@ import {
   issueChip,
   issueClassLine,
   issueFixTrail,
+  issueCause,
   issueNextStep,
   issuePlainLabel,
   issueTitle,
@@ -409,6 +410,7 @@ function IssuePane({ issue, position }: { issue: Issue; position: string | null 
             ['Affects', issueAffects(issue)],
             ['Class', issueClassLine(issue)],
             ['Next step', issueNextStep(issue)],
+            ...(issueCause(issue) ? ([['Cause', issueCause(issue)]] as [string, ReactNode][]) : []),
             ['Seen', <span key="seen">{issue.occurrences > 1 ? `${issue.occurrences} times, last ` : ''}<Ago iso={issue.last_seen_at} /></span>],
           ]}
         />
