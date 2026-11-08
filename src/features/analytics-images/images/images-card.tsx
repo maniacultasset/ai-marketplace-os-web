@@ -42,7 +42,7 @@ import {
 import { ALL_COLOURS, colourGroups, colourHasMain, type ColourGroup, type ColourSource } from './colour-groups'
 import { uploadImage } from './upload'
 import { useImageCandidates } from './candidates-api'
-import { aiLimitHit, keptOriginals, openCandidates, originBadge, supportsCandidates, type CandidateKind } from './candidates-model'
+import { aiLimitHit, candidatesUnsupported, keptOriginals, openCandidates, originBadge, type CandidateKind } from './candidates-model'
 import { CandidateBlock, OriginBadges } from './candidate-review'
 import { useCandidateSession } from './candidate-session'
 
@@ -161,10 +161,12 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
     if (slot === 'main' && created.some((u) => u.stage.kind !== 'invalid')) setSlot('secondary')
   }
 
-  // Image candidates (SI7): only against a backend whose product read carries `fixes`/`origin`.
+  // Image candidates (SI7). The list call says whether the backend has them: a 404 or 405 means
+  // it predates them, so nothing shows. The size chart waits for a 200 (a product may have no photos).
   const details = product.image_details ?? []
-  const withCandidates = live && supportsCandidates(details)
-  const candidates = useImageCandidates(product.id, withCandidates)
+  const candidates = useImageCandidates(product.id, live)
+  const withCandidates = live && !candidatesUnsupported(candidates.error)
+  const candidatesKnown = live && candidates.isSuccess
   const session = useCandidateSession()
   const canMake = can(OP_ACTION['POST /products/{product_id}/image-candidates'])
   const aiLimit = aiLimitHit(candidates.data)
@@ -192,15 +194,19 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
     ) : null
   const rowExtras = (imageId: string) => {
     const d = detailById.get(imageId)
+    const label = originBadge(d)
     return {
-      badges: <OriginBadges label={originBadge(d)} kept={kept.has(imageId)} />,
+      // The product read is the truth for the slot: a demoted main's cached report may still say main.
+      knownSlot: d?.slot,
+      acceptedJob: session.accepted.get(imageId),
+      badges: label || kept.has(imageId) ? <OriginBadges label={label} kept={kept.has(imageId)} /> : null,
       extra: d?.slot === 'main' ? fixesBlock(imageId, d.fixes ?? []) : null,
     }
   }
   const sizeChartKinds: CandidateKind[] =
     !product.parent_product_id && (product.size_chart?.rows.length ?? 0) > 0 ? ['size_chart'] : []
   const showSizeChart =
-    withCandidates && ((canMake && sizeChartKinds.length > 0) || openCandidates(candidates.data, null, session.hidden).length > 0)
+    candidatesKnown && ((canMake && sizeChartKinds.length > 0) || openCandidates(candidates.data, null, session.hidden).length > 0)
 
   const dismiss = (localId: string) => setUploads((list) => list.filter((u) => u.localId !== localId))
 
@@ -309,6 +315,10 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         </ul>
       ) : null}
 
+      {[...session.accepted].map(([imageId, jobId]) => (
+        <AcceptedImageWatcher key={jobId} imageId={imageId} jobId={jobId} productId={product.id} />
+      ))}
+
       {showSizeChart ? (
         <section className="border-t pt-3" aria-label="Size chart image" data-testid="size-chart-image">
           <h3 className="px-5 pb-2 font-sans text-small font-semibold text-ink">Size chart image</h3>
@@ -317,6 +327,22 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
       ) : null}
     </Card>
   )
+}
+
+/**
+ * Follows the check job of an image made by a use, even before the product read lists it, then
+ * reads the product and the image's report again.
+ */
+function AcceptedImageWatcher({ imageId, jobId, productId }: { imageId: string; jobId: string; productId: string }) {
+  const keys = useKeys()
+  const qc = useQueryClient()
+  useJobPolling(jobId, {
+    onTerminal: () => {
+      void qc.invalidateQueries({ queryKey: keys.images.report(imageId) })
+      void qc.invalidateQueries({ queryKey: keys.products.detail(productId) })
+    },
+  })
+  return null
 }
 
 /** One colour's images: a quiet heading with its count, then its rows (or a one-line empty note). */
@@ -530,6 +556,8 @@ function ImageRow({
   onDelete,
   badges,
   extra,
+  knownSlot,
+  acceptedJob,
 }: {
   imageId: string
   storageKey?: string
@@ -544,6 +572,10 @@ function ImageRow({
   badges?: ReactNode
   /** The image fixes and their review, under the row (main images, SI7). */
   extra?: ReactNode
+  /** The slot from the product read. */
+  knownSlot?: ImageSlot
+  /** The check job of an image made by a use this visit. */
+  acceptedJob?: string
 }) {
   const keys = useKeys()
   const qc = useQueryClient()
@@ -563,7 +595,7 @@ function ImageRow({
     }
   }
   const report = useQuery(reportQuery(keys, imageId, live))
-  const jobId = upload?.stage.kind === 'accepted' ? upload.stage.jobId : null
+  const jobId = (upload?.stage.kind === 'accepted' ? upload.stage.jobId : null) ?? acceptedJob ?? null
   const polling = useJobPolling(report.data?.compliance_status === 'pending' ? jobId : null, {
     onTerminal: () => {
       void qc.invalidateQueries({ queryKey: keys.images.report(imageId) })
@@ -571,7 +603,7 @@ function ImageRow({
     },
   })
   const reports = report.data ? marketplaceReports(report.data) : []
-  const slot = reports[0]?.slot ?? upload?.slot
+  const slot = knownSlot ?? reports[0]?.slot ?? upload?.slot
   const title = slot ? SLOT_LABEL[slot] : 'Image'
 
   return (
@@ -579,18 +611,20 @@ function ImageRow({
       <Collapsible open={open} onOpenChange={setOpen}>
         <div className="flex min-h-16 items-center gap-3 px-5 py-3">
           <Thumb src={upload?.previewUrl} alt={upload ? `${title} image ${upload.file.name}` : ''} />
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1" data-testid="image-meta">
             {report.isPending && live && !slot ? (
               <Skeleton className="my-0.5 h-4 w-24" />
             ) : (
-              <p className="truncate text-sm font-medium">{title}</p>
+              <p className="truncate text-sm font-medium" data-testid="image-title">
+                {title}
+              </p>
             )}
             <p className="truncate font-mono text-xs text-muted-foreground" title={storageKey ?? imageId}>
               {imageId}
             </p>
+            {badges ? <div className="mt-1.5 flex flex-wrap gap-1.5">{badges}</div> : null}
           </div>
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-            {badges}
+          <div className="flex shrink-0 items-center gap-2">
             {live && (report.isPending || !settled) ? (
               <Skeleton className="h-[22px] w-24 rounded-full" />
             ) : report.error ? (

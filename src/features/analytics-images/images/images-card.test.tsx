@@ -7,8 +7,20 @@ const uploadImage = vi.fn()
 vi.mock('./upload', async (orig) => ({ ...(await orig<typeof import('./upload')>()), uploadImage: (...a: unknown[]) => uploadImage(...a) }))
 let live = false
 vi.mock('@/hooks/use-capabilities', () => ({ useCapability: () => live, useCapabilityProbe: () => ({ isPending: false, data: [] }) }))
-// Reports stay loading: these tests look at grouping and the upload call only.
-vi.mock('@/api/client', async (orig) => ({ ...(await orig<typeof import('@/api/client')>()), api: { GET: () => new Promise(() => {}) } }))
+// Reports stay loading unless a test answers a path: these look at grouping, the upload call and the fixes.
+const answers = new Map<string, () => Promise<unknown>>()
+const get = vi.fn((path: string, ..._rest: unknown[]) => answers.get(path)?.() ?? new Promise(() => {}))
+const post = vi.fn()
+vi.mock('@/api/client', async (orig) => ({
+  ...(await orig<typeof import('@/api/client')>()),
+  api: { GET: (path: string, ...rest: unknown[]) => get(path, ...rest), POST: (...a: unknown[]) => post(...a) },
+}))
+const ok = (body: unknown, status = 200) => Promise.resolve({ data: body, error: undefined, response: new Response(JSON.stringify(body), { status }) })
+const refuse = (status: number) => {
+  const error = { error: { type: 'NOT_FOUND', message: 'm', status, correlation_id: 'req-1', details: null, error_report: null } }
+  return Promise.resolve({ data: undefined, error, response: new Response(JSON.stringify(error), { status }) })
+}
+const CANDIDATES = '/products/{product_id}/image-candidates'
 vi.mock('@/lib/auth', async (orig) => ({ ...(await orig<typeof import('@/lib/auth')>()), useSession: () => ({ tenantId: 't1' }) }))
 vi.mock('@/lib/permissions', async (orig) => ({ ...(await orig<typeof import('@/lib/permissions')>()), useCan: () => () => true }))
 vi.mock('@/api/capabilities', async (orig) => ({ ...(await orig<typeof import('@/api/capabilities')>()), BUILT: new Proxy({}, { get: () => false }) }))
@@ -46,6 +58,9 @@ function setup(p: Parameters<typeof ProductImagesCard>[0]['product'] = product) 
 
 beforeEach(() => {
   live = false
+  answers.clear()
+  get.mockClear()
+  post.mockReset()
   uploadImage.mockReset()
   // Radix Select in jsdom.
   Element.prototype.hasPointerCapture ??= () => false
@@ -154,23 +169,52 @@ describe('ProductImagesCard image fixes (SI7)', () => {
     ],
   }
 
-  it('badges the AI image and the kept original, and holds the fixes while the list loads', () => {
+  it('badges the AI image and the kept original under the title, and holds the fixes while the list loads', () => {
     setup(withFixes)
     const rows = screen.getAllByTestId('image-row')
-    expect(within(rows[0]!).getByTestId('origin-badge').textContent).toContain('AI white background')
-    expect(within(rows[1]!).getByTestId('kept-badge')).toBeTruthy()
+    expect(within(within(rows[0]!).getByTestId('image-meta')).getByTestId('origin-badge').textContent).toContain('AI white background')
+    expect(within(within(rows[1]!).getByTestId('image-meta')).getByTestId('kept-badge')).toBeTruthy()
     expect(within(rows[0]!).getByLabelText('Loading image fixes')).toBeTruthy()
-    expect(screen.getByTestId('size-chart-image')).toBeTruthy()
+    // Support is not known yet: no size chart button before the list answers.
+    expect(screen.queryByTestId('size-chart-image')).toBeNull()
   })
 
-  it('offers no size chart image on a variant', () => {
+  it('titles each row from the product read, so a demoted main never reads as a second Main', () => {
+    setup(withFixes)
+    const rows = screen.getAllByTestId('image-row')
+    expect(rows.map((r) => r.querySelector('[data-testid="image-title"]')?.textContent)).toEqual(['Main', 'Secondary'])
+  })
+
+  it('offers the size chart image on a product with no photos once the list answers', async () => {
+    answers.set(CANDIDATES, () => ok({ items: [] }))
+    setup({ id: P, images: [], image_details: [], colourways: [], size_chart: { rows: [{ size: 'M' }] } })
+    expect(await screen.findByTestId('make-size_chart')).toBeTruthy()
+  })
+
+  it('offers no size chart image on a variant', async () => {
+    answers.set(CANDIDATES, () => ok({ items: [] }))
     setup({ ...withFixes, parent_product_id: P })
+    await waitFor(() => expect(get).toHaveBeenCalledWith(CANDIDATES, expect.anything()))
     expect(screen.queryByTestId('size-chart-image')).toBeNull()
   })
 
-  it('stays off against a backend without image candidates', () => {
-    setup({ ...product, colourways: [], size_chart: { rows: [{ size: 'M' }] }, image_details: product.image_details.map(({ origin: _o, ...d }) => d) as never })
+  it('stays off against a backend without image candidates', async () => {
+    answers.set(CANDIDATES, () => refuse(404))
+    setup({ ...withFixes, image_details: withFixes.image_details.map((d) => ({ ...d, fixes: undefined })) })
+    await waitFor(() => expect(screen.queryByLabelText('Loading image fixes')).toBeNull())
     expect(screen.queryByTestId('size-chart-image')).toBeNull()
-    expect(screen.queryByLabelText('Loading image fixes')).toBeNull()
+    expect(screen.queryByTestId('candidate-block')).toBeNull()
+  })
+
+  it('after a use, polls the new image job and reads the product again when it ends', async () => {
+    const ready = { id: 'c1', kind: 'fix', status: 'ready', source_image_id: I1, preview_url: 'https://s.test/c.png', source_preview_url: 'https://s.test/s.jpg', cost_usd: '0', created_at: new Date().toISOString() }
+    answers.set(CANDIDATES, () => ok({ items: [ready] }))
+    answers.set('/jobs/{job_id}', () => ok({ job_id: 'J9', status: 'succeeded', kind: 'image_compliance' }))
+    post.mockReturnValue(ok({ image_id: 'NEW', job_id: 'J9', poll_url: '/api/v1/jobs/J9', status: 'queued' }, 202))
+    setup(withFixes)
+    await userEvent.click(await screen.findByTestId('candidate-use'))
+    await waitFor(() =>
+      expect(get.mock.calls.some(([path, init]) => path === '/jobs/{job_id}' && (init as { params: { path: { job_id: string } } }).params.path.job_id === 'J9')).toBe(true),
+    )
   })
 })
