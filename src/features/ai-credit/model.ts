@@ -19,7 +19,7 @@ export const AI_PAUSED_CODES = ['AI_CREDIT_EXHAUSTED', 'AI_PROVIDER_KEY_INVALID'
 /** The one sentence everywhere the pause shows (banner, disabled generate buttons). */
 export const AI_PAUSED_TEXT = 'AI drafting is paused. Your work is saved.'
 /** Tooltip on a generate button while paused. */
-export const AI_PAUSED_REASON = 'AI drafting is paused for now. Your products and drafts are saved, and our team is on it.'
+export const AI_PAUSED_REASON = 'AI drafting is paused. It starts again once AI is back, and your products and drafts are saved.'
 
 export function isAiPausedError(e: unknown): boolean {
   return isApiError(e) && (AI_PAUSED_CODES as readonly string[]).includes(e.type)

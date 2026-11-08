@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/errors'
-import { aiPaused, CREDIT_STATE, isAiPausedError, trialDaysLeft, trialLabel, trialTone, usd } from './model'
+import { AI_PAUSED_REASON, aiPaused, CREDIT_STATE, isAiPausedError, trialDaysLeft, trialLabel, trialTone, usd } from './model'
 
 const err = (type: string, status = 503) => new ApiError({ type: type as never, status, message: 'x' })
 
@@ -11,6 +11,13 @@ describe('isAiPausedError', () => {
     // The platform daily cap is a different, timed message.
     expect(isAiPausedError(err('BUDGET_EXCEEDED', 429))).toBe(false)
     expect(isAiPausedError(new Error('x'))).toBe(false)
+  })
+})
+
+describe('pause copy', () => {
+  it('promises no person, only that drafting resumes', () => {
+    expect(AI_PAUSED_REASON).toBe('AI drafting is paused. It starts again once AI is back, and your products and drafts are saved.')
+    expect(AI_PAUSED_REASON).not.toMatch(/team|—/)
   })
 })
 

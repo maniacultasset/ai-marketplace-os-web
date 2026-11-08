@@ -47,7 +47,7 @@ describe('ListOnButton', () => {
     s.paused = true
     view('amazon')
     expect(screen.getByTestId('list-on-amazon').getAttribute('aria-disabled')).toBe('true')
-    expect(screen.getByText(/AI drafting is paused for now/)).toBeTruthy()
+    expect(screen.getByText(/AI drafting is paused. It starts again once AI is back/)).toBeTruthy()
     s.paused = false
   })
 })
