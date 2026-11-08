@@ -12,9 +12,9 @@ const WHITE = '44444444-4444-4444-8444-444444444442'
 const product = (over: Partial<ColourSource> = {}): ColourSource => ({
   images: [key(1), key(2), key(3)],
   image_details: [
-    { image_id: id(1), slot: 'main', position: 0, status: 'ready', compliance_status: 'passed' },
-    { image_id: id(2), slot: 'main', position: 0, status: 'ready', compliance_status: 'passed', colourway_id: BLACK },
-    { image_id: id(3), slot: 'secondary', position: 1, status: 'ready', compliance_status: 'pending', colourway_id: BLACK },
+    { image_id: id(1), slot: 'main', position: 0, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' },
+    { image_id: id(2), slot: 'main', position: 0, status: 'ready', origin: 'seller' as const, compliance_status: 'passed', colourway_id: BLACK },
+    { image_id: id(3), slot: 'secondary', position: 1, status: 'ready', origin: 'seller' as const, compliance_status: 'pending', colourway_id: BLACK },
   ],
   colourways: [
     { id: BLACK, colour: 'Black', colour_sku: 'BLK' },
