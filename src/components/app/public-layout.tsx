@@ -50,7 +50,7 @@ export function PublicFooter() {
       <div className="mx-auto grid max-w-[1200px] gap-8 px-4 pt-10 pb-8 text-small text-ink-2 md:grid-cols-[minmax(0,1fr)_auto] md:px-8">
         <div className="flex max-w-[44ch] flex-col gap-3">
           <Wordmark />
-          <p>Amazon and Flipkart listings, checked against each marketplace’s rules and approved by your team.</p>
+          <p>One catalog for every marketplace you sell on, checked against each marketplace’s rules and approved by your team.</p>
         </div>
         <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-1 md:justify-end md:self-start">
           <Link to="/" hash="pricing" className={footerLink}>
