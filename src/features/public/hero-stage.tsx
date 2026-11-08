@@ -1,8 +1,8 @@
 /**
- * The landing hero's visual. A real product photo of one kurta set sits on the left as the record
- * card; the Amazon listing Kuinn writes from it overlaps the photo on a fixed offset; the marketplace
- * rail lines up under both on the same column edges. Nothing inside is a control and nothing is app
- * data.
+ * The landing hero's visual. A real product photo of one kurta set, head to feet with nothing laid
+ * over it, sits on the left as the record card; the Amazon listing Kuinn writes from it overlaps the
+ * photo's right edge on a fixed offset; the marketplace rail lines up under both on the same column
+ * edges. Nothing inside is a control and nothing is app data.
  *
  * Motion (transform and opacity only, hero-story.ts holds every time):
  * - Entrance, once: the photo card, the Amazon card and the rail rise in showing the finished
@@ -17,21 +17,22 @@
  * - Pointer parallax from lg with a fine pointer, at most 6px, 2D translate only.
  * - Reduced motion: the finished state at once, no loop, no parallax, no ring.
  *
- * Layout never shifts: from md the stage has a fixed minimum height and every card is placed inside
- * it. Whatever changes is stacked in a reserved cell and only fades or moves.
+ * Layout never shifts: the photo frame has a fixed aspect (3:4 from md, 4:5 on phones), so the stage
+ * is as tall as the photo card and the Amazon card is placed inside it. Whatever changes is stacked
+ * in a reserved cell and only fades or moves.
  */
 import { domAnimation, LazyMotion, m, type MotionValue, useTransform } from 'motion/react'
 import { useEffect, useReducer, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { Icon } from '@/components/la/icons'
 import { MarketplaceTile } from '@/components/la/marketplace'
 import { SourceBadge } from '@/components/la/source-badge'
-import { StatusChip, TagChip } from '@/components/la/status-chip'
+import { CHIP_TONE, StatusChip, TagChip } from '@/components/la/status-chip'
 import { useMediaQuery, usePrefersReducedMotion } from '@/lib/use-media-query'
 import { usePointerParallax } from '@/lib/use-pointer-parallax'
 import { cn } from '@/lib/utils'
 import { MarketplaceRail } from './marketplace-rail'
 import { useHold, usePageVisible } from './use-loop-hold'
-import { BEATS, beatDelay, ENTER, ENTRANCE, FINAL, HERO_PHOTO, LAST, nextBeat, RESET_DIP_MS, STORY, storyAt, type StoryState } from './hero-story'
+import { BEATS, beatDelay, ENTER, ENTRANCE, FINAL, HERO_PHOTO, LAST, nextBeat, photoSrcSet, RESET_DIP_MS, STORY, storyAt, type StoryState } from './hero-story'
 
 /** --ease-out-calm, for motion's JS animations. */
 const CALM = [0.22, 1, 0.36, 1] as const
@@ -163,59 +164,46 @@ export function HeroRise({ delay, className, children }: { delay: number; classN
  * Cards
  * --------------------------------------------------------------------------------------------- */
 
-/** "White background · You approve": the cleaned photo is a proposal, never a done deal. One quiet pill. */
-function PhotoTag({ s, className }: { s: StoryState; className?: string }) {
+/**
+ * The record: the real product photo (the studio shot, then the white-background main image made
+ * from it) with nothing laid over it, and its facts underneath. The frame has a fixed aspect that
+ * matches the photo's head-to-feet crop, so the whole outfit always shows.
+ */
+function PhotoCard({ s, studio, eager }: { s: StoryState; studio: boolean; eager: boolean }) {
   return (
-    <m.span
-      initial={false}
-      animate={{ opacity: s.photoTag ? 1 : 0, y: s.photoTag ? 0 : 4 }}
-      transition={{ duration: 0.4, ease: CALM }}
-      className={cn(
-        'inline-flex h-7 items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 text-caption font-semibold whitespace-nowrap text-ink shadow-raised-sm',
-        className,
-      )}
-    >
-      <Icon name="image" size={14} className="text-ink-2" />
-      {STORY.photoTag}
-      <span aria-hidden className="text-ink-3">
-        ·
-      </span>
-      <span className="font-medium text-ink-2">{STORY.photoApproval}</span>
-    </m.span>
-  )
-}
-
-/** The record: the real product photo (studio shot, then the white-background main image) and its facts. */
-function PhotoCard({ s }: { s: StoryState }) {
-  return (
-    <div className="flex h-full flex-col overflow-hidden rounded-card border border-line bg-surface shadow-raised-md">
-      {/* Phones: a 4:3 crop on the garment. From md the photo fills whatever the card leaves above the facts. */}
-      <div className="relative aspect-[4/3] shrink-0 overflow-hidden bg-photo-white md:aspect-auto md:min-h-0 md:flex-1">
+    <div className="flex flex-col overflow-hidden rounded-card border border-line bg-surface shadow-raised-md">
+      <div className="relative aspect-[4/5] overflow-hidden bg-photo-white md:aspect-[3/4]">
         <img
           src={HERO_PHOTO.white}
+          srcSet={photoSrcSet(HERO_PHOTO.white, HERO_PHOTO.white2x)}
+          sizes={HERO_PHOTO.sizes}
           alt={STORY.photoAlt}
           width={HERO_PHOTO.width}
           height={HERO_PHOTO.height}
-          fetchPriority="high"
+          fetchPriority={eager ? 'high' : 'auto'}
           decoding="async"
           draggable={false}
-          className="absolute inset-0 size-full object-cover object-[50%_28%] md:object-top"
+          className="absolute inset-0 size-full object-cover"
         />
-        <m.img
-          src={HERO_PHOTO.studio}
-          alt=""
-          width={HERO_PHOTO.width}
-          height={HERO_PHOTO.height}
-          decoding="async"
-          draggable={false}
-          className="absolute inset-0 size-full object-cover object-[50%_28%] md:object-top"
-          initial={false}
-          animate={{ opacity: s.white ? 0 : 1 }}
-          transition={{ duration: 0.9, ease: CALM }}
-        />
-        <PhotoTag s={s} className="absolute bottom-3 left-3" />
+        {/* The studio shot is first seen when the loop starts, so it loads only once the loop is near. */}
+        {studio ? (
+          <m.img
+            src={HERO_PHOTO.studio}
+            srcSet={photoSrcSet(HERO_PHOTO.studio, HERO_PHOTO.studio2x)}
+            sizes={HERO_PHOTO.sizes}
+            alt=""
+            width={HERO_PHOTO.width}
+            height={HERO_PHOTO.height}
+            decoding="async"
+            draggable={false}
+            className="absolute inset-0 size-full object-cover"
+            initial={false}
+            animate={{ opacity: s.white ? 0 : 1 }}
+            transition={{ duration: 0.9, ease: CALM }}
+          />
+        ) : null}
       </div>
-      <div className="flex flex-col gap-2.5 border-t border-line p-4 max-md:pb-10">
+      <div className="flex flex-col gap-2.5 border-t border-line p-4">
         <p className="truncate text-small font-semibold text-ink">{STORY.product}</p>
         <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5 text-caption">
           {STORY.facts.map((f) => (
@@ -228,6 +216,14 @@ function PhotoCard({ s }: { s: StoryState }) {
           <dd className="col-span-3 flex min-w-0 items-center gap-2 font-medium text-ink">
             <span className="truncate">{STORY.photoFact.value}</span>
             <Swap on={s.confirmed} duration={0.36} off={<SourceBadge source={{ kind: 'photo' }} />} to={<SourceBadge source={{ kind: 'confirmed' }} />} />
+          </dd>
+          {/* The main photo: the white background is a proposal, so it waits for "You approve". */}
+          <dt className="text-ink-2">{STORY.photoLabel}</dt>
+          <dd className="col-span-3 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-medium text-ink">
+            <Swap on={s.white} duration={0.4} className="whitespace-nowrap" off={STORY.photoStudio} to={STORY.photoTag} />
+            <m.span initial={false} animate={{ opacity: s.photoTag ? 1 : 0 }} transition={{ duration: 0.4, ease: CALM }}>
+              <TagChip>{STORY.photoApproval}</TagChip>
+            </m.span>
           </dd>
         </dl>
       </div>
@@ -346,7 +342,8 @@ function AmazonCard({ s, dim }: { s: StoryState; dim: boolean }) {
                 <span className="text-caption text-ink-2">{STORY.findingCaption}</span>
               </span>,
               <span key="fixed" className="flex flex-col items-start gap-1.5">
-                <TagChip tone="brand" className="gap-1">
+                {/* A resolved fix reads as a success; blue stays the card's one status. */}
+                <TagChip className={cn('gap-1', CHIP_TONE.success)}>
                   <Icon name="check" size={14} />
                   {STORY.fixed}
                 </TagChip>
@@ -384,6 +381,8 @@ export function HeroStage({ hero }: { hero: RefObject<HTMLElement | null> }) {
   const { held, handlers } = useHold()
   const playing = !held && onScreen && pageVisible && !reduced
   const s = reduced ? FINAL : storyAt(player.beat)
+  // The studio shot first shows at the loop's reset, so it mounts once the entrance has handed over.
+  const studio = !reduced && player.beat !== ENTER
 
   // The restart: the listing's contents fade out over the last half of RESET_DIP_MS, the loop
   // starts again unseen, and they fade back in. A pause mid-fade brings them straight back.
@@ -425,7 +424,7 @@ export function HeroStage({ hero }: { hero: RefObject<HTMLElement | null> }) {
         tabIndex={0}
         aria-label={STORY.label}
         data-testid="hero-example"
-        className="@container/tray flex h-full min-w-0 flex-col gap-4 rounded-card outline-offset-4 xl:gap-5"
+        className="@container/tray flex min-w-0 flex-col gap-4 rounded-card outline-offset-4 xl:gap-5"
         {...handlers}
       >
         <p className="sr-only">{STORY.summary}</p>
@@ -435,12 +434,12 @@ export function HeroStage({ hero }: { hero: RefObject<HTMLElement | null> }) {
           data-testid="hero-stage"
           data-beat={reduced ? 'final' : player.beat}
           data-paused={playing ? undefined : ''}
-          className="group/stage relative flex flex-col md:block md:h-[460px] lg:h-auto lg:min-h-[420px] lg:flex-1 xl:min-h-[460px] 2xl:min-h-[500px]"
+          className="group/stage relative flex flex-col"
         >
-          {/* The record: full width on phones, the left 56% from md, top to bottom. */}
-          <m.div style={{ ...photoLayer, willChange: will }} className="relative z-0 md:absolute md:inset-y-0 md:left-0 md:w-[56%]">
-            <Enter play={rise} delay={ENTRANCE.record} from={{ y: 16 }} className="h-full">
-              <PhotoCard s={s} />
+          {/* The record: full width on phones, the left 56% from md. Its photo sets the stage's height. */}
+          <m.div style={{ ...photoLayer, willChange: will }} className="relative z-0 md:w-[56%]">
+            <Enter play={rise} delay={ENTRANCE.record} from={{ y: 16 }}>
+              <PhotoCard s={s} studio={studio} eager={lg} />
             </Enter>
           </m.div>
 
@@ -461,10 +460,11 @@ export function HeroStage({ hero }: { hero: RefObject<HTMLElement | null> }) {
             )}
           </div>
 
-          {/* The Amazon listing: in front, 24px into the photo on phones, 48px down and 8% over it from md. */}
+          {/* The Amazon listing: stacked on the same edges on phones; from md in front, on a fixed offset
+              over the photo's right edge, ending above the photo's facts. */}
           <m.div
             style={{ ...amazonLayer, willChange: will }}
-            className="relative z-20 -mt-6 ml-6 md:absolute md:top-12 md:right-0 md:m-0 md:w-[52%]"
+            className="relative z-20 mt-3 md:absolute md:top-8 md:right-0 md:mt-0 md:w-[52%] xl:top-12"
           >
             <Enter play={rise} delay={ENTRANCE.amazon} from={{ y: 24 }} duration={0.64}>
               <AmazonCard s={s} dim={dim} />

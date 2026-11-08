@@ -198,37 +198,53 @@ The landing's one bold moment. Everything else on the page stays quiet.
   with canvas only in its far corner (`radial-gradient(120% 110% at 100% 100%, canvas 0%, surface 60%)`), so the
   closing panel lifts off the page. Neutral, lit from the top left like the matte shadows. It is the only
   gradient in the product and falls back to flat under `prefers-contrast: more`.
-- **Grid.** Two columns on one row from lg. The stage stretches to the copy column: its top is the eyebrow's top
-  and the rail's bottom is the trust line's bottom (the trust line sits at `mt-auto`). Spacing stays on the 4/8
-  scale; cards are `rounded-card`, nothing else in the stage has its own radius.
+- **Grid.** Two columns on one row from lg. The copy column is one group centred against the stage, so every gap
+  in it keeps its own step (the trust line sits 32px under the buttons, never stretched to meet the rail). From md
+  the stage spans the full content width. Spacing stays on the 4/8 scale; cards are `rounded-card`, nothing else
+  in the stage has its own radius.
 - **Stage** (`features/public/hero-stage.tsx`, data in `hero-story.ts`). A real product photo (Unsplash License,
-  `public/landing/`, credits in `public/landing/CREDITS.md`) leads the record card, edge to edge, with a compact
-  facts footer. The photo crossfades from the studio shot to a white-background cutout of the same crop, and one
-  quiet pill says "White background · You approve". The Amazon card overlaps the photo on a fixed offset (48px
-  down, 8% over it from md; 24px on phones). No tray, no dashed ghosts and no floating chips at rest. Nothing is
-  labelled "Example": landing visuals are understood as illustrations. The figure has an accessible name and an
-  `sr-only` summary; the cards are `aria-hidden`. No card is a control. From md every card is absolutely placed
-  in a stage of fixed minimum height, and whatever changes is stacked in a reserved cell (the finding, then
-  "Fixed for you") and only fades or moves, so nothing shifts.
-- **Images.** WebP, width and height set. The white-background photo is the first frame, so it gets
-  `fetchpriority="high"` and is never lazy; the call-to-action thumbnails are `loading="lazy"`. Hero photo
-  under 70KB, thumbnails under 8KB.
+  `public/landing/`, credits in `public/landing/CREDITS.md`) leads the record card, head to feet in a fixed 3:4
+  frame (4:5 on phones), with nothing laid over it. The photo crossfades from the studio shot to a
+  white-background cutout of the same crop; the facts footer says it in words ("Photo: Studio shot", then "White
+  background" and a "You approve" chip). The Amazon card overlaps the photo's right edge on a fixed offset (32px
+  down, 48px from xl, 8% over it) and ends above the facts; on phones the cards stack on the same edges. No tray,
+  no dashed ghosts and no floating chips at rest. Nothing is labelled "Example": landing visuals are understood as
+  illustrations. The figure has an accessible name and an `sr-only` summary; the cards are `aria-hidden`. No card
+  is a control. The stage is as tall as the photo card (fixed aspect plus facts), and whatever changes is stacked
+  in a reserved cell (the finding, then "Fixed for you") and only fades or moves, so nothing shifts. "Fixed for
+  you" uses the success tone; blue stays the Amazon card's one status.
+- **Images.** WebP, width and height set, `srcset` 720w and 1080w (sharp on 3x phones). The white-background
+  photo is the first frame and never lazy; it gets `fetchpriority="high"` from lg, where it is above the fold.
+  The studio shot first shows at the loop's reset, so it mounts only once the entrance hands over. No preload in
+  `index.html`: it is served for every route (signed-in Home too) and the CSP forbids an inline script to scope
+  it. Hero photo 720w under 70KB, thumbnails under 8KB.
+- **Photo sources.** Three of the four photos are by IMANA, an Indian fashion brand that publishes on Unsplash.
+  Accepted: the Unsplash License allows commercial use with no attribution, the photo pages carry no brand
+  restriction, and the brand's name never appears in visible copy or alt text (credit stays in `CREDITS.md`). If
+  IMANA ever objects, swap the photos; the crop boxes and the beats do not depend on them.
 - **Rail** (`marketplace-rail.tsx`). A real list in three levels: Amazon full colour with ● Live, Flipkart half lit
-  (`NEXT_LOGO`) with ◐ Next, the four roadmap marketplaces grey (`MUTED_LOGO`) with ◌ On the roadmap. Only logo
-  images are dimmed. It lays out by the tray's width (container queries): one column, two, then one row of three.
+  (`NEXT_LOGO`) with ◐ Next, the roadmap cell with the Myntra and AJIO marks in one light grey (`MUTED_LOGO`) and ◌ On the roadmap.
+  Only logo images are dimmed. Every name is one line ("Myntra, AJIO and more" on screen, the full list for
+  screen readers), so the three cells share a baseline. It lays out by the tray's width (container queries): one
+  column, two, then one row of three.
 - **Motion.** Transform and opacity only, `--ease-out-calm`, `--dur-enter` 560, `--stagger-hero` 70. The h1 never
   waits; the copy lines rise 12px at 60/130/200ms. The stage enters once showing the finished listing, then loops
   every 10.8s: the studio photo holds 1.6s, then turns white, "From photo" to "Confirmed", field chips travel,
   checks tick, "Best" is flagged and removed, "Fixed for you", "Ready to approve", one ring on the live dot. The
   restart is a soft crossfade of the Amazon card's contents while the cards stay put. There are no play, pause or
-  replay controls (here or in How it works): the loop holds by itself while the pointer is over it, focus is
+  replay controls (here or in How it works): the loop holds by itself while a mouse is over it, keyboard focus is
   inside it (the figure is focusable), less than 40% of it is on screen or the tab is hidden, and resumes from
-  the same beat. Pointer parallax from lg with a fine pointer, at most 6px. No `aria-live`. Reduced motion shows
+  the same beat. Focus that follows a click or tap and a tap's emulated hover do not hold (`use-loop-hold.ts`);
+  a step clicked in How it works runs from its start.
+- **WCAG 2.2.2, accepted trade-off.** The user asked for no visible pause control. Hover and keyboard focus hold
+  the loop only while they last, so there is no lasting way to stop it short of reduced motion. Recorded here as
+  a deliberate product decision; the loop is calm (transform and opacity, no flashing) and stops off screen and
+  in hidden tabs. Pointer parallax from lg with a fine pointer, at most 6px. No `aria-live`. Reduced motion shows
   the finished listing at once, with no loop, parallax or ring.
 - **Final call to action** (`final-cta.tsx`). `rounded-stage` raised panel in the corner light field, led by the real
-  Amazon logo at 64px with a Live chip. From lg an inset well holds three listing slips, each with a real 48x60
-  product photo, offset and never rotated, that spread once after the panel's reveal (`cta-fan`); with reduced
-  motion they rest spread.
+  Amazon logo at 64px with a Live chip. From lg a column of three listing slips, each with a real 48x60 product
+  photo, on shared left and right edges with no well behind them, spreads once vertically after the panel's
+  reveal (`cta-fan`); with reduced motion they rest spread.
 - **Sections.** One reveal for every section below the hero (`use-reveal.ts`): the H2, the lede, then top-level
   items, never nested ones, and no scale ("pop") variant.
 

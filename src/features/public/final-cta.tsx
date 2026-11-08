@@ -1,13 +1,13 @@
 /**
  * The landing's final call to action: list your next collection on Amazon. The panel is the page's
  * last raised surface (canvas only in its far corner) and leads with the real Amazon logo, unchanged,
- * at 64px with a Live chip. From lg an inset well holds three listing slips, each with its real
- * product photo.
+ * at 64px with a Live chip. From lg a column of three listing slips sits beside it, each with its
+ * real product photo, all on the same left and right edges.
  *
  * Motion: the panel uses the page's one reveal (use-reveal.ts). Once it is shown, the slips spread
- * once from a stack, 70ms apart (`cta-fan` in index.css). They are offset, never rotated, so their
- * text stays crisp. Nothing loops. With reduced motion, or before the reveal hook runs, the slips
- * simply rest spread.
+ * once from a stack, 70ms apart (`cta-fan` in index.css). They move vertically only, never rotated,
+ * so their text stays crisp. Nothing loops. With reduced motion, or before the reveal hook runs, the
+ * slips simply rest spread.
  */
 import { Link } from '@tanstack/react-router'
 import { useRef, type CSSProperties } from 'react'
@@ -18,11 +18,6 @@ import { useRevealed } from '@/lib/use-reveal'
 import { cn } from '@/lib/utils'
 import { CTA_SLIPS } from './hero-story'
 
-const FAN = [
-  { x: '0px', y: '0px' },
-  { x: '8px', y: '12px' },
-  { x: '16px', y: '24px' },
-] as const
 
 export function FinalCta({ wrap, h2 }: { wrap: string; h2: string }) {
   const panel = useRef<HTMLDivElement>(null)
@@ -61,12 +56,13 @@ export function FinalCta({ wrap, h2 }: { wrap: string; h2: string }) {
             </div>
           </div>
 
-          <div aria-hidden className="rounded-card bg-canvas p-6 pr-10 pb-12 shadow-inset-md max-lg:hidden">
+          {/* No well around the slips: one column on shared left and right edges, spaced evenly. */}
+          <div aria-hidden className="max-lg:hidden">
             <ul className="cta-fan flex flex-col gap-3 [--stack:-92px]" data-fanned={fanned || undefined}>
               {CTA_SLIPS.map((slip, i) => (
                 <li
                   key={slip.name}
-                  style={{ '--i': i, '--x': FAN[i]!.x, '--y': FAN[i]!.y, zIndex: i } as CSSProperties}
+                  style={{ '--i': i, zIndex: i } as CSSProperties}
                   className="relative flex h-20 min-w-0 items-center gap-3 rounded-tile border border-line bg-surface py-2 pr-4 pl-2 shadow-raised-sm"
                 >
                   <img

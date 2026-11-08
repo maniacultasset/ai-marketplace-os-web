@@ -1,15 +1,17 @@
 /**
- * The script behind the landing page's "See how it works" demo (how-it-works-demo.tsx): one example
- * listing taken from import to Live, step by step. Pure data and timing so it can be tested on its
- * own. The example is the hero's kurta set (HERO_EXAMPLE), so the limits and the banned term are
- * the real seeded rules and every count is computed from the text, never typed.
+ * The script behind the landing page's "See how it works" demo (how-it-works-demo.tsx): one listing
+ * taken from import to Live, step by step. Pure data and timing so it can be tested on its own. The
+ * listing is the hero's kurta set (HERO_EXAMPLE, with the hero's photo), so the limits and the
+ * banned term are the real seeded rules and every count is computed from the text, never typed.
  */
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import type { IconSource } from '@/components/la/icons'
 import { HERO_EXAMPLE, heroTitleLength } from './model'
 
-/** Example-only details the hero does not carry. Shown under an "Example" label. */
+/** Details the hero does not carry: the SKU, price, CSV and the two people on the team. */
 export const DEMO = {
+  /** The hero's product photo, as the listing's thumbnail. */
+  photo: '/landing/slip-kurta-set-indigo.webp',
   sku: 'KS-104-IND-M',
   price: '₹1,899',
   file: 'kurta-sets.csv',
@@ -21,11 +23,11 @@ export const DEMO = {
 /** What the agent drafts in the Draft step. The title stays the one from the CSV. */
 export const DRAFT = {
   bullets: [
-    'Handloom cotton kurta in indigo, with a straight palazzo and a printed dupatta',
+    'Floral print cotton kurta in indigo, with a mandarin collar and matching straight pants',
     'Regular fit with three-quarter sleeves',
     'Easy to wear from office days to festive evenings',
   ],
-  description: 'Woven from breathable handloom cotton, this indigo set pairs a straight kurta with a palazzo and a printed dupatta.',
+  description: 'Made from breathable printed cotton, this indigo set pairs a straight kurta with a mandarin collar and matching straight pants.',
 } as const
 
 /** What Kuinn removes: the banned word up front, and the sleeve length and occasion at the end,
@@ -46,7 +48,7 @@ export interface RailStep {
   icon: IconSource
 }
 
-/** The rail: the six steps every listing takes, each one played by the example. */
+/** The rail: the six steps every listing takes, each one played by the demo listing. */
 export const RAIL: readonly RailStep[] = [
   { id: 'import', icon: 'upload', title: 'Import', body: 'Upload a CSV or add one product. Each row becomes a product with its sizes and colours.' },
   { id: 'draft', icon: 'spark', title: 'Draft', body: 'The agent writes the title, bullets and description in your brand’s voice.' },
@@ -61,10 +63,10 @@ export const SCENES: readonly SceneId[] = RAIL.map((r) => r.id)
 const fullLen = heroTitleLength()
 const fixedLen = [...FIXED_TITLE].length
 
-/** What the example shows at each step. Read out only when a person picks a step. */
+/** What the demo shows at each step. Read out only when a person picks a step. */
 export const NARRATION: Record<SceneId, string> = {
   import: `A row from ${DEMO.file} becomes one product with its SKU, title and price.`,
-  draft: `${DEMO.editor} starts the draft. Kuinn writes the bullets and description in your brand’s voice. This example keeps the title from the CSV, so you can watch the checks catch it.`,
+  draft: `${DEMO.editor} starts the draft. Kuinn writes the bullets and description in your brand’s voice. The title stays as it came in the CSV, so you can watch the checks catch it.`,
   check: `The rules check each field. The title is ${fullLen} characters, which is over Flipkart’s ${LIMIT}. It also uses the banned word “Best”.`,
   fix: `Kuinn removes “Best” and the sleeve and occasion words the bullets already cover. Each change is marked “Fixed for you”. At ${fixedLen} characters, every check passes.`,
   approve: `${DEMO.approver} reviews the fixes and approves. ${DEMO.editor} started the draft, so the approval has to come from someone else.`,
@@ -155,7 +157,7 @@ export interface Check {
   state: CheckState
 }
 
-/** The five checks the rules run on the example, as they stand at a scene and beat. */
+/** The five checks the rules run on the demo listing, as they stand at a scene and beat. */
 export const FIXED_LEN = fixedLen
 export const FULL_LEN = fullLen
 

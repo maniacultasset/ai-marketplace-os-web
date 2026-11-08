@@ -15,7 +15,10 @@ export const STORY = {
   ],
   /** Read from the photo, then confirmed by the seller. */
   photoFact: { label: 'Neckline', value: 'Mandarin collar' },
-  /** The cleaned main photo is a proposal: the seller approves it. */
+  /** The main photo row: the studio shot, then the white-background version Kuinn proposes. The
+   *  cleaned photo is a proposal: the seller approves it. */
+  photoLabel: 'Photo',
+  photoStudio: 'Studio shot',
   photoTag: 'White background',
   photoApproval: 'You approve',
   chips: ['Title', 'Bullets', 'Description'],
@@ -149,10 +152,20 @@ export const CTA_SLIPS = [
   { name: 'White floral kurta set', photo: '/landing/slip-kurta-white-floral.webp' },
 ] as const
 
-/** The hero photo: the studio shot and the white-background main image made from it (same crop). */
+/**
+ * The hero photo: the studio shot and the white-background main image made from it, both cropped
+ * to the same 3:4 head-to-feet box so the crossfade stays registered. 720w by default, 1080w for
+ * high-density phones.
+ */
 export const HERO_PHOTO = {
   studio: '/landing/kurta-set-indigo.webp',
+  studio2x: '/landing/kurta-set-indigo-1080.webp',
   white: '/landing/kurta-set-indigo-white.webp',
+  white2x: '/landing/kurta-set-indigo-white-1080.webp',
   width: 720,
-  height: 1046,
+  height: 960,
+  /** The photo card is the left 56% of the stage from md, full width below. */
+  sizes: '(min-width: 768px) 400px, calc(100vw - 32px)',
 } as const
+
+export const photoSrcSet = (one: string, two: string) => `${one} 720w, ${two} 1080w`

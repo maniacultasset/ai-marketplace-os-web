@@ -117,17 +117,52 @@ describe('hero stage', () => {
   })
 
   it('shows the real product photo, sized up front, the white-background version first', () => {
+    vi.useFakeTimers()
     setReduced(false)
+    vi.stubGlobal('IntersectionObserver', OnScreenObserver)
     render(<Hero />)
-    const imgs = [...screen.getByTestId('hero-stage').querySelectorAll('img[src^="/landing/"]')]
-    expect(imgs.map((i) => i.getAttribute('src'))).toEqual([HERO_PHOTO.white, HERO_PHOTO.studio])
-    for (const img of imgs) {
+    const imgs = () => [...screen.getByTestId('hero-stage').querySelectorAll('img[src^="/landing/"]')]
+    // The entrance shows only the white-background photo; the studio shot mounts once the loop is near.
+    expect(imgs().map((i) => i.getAttribute('src'))).toEqual([HERO_PHOTO.white])
+    act(() => vi.advanceTimersByTime(ENTER_READY_MS))
+    expect(imgs().map((i) => i.getAttribute('src'))).toEqual([HERO_PHOTO.white, HERO_PHOTO.studio])
+    for (const img of imgs()) {
       expect(img.getAttribute('width')).toBe(String(HERO_PHOTO.width))
       expect(img.getAttribute('height')).toBe(String(HERO_PHOTO.height))
+      expect(img.getAttribute('srcset')).toMatch(/ 720w, .+ 1080w$/)
       expect(img.getAttribute('loading')).toBeNull()
     }
-    expect(imgs[0]!.getAttribute('fetchpriority')).toBe('high')
-    expect(imgs[0]!.getAttribute('alt')).toBe(STORY.photoAlt)
+    // High priority only where the photo is above the fold (lg up); matchMedia says no here.
+    expect(imgs()[0]!.getAttribute('fetchpriority')).toBe('auto')
+    expect(imgs()[0]!.getAttribute('alt')).toBe(STORY.photoAlt)
+  })
+
+  it('never lays anything over the photo: the main photo state is a row in the facts', () => {
+    setReduced(true)
+    render(<Hero />)
+    const frame = screen.getByTestId('hero-stage').querySelector('img')!.parentElement!
+    expect(frame.children).toHaveLength(1)
+    const facts = screen.getByTestId('hero-stage').querySelector('dl')!.textContent
+    expect(facts).toContain(`${STORY.photoLabel}${STORY.photoStudio}${STORY.photoTag}${STORY.photoApproval}`)
+  })
+
+  it('does not hold for a click or a tap, only for a mouse hover or keyboard focus', () => {
+    vi.useFakeTimers()
+    setReduced(false)
+    vi.stubGlobal('IntersectionObserver', OnScreenObserver)
+    render(<Hero />)
+    const fig = screen.getByTestId('hero-example')
+    const paused = () => screen.getByTestId('hero-stage').hasAttribute('data-paused')
+    // A click focuses the figure; that alone is not a hold.
+    fireEvent.mouseDown(fig)
+    fireEvent.focus(fig)
+    fireEvent.mouseUp(fig)
+    expect(paused()).toBe(false)
+    fireEvent.blur(fig)
+    // A tap's emulated mouseenter is ignored too.
+    fireEvent.touchStart(fig)
+    fireEvent.mouseEnter(fig)
+    expect(paused()).toBe(false)
   })
 
   it('loops while on screen, and holds the beat while hovered or focused, then picks up again', () => {

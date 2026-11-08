@@ -5,8 +5,8 @@
  *
  * Plays only while at least 40% of the moving card is on screen and the tab is visible, and loops
  * with a calm hold on Live. There are no visible play controls: it holds still by itself (WCAG
- * 2.2.2) while the pointer is over the demo or focus is inside it, and the caret holds too. A step
- * a person picks while it holds is shown finished. The narration is announced only after a person
+ * 2.2.2) while a mouse is over the demo or keyboard focus is inside it, and the caret holds too. A
+ * step picked with a click runs from its start; one picked from the keyboard is shown finished. The narration is announced only after a person
  * picks a step, never on every autoplay beat. With reduced
  * motion (or no IntersectionObserver) nothing autoplays: it shows the finished state, each step can
  * be viewed on its own and changes are short dissolves. Motion is transform and opacity only.
@@ -115,7 +115,8 @@ function CardField({ label, value, filled, scan, d, className }: { label: string
       <p className="relative text-caption font-bold text-ink-2">{label}</p>
       <div className="relative mt-0.5 grid">
         <span aria-hidden className={cn('col-start-1 row-start-1 mt-1.5 h-2.5 w-24 rounded-full bg-subtle transition-opacity duration-300', filled ? 'opacity-0' : 'opacity-100')} />
-        <span className={cn('col-start-1 row-start-1', arrive(filled, '-translate-y-3'))} style={delay(filled ? d : 0)}>
+        {/* The CSV row lights first; the field fills just after it, so the source always leads. */}
+        <span className={cn('col-start-1 row-start-1', arrive(filled, '-translate-y-3'))} style={delay(filled ? d + 160 : 0)}>
           {value}
         </span>
       </div>
@@ -291,41 +292,54 @@ function Stage({ pos, playing }: { pos: Pos; playing: boolean }) {
 
       <div className="flex flex-col gap-4 p-4 md:p-5">
         {/* Product card */}
-        <div className="rounded-xl border border-line bg-canvas p-2 shadow-inset-sm">
-          {/* Under sm the marketplace icons move down to the length row, so the SKU keeps its full width. */}
-          <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] items-start gap-1 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto]">
-            <CardField label="SKU" filled={filled} scan={scanField === 'sku'} d={0} value={<code className="font-mono text-[12.5px] font-medium text-ink">{DEMO.sku}</code>} />
-            <CardField label="Price" filled={filled} scan={scanField === 'price'} d={90} value={<span className="text-small font-semibold text-ink tabular-nums">{DEMO.price}</span>} />
-            <div className="flex gap-1 px-2 pt-2 max-sm:hidden" aria-hidden>
-              <MarketplaceTile id="amazon" size="sm" />
-              <MarketplaceTile id="flipkart" size="sm" />
-            </div>
-          </div>
-          <CardField
-            label="Title"
-            filled={filled}
-            scan={scanField === 'title'}
-            d={180}
-            className="mt-1"
-            value={
-              <div className="grid">
-                {/* Holds the height of the longest title so nothing below jumps while it shortens. */}
-                <p aria-hidden className="invisible col-start-1 row-start-1 text-small leading-5">
-                  {HERO_EXAMPLE.title}
-                </p>
-                <p className="col-start-1 row-start-1 text-small leading-5 text-ink">
-                  <TitleText head={t.head} tail={t.tail} caret={t.caret} markBanned={markBanned} markOverflow={markOverflow} playing={playing} />
-                </p>
-              </div>
-            }
+        <div className="flex gap-3 rounded-xl border border-line bg-canvas p-2 shadow-inset-sm">
+          {/* The hero's product photo, so the page shows one product from top to bottom. */}
+          <img
+            src={DEMO.photo}
+            alt=""
+            width={160}
+            height={200}
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+            className="mt-1.5 ml-1 h-20 w-16 shrink-0 rounded-md border border-line bg-photo-white object-cover max-sm:hidden"
           />
-          <div className={cn('mt-1 flex flex-wrap items-center gap-2 px-2.5 pb-1', arrive(filled))} style={delay(filled ? 260 : 0)}>
-            <CountChip len={len} judged={judged} />
-            <span className="text-caption text-ink-2">{judged ? 'Flipkart’s limit for kurta sets' : 'Title length'}</span>
-            <span className="ml-auto flex gap-1 sm:hidden" aria-hidden>
-              <MarketplaceTile id="amazon" size="xs" />
-              <MarketplaceTile id="flipkart" size="xs" />
-            </span>
+          <div className="min-w-0 flex-1">
+            {/* Under sm the marketplace icons move down to the length row, so the SKU keeps its full width. */}
+            <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] items-start gap-1 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto]">
+              <CardField label="SKU" filled={filled} scan={scanField === 'sku'} d={0} value={<code className="font-mono text-[12.5px] font-medium text-ink">{DEMO.sku}</code>} />
+              <CardField label="Price" filled={filled} scan={scanField === 'price'} d={90} value={<span className="text-small font-semibold text-ink tabular-nums">{DEMO.price}</span>} />
+              <div className="flex gap-1 px-2 pt-2 max-sm:hidden" aria-hidden>
+                <MarketplaceTile id="amazon" size="sm" />
+                <MarketplaceTile id="flipkart" size="sm" />
+              </div>
+            </div>
+            <CardField
+              label="Title"
+              filled={filled}
+              scan={scanField === 'title'}
+              d={180}
+              className="mt-1"
+              value={
+                <div className="grid">
+                  {/* Holds the height of the longest title so nothing below jumps while it shortens. */}
+                  <p aria-hidden className="invisible col-start-1 row-start-1 text-small leading-5">
+                    {HERO_EXAMPLE.title}
+                  </p>
+                  <p className="col-start-1 row-start-1 text-small leading-5 text-ink">
+                    <TitleText head={t.head} tail={t.tail} caret={t.caret} markBanned={markBanned} markOverflow={markOverflow} playing={playing} />
+                  </p>
+                </div>
+              }
+            />
+            <div className={cn('mt-1 flex flex-wrap items-center gap-2 px-2.5 pb-1', arrive(filled))} style={delay(filled ? 420 : 0)}>
+              <CountChip len={len} judged={judged} />
+              <span className="text-caption text-ink-2">{judged ? 'Flipkart’s limit for kurta sets' : 'Title length'}</span>
+              <span className="ml-auto flex gap-1 sm:hidden" aria-hidden>
+                <MarketplaceTile id="amazon" size="xs" />
+                <MarketplaceTile id="flipkart" size="xs" />
+              </span>
+            </div>
           </div>
         </div>
 
@@ -344,8 +358,8 @@ function Stage({ pos, playing }: { pos: Pos; playing: boolean }) {
                   'grid grid-cols-[minmax(0,0.9fr)_minmax(0,2fr)_minmax(0,0.6fr)] gap-3 px-3 py-1.5 text-ink',
                   SPRING,
                   'transition-[opacity,transform,background-color]',
+                  // The row stays as the source of the card above; it lights while it is read.
                   scene === 'import' && b === 1 && 'bg-brand-bg',
-                  scene === 'import' && b >= 2 ? '-translate-y-4 opacity-0 motion-reduce:opacity-40' : 'translate-y-0 opacity-100',
                 )}
               >
                 <span className="truncate">{DEMO.sku}</span>
@@ -445,7 +459,7 @@ function Stage({ pos, playing }: { pos: Pos; playing: boolean }) {
                   </ul>
                 </div>
                 <div className={cn('col-start-1 row-start-1 self-start', arrive(allPass, 'translate-y-2'), 'motion-fade')}>
-                  <PanelTitle aside={<TagChip tone="brand" className="gap-1"><Icon name="check" size={14} />Fixed for you</TagChip>}>Findings</PanelTitle>
+                  <PanelTitle aside={<TagChip className={cn('gap-1', CHIP_TONE.success)}><Icon name="check" size={14} />Fixed for you</TagChip>}>Findings</PanelTitle>
                   <div className="flex items-start gap-3 rounded-tile border border-success-line bg-success-tint p-3.5">
                     <IconTile icon="check" tone="ok" size="sm" />
                     <div>
@@ -627,7 +641,7 @@ function Rail({ current, progress, onPick, playing }: { current: SceneId; progre
           )}
           style={{ width: thumb.w, height: thumb.h, transform: `translate3d(${thumb.x}px, ${thumb.y}px, 0)` }}
         >
-          {/* How far the example has got through this step. */}
+          {/* How far the demo has got through this step. */}
           <span
             className={cn('absolute inset-x-3 bottom-1 h-[2px] origin-left rounded-full bg-brand', playing ? 'transition-transform duration-300 ease-linear' : 'transition-none')}
             style={{ transform: `scaleX(${progress})` }}
@@ -665,7 +679,7 @@ export function HowItWorksDemo() {
   const canObserve = typeof IntersectionObserver !== 'undefined'
   const autoplay = canObserve && !reduced
   const [pos, setPos] = useState<Pos>(() => (autoplay ? START : FINAL))
-  const { held, handlers } = useHold()
+  const { held, focusHeld, releaseHover, handlers } = useHold()
   // Autoplay narration stays silent for screen readers; once a person picks a step, each step they
   // reach is announced.
   const [userActed, setUserActed] = useState(false)
@@ -701,9 +715,12 @@ export function HowItWorksDemo() {
   const pick = (s: SceneId) => {
     const i = SCENES.indexOf(s)
     setUserActed(true)
-    // Playing: run the step from its start. Held (a click or a key holds it) or reduced motion:
-    // show it finished.
-    setPos({ scene: i, beat: playing ? 0 : LAST_BEAT[s] })
+    // A click asks to watch the step: it lets go of the hover hold and runs the step from its start.
+    // Keyboard focus keeps holding (the visitor is reading), so then, as with reduced motion or off
+    // screen, the step is shown finished.
+    const willPlay = autoplay && inView && pageVisible && !focusHeld
+    releaseHover()
+    setPos({ scene: i, beat: willPlay ? 0 : LAST_BEAT[s] })
   }
 
   const step = RAIL.find((r) => r.id === scene) ?? RAIL[0]!
@@ -752,7 +769,8 @@ export function HowItWorksDemo() {
         </div>
       </div>
 
-      <figcaption id="demo-caption" className="max-w-[70ch] text-caption text-ink-2">
+      {/* On the card's content edge, wrapped so no word is left alone on a line. */}
+      <figcaption id="demo-caption" className="max-w-[72ch] px-4 text-caption text-pretty text-ink-2 md:px-5">
         Flipkart is shown so you can compare its rules with Amazon’s. Publishing to Flipkart is not switched on yet.
       </figcaption>
     </figure>

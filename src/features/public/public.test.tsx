@@ -63,14 +63,20 @@ describe('marketplace rail', () => {
     expect(container.querySelectorAll('li')).toHaveLength(3)
     expect(screen.getByTestId('rail-live').textContent).toBe('Amazon●Live')
     expect(screen.getByTestId('rail-next').textContent).toBe('Flipkart◐Next')
-    expect(screen.getByTestId('rail-roadmap').textContent).toBe('Myntra, AJIO, Meesho, Nykaa Fashion◌On the roadmap')
+    // One line on screen; the full list is what a screen reader hears.
+    const roadmap = screen.getByTestId('rail-roadmap')
+    expect(roadmap.querySelector('[aria-hidden]:not([data-slot])')!.textContent).toBe('Myntra, AJIO and more')
+    expect(roadmap.querySelector('.sr-only')!.textContent).toBe('Myntra, AJIO, Meesho, Nykaa Fashion')
+    expect(roadmap.textContent).toContain('◌On the roadmap')
     // The stages carry their own glyphs: never a dash, never "paused" bars, never "Coming soon".
     expect(container.textContent).not.toMatch(/[–—❚]|Coming soon/)
     // Only logo images are dimmed: Amazon full colour, Flipkart half lit, the roadmap grey.
     const tile = (id: string) => container.querySelector(`[data-slot="marketplace-tile"][data-marketplace="${id}"]`)!
     expect(tile('amazon').getAttribute('class')).not.toMatch(/\[&_img\]/)
     expect(tile('flipkart').getAttribute('class')).toContain('[&_img]:saturate-[.45]')
-    for (const id of ['myntra', 'ajio', 'meesho', 'nykaa']) expect(tile(id).getAttribute('class')).toContain('grayscale(1)')
+    // The roadmap shows the two light marks the name leads with, both in the one grey treatment.
+    for (const id of ['myntra', 'ajio']) expect(tile(id).getAttribute('class')).toContain('grayscale(1)')
+    expect(roadmap.querySelectorAll('[data-slot="marketplace-tile"]')).toHaveLength(2)
   })
 })
 
@@ -146,6 +152,8 @@ describe('how it works demo: script', () => {
     expect(NARRATION.publish).toMatch(/waits for Amazon to confirm/)
     expect(RAIL.find((r) => r.id === 'publish')?.body).toMatch(/Live once Amazon confirms/)
     expect(NARRATION.fix).toMatch(/“Fixed for you”/)
+    // Nothing on the landing is labelled as an example, in any step's narration either.
+    for (const text of Object.values(NARRATION)) expect(text).not.toMatch(/example/i)
     for (const text of [...Object.values(NARRATION), ...RAIL.map((r) => r.body)]) expect(text).not.toMatch(/Sent to Flipkart|Live on Flipkart/)
   })
 })
@@ -231,15 +239,26 @@ describe('how it works demo', () => {
     const before = screen.getByTestId('demo-narration').textContent
     act(() => vi.advanceTimersByTime(20_000))
     expect(screen.getByTestId('demo-narration').textContent).toBe(before)
-    // A step picked while held shows finished and is announced.
-    fireEvent.click(screen.getByTestId('demo-step-fix'))
+    // A step clicked while hovered lets go of the hover hold and runs from its start, announced.
+    const fix = screen.getByTestId('demo-step-fix')
+    fireEvent.mouseDown(fix)
+    fireEvent.focus(fix)
+    fireEvent.mouseUp(fix)
+    fireEvent.click(fix)
     expect(screen.getByTestId('demo-narration').textContent).toBe(NARRATION.fix)
     expect(screen.getByTestId('demo-narration').getAttribute('aria-live')).toBe('polite')
+    expect(demo.hasAttribute('data-paused')).toBe(false)
+    expect(stage.querySelector('.caret-blink')).not.toBeNull()
+    fireEvent.blur(fix)
     fireEvent.mouseLeave(demo)
     expect(demo.hasAttribute('data-paused')).toBe(false)
-    // Focus inside holds it too.
+    // Keyboard focus inside holds it too, and a step picked from the keyboard shows finished.
     fireEvent.focus(screen.getByTestId('demo-step-draft'))
     expect(demo.hasAttribute('data-paused')).toBe(true)
+    fireEvent.click(screen.getByTestId('demo-step-draft'))
+    expect(stage.textContent).toContain(DRAFT.description)
+    act(() => vi.advanceTimersByTime(20_000))
+    expect(screen.getByTestId('demo-narration').textContent).toBe(NARRATION.draft)
     vi.useRealTimers()
   })
 
