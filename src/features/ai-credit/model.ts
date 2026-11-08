@@ -95,10 +95,10 @@ export const PAUSE_REASON: Record<'credit_exhausted' | 'key_invalid', string> = 
   key_invalid: 'The AI provider key was refused. Fix the key, then resume.',
 }
 
-/** "9.600000" → "$9.60"; null or a bad value → "—". */
+/** "9.600000" → "$9.60"; null (no credit check yet) or a bad value → "Not checked". */
 export function usd(v: string | null | undefined): string {
-  if (v == null) return '—'
+  if (v == null) return 'Not checked'
   const n = Number(v)
-  if (!Number.isFinite(n)) return '—'
+  if (!Number.isFinite(n)) return 'Not checked'
   return `$${n.toFixed(2)}`
 }

@@ -16,7 +16,7 @@ export function AiPausedBanner({ className }: { className?: string }) {
   return (
     <div data-testid="ai-paused-banner" className={cn('mx-auto w-full max-w-[var(--page-max)] px-4 pt-4 md:px-7', className)}>
       <Banner tone="neutral" icon="clock" role="status" title={AI_PAUSED_TEXT}>
-        New drafts start again once it is back. You can still edit, review and approve.
+        New drafts start again once AI is back. You can still edit, review and approve.
       </Banner>
     </div>
   )

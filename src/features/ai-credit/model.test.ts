@@ -51,8 +51,8 @@ describe('trial', () => {
 describe('admin credit', () => {
   it('formats USD strings', () => {
     expect(usd('9.600000')).toBe('$9.60')
-    expect(usd(null)).toBe('—')
-    expect(usd('x')).toBe('—')
+    expect(usd(null)).toBe('Not checked')
+    expect(usd('x')).toBe('Not checked')
   })
   it('names every state', () => {
     expect(Object.keys(CREDIT_STATE).sort()).toEqual(['low', 'ok', 'paused', 'unknown'])
