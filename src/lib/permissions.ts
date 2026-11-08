@@ -107,6 +107,8 @@ export const OP_ACTION = {
   'POST /products/{product_id}/image-candidates': 'product:import',
   'POST /image-candidates/{candidate_id}/accept': 'product:import',
   'POST /image-candidates/{candidate_id}/reject': 'product:import',
+  'POST /products/{product_id}/size-chart-read': 'product:import',
+  'GET /catalog/requirements': 'tenant:read',
   'GET /listings': 'tenant:read',
   'GET /listings/{listing_id}': 'tenant:read',
   'GET /listings/{listing_id}/preview': 'tenant:read',
