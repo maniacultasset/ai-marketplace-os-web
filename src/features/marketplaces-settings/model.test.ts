@@ -5,6 +5,8 @@ import type { CurrentAccounts, MarketplaceAccount } from '@/features/marketplace
 import {
   AUTO_FIX_SCOPE,
   auditActorLabel,
+  mergeActivity,
+  submissionEvents,
   connectionFor,
   defaultSelection,
   isSupported,
@@ -94,5 +96,29 @@ describe('auditActorLabel', () => {
     expect(auditActorLabel({ actor_type: 'user', actor_user_id: null }, undefined)).toBe('Your team')
     expect(auditActorLabel({ actor_type: 'system' }, 'u1')).toBe('Kuinn')
     expect(auditActorLabel({ actor_type: 'staff' }, 'u1')).toBe('Support team')
+  })
+})
+
+describe('Activity: what the marketplace said', () => {
+  const sub = (over: Partial<Parameters<typeof submissionEvents>[0][number]>) => ({
+    id: 's1',
+    attempt: 1,
+    operation: 'create' as const,
+    outcome: 'rejected' as const,
+    created_at: '2026-11-08T10:00:00Z',
+    sent_at: '2026-11-08T10:00:05Z',
+    responded_at: '2026-11-08T10:01:00Z',
+    error: { errors: [{ message: 'The value provided for color is not allowed.' }] },
+    ...over,
+  })
+  it('shows each send and its outcome, a resend as a resend', () => {
+    const rows = submissionEvents([sub({}), sub({ id: 's2', attempt: 2, operation: 'patch', outcome: 'live', sent_at: '2026-11-08T11:00:00Z', responded_at: null, resolved_at: '2026-11-08T11:05:00Z', error: null })], 'Amazon')
+    expect(rows.map((r) => r.label)).toEqual(['Sent to Amazon', 'Rejected by Amazon', 'Sent the fixes to Amazon again', 'Live on Amazon'])
+    expect(rows[1]!.reason).toBe('The value provided for color is not allowed.')
+    const merged = mergeActivity([{ id: 'a', at: '2026-11-08T10:30:00Z', label: 'Approved', by: 'You', reason: null }], rows)
+    expect(merged.map((r) => r.label)).toEqual(['Live on Amazon', 'Sent the fixes to Amazon again', 'Approved', 'Rejected by Amazon', 'Sent to Amazon'])
+  })
+  it('a send with no answer yet is only the send', () => {
+    expect(submissionEvents([sub({ outcome: 'pending', responded_at: null })], 'Amazon').map((r) => r.label)).toEqual(['Sent to Amazon'])
   })
 })

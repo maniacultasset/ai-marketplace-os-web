@@ -98,3 +98,60 @@ export function auditActorLabel(
   if (e.actor_type === 'staff') return 'Support team'
   return meId && e.actor_user_id === meId ? 'You' : 'Your team'
 }
+
+/** One row of a listing's history in Activity: an audit event or a marketplace submission. */
+export interface ActivityEvent {
+  id: string
+  at: string
+  label: string
+  by: string
+  reason: string | null
+}
+
+type SubmissionLike = {
+  id: string
+  attempt: number
+  operation: 'create' | 'update' | 'patch'
+  outcome: 'pending' | 'accepted' | 'partially_accepted' | 'rejected' | 'error' | 'live' | 'superseded'
+  created_at: string
+  sent_at?: string | null
+  responded_at?: string | null
+  resolved_at?: string | null
+  error?: { errors?: { message?: string | null }[] | null } | null
+}
+
+const OUTCOME_LABEL: Partial<Record<SubmissionLike['outcome'], (mp: string) => string>> = {
+  accepted: (mp) => `Accepted by ${mp}`,
+  partially_accepted: (mp) => `Partly accepted by ${mp}`,
+  rejected: (mp) => `Rejected by ${mp}`,
+  error: (mp) => `${mp} answered with an error`,
+  live: (mp) => `Live on ${mp}`,
+}
+
+/**
+ * What the marketplace said, from GET /listings/{id}/submissions: the audit history records only
+ * people's actions, so sends, refusals and Live come from here. Each send is one row, and its
+ * outcome another once the marketplace answered.
+ */
+export function submissionEvents(subs: readonly SubmissionLike[], mp: string): ActivityEvent[] {
+  const out: ActivityEvent[] = []
+  for (const s of subs) {
+    const resend = s.operation === 'patch' || s.attempt > 1
+    out.push({ id: `${s.id}:sent`, at: s.sent_at ?? s.created_at, label: resend ? `Sent the fixes to ${mp} again` : `Sent to ${mp}`, by: 'Kuinn', reason: null })
+    const outcome = OUTCOME_LABEL[s.outcome]
+    const at = s.resolved_at ?? s.responded_at
+    if (outcome && at) {
+      const why = s.outcome === 'rejected' || s.outcome === 'error' ? (s.error?.errors?.[0]?.message ?? null) : null
+      out.push({ id: `${s.id}:outcome`, at, label: outcome(mp), by: mp, reason: why })
+    }
+  }
+  return out
+}
+
+/** Audit rows and submission rows, newest first. Stable for equal times. */
+export function mergeActivity(a: readonly ActivityEvent[], b: readonly ActivityEvent[]): ActivityEvent[] {
+  return [...a, ...b]
+    .map((x, i) => ({ x, i }))
+    .sort((p, q) => q.x.at.localeCompare(p.x.at) || p.i - q.i)
+    .map(({ x }) => x)
+}

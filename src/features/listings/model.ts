@@ -71,6 +71,7 @@ const REASON_LABEL: Record<string, string> = {
   marketplace_rejected: 'The marketplace rejected it',
   marketplace_action_required: 'The marketplace needs an action',
   publish_attempts_exhausted: 'All publish attempts used',
+  human_task_open: 'Waiting for your answer in Inbox',
 }
 
 export function statusReasonLabel(reason: string | null | undefined): string | null {
@@ -445,10 +446,32 @@ const HISTORY_LABEL: Record<string, string> = {
   'listing.regenerate_requested': 'Asked for a regeneration',
   'listing.publish_requested': 'Asked to publish',
   'listing.revalidated': 'Re-ran the checks',
+  'listing.auto_fixed': 'Fixed automatically',
+  'listing.fact_answered': 'Added your answer to the listing',
 }
 
 export function historyLabel(action: string): string {
   return HISTORY_LABEL[action] ?? sentence(action.replace(/^listing\./, ''))
+}
+
+/**
+ * The reason on a history row, in plain words, or null when there is nothing a seller can read.
+ * Reject reasons are codes (`inaccurate_fact`); other reasons are free backend text, often an action
+ * code (`publish`) or an internal fix trail (`[reformat content.title v1 a863…->89ed…]`): those
+ * are dropped. A reviewer's note (`after.note`) is shown with the reject.
+ */
+export function historyReason(e: { action: string; reason?: string | null; after?: Record<string, unknown> | null }): string | null {
+  const note = typeof e.after?.['note'] === 'string' ? (e.after['note'] as string).trim() : ''
+  if (e.action === 'listing.rejected') {
+    const label = REJECT_REASONS.find((r) => r.code === e.reason)?.label ?? null
+    const parts = [label, note ? `Note: “${note}”` : null].filter(Boolean)
+    return parts.length ? parts.join('. ') : null
+  }
+  const r = e.reason?.trim()
+  if (!r) return null
+  if (/^[a-z0-9_.-]+$/.test(r)) return null
+  if (/^\[.*\]$/.test(r) || /\b[0-9a-f]{12,}\b/i.test(r) || /\b(?:attributes|facts|content|images|variants)[.[][a-z0-9_]/i.test(r)) return null
+  return r
 }
 
 /** The status an audit `before`/`after` snapshot names, when it is a known one. */

@@ -416,8 +416,22 @@ describe('agent log', () => {
     )
     expect(out.map((e) => e.id)).toEqual(['e1', 'e2', 'j:end', 'j:start'])
     expect(out[0]!.text).toBe('Approved by you.')
-    expect(out[1]).toMatchObject({ tone: 'need', text: 'Rejected by a teammate. Reason: off brand voice.' })
+    expect(out[1]).toMatchObject({ tone: 'need', text: 'Rejected by a teammate. Reason: Off-brand voice.' })
     expect(out[2]).toMatchObject({ tone: 'bad', text: 'Generation failed. Model timed out' })
+  })
+  it('shows the reviewer note and drops internal reasons', () => {
+    const out = logEntries(
+      [
+        ev({ id: 'r', action: 'listing.rejected', reason: 'inaccurate_fact', after: { status: 'blocked', note: 'The fabric is linen, not cotton.' } }),
+        ev({ id: 'f', action: 'listing.auto_fixed', actor_type: 'system', reason: '[reformat content.title v1 a863fddbec2b1e22->89ed92f714419dba]', occurred_at: '2026-10-16T10:44:00Z' }),
+        ev({ id: 'p', action: 'listing.publish_requested', reason: 'publish', occurred_at: '2026-10-16T10:43:00Z' }),
+      ],
+      { job_id: 'j', kind: 'listing_generate', status: 'succeeded', started_at: null, finished_at: null, error: null },
+      'me',
+    )
+    expect(out[0]!.text).toBe('Rejected by you. Reason: Inaccurate fact. Note: “The fabric is linen, not cotton.”')
+    expect(out[1]!.text).toBe('Fixed automatically by the agent.')
+    expect(out[2]!.text).toBe('Asked to publish by you.')
   })
 })
 
