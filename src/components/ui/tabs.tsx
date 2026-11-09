@@ -28,7 +28,8 @@ const tabsListVariants = cva("group/tabs-list inline-flex items-center text-ink-
   variants: {
     variant: {
       default: "h-[34px] w-fit gap-0.5 rounded-[10px] inset-track p-[3px]",
-      line: "mb-5 w-full gap-1 overflow-x-auto border-b border-line",
+      // Below xl the row can be wider than the screen: the end fades so it reads as scrollable.
+      line: "mb-5 w-full gap-1 overflow-x-auto border-b border-line [scrollbar-width:none] max-xl:pr-6 max-xl:[mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)]",
     },
   },
   defaultVariants: {

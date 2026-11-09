@@ -6,6 +6,7 @@
  * Edit: PATCH /products/{id} with If-Match = the ETag the edit started from. 409 STALE_VERSION
  * loads the latest and keeps the person's changes for a second save; 422s land on the fields.
  */
+import { Link } from '@tanstack/react-router'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { isApiError } from '@/api/errors'
 import { Banner, CardHead, CONCEPT_ICON, fieldHintId, Icon, IconGlyph, LaCard, LaField, SourceBadge, StatusChip, TagChip } from '@/components/la'
@@ -450,6 +451,16 @@ export function ProductDetailsCard({
           <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line pt-4 text-small" data-testid="photo-read">
             <StatusChip status={photoRead.chip}>{photoRead.label}</StatusChip>
             <span className="text-ink-2">{photoRead.detail}</span>
+            {product.photo_read?.status === 'read' && product.photo_read.asked ? (
+              <Link
+                to="/inbox"
+                search={{ view: 'questions' }}
+                className="font-semibold text-brand underline-offset-4 hover:underline"
+                data-testid="photo-read-questions"
+              >
+                Open the questions in Inbox
+              </Link>
+            ) : null}
           </div>
         ) : null}
         <PhotoFactsGroup product={product} rows={photoRows} actions={actions} />
