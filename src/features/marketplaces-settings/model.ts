@@ -3,6 +3,7 @@
  * every rule is unit tested (model.test.ts).
  */
 import type { MarketplaceId } from '@/components/la/marketplace'
+import { ROADMAP } from '@/components/la/roadmap'
 import { NOT_YET } from '@/components/la/unavailable'
 import type { CurrentAccounts, Marketplace, MarketplaceAccount } from '@/features/marketplaces/api'
 
@@ -51,8 +52,8 @@ export function isTokenExpired(account: MarketplaceAccount | null, now: number):
 
 /**
  * Unsupported marketplaces in the order p04 lists them. Myntra and Meesho show "Connect" in the
- * design; in v1 none of the four is in the API, so every one is a disabled "Join waitlist" with
- * the reason (DESIGN.md "Not in the API yet").
+ * design; in v1 none of the four is in the API, so every one reads "On the roadmap" with one
+ * disabled "Join waitlist" (la/unavailable `ROADMAP`, the landing page's wording; prod QA 9 Nov).
  */
 export interface WaitlistRow {
   id: Exclude<MarketplaceId, Marketplace>
@@ -61,27 +62,39 @@ export interface WaitlistRow {
   reason: string
 }
 
-export const WAITLIST: readonly WaitlistRow[] = [
-  { id: 'myntra', note: 'Not supported yet', reason: NOT_YET.waitlist },
-  { id: 'ajio', note: 'API access needed', reason: NOT_YET.waitlist },
-  { id: 'meesho', note: 'Not supported yet', reason: NOT_YET.waitlist },
-  { id: 'nykaa', note: 'API access needed', reason: NOT_YET.waitlist },
+export const WAITLIST: readonly WaitlistRow[] = (['myntra', 'ajio', 'meesho', 'nykaa'] as const).map((id) => ({
+  id,
+  note: ROADMAP.label,
+  reason: ROADMAP.reason,
+}))
+
+/**
+ * Hi-fi 19 "The agent may fix these on its own", as SI11 runs it in production (prod QA 9 Nov:
+ * the page said "Coming soon" while it was live):
+ * - `auto`: a marketplace data fix (a value mapped to the accepted list, a format or unit) is
+ *   written and the listing is checked or sent again on its own;
+ * - `approval`: a content change (title, bullets, description) becomes a new version a person
+ *   approves;
+ * - `planned`: not built yet.
+ */
+export type AutoFixMode = 'auto' | 'approval' | 'planned'
+
+export const AUTO_FIX_SCOPE: readonly { label: string; mode: AutoFixMode }[] = [
+  { label: "Map values to the marketplace's accepted list (colour, size)", mode: 'auto' },
+  { label: 'Fix formatting problems (units, barcode format)', mode: 'auto' },
+  { label: 'Calculate derived fields', mode: 'planned' },
+  { label: 'Rebuild parent and child variants from your matrix', mode: 'planned' },
+  { label: 'Rewrite titles that break a marketplace rule', mode: 'approval' },
 ]
 
-/** Hi-fi 19 "The agent may fix these on its own": planned scope only, none of it runs in v1. */
-export const AUTO_FIX_SCOPE: readonly string[] = [
-  "Map values to the marketplace's accepted list (colour, size)",
-  'Fix formatting problems',
-  'Calculate derived fields',
-  'Rebuild parent and child variants from your matrix',
-  'Rewrite titles that break a marketplace rule',
-]
+/** SI11's cap (backend resolution/read.py MAX_CYCLES): automatic tries before it stops and asks. */
+export const AUTO_FIX_TRIES = 3
 
 export const NEVER_GUESSED = 'It never guesses fabric, measurements, origin, tax codes or care. Those always come from you.'
 
 export const AUTONOMY_REASON = {
-  scope: 'Choosing what the agent fixes on its own is not available yet. Every change still waits for your approval.',
-  retry: 'Changing the retry limit is not available yet.',
+  scope: 'Choosing what the agent fixes on its own is not available yet.',
+  retry: 'Changing the number of automatic tries is not available yet.',
   notify: NOT_YET.notifications,
   perMarketplace: 'Per-marketplace settings are not available yet. Approval is required on every marketplace.',
 } as const

@@ -60,7 +60,7 @@ import { formatDuration } from '@/features/imports/format'
 import { useProduct } from '@/features/products/api'
 import { useJobPolling } from '@/hooks/use-job-polling'
 import { useMe } from '@/lib/auth'
-import { listingChip } from '@/lib/listing-chip'
+import { listingChip, needsYourInfo, needsYourInfoLabel } from '@/lib/listing-chip'
 import { useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
 import { toast, toastError } from '@/lib/toast'
@@ -495,6 +495,7 @@ function laneSub(l: Listing, run: boolean, job: JobEnvelope): string {
   const at = clock(l.status_changed_at)
   if (run && (job.status === 'queued' || job.status === 'running')) return `${JOB_KIND_LABEL[job.kind] ?? 'Working'} · attempt ${job.attempt}`
   if (l.status === 'published') return `Submitted · ${at}`
+  if (needsYourInfo(l)) return `${needsYourInfoLabel(l)} · ${at}`
   return `${STATUS_META[l.status].label} · ${at}`
 }
 

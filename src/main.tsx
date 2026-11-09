@@ -9,6 +9,7 @@ import { ErrorState } from '@/components/states/error-state'
 import { NotFound } from '@/components/states/not-found'
 import { queryClient } from '@/lib/query-client'
 import { toast } from '@/lib/toast'
+import { installChunkReload } from '@/lib/chunk-reload'
 import { routeTree } from './routeTree.gen'
 import './index.css'
 
@@ -55,6 +56,9 @@ setEnrollmentHandler(() => {
   toast.info('Set up login codes first', { description: 'This change needs login codes. It takes a minute.' })
   void router.navigate({ to: '/settings/security', search: { setup: true } })
 })
+
+// A stale tab after a deploy reloads instead of leaving the last screen up (prod QA 9 Nov).
+installChunkReload(window)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

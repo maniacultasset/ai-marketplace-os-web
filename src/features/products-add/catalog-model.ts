@@ -71,6 +71,8 @@ export interface CatalogRow {
  *  1. any listing in error (failed, or rejected by the marketplace)  → Error
  *  2. any live listing: every listing live → Live, else → Partly live
  *  3. any listing that needs_review or is blocked                    → Needs you
+ *     (a listing the server marks `needs_you`, with open blocking issues, is Needs you here even
+ *     when its status is validated)
  *  4. any listing validated (waiting for a person to approve)        → Awaiting approval;
  *     else any listing approved (waiting for a person to list it)     → Ready to list.
  *     Both count in the Needs-you bucket (a person acts next, nothing is running)

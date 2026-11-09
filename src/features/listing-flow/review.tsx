@@ -74,7 +74,7 @@ import { ApproverNotice } from '@/features/team-account/approver-notice'
 import { AutoFixedChip, FixedForYouCard } from './auto-fix'
 import { autoFixTrail, FIXED_FOR_YOU_HASH, siblingFixes, versionRef } from './auto-fix-model'
 import { EditDialog, SendBackDialog } from './dialogs'
-import { clock, fieldLabel, findingText, mpName, sentenceCase } from './format'
+import { clock, fieldLabel, findingText, mpName, plainMessage, sellerFinding, sentenceCase } from './format'
 import { claimFindings, gateCounts, plural, type ErrorItem, type GateResult } from './gates'
 import { ListOnButton } from './list-on'
 import { useListingResolution } from './api'
@@ -865,7 +865,7 @@ function ReadsAs({
           <span className="flex min-w-0 flex-1 items-start gap-2">
             <Icon name="alert" size={16} className="mt-0.5 shrink-0" aria-hidden />
             <span className="min-w-0 break-words">
-              <b>{plural(mappingErrors.length, 'mapping problem')}:</b> {sentenceCase(mappingErrors[0]!.message)}
+              <b>{plural(mappingErrors.length, 'mapping problem')}:</b> {sentenceCase(plainMessage(mappingErrors[0]!.message))}
             </span>
           </span>
           <Button size="sm" variant="ghost" asChild>
@@ -1065,15 +1065,18 @@ function ApproveBlockersCard({ items, onClose }: { items: readonly ErrorItem[]; 
 
 /** One finding in seller words: plain message, the field, the value, a suggestion meant for them. */
 function FindingBody({ f }: { f: ErrorItem }) {
+  // Seller words (labels, no agent guidance) with the value line that says "sent" only for a
+  // marketplace's answer.
+  const s = sellerFinding(f)
   const t = findingText(f)
   return (
     <div className="min-w-0 flex-1">
-      <p className="text-body text-ink">{t.message}</p>
+      <p className="text-body text-ink">{s.message}</p>
       <p className="text-caption text-ink-3">
         <span title={f.field}>{fieldLabel(f.field)}</span>
         {t.value ? ` · ${t.value}` : ''}
       </p>
-      {t.suggestion ? <p className="mt-0.5 text-small text-ink-2">{t.suggestion}</p> : null}
+      {s.action ? <p className="mt-0.5 text-small text-ink-2">{s.action}</p> : null}
     </div>
   )
 }

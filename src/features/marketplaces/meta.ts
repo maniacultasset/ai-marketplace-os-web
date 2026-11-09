@@ -28,6 +28,20 @@ export const STATUS_META: Record<AccountStatus | 'none', { label: string; chip: 
  */
 export const DRAFTS_BEFORE_CONNECT: Readonly<Record<Marketplace, boolean>> = { amazon: true, flipkart: false }
 
+/**
+ * Publishing is not open for brands yet (Flipkart: "Next" on the landing page), and this brand has
+ * no account there. Every screen then says "Coming soon" with no Connect or List action: Home's
+ * card, the product page's card and the Marketplaces page (prod QA 9 Nov, items 3 and 10). The
+ * same switch as `DRAFTS_BEFORE_CONNECT`. `connected` null (loading) reads as not connected.
+ */
+export function comingSoon(m: Marketplace, connected: readonly Marketplace[] | null | undefined): boolean {
+  return !DRAFTS_BEFORE_CONNECT[m] && !connected?.includes(m)
+}
+
+/** The one sentence for a Coming soon marketplace, on every screen. */
+export const comingSoonReason = (m: Marketplace) =>
+  `Publishing to ${MARKETPLACE_META[m].name} is coming soon. Kuinn lists on Amazon for now.`
+
 /** Drafts can be started for `m`: allowed before connecting, or the brand has it connected. */
 export function draftOpen(m: Marketplace, connected: readonly Marketplace[] | null | undefined): boolean {
   return DRAFTS_BEFORE_CONNECT[m] || !!connected?.includes(m)

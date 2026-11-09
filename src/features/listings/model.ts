@@ -62,6 +62,7 @@ export const STATUS_META: Record<ListingStatus, { label: string; tone: Tone; hin
 
 /** `listings.status_reason` values the backend writes (services/*), in plain words. */
 const REASON_LABEL: Record<string, string> = {
+  human_task_open: 'A question is waiting in your Inbox',
   validation_errors: 'Checks found blocking issues',
   corrections_exhausted: 'AI could not fix every issue',
   rejected: 'Rejected by a reviewer',
@@ -71,7 +72,6 @@ const REASON_LABEL: Record<string, string> = {
   marketplace_rejected: 'The marketplace rejected it',
   marketplace_action_required: 'The marketplace needs an action',
   publish_attempts_exhausted: 'All publish attempts used',
-  human_task_open: 'Needs an answer in Inbox. Once it is answered, generate the listing again.',
 }
 
 export function statusReasonLabel(reason: string | null | undefined): string | null {
@@ -456,15 +456,24 @@ export function historyLabel(action: string): string {
 
 /**
  * The reason on a history row, in plain words, or null when there is nothing a seller can read.
+ * An approve or reject names the version decided on (the API's `review`, see `reviewDetail`).
  * Reject reasons are codes (`inaccurate_fact`); other reasons are free backend text, often an action
  * code (`publish`) or an internal fix trail (`[reformat content.title v1 a863…->89ed…]`): those
  * are dropped. A reviewer's note (`after.note`) is shown with the reject.
  */
-export function historyReason(e: { action: string; reason?: string | null; after?: Record<string, unknown> | null }): string | null {
+export function historyReason(e: {
+  action: string
+  reason?: string | null
+  after?: Record<string, unknown> | null
+  review?: Schema<'AuditReviewOut'> | null
+}): string | null {
   const note = typeof e.after?.['note'] === 'string' ? (e.after['note'] as string).trim() : ''
-  if (e.action === 'listing.rejected') {
-    const label = REJECT_REASONS.find((r) => r.code === e.reason)?.label ?? null
-    const parts = [label, note ? `Note: “${note}”` : null].filter(Boolean)
+  if (e.action === 'listing.rejected' || e.review) {
+    const code = e.review?.reason_code ?? (e.action === 'listing.rejected' ? e.reason : null)
+    const label = code ? (REJECT_REASONS.find((r) => r.code === code)?.label ?? sentence(code)) : null
+    const version = e.review?.version ? `Version ${e.review.version}` : null
+    const decided = [version, label].filter(Boolean).join(' · ')
+    const parts = [decided, e.action === 'listing.rejected' && note ? `Note: “${note}”` : null].filter(Boolean)
     return parts.length ? parts.join('. ') : null
   }
   const r = e.reason?.trim()
@@ -472,6 +481,20 @@ export function historyReason(e: { action: string; reason?: string | null; after
   if (/^[a-z0-9_.-]+$/.test(r)) return null
   if (/^\[.*\]$/.test(r) || /\b[0-9a-f]{12,}\b/i.test(r) || /\b(?:attributes|facts|content|images|variants)[.[][a-z0-9_]/i.test(r)) return null
   return r
+}
+
+/**
+ * What an approve or reject event decided (the API's `review`): "Version 2 · Poor quality". The
+ * API leaves the reviewer's free-text note out of `review`. Null for other events, or
+ * an older API without it (prod QA 9 Nov: "Rejected · a person" said nothing about which version
+ * or why).
+ */
+export function reviewDetail(review: Schema<'AuditReviewOut'> | null | undefined): string | null {
+  if (!review) return null
+  const parts: string[] = []
+  if (review.version) parts.push(`Version ${review.version}`)
+  if (review.reason_code) parts.push(sentence(review.reason_code))
+  return parts.length ? parts.join(' · ') : null
 }
 
 /** The status an audit `before`/`after` snapshot names, when it is a known one. */
@@ -499,4 +522,30 @@ export const STAGE_LABEL: Record<string, string> = {
   validate_vision: 'Checking images',
   correct: 'Fixing issues',
   quality_check: 'Final quality check',
+}
+
+/**
+ * The Validation tab's blocking count: the rules run's, or the server's open blocking issues on
+ * the current version (the marketplace check and its dry run included), whichever is larger, so
+ * it agrees with Review (prod QA 9 Nov, item 14). `marketplace`: the rules passed but other
+ * checks block.
+ */
+export function validationBlocking(
+  v: { passed: boolean; blocking_count: number } | null | undefined,
+  l: { display_state?: Schema<'ListingOut'>['display_state']; needs_you_count?: number } | null | undefined,
+): { blocking: number; marketplace: boolean } {
+  const server = l?.display_state === 'needs_you' ? (l.needs_you_count ?? 0) : 0
+  const blocking = Math.max(v?.blocking_count ?? 0, server)
+  return { blocking, marketplace: !!v?.passed && (v.blocking_count ?? 0) === 0 && server > 0 }
+}
+
+/**
+ * Why a blocked listing with no open issue is blocked, in plain words ("Rejected by a reviewer",
+ * "A question is waiting in your Inbox"), or null when it is not blocked or issues explain it
+ * (prod QA 9 Nov, item 23: "Blocked · 0 open issues").
+ */
+export function blockedReason(l: { status: ListingStatus; status_reason?: string | null }, openIssues: number): string | null {
+  if (l.status !== 'blocked' || openIssues > 0) return null
+  if (l.status_reason === 'human_task_open') return 'A question is waiting in your Inbox'
+  return statusReasonLabel(l.status_reason) ?? 'Blocked: open the listing to see why'
 }

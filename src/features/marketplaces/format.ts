@@ -33,3 +33,14 @@ export function formatRelative(iso: string | null | undefined, now = Date.now())
 export function isPast(iso: string | null | undefined, now = Date.now()) {
   return !!iso && new Date(iso).getTime() <= now
 }
+
+/**
+ * How a connection's access reads to a seller (prod QA 9 Nov, item 19). The Amazon access token
+ * lives an hour and is renewed automatically, so its expiry ("in 60 minutes") is never shown:
+ * an active account "Renews automatically", one the marketplace refused "Reconnect needed".
+ */
+export function accessText(status: 'active' | 'needs_reconnect' | 'revoked'): string {
+  if (status === 'active') return 'Renews automatically'
+  if (status === 'needs_reconnect') return 'Reconnect needed'
+  return 'Revoked'
+}
