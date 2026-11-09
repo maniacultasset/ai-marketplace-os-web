@@ -4,6 +4,7 @@ import {
   defaultSlot,
   imageIdFromKey,
   marketplaceReports,
+  photoQaWarnings,
   slotsFor,
   stageLabel,
   tally,
@@ -75,11 +76,57 @@ describe('checkRows', () => {
 
   it('an issue without a check row still shows', () => {
     const rows = checkRows(
-      report({ checks: [], issues: [{ code: 'WATERMARK', check: 'watermark', suggestion: 'Remove the watermark.' }] }),
+      report({ checks: [], issues: [{ code: 'LOGO_PROHIBITED', check: 'logo', suggestion: 'Remove the logo.' }] }),
     )
-    expect(rows).toEqual([
-      { check: 'watermark', label: 'Watermark', outcome: 'fail', method: 'deterministic', suggestions: ['Remove the watermark.'] },
+    expect(rows).toEqual([{ check: 'logo', label: 'Logo', outcome: 'fail', method: 'deterministic', suggestions: ['Remove the logo.'] }])
+  })
+
+  it('photo QA checks are warnings even when the report is blocked for another reason', () => {
+    const rows = checkRows(
+      report({
+        pass: false,
+        checks: [
+          { check: 'background', method: 'deterministic', passed: false },
+          { check: 'fill_ratio', method: 'deterministic', passed: false },
+        ],
+        issues: [{ code: 'WATERMARK', check: 'watermark', suggestion: 'Remove the watermark.' }],
+      }),
+    )
+    expect(rows.map((r) => [r.check, r.outcome])).toEqual([
+      ['background', 'fail'],
+      ['fill_ratio', 'warn'],
+      ['watermark', 'warn'],
     ])
+  })
+})
+
+describe('photoQaWarnings', () => {
+  const out = (amazon: Partial<ImageReport> | null, flipkart: Partial<ImageReport> | null = null) => ({
+    image_id: I,
+    compliance_status: 'passed' as const,
+    reports: { amazon: amazon ? report({ pass: true, ...amazon }) : null, flipkart: flipkart ? report({ marketplace: 'flipkart', pass: true, ...flipkart }) : null },
+  })
+
+  it('is empty while photo QA is off (no QA check or issue in the report)', () => {
+    expect(photoQaWarnings(out({}))).toEqual([])
+    expect(photoQaWarnings(undefined)).toEqual([])
+  })
+
+  it('lists each warning once across marketplaces, in a fixed order, with its suggestion', () => {
+    const w = photoQaWarnings(
+      out(
+        { checks: [{ check: 'fill_ratio', method: 'deterministic', passed: false }], issues: [{ code: 'FILL_RATIO_LOW', check: 'fill_ratio', suggestion: 'Zoom or crop so the product fills the frame' }] },
+        { checks: [{ check: 'text_overlay', method: 'deterministic', passed: false }, { check: 'fill_ratio', method: 'deterministic', passed: false }] },
+      ),
+    )
+    expect(w).toEqual([
+      { check: 'text_overlay', label: 'Text on image', suggestion: null },
+      { check: 'fill_ratio', label: 'Low fill', suggestion: 'Zoom or crop so the product fills the frame' },
+    ])
+  })
+
+  it('ignores a passed QA check', () => {
+    expect(photoQaWarnings(out({ checks: [{ check: 'watermark', method: 'deterministic', passed: true }] }))).toEqual([])
   })
 
   it('marketplaceReports lists present reports in enum order', () => {
