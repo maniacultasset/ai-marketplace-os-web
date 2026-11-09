@@ -39,6 +39,19 @@ export function isPhotoQuestion(task: Pick<Task, 'kind' | 'product_id' | 'target
 }
 
 /**
+ * The photo a task is about: its `image_id`, else the first `image:<id>` evidence of a photo
+ * suggestion. Null when it names none.
+ */
+export function taskImageId(task: Pick<Task, 'image_id' | 'suggestions'>): string | null {
+  if (task.image_id) return task.image_id
+  for (const s of task.suggestions) {
+    if (s && typeof s === 'object' && 'evidence_ref' in s && typeof s.evidence_ref === 'string' && s.evidence_ref.startsWith('image:'))
+      return s.evidence_ref.slice('image:'.length) || null
+  }
+  return null
+}
+
+/**
  * Whether a task holds a listing back. A photo question never blocks by itself (SI3 decision 9):
  * only an open blocking error behind it does, and that error shows as its own issue. If the API
  * ever sends `blocking`, that wins.

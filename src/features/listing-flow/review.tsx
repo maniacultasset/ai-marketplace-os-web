@@ -58,6 +58,8 @@ import {
   type ListingDetail,
 } from '@/features/listings/model'
 import { ReviewPhotoValues } from '@/features/photo-facts/review-photo-values'
+import { mainView, useRefreshProductViews, viewsById } from '@/features/products/image-views'
+import { SavedPhoto } from '@/components/la/saved-photo'
 import { useJobPolling } from '@/hooks/use-job-polling'
 import { useMe } from '@/lib/auth'
 import { listingChip } from '@/lib/listing-chip'
@@ -718,6 +720,12 @@ function ReadsAs({
   const parents = items.filter((i) => i.item_role === 'parent').length
   const mappingErrors = preview.data?.report.errors ?? []
   const imageCount = canonical.images?.length ?? 0
+  // The listing's lead photo, shown from the product read's signed views (refreshed before expiry).
+  const product = checks.product.data
+  const views = viewsById(product)
+  const lead = [...(canonical.images ?? [])].sort((a, b) => Number(b.slot === 'main') - Number(a.slot === 'main') || (a.position ?? 0) - (b.position ?? 0))
+  const leadView = lead.map((ref) => views.get(ref.image_id)).find(Boolean) ?? mainView(product)
+  const refreshViews = useRefreshProductViews(listing.product_id)
   // Claims the agent dropped because the product facts did not back them (real data on the version).
   const removed = canonical.claims?.filter((c) => c.status === 'removed') ?? []
   const removedWhere = [...new Set(removed.map((c) => fieldLabel(c.text_path)))]
@@ -751,17 +759,32 @@ function ReadsAs({
       />
       <div className="mt-4 flex flex-col items-start gap-4 sm:flex-row">
         <div className="flex shrink-0 flex-col items-center gap-2">
-          <div
-            className={cn(
-              'flex size-[130px] shrink-0 flex-col items-center justify-center gap-1 rounded-xl border shadow-inset-md',
-              imageCount ? 'border-line bg-field text-ink-2' : 'border-attention-line bg-attention-bg text-attention-ink',
-            )}
-            role="img"
-            aria-label={`${imageCount} images attached`}
-          >
-            <Icon name="image" size={28} />
-            <span className="text-caption">{imageCount ? plural(imageCount, 'image') : 'No images'}</span>
-          </div>
+          {imageCount && leadView ? (
+            <figure className="relative m-0 size-[130px] shrink-0" data-testid="reads-as-photo">
+              <SavedPhoto
+                src={leadView}
+                alt={`Main photo, one of ${plural(imageCount, 'image')} attached`}
+                onError={refreshViews}
+                iconSize={28}
+                className="size-full rounded-xl border border-line bg-field text-ink-2 shadow-inset-md"
+              />
+              <figcaption className="absolute bottom-2 left-2 rounded-md border border-line bg-surface/95 px-1.5 py-0.5 text-caption font-semibold text-ink shadow-raised-sm">
+                {plural(imageCount, 'image')}
+              </figcaption>
+            </figure>
+          ) : (
+            <div
+              className={cn(
+                'flex size-[130px] shrink-0 flex-col items-center justify-center gap-1 rounded-xl border shadow-inset-md',
+                imageCount ? 'border-line bg-field text-ink-2' : 'border-attention-line bg-attention-bg text-attention-ink',
+              )}
+              role="img"
+              aria-label={`${imageCount} images attached`}
+            >
+              <Icon name="image" size={28} />
+              <span className="text-caption">{imageCount ? plural(imageCount, 'image') : 'No images'}</span>
+            </div>
+          )}
           {imageCount ? null : (
             <Button size="sm" variant="secondary" asChild>
               <Link to="/products/$productId" params={{ productId: listing.product_id }} search={{ tab: 'media' }} data-testid="add-images">

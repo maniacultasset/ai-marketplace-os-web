@@ -10,6 +10,7 @@ import { ifMatchHeader, unwrapVersioned, type Versioned } from '@/api/etag'
 import type { Schema } from '@/api/types'
 import { PAGE_SIZE, useCursorList } from '@/hooks/use-cursor-list'
 import { useKeys, type QueryKeys } from '@/lib/query-keys'
+import { viewRefreshDelay } from './image-views'
 import { toCreateBody, toCreateJson, type ProductFormValues } from './schema'
 
 export type Product = Schema<'ProductOut'>
@@ -99,6 +100,9 @@ export const productQuery = (keys: QueryKeys, productId: string) =>
     // carries `attribute_literals`, which other screens caching the plain product don't fill.
     queryKey: [...keys.products.detail(productId), 'exact'] as const,
     queryFn: () => fetchProduct(productId),
+    // The photo links are signed for about 10 minutes: read again just before the first expires.
+    refetchInterval: (q) => viewRefreshDelay([q.state.data]),
+    refetchIntervalInBackground: false,
   })
 
 export function useProduct(productId: string | null | undefined) {

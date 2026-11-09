@@ -50,6 +50,7 @@ import { historyLabel, isBusy } from '@/features/listings/model'
 import { draftClosedReason, draftOpen } from '@/features/marketplaces/meta'
 import { useProduct, type ProductDetail } from '@/features/products/api'
 import { RelativeTime } from '@/features/products/format'
+import { mainView, useRefreshProductViews } from '@/features/products/image-views'
 import { Can, OP_ACTION, useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
 import { cn } from '@/lib/utils'
@@ -345,6 +346,7 @@ function LoadedDetail({ data, tab, tabsRef }: { data: DetailData; tab: DetailTab
   const session = useProductEditSession(data.product, data.isVariant, source, !data.isVariant && data.variants.length > 0, data.variants)
   const editing = session.editing
   const p = data.product
+  const refreshViews = useRefreshProductViews(productId)
   const overall = OVERALL_CHIP[overallStatus(Object.values(data.listings))]
   // The header's one primary action: the first listing a person has to look at, if any.
   const review = data.listingsPending ? undefined : listingsIn(data).find(needsReview)
@@ -355,7 +357,13 @@ function LoadedDetail({ data, tab, tabsRef }: { data: DetailData; tab: DetailTab
     <Page>
       <header className="flex flex-col gap-4 pb-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-3.5">
-          <ProductThumb size={64} className="shrink-0 rounded-card" />
+          <ProductThumb
+            size={64}
+            className="shrink-0 rounded-card"
+            src={mainView(p)}
+            alt={`${p.title} main photo`}
+            onError={refreshViews}
+          />
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
               <h1 className="truncate font-display text-h1 text-ink" data-testid="product-title">
