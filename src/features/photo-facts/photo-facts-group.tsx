@@ -6,7 +6,7 @@
  * Confirm and Reject are optimistic (the row changes at once) and roll back with an inline error
  * when the save fails. They are hidden without `product:import` (PATCH /products/{id}).
  */
-import { useMemo } from 'react'
+import { useLayoutEffect, useMemo, useRef } from 'react'
 import { Icon, SourceBadge } from '@/components/la'
 import { Button } from '@/components/ui/button'
 import type { ProductDetail } from '@/features/products/api'
@@ -39,12 +39,34 @@ function Group({ product, rows, actions }: { product: ProductDetail; rows: reado
   const shown = useMemo(() => withPending(rows, actions.pending), [rows, actions.pending])
   const toCheck = toCheckCount(shown)
   const factByKey = useMemo(() => new Map((product.photo_facts ?? []).map((f) => [f.key, f])), [product.photo_facts])
+  // Confirm and Reject unmount their own button: focus moves to the next fact to check (or this
+  // row, or the heading), never to the page body.
+  const sectionRef = useRef<HTMLElement>(null)
+  const focusAfter = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    const key = focusAfter.current
+    const root = sectionRef.current
+    if (!key || !root) return
+    // Only once the pressed button is gone (focus fell to the body); a failed save puts it back.
+    const active = document.activeElement
+    if (active && active !== document.body && active.isConnected) return
+    focusAfter.current = null
+    const row = root.querySelector<HTMLElement>(`[data-fact-key="${CSS.escape(key)}"]`)
+    const target = row?.querySelector<HTMLElement>('[data-testid="photo-fact-confirm"]') ?? row ?? root.querySelector<HTMLElement>('h3')
+    target?.focus()
+  }, [shown])
+  const act = (key: string, kind: 'confirm' | 'reject') => {
+    const i = shown.findIndex((x) => x.key === key)
+    const next = shown.slice(i + 1).find((x) => x.status === 'photo') ?? shown.slice(0, i).find((x) => x.status === 'photo')
+    // Confirm keeps the row (now confirmed); reject removes it.
+    focusAfter.current = next?.key ?? (kind === 'confirm' ? key : null) ?? `__heading`
+  }
   if (shown.length === 0) return null
 
   return (
-    <section className="mt-4 border-t border-line pt-4" aria-labelledby={`photo-facts-${product.id}`} data-testid="photo-facts">
+    <section ref={sectionRef} className="mt-4 border-t border-line pt-4" aria-labelledby={`photo-facts-${product.id}`} data-testid="photo-facts">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h3 id={`photo-facts-${product.id}`} className="font-sans text-caption font-semibold text-ink-2">
+        <h3 id={`photo-facts-${product.id}`} tabIndex={-1} className="font-sans text-caption font-semibold text-ink-2 focus:outline-none">
           From photos
         </h3>
         <p className="text-caption text-ink-3" aria-live="polite" data-testid="photo-facts-status">
@@ -66,6 +88,7 @@ function Group({ product, rows, actions }: { product: ProductDetail; rows: reado
               className={cn('border-b border-line py-2 text-small last:border-b-0', KV_GRID)}
               data-fact-key={r.key}
               data-fact-status={r.status}
+              tabIndex={-1}
               aria-busy={busy || undefined}
             >
               <span className="whitespace-nowrap text-ink-2">{r.label}</span>
@@ -82,7 +105,10 @@ function Group({ product, rows, actions }: { product: ProductDetail; rows: reado
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => void actions.confirm(fact)}
+                        onClick={() => {
+                          act(r.key, 'confirm')
+                          void actions.confirm(fact)
+                        }}
                         aria-label={`Confirm ${r.label.toLocaleLowerCase('en')}: ${r.value}`}
                         data-testid="photo-fact-confirm"
                       >
@@ -92,7 +118,10 @@ function Group({ product, rows, actions }: { product: ProductDetail; rows: reado
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => void actions.reject(fact)}
+                        onClick={() => {
+                          act(r.key, 'reject')
+                          void actions.reject(fact)
+                        }}
                         aria-label={`Reject ${r.label.toLocaleLowerCase('en')}: ${r.value}`}
                         data-testid="photo-fact-reject"
                       >
