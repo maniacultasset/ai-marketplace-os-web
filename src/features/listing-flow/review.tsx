@@ -383,7 +383,8 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
               ) : null}
             </div>
             {approvalBanner}
-            {publishingPaused ? <PublishingPausedNote /> : null}
+            {/* Said once: the approved banner carries the line itself, and a sent listing has nothing to approve. */}
+            {publishingPaused && listing.status !== 'approved' && listing.status !== 'published' ? <PublishingPausedNote /> : null}
             <MarketplaceTabs siblings={siblings} currentId={listing.id} counts={counts} gatesKnown={checks.gatesReady} />
           </>
         ) : (
