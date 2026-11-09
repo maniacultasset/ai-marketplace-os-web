@@ -60,6 +60,16 @@ describe('STICKY_ASIDE', () => {
   })
 })
 
+describe('pane children', () => {
+  it('never squash under long content: every scrolling pane keeps its direct children at full height', () => {
+    render(<ScrollPane data-testid="pane" />)
+    expect(screen.getByTestId('pane').className).toContain('lg:*:shrink-0')
+    expect(STICKY_ASIDE).toContain('lg:*:shrink-0')
+    expect(STICKY_ASIDE_XL).toContain('xl:*:shrink-0')
+    expect(STICKY_ASIDE_2XL).toContain('2xl:*:shrink-0')
+  })
+})
+
 describe('useScrolled', () => {
   it('follows the given scroll container as well as the window', async () => {
     const main = document.createElement('main')

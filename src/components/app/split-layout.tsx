@@ -23,7 +23,10 @@ import type { HTMLAttributes, Ref } from 'react'
 import { cn } from '@/lib/utils'
 
 /** The scroll container classes of one pane (lg and up). */
-export const PANE_SCROLL = 'lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:[scrollbar-gutter:stable]'
+// `*:shrink-0`: a scrolling flex column must overflow, never squash its children (the Inbox tab
+// bar collapsed to a line under a long list, 2026-11-09).
+export const PANE_SCROLL =
+  'lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:[scrollbar-gutter:stable] lg:*:shrink-0'
 
 /**
  * A short side column in a scrolling page: sticks to the top of its scroll container, and scrolls
@@ -32,15 +35,15 @@ export const PANE_SCROLL = 'lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain 
  * box even when it has nothing to scroll, so the wheel over a short column would stop moving the page.
  */
 export const STICKY_ASIDE =
-  'lg:sticky lg:top-5 lg:self-start lg:max-h-[calc(100svh-var(--topbar-h)-var(--banner-h,0px)-2.5rem)] lg:overflow-y-auto lg:-m-2 lg:p-2'
+  'lg:sticky lg:top-5 lg:self-start lg:max-h-[calc(100svh-var(--topbar-h)-var(--banner-h,0px)-2.5rem)] lg:overflow-y-auto lg:-m-2 lg:p-2 lg:*:shrink-0'
 
 /** `STICKY_ASIDE` for a side column that only sits beside the page from 1536px. */
 export const STICKY_ASIDE_2XL =
-  '2xl:sticky 2xl:top-5 2xl:self-start 2xl:max-h-[calc(100svh-var(--topbar-h)-var(--banner-h,0px)-2.5rem)] 2xl:overflow-y-auto 2xl:-m-2 2xl:p-2'
+  '2xl:sticky 2xl:top-5 2xl:self-start 2xl:max-h-[calc(100svh-var(--topbar-h)-var(--banner-h,0px)-2.5rem)] 2xl:overflow-y-auto 2xl:-m-2 2xl:p-2 2xl:*:shrink-0'
 
 /** `STICKY_ASIDE` for a side column that only sits beside the page from 1280px. */
 export const STICKY_ASIDE_XL =
-  'xl:sticky xl:top-5 xl:self-start xl:max-h-[calc(100svh-var(--topbar-h)-var(--banner-h,0px)-2.5rem)] xl:overflow-y-auto xl:-m-2 xl:p-2'
+  'xl:sticky xl:top-5 xl:self-start xl:max-h-[calc(100svh-var(--topbar-h)-var(--banner-h,0px)-2.5rem)] xl:overflow-y-auto xl:-m-2 xl:p-2 xl:*:shrink-0'
 
 /** Marks a pane whose scroll goes back to the top on every navigation (see `scrollToTopSelectors`). */
 export const PANE_RESET_SELECTOR = '[data-pane-reset]'
