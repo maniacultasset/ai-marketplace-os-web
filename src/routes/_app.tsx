@@ -4,7 +4,9 @@ import { BrandMark } from '@/components/app/brand-mark'
 import { Page } from '@/components/app/page-header'
 import { ErrorState } from '@/components/states/error-state'
 import { Skeleton } from '@/components/ui/skeleton'
-import { networkError } from '@/api/errors'
+import { isApiError, isRateLimited, networkError } from '@/api/errors'
+import { useCallback } from 'react'
+import { ShellBusy } from '@/components/app/shell-busy'
 import { getSession, restoreSession, retryRestore } from '@/api/session'
 import { meQueryOptions } from '@/lib/auth'
 import { ImportJobsWatcher } from '@/features/imports/import-jobs-watcher'
@@ -24,7 +26,11 @@ export const Route = createFileRoute('/_app')({
       throw redirect({ to: '/login', search: { redirect: location.href }, replace: true })
     }
     const { tenantId } = getSession()
-    await context.queryClient.ensureQueryData(meQueryOptions(tenantId!))
+    // A 429 is not retried here in silence behind the skeleton: ShellError counts it down at once.
+    await context.queryClient.ensureQueryData({
+      ...meQueryOptions(tenantId!),
+      retry: (count, e) => isApiError(e) && e.status !== 429 && count < 2 && (e.status === 0 || (e.status >= 500 && e.status !== 501)),
+    })
   },
   pendingComponent: ShellPending,
   errorComponent: ShellError,
@@ -99,15 +105,15 @@ function ShellPending() {
 
 function ShellError({ error }: { error: unknown }) {
   const router = useRouter()
+  const retry = useCallback(() => void retryRestore().then(() => router.invalidate()), [router])
+  if (isRateLimited(error)) return <ShellBusy wait={Math.min((error as { retryAfter?: number | null }).retryAfter ?? 20, 60)} onRetry={retry} />
   return (
     <div className="flex min-h-svh items-center justify-center p-4">
       <div className="w-full max-w-md rounded-card border border-line bg-surface shadow-raised-md">
         <ErrorState
           error={error instanceof SessionUnreachable ? networkError() : error}
           title={error instanceof SessionUnreachable ? "Can't reach the server" : "Couldn't load your workspace"}
-          onRetry={() => {
-            void retryRestore().then(() => router.invalidate())
-          }}
+          onRetry={retry}
         />
       </div>
     </div>

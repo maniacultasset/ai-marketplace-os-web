@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { envelope } from '@/test/fake-api'
 import { toApiError } from '@/api/errors'
+import type { Role } from '@/api/types'
 import { inviteErrorMessage, resetRefusal } from './access-errors'
+import { memberGating, type Member } from './roles'
 import {
   inviteRoleOptions,
   inviteStash,
@@ -70,16 +72,25 @@ describe('takeLinkToken', () => {
 })
 
 describe('role rules', () => {
-  it('only an owner invites an owner', () => {
+  it('only an owner invites an owner or a reviewer', () => {
     expect(inviteRoleOptions('owner')).toEqual(['owner', 'admin', 'operator', 'reviewer'])
-    expect(inviteRoleOptions('admin')).toEqual(['admin', 'operator', 'reviewer'])
+    expect(inviteRoleOptions('admin')).toEqual(['admin', 'operator'])
     expect(inviteRoleOptions('operator')).toEqual([])
     expect(inviteRoleOptions(undefined)).toEqual([])
   })
-  it('only an owner cancels an owner invite', () => {
+  it('only an owner cancels an owner or reviewer invite', () => {
     expect(revokeLockedReason('owner', 'owner')).toBeNull()
+    expect(revokeLockedReason('owner', 'reviewer')).toBeNull()
     expect(revokeLockedReason('admin', 'owner')).toMatch(/Only an owner/)
-    expect(revokeLockedReason('admin', 'reviewer')).toBeNull()
+    expect(revokeLockedReason('admin', 'reviewer')).toBe('Only an owner can cancel an owner or reviewer invite.')
+    expect(revokeLockedReason('admin', 'operator')).toBeNull()
+  })
+  it('an admin is never offered reviewer on a member row, but a reviewer row keeps its value', () => {
+    const admin = { user_id: 'me', role: 'admin' as const }
+    const row = (role: Role) => ({ user_id: 'u2', role, email: 'a@b.test', is_active: true }) as Member
+    expect(memberGating(admin, row('operator')).roleOptions).toEqual(['admin', 'operator'])
+    expect(memberGating(admin, row('reviewer')).roleOptions).toEqual(['admin', 'operator', 'reviewer'])
+    expect(memberGating({ user_id: 'me', role: 'owner' }, row('operator')).roleOptions).toEqual(['owner', 'admin', 'operator', 'reviewer'])
   })
 })
 
@@ -132,12 +143,13 @@ describe('refusals in words', () => {
       .then((body) => toApiError(new Response(null, { status }), body))
   it('invite: a member or the 50 limit lands on email; an owner role on role', async () => {
     expect(inviteErrorMessage(await err(422, 'VALIDATION_FAILED', [{ loc: ['body', 'email'], msg: 'x', type: 'x' }]), 'reviewer')?.field).toBe('email')
-    expect(inviteErrorMessage(await err(403, 'PERMISSION_DENIED'), 'owner')).toMatchObject({ field: 'role', message: 'Only an owner can invite an owner.' })
+    expect(inviteErrorMessage(await err(403, 'PERMISSION_DENIED'), 'owner')).toMatchObject({ field: 'role', message: 'Only an owner can invite an owner or a reviewer.' })
+    expect(inviteErrorMessage(await err(403, 'PERMISSION_DENIED'), 'reviewer')).toMatchObject({ field: 'role', message: 'Only an owner can invite an owner or a reviewer.' })
     expect(inviteErrorMessage(await err(429, 'RATE_LIMITED'), 'reviewer')?.message).toMatch(/Wait a minute/)
     expect(inviteErrorMessage(await err(500, 'INTERNAL_ERROR'), 'reviewer')).toBeNull()
   })
   it('invite: a 403 for any other role is not about owners (the generic sentence)', async () => {
-    expect(inviteErrorMessage(await err(403, 'PERMISSION_DENIED'), 'reviewer')).toBeNull()
+    expect(inviteErrorMessage(await err(403, 'PERMISSION_DENIED'), 'operator')).toBeNull()
   })
   it('reset: a 403 sends the owner to Kuinn support', async () => {
     expect(resetRefusal(await err(403, 'PERMISSION_DENIED'), { myRole: 'owner', targetRole: 'reviewer' })).toMatchObject({ support: true })

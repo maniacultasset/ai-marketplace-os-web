@@ -446,6 +446,8 @@ const HISTORY_LABEL: Record<string, string> = {
   'listing.regenerate_requested': 'Asked for a regeneration',
   'listing.publish_requested': 'Asked to publish',
   'listing.revalidated': 'Re-ran the checks',
+  'listing.auto_fixed': 'Fixed automatically',
+  'listing.fact_answered': 'Added your answer to the listing',
 }
 
 export function historyLabel(action: string): string {
@@ -453,8 +455,37 @@ export function historyLabel(action: string): string {
 }
 
 /**
+ * The reason on a history row, in plain words, or null when there is nothing a seller can read.
+ * An approve or reject names the version decided on (the API's `review`, see `reviewDetail`).
+ * Reject reasons are codes (`inaccurate_fact`); other reasons are free backend text, often an action
+ * code (`publish`) or an internal fix trail (`[reformat content.title v1 a863…->89ed…]`): those
+ * are dropped. A reviewer's note (`after.note`) is shown with the reject.
+ */
+export function historyReason(e: {
+  action: string
+  reason?: string | null
+  after?: Record<string, unknown> | null
+  review?: Schema<'AuditReviewOut'> | null
+}): string | null {
+  const note = typeof e.after?.['note'] === 'string' ? (e.after['note'] as string).trim() : ''
+  if (e.action === 'listing.rejected' || e.review) {
+    const code = e.review?.reason_code ?? (e.action === 'listing.rejected' ? e.reason : null)
+    const label = code ? (REJECT_REASONS.find((r) => r.code === code)?.label ?? sentence(code)) : null
+    const version = e.review?.version ? `Version ${e.review.version}` : null
+    const decided = [version, label].filter(Boolean).join(' · ')
+    const parts = [decided, e.action === 'listing.rejected' && note ? `Note: “${note}”` : null].filter(Boolean)
+    return parts.length ? parts.join('. ') : null
+  }
+  const r = e.reason?.trim()
+  if (!r) return null
+  if (/^[a-z0-9_.-]+$/.test(r)) return null
+  if (/^\[.*\]$/.test(r) || /\b[0-9a-f]{12,}\b/i.test(r) || /\b(?:attributes|facts|content|images|variants)[.[][a-z0-9_]/i.test(r)) return null
+  return r
+}
+
+/**
  * What an approve or reject event decided (the API's `review`): "Version 2 · Poor quality". The
- * reviewer's free-text note never reaches the history (untrusted text). Null for other events, or
+ * API leaves the reviewer's free-text note out of `review`. Null for other events, or
  * an older API without it (prod QA 9 Nov: "Rejected · a person" said nothing about which version
  * or why).
  */

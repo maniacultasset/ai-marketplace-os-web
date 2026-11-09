@@ -2,6 +2,7 @@ import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
 import { isApiError, isMfaRequired } from '@/api/errors'
 import { getSession } from '@/api/session'
 import { isAiPausedError, markAiPaused } from '@/features/ai-credit/model'
+import { toast } from 'sonner'
 import { toastError } from '@/lib/toast'
 
 declare module '@tanstack/react-query' {
@@ -33,6 +34,17 @@ function refetchMeAfter403(client: QueryClient, error: unknown) {
   }
 }
 
+/** Longest a read waits on Retry-After before it gives up and shows its own error with Retry. */
+export const RATE_LIMIT_WAIT_CAP_S = 20
+
+/**
+ * A 429 is the brand's shared limit: say so once, calmly, instead of leaving skeletons that never
+ * fill. One toast for every read that is waiting (same id), replaced as the wait changes.
+ */
+export function noteRateLimited(waitS: number) {
+  toast.info('Kuinn is busy', { id: 'rate-limited', description: `Too many requests from this brand right now. Trying again in ${waitS} s.` })
+}
+
 export function createQueryClient() {
   const client: QueryClient = new QueryClient({
     queryCache: new QueryCache({
@@ -51,16 +63,21 @@ export function createQueryClient() {
     defaultOptions: {
       queries: {
         staleTime: 30_000,
-        // retry only network errors and 5xx (not 501); 429 waits Retry-After.
+        // retry only network errors and 5xx (not 501); 429 waits Retry-After once (capped).
         retry: (count, error) => {
           if (!isApiError(error)) return false
-          if (error.status === 429) return count < 2
+          // One capped wait, then the screen's own error state with Retry.
+          if (error.status === 429) return count < 1
           return count < 2 && (error.status === 0 || (error.status >= 500 && error.status !== 501))
         },
-        retryDelay: (attempt, error) =>
-          isApiError(error) && error.status === 429
-            ? (error.retryAfter ?? 60) * 1000
-            : Math.min(1000 * 2 ** attempt, 8000),
+        retryDelay: (attempt, error) => {
+          if (isApiError(error) && error.status === 429) {
+            const wait = Math.min(error.retryAfter ?? RATE_LIMIT_WAIT_CAP_S, RATE_LIMIT_WAIT_CAP_S)
+            noteRateLimited(wait)
+            return wait * 1000
+          }
+          return Math.min(1000 * 2 ** attempt, 8000)
+        },
         refetchOnWindowFocus: true,
       },
       mutations: { retry: false },

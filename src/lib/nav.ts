@@ -217,8 +217,10 @@ export function useNavItems(placement?: NavItem['placement']) {
   const probe = useCapabilityProbe({ enabled: needsProbe })
   const probed = probe.data
   return useMemo(() => {
-    const live = (c: Capability) =>
-      BUILT[c] && probed?.find((p) => p.capability === c)?.result === 'live'
+    // Hidden only once the probe says the route is a stub (501). While it is pending, or when it
+    // failed (500, 429, offline), the item stays: the page shows its own error, the menu never
+    // shifts or loses Inbox for the session.
+    const live = (c: Capability) => BUILT[c] && probed?.find((p) => p.capability === c)?.result !== 'stub'
     return NAV_ITEMS.filter(
         (item) =>
           (!placement || item.placement === placement) &&

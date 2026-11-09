@@ -46,7 +46,7 @@ import { useFixCounts } from '@/features/home-inbox/api'
 import { AutoFixedChip } from '@/features/listing-flow/auto-fix'
 import { listingDetailQuery, useListingHistory } from '@/features/listings/api'
 import { recallJob } from '@/features/listings/job-memory'
-import { blockedReason, historyLabel, isBusy, reviewDetail, statusReasonLabel, validationBlocking } from '@/features/listings/model'
+import { blockedReason, historyLabel, historyReason, isBusy, statusReasonLabel, validationBlocking } from '@/features/listings/model'
 import { auditActorLabel } from '@/features/marketplaces-settings/model'
 import { comingSoon, comingSoonReason, draftOpen } from '@/features/marketplaces/meta'
 import { useProduct, type ProductDetail } from '@/features/products/api'
@@ -255,6 +255,7 @@ interface DetailData {
   listingsPending: boolean
   /** The listings read failed with nothing loaded: whether the product has one is unknown. */
   listingsFailed: boolean
+  listingsError: unknown
   retryListings: () => void
   /** Open issues: counts show only when 'ready', 'Unknown' on 'error'. */
   issuesState: 'pending' | 'error' | 'ready'
@@ -304,6 +305,7 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
       autoFixPending: autoFix.pending,
       listingsPending: listingsQ.isPending,
       listingsFailed: !listingsQ.data && !!listingsQ.error,
+      listingsError: listingsQ.data ? null : listingsQ.error,
       retryListings: () => void refetchListings(),
       issuesState: issuesQ.data ? 'ready' : issuesQ.error ? 'error' : 'pending',
       variantsPending: all.isPending,
@@ -351,7 +353,7 @@ function LoadedDetail({ data, tab, tabsRef }: { data: DetailData; tab: DetailTab
   const refreshViews = useRefreshProductViews(productId)
   const overall = OVERALL_CHIP[overallStatus(Object.values(data.listings))]
   // The header's one primary action: the first listing a person has to look at, if any.
-  const review = data.listingsPending ? undefined : listingsIn(data).find(needsReview)
+  const review = data.listingsPending || data.listingsFailed ? undefined : listingsIn(data).find(needsReview)
   const setTab = (t: string) =>
     void navigate({ to: '/products/$productId', params: { productId }, search: t === 'overview' ? {} : { tab: t as DetailTab }, replace: true })
 
@@ -367,14 +369,20 @@ function LoadedDetail({ data, tab, tabsRef }: { data: DetailData; tab: DetailTab
             onError={refreshViews}
           />
           <div className="min-w-0">
-            <div className="flex min-w-0 items-center gap-2">
-              <h1 className="truncate font-display text-h1 text-ink" data-testid="product-title">
+            <div className="flex min-w-0 items-start gap-2">
+              {/* Long titles wrap to two lines, and the full title is the tooltip. */}
+              <h1 className="line-clamp-2 font-display text-h1 break-words text-ink" title={p.title} data-testid="product-title">
                 {p.title}
               </h1>
               {data.isVariant ? null : data.listingsPending ? (
-                <Skeleton className="h-[22px] w-20 shrink-0 rounded-full" />
+                <Skeleton className="mt-1.5 h-[22px] w-20 shrink-0 rounded-full" />
+              ) : data.listingsFailed ? (
+                // The listings read failed: the state is unknown, never "Draft".
+                <StatusChip status="not-listed" className="mt-1.5 shrink-0" data-testid="product-status-unknown">
+                  Unknown
+                </StatusChip>
               ) : (
-                <StatusChip status={overall.status} className="shrink-0">
+                <StatusChip status={overall.status} className="mt-1.5 shrink-0">
                   {overall.label}
                 </StatusChip>
               )}
@@ -507,6 +515,8 @@ function useFirstUnlisted(data: DetailData): MarketplaceInfo | 'pending' | null 
   const { connected } = useConnectedMarketplaces()
   if (!can('listing:generate') || data.isVariant) return null
   if (data.listingsPending || connected === null) return 'pending'
+  // Unknown listings are not "no listings": offering a draft could make a duplicate.
+  if (data.listingsFailed) return null
   const id = firstListable(data.listings, connected)
   return id ? (MARKETPLACES.find((m) => m.id === id) ?? null) : null
 }
@@ -553,7 +563,10 @@ function MarketplaceCards({ data, detailed }: { data: DetailData; detailed?: boo
   return (
     <>
       <div className="flex flex-col gap-4">
-        <div className="grid gap-4 md:grid-cols-2" data-testid="marketplace-cards">
+        {data.listingsFailed ? (
+          <ListingsFailed data={data} />
+        ) : (
+        <div className="grid gap-4 lg:grid-cols-2" data-testid="marketplace-cards">
           {SUPPORTED.map((m) => (
             <MarketplaceCard
               key={m.id}
@@ -565,6 +578,7 @@ function MarketplaceCards({ data, detailed }: { data: DetailData; detailed?: boo
             />
           ))}
         </div>
+        )}
         <MoreMarketplaces />
       </div>
       {adding ? (
@@ -582,6 +596,15 @@ function MarketplaceCards({ data, detailed }: { data: DetailData; detailed?: boo
   )
 }
 
+/** The listings read failed: one error with Retry, never "Not listed" or a "List on" offer. */
+function ListingsFailed({ data }: { data: DetailData }) {
+  return (
+    <LaCard pad="none" data-testid="listings-failed">
+      <ErrorState compact error={data.listingsError} title="Couldn’t load this product’s listings" onRetry={data.retryListings} />
+    </LaCard>
+  )
+}
+
 /**
  * Marketplaces not supported yet, one quiet row each (DESIGN p17 keeps every marketplace, its chip
  * and its waitlist control). No data needed, so the loading frame shows the same strip.
@@ -590,7 +613,9 @@ export function MoreMarketplaces() {
   return (
     <DashedCard pad="sm" data-testid="more-marketplaces">
       <h3 className="text-small font-semibold text-ink">More marketplaces</h3>
-      <ul className="mt-2 grid gap-x-6 md:grid-cols-2">
+      {/* Two columns only from xl: the card sits beside the sidebar, and at md each column was too
+          narrow for the name next to its chip and waitlist link. */}
+      <ul className="mt-2 grid gap-x-6 xl:grid-cols-2">
         {UNSUPPORTED.map((m) => (
           <li key={m.id} className="flex min-h-11 items-center justify-between gap-3 border-b border-line py-1.5 last:border-b-0 md:[&:nth-last-child(2):nth-child(odd)]:border-b-0">
             <MarketplaceName id={m.id} size="xs" className="gap-2 text-small" />
@@ -774,6 +799,11 @@ function MarketplaceCard({
           ) : null}
         </p>
       )}
+      {!detailed && (chip.status === 'blocked' || chip.status === 'error') && l.status_reason ? (
+        <p className="mt-2 text-small text-ink-2" data-testid={`marketplace-reason-${id}`}>
+          {statusReasonLabel(l.status_reason)}
+        </p>
+      ) : null}
       {notBuyable && !busy ? (
         <p className="mt-3 text-small text-pretty text-ink-2" data-testid={`not-buyable-${id}`}>
           {id === 'amazon' ? NOT_BUYABLE_NEXT : `${m.name} has the product page but is not selling it yet.`}
@@ -1057,6 +1087,7 @@ function NoListings({ data }: { data: DetailData }) {
 function ContentTab({ data }: { data: DetailData }) {
   const ls = listingsIn(data)
   if (data.listingsPending) return <TabCardsSkeleton />
+  if (data.listingsFailed) return <ListingsFailed data={data} />
   if (!ls.length) return <NoListings data={data} />
   return (
     <div className="flex flex-col gap-3">
@@ -1096,15 +1127,34 @@ function useListingDetails(listings: readonly Listing[]) {
   return useQueries({ queries: listings.map((l) => listingDetailQuery(keys, l.id)) })
 }
 
-function ValidationCard({ listing, q, pending }: { listing: Listing; q: ListingDetailQuery; pending: boolean }) {
+/** Listing states the rules run alone does not explain: a "Checks passed" there would mislead. */
+const HELD = new Set<Listing['status']>(['blocked', 'failed'])
+
+function ValidationCard({
+  listing,
+  q,
+  pending,
+  openIssues,
+  issuesState,
+}: {
+  listing: Listing
+  q: ListingDetailQuery
+  pending: boolean
+  /** Open issues on this listing from every source (marketplace, photo and fact checks too). */
+  openIssues: number
+  issuesState: DetailData['issuesState']
+}) {
   const v = q.data?.data.validation
   // The rules run is one of the checks. The server's open blocking issues also count the
   // marketplace check and its dry run, as Review does (prod QA 9 Nov: "Checks passed, 0
-  // blocking" here while Review showed 6 blockers).
+  // blocking" here while Review showed 6 blockers). Green also needs no open issue from any
+  // other check, and a listing that is not blocked or failed.
   const detail = q.data?.data
   const { blocking, marketplace } = validationBlocking(v, detail)
   const blockers = detail && needsYourInfo(detail) ? (detail.needs_you_count ?? 0) : 0
-  const clean = !!v && v.passed && blocking === 0
+  const rulesPassed = !!v && v.passed && blocking === 0
+  const clean = rulesPassed && issuesState === 'ready' && openIssues === 0 && !HELD.has(listing.status)
+  const held = rulesPassed && !clean
   return (
     <LaCard className={CARD_FRAME} aria-busy={pending || undefined}>
       <div className="flex items-center justify-between gap-2">
@@ -1114,9 +1164,13 @@ function ValidationCard({ listing, q, pending }: { listing: Listing; q: ListingD
         ) : v ? (
           // Green only with real evidence: the checks passed and nothing blocks.
           blockers > 0 && detail ? (
-            <StatusChip status="needs-you">{needsYourInfoLabel(detail)}</StatusChip>
+            <StatusChip status="needs-you" data-testid="validation-chip">
+              {needsYourInfoLabel(detail)}
+            </StatusChip>
           ) : (
-            <StatusChip status={clean ? 'live' : v.passed ? 'draft' : 'error'}>{v.passed ? 'Checks passed' : 'Checks failed'}</StatusChip>
+            <StatusChip status={clean ? 'live' : held ? 'needs-you' : v.passed ? 'draft' : 'error'} data-testid="validation-chip">
+              {clean ? 'Checks passed' : held ? 'Needs you' : v.passed ? 'Checks passed' : 'Checks failed'}
+            </StatusChip>
           )
         ) : q.error ? null : (
           <TagChip tone="plain">Not checked</TagChip>
@@ -1124,7 +1178,7 @@ function ValidationCard({ listing, q, pending }: { listing: Listing; q: ListingD
       </div>
       {pending ? (
         <dl className={cn('mt-3 text-small', KV_GRID)}>
-          {['Blocking', 'Warnings'].map((k) => (
+          {['Blocking', 'Warnings', 'Open issues'].map((k) => (
             <div key={k} className="contents">
               <dt className="whitespace-nowrap text-ink-2">{k}</dt>
               <dd className="flex min-h-5 items-center">
@@ -1145,6 +1199,18 @@ function ValidationCard({ listing, q, pending }: { listing: Listing; q: ListingD
               </span>,
             ],
             ['Warnings', <span key="w" className="tabular-nums">{v.warning_count}</span>],
+            [
+              'Open issues',
+              issuesState === 'error' ? (
+                <span key="i" title="Couldn’t load issues.">
+                  Unknown
+                </span>
+              ) : (
+                <span key="i" className="tabular-nums" data-testid="validation-open-issues">
+                  {openIssues}
+                </span>
+              ),
+            ],
           ]}
         />
       ) : (
@@ -1153,6 +1219,12 @@ function ValidationCard({ listing, q, pending }: { listing: Listing; q: ListingD
       {!pending && marketplace ? (
         <p className="mt-2 text-small text-ink-2" data-testid="validation-marketplace-note">
           The rules passed, but the marketplace check blocks this version. See every check for what to fix.
+        </p>
+      ) : !pending && held ? (
+        <p className="mt-3 text-small text-pretty text-ink-2" data-testid="validation-held">
+          {openIssues > 0
+            ? `The rules passed. ${openIssues} open ${openIssues === 1 ? 'issue still needs' : 'issues still need'} you.`
+            : `The rules passed, but the listing is ${listing.status === 'blocked' ? 'blocked' : 'failed'}. Open it to see why.`}
         </p>
       ) : null}
       <div className={CARD_ACTIONS}>
@@ -1170,7 +1242,7 @@ function ValidationTab({ data }: { data: DetailData }) {
   const ls = data.listingsPending ? [] : listingsIn(data)
   const details = useListingDetails(ls)
   // Cards swap from placeholders to results together, never one by one.
-  const pending = details.some((d) => d.isPending)
+  const pending = details.some((d) => d.isPending) || data.issuesState === 'pending'
   return (
     <div className="flex flex-col gap-4">
       <Can action="listing:edit">
@@ -1185,10 +1257,19 @@ function ValidationTab({ data }: { data: DetailData }) {
       </Can>
       {data.listingsPending ? (
         <TabCardsSkeleton />
+      ) : data.listingsFailed ? (
+        <ListingsFailed data={data} />
       ) : ls.length ? (
         <div className="grid gap-4 md:grid-cols-2">
           {ls.map((l, i) => (
-            <ValidationCard key={l.id} listing={l} q={details[i]!} pending={pending} />
+            <ValidationCard
+              key={l.id}
+              listing={l}
+              q={details[i]!}
+              pending={pending}
+              openIssues={data.issuesByListing.get(l.id) ?? 0}
+              issuesState={data.issuesState}
+            />
           ))}
         </div>
       ) : (
@@ -1234,25 +1315,31 @@ function HistoryList({
       ) : h.error && !h.data ? (
         <ErrorState error={h.error} compact onRetry={() => void h.refetch()} />
       ) : h.rows.length === 0 ? (
-        <p className="mt-3 text-small text-ink-2">No history yet.</p>
+        // This list records people's reviews and edits, and Kuinn's fixes; drafting is on the card above.
+        <p className="mt-3 text-small text-ink-2">
+          No reviews or edits yet. Drafted <RelativeTime iso={listing.created_at} />.
+        </p>
       ) : (
         <ol className="mt-3 flex flex-col">
-          {h.rows.map((e) => (
-            <li key={e.id} className="flex items-start justify-between gap-3 border-b border-line py-2.5 text-small last:border-b-0" data-testid="history-row">
-              <span className="min-w-0 text-ink">
-                <span className="block truncate">
-                  {historyLabel(e.action)}
-                  <span className="text-ink-2"> · {auditActorLabel(e, me?.user_id)}</span>
-                </span>
-                {reviewDetail(e.review) ? (
-                  <span className="mt-0.5 block text-caption break-words text-ink-2" data-testid="history-review">
-                    {reviewDetail(e.review)}
+          {h.rows.map((e) => {
+            const reason = historyReason(e)
+            return (
+              <li key={e.id} className="flex items-start justify-between gap-3 border-b border-line py-2.5 text-small last:border-b-0" data-testid="history-row">
+                <span className="min-w-0 text-ink">
+                  <span className="block truncate">
+                    {historyLabel(e.action)}
+                    <span className="text-ink-2"> · {auditActorLabel(e, me?.user_id)}</span>
                   </span>
-                ) : null}
-              </span>
-              <RelativeTime iso={e.occurred_at} className="shrink-0 text-caption text-ink-2" />
-            </li>
-          ))}
+                  {reason ? (
+                    <span className="line-clamp-2 text-caption break-words text-ink-2" data-testid="history-review">
+                      {reason}
+                    </span>
+                  ) : null}
+                </span>
+                <RelativeTime iso={e.occurred_at} className="shrink-0 text-caption text-ink-2" />
+              </li>
+            )
+          })}
         </ol>
       )}
       {!waiting && h.hasNextPage ? (
@@ -1264,6 +1351,7 @@ function HistoryList({
   )
 }
 
+/** "You" for the signed-in user; other people are "a teammate" (no user directory for every role). */
 function ActivityTab({ data }: { data: DetailData }) {
   const ls = listingsIn(data)
   const p = data.product
@@ -1286,6 +1374,8 @@ function ActivityTab({ data }: { data: DetailData }) {
       </LaCard>
       {data.listingsPending ? (
         <TabCardsSkeleton />
+      ) : data.listingsFailed ? (
+        <ListingsFailed data={data} />
       ) : ls.length ? (
         <div className={cn('grid gap-4', ls.length > 1 && 'md:grid-cols-2')}>
           {ls.map((l) => (

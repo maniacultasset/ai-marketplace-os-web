@@ -68,10 +68,10 @@ describe('InviteDialog', () => {
     expect(screen.getByText(/A new one replaces the old link/)).toBeTruthy()
   })
 
-  it('tells an admin only an owner can invite an owner', () => {
+  it('tells an admin only an owner can invite an owner or a reviewer', () => {
     s.role = 'admin'
     wrap(<InviteDialog open onClose={vi.fn()} members={[]} pending={[]} />)
-    expect(screen.getByText('Only an owner can invite an owner.')).toBeTruthy()
+    expect(screen.getByText('Only an owner can invite an owner or a reviewer.')).toBeTruthy()
   })
 })
 

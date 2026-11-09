@@ -17,7 +17,7 @@ import { recallJob } from '@/features/listings/job-memory'
 import type { ListingDetail } from '@/features/listings/model'
 import { listingChip } from '@/lib/listing-chip'
 import { cn } from '@/lib/utils'
-import { categoryLabel, clock, fieldLabel, mpName } from './format'
+import { categoryLabel, clock, fieldLabel, findingText, mpName, sentenceCase } from './format'
 import { plural, type ErrorItem } from './gates'
 import { attrLabel, mappingRows, otherFindings, type MappingRow, type RowState } from './mapping'
 import { CardSkeleton, GATE_CHIP, GateLegend, GateList, GateListSkeleton, HeadSkeleton, ScreenHead } from './ui'
@@ -216,7 +216,7 @@ function FieldCell({ row }: { row: MappingRow }) {
       ) : (
         <span className="text-ink-3">Not matched in the preview</span>
       )}
-      {f ? <small className="block text-caption text-ink-3">{f.suggestion ?? f.message}</small> : null}
+      {f ? <small className="block text-caption text-ink-3">{findingText(f).suggestion ?? findingText(f).message}</small> : null}
     </span>
   )
 }
@@ -318,7 +318,7 @@ function OtherFindings({ items }: { items: readonly ErrorItem[] }) {
           <li key={i} className="flex items-start gap-3 border-b border-line py-3 last:border-b-0 last:pb-0">
             <StatusChip status={f.severity === 'error' ? 'blocked' : 'needs-you'} iconOnly label={f.severity === 'error' ? 'Blocking' : 'Warning'} />
             <div className="min-w-0">
-              <p className="text-body text-ink">{f.message}</p>
+              <p className="text-body text-ink">{sentenceCase(f.message)}</p>
               {f.field ? (
                 <p className="text-caption text-ink-3" title={f.field}>
                   {fieldLabel(f.field)}

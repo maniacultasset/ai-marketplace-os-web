@@ -25,6 +25,7 @@ export function Banner({
   icon,
   className,
   role,
+  'data-testid': testId,
 }: {
   tone?: BannerTone
   title?: ReactNode
@@ -35,11 +36,12 @@ export function Banner({
   className?: string
   /** 'alert' for errors raised by the user's own action; default is a plain region. */
   role?: 'alert' | 'status'
+  'data-testid'?: string
 }) {
   const t = TONE[tone]
   const glyph = icon === undefined ? t.icon : icon
   return (
-    <div role={role} className={cn('flex items-start gap-3 rounded-banner border px-4 py-3 text-body', t.box, className)}>
+    <div role={role} data-testid={testId} className={cn('flex items-start gap-3 rounded-banner border px-4 py-3 text-body', t.box, className)}>
       {/* Tone tile: flat on a tinted banner, raised on the white neutral one. */}
       {glyph ? <IconTile icon={glyph} tone={t.tile} size="sm" flat={tone !== 'neutral'} className="-my-1" /> : null}
       <div className="min-w-0 flex-1">

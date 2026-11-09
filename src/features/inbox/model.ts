@@ -150,13 +150,18 @@ export function countLabel(loaded: number, hasMore: boolean): string {
   return hasMore ? `${loaded}+` : String(loaded)
 }
 
-/** Sidebar badge from the first page of open issues and open tasks. Null hides the badge. */
+/**
+ * Sidebar badge from the first page of open issues and open tasks. Null hides the badge. An issue
+ * linked to a listed open question is the same thing to do and counts once (Inbox All, Home).
+ */
 export function badgeLabel(
-  issues: Pick<Page<unknown>, 'data' | 'page'> | undefined,
-  tasks: Pick<Page<unknown>, 'data' | 'page'> | undefined,
+  issues: Pick<Page<{ human_task_id?: string | null }>, 'data' | 'page'> | undefined,
+  tasks: Pick<Page<{ id?: string }>, 'data' | 'page'> | undefined,
 ): string | null {
   if (!issues && !tasks) return null
-  const n = (issues?.data.length ?? 0) + (tasks?.data.length ?? 0)
+  const open = new Set((tasks?.data ?? []).map((t) => t.id).filter(Boolean))
+  const standalone = (issues?.data ?? []).filter((i) => !i.human_task_id || !open.has(i.human_task_id)).length
+  const n = standalone + (tasks?.data.length ?? 0)
   const more = !!issues?.page.has_more || !!tasks?.page.has_more
   if (n === 0 && !more) return null
   if (n > 99) return '99+'

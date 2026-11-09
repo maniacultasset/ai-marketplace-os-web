@@ -39,6 +39,9 @@ import {
   SLOT_LABEL,
   tally,
   validateImageFile,
+  checkImageReadable,
+  hasWarnings,
+  backgroundFlagged,
   type CheckOutcome,
   type ImageReport,
   type ImageRole,
@@ -171,8 +174,16 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
       }
     })
     setUploads((list) => [...created, ...list])
-    created.filter((u) => u.stage.kind === 'uploading').forEach(start)
+    // Decode first: a file that is not a photo is refused here, before it reaches the store.
+    for (const u of created.filter((x) => x.stage.kind === 'uploading'))
+      void checkImageReadable(u.file).then((problem) => (problem ? patch(u.localId, { stage: { kind: 'invalid', message: problem } }) : start(u)))
   }
+
+  // Each image's report, shared with the rows below (same key), so a tile can say "warning".
+  const tileReports = useQueries({ queries: (product.image_details ?? []).map((d) => reportQuery(keys, d.image_id, live)) })
+  const warnedIds = new Set((product.image_details ?? []).filter((_, i) => hasWarnings(tileReports[i]?.data)).map((d) => d.image_id))
+  const passedTile = (d: { image_id: string }): Pick<TileState, 'status' | 'tone'> =>
+    warnedIds.has(d.image_id) ? { status: 'Check the warning below', tone: 'warn' } : { status: 'Checked', tone: 'ok' }
 
   /** What a tile shows: this visit's upload for it, else the product's image in that place. */
   const tileState = (def: PhotoSlotDef): TileState => {
@@ -183,13 +194,17 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
       if (st.kind === 'invalid') return { filled: false, status: st.message, tone: 'bad' }
       if (st.kind === 'uploading') return { filled: true, previewUrl: mine.previewUrl, status: 'Uploading…', tone: 'busy' }
       if (st.kind === 'failed') return { filled: false, status: describeError(st.error), tone: 'bad' }
+      // Accepted: once the product read has this image's verdict, the tile says it (no reload).
+      const known = st.kind === 'accepted' ? details.find((d) => d.image_id === st.imageId) : undefined
+      if (known?.compliance_status === 'passed') return { filled: true, previewUrl: mine.previewUrl, ...passedTile(known) }
+      if (known?.compliance_status === 'failed') return { filled: true, previewUrl: mine.previewUrl, status: 'Needs a fix, see below', tone: 'bad' }
       return { filled: true, previewUrl: mine.previewUrl, status: 'Uploaded, checking…', tone: 'busy' }
     }
     const held = details.find((d) => photoSlotOf(d.slot, d.role) === def.id && (def.slot === 'size_chart' || (d.colourway_id ?? null) === cw))
     if (!held) return { filled: false }
     const previewUrl = held.view_url ?? undefined
     const warnings = qaById.get(held.image_id)
-    if (held.compliance_status === 'passed') return { filled: true, previewUrl, status: 'Checked', tone: 'ok', warnings }
+    if (held.compliance_status === 'passed') return { filled: true, previewUrl, ...passedTile(held), warnings }
     if (held.compliance_status === 'failed') return { filled: true, previewUrl, status: 'Needs a fix, see below', tone: 'bad', warnings }
     return { filled: true, previewUrl, status: 'Checking…', tone: 'busy' }
   }
@@ -223,6 +238,7 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         canAct={canMake}
         aiLimit={aiLimit}
         onPreviewError={onPreviewError}
+        hasSizeChartImage={details.some((d) => d.slot === 'size_chart')}
       />
     ) : null
   const rowExtras = (imageId: string) => {
@@ -236,7 +252,18 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
       knownRole: d?.role ?? null,
       acceptedJob: session.accepted.get(imageId),
       badges: label || kept.has(imageId) ? <OriginBadges label={label} kept={kept.has(imageId)} /> : null,
-      extra: d?.slot === 'main' ? fixesBlock(imageId, d.fixes ?? []) : null,
+      extra:
+        d?.slot === 'main' ? (
+          <>
+            {fixesBlock(imageId, d.fixes ?? [])}
+            {/* The background check flagged the Front and no white-background fix is offered. */}
+            {(d.fixes ?? []).length === 0 && backgroundFlagged(tileReports[(product.image_details ?? []).indexOf(d)]?.data) ? (
+              <p className="px-5 pb-3 text-small text-ink-2" data-testid="no-background-fix">
+                Kuinn cannot make a white background for this photo right now. Upload a version on plain white.
+              </p>
+            ) : null}
+          </>
+        ) : null,
     }
   }
   const sizeChartKinds: CandidateKind[] =
@@ -666,7 +693,8 @@ function ImageRow({
   })
   const reports = report.data ? marketplaceReports(report.data) : []
   const slot = knownSlot ?? reports[0]?.slot ?? upload?.slot
-  const title = slot ? imageLabel(slot, knownRole ?? upload?.role) : 'Image'
+  // The product read knows the image's role now (a replaced Back is a plain "Secondary").
+  const title = slot ? imageLabel(slot, knownSlot !== undefined ? knownRole : upload?.role) : 'Image'
 
   return (
     <li data-testid="image-row" data-image-id={imageId} data-compliance={report.data?.compliance_status}>
@@ -681,13 +709,16 @@ function ImageRow({
             {report.isPending && live && !slot ? (
               <Skeleton className="my-0.5 h-4 w-24" />
             ) : (
-              <p className="truncate text-sm font-medium" data-testid="image-title">
+              <p className="truncate text-sm font-medium" data-testid="image-title" title={storageKey ?? imageId}>
                 {title}
               </p>
             )}
-            <p className="truncate font-mono text-xs text-muted-foreground" title={storageKey ?? imageId}>
-              {imageId}
-            </p>
+            {/* The file name while it is this visit's upload; the internal id stays in the tooltip only. */}
+            {upload ? (
+              <p className="truncate text-xs text-muted-foreground" title={storageKey ?? imageId}>
+                {upload.file.name}
+              </p>
+            ) : null}
             {badges ? <div className="mt-1.5 flex flex-wrap gap-1.5">{badges}</div> : null}
             <PhotoQaChips warnings={photoQaWarnings(report.data)} className="mt-1.5" />
           </div>
@@ -705,6 +736,7 @@ function ImageRow({
               )
             ) : report.data ? (
               <ComplianceBadge
+                warned={hasWarnings(report.data)}
                 status={report.data.compliance_status}
                 jobStatus={polling.job?.status}
                 jobKnown={!!jobId}
@@ -774,11 +806,20 @@ function ComplianceBadge({
   status,
   jobStatus,
   jobKnown,
+  warned = false,
 }: {
   status: 'pending' | 'passed' | 'failed'
   jobStatus: string | undefined
   jobKnown: boolean
+  /** Passed, but a check warned (for example the background): the open issue says the same. */
+  warned?: boolean
 }) {
+  if (status === 'passed' && warned)
+    return (
+      <Badge variant="warning" data-testid="compliance-badge">
+        <Dot /> Warning
+      </Badge>
+    )
   if (status === 'passed')
     return (
       <Badge variant="success" data-testid="compliance-badge">
@@ -858,9 +899,13 @@ function MarketplaceReport({ report }: { report: ImageReport }) {
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm">{r.label}</span>
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      {r.method === 'vision' ? <Icon name="spark" size={14} /> : null}
-                      <span className="sr-only">{o.label}: </span>
-                      {r.method === 'vision' ? 'AI check' : 'Automated'}
+                      <span className="sr-only">{o.label}</span>
+                      {r.method === 'vision' ? (
+                        <>
+                          <Icon name="spark" size={14} />
+                          AI check
+                        </>
+                      ) : null}
                     </span>
                   </div>
                   {r.suggestions.map((s, i) => (

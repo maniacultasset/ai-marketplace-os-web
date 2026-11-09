@@ -4,6 +4,7 @@
  */
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { useEffect, useState } from 'react'
 import { api, unwrap } from '@/api/client'
 import { IconTile } from '@/components/la/icons'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -13,7 +14,8 @@ import { listingBucket, type ListingsSnapshot } from '@/features/home-inbox/mode
 import { useKeys } from '@/lib/query-keys'
 
 const LIMIT = 100
-const REFRESH_MS = 30_000
+/** Once a minute: the three reads share the brand's rate limit with every teammate's tab. */
+const REFRESH_MS = 60_000
 
 /**
  * Same definition as Home's "In progress" tile (listingBucket === 'working'): generating,
@@ -49,8 +51,19 @@ function pickFresher(agentAt: readonly number[], snapshotAt: number, now: number
 export function useAgentWork() {
   const keys = useKeys()
   const client = useQueryClient()
+  // Home already walks every listing: while that snapshot is fresh, the card reads it and makes
+  // no calls of its own.
+  const home = client.getQueryState<ListingsSnapshot>([...keys.listings.lists(), 'home-snapshot'])
+  // A clock that moves every 15 s, so freshness is read from state, not from Date.now in render.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 15_000)
+    return () => clearInterval(t)
+  }, [])
+  const homeFresh = !!home?.data && now - home.dataUpdatedAt < REFRESH_MS
   const results = useQueries({
     queries: WORKING_STATUSES.map((status) => ({
+      enabled: !homeFresh,
       queryKey: [...keys.listings.list({ status }), 'agent-card'] as const,
       queryFn: () => unwrap(api.GET('/listings', { params: { query: { status, limit: LIMIT } } })),
       refetchInterval: REFRESH_MS,

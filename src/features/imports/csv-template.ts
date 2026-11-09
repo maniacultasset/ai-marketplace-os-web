@@ -91,6 +91,9 @@ export const COLUMN_GROUPS: readonly ColumnGroup[] = [
       'package_breadth_cm',
       'package_height_cm',
     ],
+    // The template uses the bare-grams header (an alias the backend accepts), like the guided form
+    // and the _cm columns next to it: a seller types 500. package_weight itself needs a unit.
+    templateColumns: ['selling_price', 'tax_rate', 'package_weight_g', 'package_length_cm', 'package_breadth_cm', 'package_height_cm'],
   },
   // A size chart link is stored and used (a style's `size_chart_url`).
   { label: 'Media', columns: ['size_chart'] },

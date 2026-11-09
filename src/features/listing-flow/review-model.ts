@@ -17,6 +17,20 @@ type ErrorItem = Schema<'ErrorItem'>
 
 export const FEEDBACK_MAX = 2000
 export const TITLE_MAX = 500
+
+/**
+ * The title length each marketplace's rules block at (backend packages/schemas/fixtures/
+ * rules.seed.json, content.title max_length). GET /rules does not return a rule's limit, so the
+ * editor warns from this table; the server's check still decides. 500 stays the hard cap.
+ */
+export const MARKETPLACE_TITLE_LIMIT: Partial<Record<string, number>> = { amazon: 200, flipkart: 150 }
+
+/** "Amazon allows 200 characters. ..." when the title is over the marketplace's limit, else null. */
+export function titleLimitWarning(title: string, marketplace: string, mp: string): string | null {
+  const limit = MARKETPLACE_TITLE_LIMIT[marketplace]
+  if (!limit || codePoints(title.trim()) <= limit) return null
+  return `${mp} allows ${limit} characters. Shorten the title, or this version will be blocked by the checks.`
+}
 export const BULLET_MAX = 1000
 export const BULLETS_MAX = 10
 export const DESCRIPTION_MAX = 5000

@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { IMAGE_CONTENT_TYPES, MAX_IMAGE_BYTES, type PhotoQaWarning, type PhotoSlotDef } from './report'
 
-export type TileTone = 'muted' | 'ok' | 'busy' | 'bad'
+export type TileTone = 'muted' | 'ok' | 'busy' | 'bad' | 'warn'
 
 export interface TileState {
   /** A photo is in the tile (uploaded, staged or chosen). */
@@ -182,7 +182,7 @@ export function PhotoTile({
       <p
         className={cn(
           'mt-1.5 flex min-h-[1lh] min-w-0 items-center gap-1 text-caption',
-          tone === 'ok' ? 'text-success-ink' : tone === 'bad' ? 'text-danger' : 'text-ink-3',
+          tone === 'ok' ? 'text-success-ink' : tone === 'bad' ? 'text-danger' : tone === 'warn' ? 'text-attention-ink' : 'text-ink-3',
         )}
         role={tone === 'bad' ? 'alert' : undefined}
         aria-live={tone === 'bad' ? undefined : 'polite'}

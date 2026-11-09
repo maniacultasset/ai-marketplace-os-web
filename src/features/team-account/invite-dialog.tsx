@@ -172,7 +172,7 @@ function InviteBody({
                 htmlFor="invite-role"
                 error={errors.role?.message}
                 submitCount={submitCount}
-                hint={me?.role === 'owner' ? undefined : 'Only an owner can invite an owner.'}
+                hint={me?.role === 'owner' ? undefined : 'Only an owner can invite an owner or a reviewer.'}
               >
                 <Controller
                   control={form.control}

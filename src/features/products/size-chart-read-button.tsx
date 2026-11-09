@@ -71,6 +71,12 @@ export function SizeChartReadButton({
         <Banner tone="attention" role="status">
           Reading the photo did not finish. Try again in a few minutes, or enter the sizes yourself.
         </Banner>
+      ) : read.state.kind === 'unavailable' ? (
+        <div data-testid="size-chart-read-unavailable">
+          <Banner tone="neutral" role="status">
+            Reading sizes from a photo is not switched on yet. Enter the sizes yourself.
+          </Banner>
+        </div>
       ) : read.state.kind === 'error' ? (
         <Banner tone={read.state.paused ? 'attention' : 'danger'} role="alert">
           {read.state.message}

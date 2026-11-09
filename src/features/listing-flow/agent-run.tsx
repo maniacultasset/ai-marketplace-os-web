@@ -43,6 +43,7 @@ import {
 import { rememberJob } from '@/features/listings/job-memory'
 import {
   historyLabel,
+  historyReason,
   JOB_KIND_LABEL,
   listingActions,
   publishItems,
@@ -619,13 +620,16 @@ function actorPhrase(e: AuditEvent, meId: string | undefined): string {
 }
 
 export function logEntries(events: readonly AuditEvent[], job: Pick<JobEnvelope, 'job_id' | 'kind' | 'status' | 'started_at' | 'finished_at' | 'error'>, meId?: string): LogEntry[] {
-  const out: LogEntry[] = events.map((e) => ({
+  const out: LogEntry[] = events.map((e) => {
+    const reason = historyReason(e)
+    return {
     id: e.id,
     at: e.occurred_at,
     tone: eventTone(e.action),
-    text: `${historyLabel(e.action)} ${actorPhrase(e, meId)}.${e.reason ? ` Reason: ${sentence(e.reason).toLowerCase()}.` : ''}`,
+    text: `${historyLabel(e.action)} ${actorPhrase(e, meId)}.${reason ? ` ${e.action === 'listing.rejected' ? 'Reason: ' : ''}${/[.!?”]$/.test(reason) ? reason : `${reason}.`}` : ''}`,
     kind: CHANGE_ACTIONS.has(e.action) ? 'change' : REVIEW_ACTIONS.has(e.action) ? 'review' : 'change',
-  }))
+    }
+  })
   const name = JOB_KIND_LABEL[job.kind] ?? sentence(job.kind)
   if (job.started_at) out.push({ id: `${job.job_id}:start`, at: job.started_at, tone: 'ok', text: `${name} started.`, kind: 'job' })
   if (job.finished_at) {

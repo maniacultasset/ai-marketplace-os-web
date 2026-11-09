@@ -29,7 +29,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Skeleton } from '@/components/ui/skeleton'
 import { NOT_YET, UnavailableButton } from '@/components/la/unavailable'
 import { DismissIssueButton } from '@/features/inbox/dismiss-issue'
-import { canDismiss, isAutoFix, issueHeadline, MARKETPLACE_LABEL, RESOLUTION_LABEL, SOURCE_LABEL, type Issue } from '@/features/inbox/model'
+import { canDismiss, isAutoFix, issueHeadline, MARKETPLACE_LABEL, RESOLUTION_LABEL, type Issue } from '@/features/inbox/model'
 import { useListing, useListingSubmissions } from '@/features/listings/api'
 import { FIXED_FOR_YOU_HASH } from '@/features/listing-flow/auto-fix-model'
 import { useListingResolution } from '@/features/listing-flow/api'
@@ -46,6 +46,9 @@ import {
   issueAffects,
   issueChip,
   issueClassLine,
+  rawMarketplaceText,
+  sentenceCase,
+  showSuggestion,
   issueFixTrail,
   issueCause,
   issueNextStep,
@@ -295,9 +298,9 @@ function IssueBody({ issue, fix }: { issue: Issue; fix: FixContext | null }) {
           </p>
         </div>
       ) : (
-        <p className="text-body text-ink">{issue.message}</p>
+        <p className="text-body text-ink">{sentenceCase(issue.message)}</p>
       )}
-      {issue.suggestion && issue.status === 'open' ? (
+      {showSuggestion(issue) ? (
         <div>
           <div className="text-caption text-ink-3">Suggested fix</div>
           <p className="mt-1 text-body text-ink">{issue.suggestion}</p>
@@ -306,28 +309,28 @@ function IssueBody({ issue, fix }: { issue: Issue; fix: FixContext | null }) {
       <KeyValues
         rows={[
           ['Affects', issueAffects(issue)],
-          ['Class', issueClassLine(issue)],
+          ['Kind', issueClassLine(issue)],
           ['Next step', issueNextStep(issue, fix)],
           ...(issueCause(issue) ? ([['Cause', issueCause(issue)]] as [string, ReactNode][]) : []),
           ...(issue.value_submitted ? ([['Value sent', <code key="v" className="font-mono text-caption">{issue.value_submitted}</code>]] as [string, ReactNode][]) : []),
         ]}
       />
-      <Collapsible className="rounded-control border border-line">
-        <CollapsibleTrigger className="group focus-ring flex min-h-10 w-full items-center justify-between gap-2 rounded-control px-3 text-left text-small font-semibold text-ink-2 transition-colors duration-150 hover:bg-hover hover:text-ink">
-          {fromMarketplace ? `What ${marketplace} said (unchanged)` : `What the ${SOURCE_LABEL[issue.source].toLowerCase()} said`}
-          <Icon name="chev" size={16} className="shrink-0 transition-transform duration-150 group-data-[state=open]:rotate-180 motion-reduce:transition-none" />
-        </CollapsibleTrigger>
-        {/* Kept in the DOM while closed (hidden), so the raw text stays findable and testable. */}
-        <CollapsibleContent forceMount className="px-3 pb-3 data-[state=closed]:hidden">
-          <CodeBlock>
-            <span data-testid="issue-raw">
-              {[issue.marketplace_code ? `code ${issue.marketplace_code}` : null, `field: ${issue.field_path}`, issue.raw_message ?? issue.message]
-                .filter(Boolean)
-                .join(' · ')}
-            </span>
-          </CodeBlock>
-        </CollapsibleContent>
-      </Collapsible>
+      {/* The marketplace's own words stay verbatim, one click away. Kuinn's own checks have no
+          raw text worth showing: their field paths and codes are internal. */}
+      {fromMarketplace ? (
+        <Collapsible className="rounded-control border border-line">
+          <CollapsibleTrigger className="group focus-ring flex min-h-10 w-full items-center justify-between gap-2 rounded-control px-3 text-left text-small font-semibold text-ink-2 transition-colors duration-150 hover:bg-hover hover:text-ink">
+            What {marketplace} said (unchanged)
+            <Icon name="chev" size={16} className="shrink-0 transition-transform duration-150 group-data-[state=open]:rotate-180 motion-reduce:transition-none" />
+          </CollapsibleTrigger>
+          {/* Kept in the DOM while closed (hidden), so the raw text stays findable and testable. */}
+          <CollapsibleContent forceMount className="px-3 pb-3 data-[state=closed]:hidden">
+            <CodeBlock>
+              <span data-testid="issue-raw">{rawMarketplaceText(issue)}</span>
+            </CodeBlock>
+          </CollapsibleContent>
+        </Collapsible>
+      ) : null}
       <Timeline label="History of this issue" className="mt-1" entries={issueTimeline(issue, (r) => RESOLUTION_LABEL[r])} />
     </>
   )

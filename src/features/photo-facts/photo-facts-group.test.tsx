@@ -176,3 +176,15 @@ describe('From photos', () => {
     expect(screen.queryByTestId('photo-facts')).toBeNull()
   })
 })
+
+describe('From photos: keyboard', () => {
+  it('after Confirm, focus moves to the next fact to check, not the page body', async () => {
+    patchProduct.mockReturnValueOnce(new Promise(() => {}))
+    setup()
+    const confirm = within(row('neckline')!).getByTestId('photo-fact-confirm')
+    confirm.focus()
+    fireEvent.click(confirm)
+    await waitFor(() => expect(row('neckline')!.dataset.factStatus).toBe('confirmed'))
+    await waitFor(() => expect(document.activeElement).toBe(within(row('fit')!).getByTestId('photo-fact-confirm')))
+  })
+})

@@ -22,11 +22,11 @@ import { useGoogleEnabled } from '@/features/google/api'
 import { GoogleEntry } from '@/features/google/google-button'
 import { SubmitButton, TOUCH_TEXT } from '@/features/mfa/components'
 import { RESTART_MESSAGES, TOO_MANY, type RestartReason } from '@/features/mfa/login-flow'
-import { SUPPORT_EMAIL, supportMailto } from '@/lib/support'
 import { signIn, useSession } from '@/lib/auth'
 import { isCoarsePointer } from '@/lib/pointer'
 import { FORM_VALIDATION_MODE } from '@/lib/validation'
 import { AsideLink, AuthCard, AuthFrame, FormAlert } from './auth-frame'
+import { RecoveryHint } from './recovery-hint'
 import { SignInSteps } from './sign-in-steps'
 import { SuspendedCard } from './suspended-card'
 import { isTenantSuspended } from './suspended'
@@ -221,15 +221,7 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
             htmlFor="password"
             error={errors.password?.message}
             submitCount={form.formState.submitCount}
-            hint={
-              <>
-                Forgot it? Ask your brand owner or admin for a reset link. Owners, email{' '}
-                <a href={supportMailto('Reset my password')} className="font-semibold text-brand underline-offset-4 hover:underline">
-                  {SUPPORT_EMAIL}
-                </a>
-                .
-              </>
-            }
+            hint={<RecoveryHint who="member" />}
           >
             <PasswordInput
               id="password"

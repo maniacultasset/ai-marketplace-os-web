@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { blockedReason, reviewDetail, validationBlocking } from './model'
+import { blockedReason, historyReason, REJECT_REASONS, reviewDetail, validationBlocking } from './model'
 
 describe('reviewDetail (prod QA 9 Nov, item 15)', () => {
   it('names the version and the reason of a decision', () => {
@@ -8,6 +8,14 @@ describe('reviewDetail (prod QA 9 Nov, item 15)', () => {
     expect(reviewDetail({ reason_code: 'off_brand' })).toBe('Off brand')
     expect(reviewDetail(null)).toBeNull()
     expect(reviewDetail(undefined)).toBeNull()
+  })
+  it('puts the decided version on a history row, with the reject label and note', () => {
+    const r = REJECT_REASONS[0]
+    expect(historyReason({ action: 'listing.approved', review: { version: 2 } })).toBe('Version 2')
+    expect(historyReason({ action: 'listing.rejected', reason: r.code, review: { version: 3, reason_code: r.code }, after: { note: 'Wrong fabric' } })).toBe(
+      `Version 3 · ${r.label}. Note: “Wrong fabric”`,
+    )
+    expect(historyReason({ action: 'listing.rejected', reason: r.code })).toBe(r.label)
   })
 })
 

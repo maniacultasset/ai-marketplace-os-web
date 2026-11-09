@@ -75,7 +75,7 @@ describe('inboxSearchSchema', () => {
 
 describe('counts from loaded data', () => {
   const page = (n: number, has_more: boolean) => ({
-    data: Array.from({ length: n }, (_, i) => i),
+    data: Array.from({ length: n }, (_, i) => ({ id: `x${i}`, human_task_id: null })),
     page: { next_cursor: has_more ? 'c' : null, has_more, limit: 50 },
   })
   it('countLabel', () => {
@@ -89,6 +89,10 @@ describe('counts from loaded data', () => {
     expect(badgeLabel(page(3, false), page(2, false))).toBe('5')
     expect(badgeLabel(page(50, true), page(0, false))).toBe('50+')
     expect(badgeLabel(page(50, true), page(50, true))).toBe('99+')
+    // An issue linked to an open question counts once.
+    const tasks = { data: [{ id: 't1' }], page: { has_more: false } }
+    const issues = { data: [{ human_task_id: 't1' }, { human_task_id: 'gone' }, { human_task_id: null }], page: { has_more: false } }
+    expect(badgeLabel(issues as never, tasks as never)).toBe('3')
   })
   it('severitySplit and issuesMeta', () => {
     const s = severitySplit([{ severity: 'error' }, { severity: 'warning' }, { severity: 'warning' }])
