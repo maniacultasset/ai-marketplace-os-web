@@ -14,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { MARKETPLACE_META } from '@/features/marketplaces/meta'
 import { cn } from '@/lib/utils'
+import { qualityEnabled } from '@/features/assist/flags'
 import { QualitySection } from '@/features/assist/quality-section'
 import { useAnalyticsSummary, useAnalyticsTrend, usePreviousSummary, type TrendPoint } from './api'
 import {
@@ -132,7 +133,7 @@ export function Dashboard({ preset, onPreset }: { preset: RangePreset; onPreset:
         </div>
       ) : null}
       {/* SI14: hidden on a backend without the quality read. */}
-      {summary.data && !empty ? <QualitySection range={range} className="mt-5 lg:mt-6" /> : null}
+      {qualityEnabled() && summary.data && !empty ? <QualitySection range={range} className="mt-5 lg:mt-6" /> : null}
     </Page>
   )
 }

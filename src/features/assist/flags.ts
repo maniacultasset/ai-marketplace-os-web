@@ -9,6 +9,8 @@
  *   `GET /catalog/requirements?category=home_decor_lamps` exactly like an unknown category (the
  *   marketplace facts only, services/requirements.py). So lamps count as on only when that answer
  *   differs from an unknown category's.
+ * - Listing quality: the backend serves `/analytics/quality` with no switch, so the section is
+ *   behind the build switch `VITE_QUALITY_ENABLED=true` (unset: hidden, as today).
  */
 import { useQuery } from '@tanstack/react-query'
 import { api, unwrap } from '@/api/client'
@@ -68,3 +70,6 @@ export function useCategorySuggestEnabled(): boolean {
   })
   return q.data === true
 }
+
+/** Whether the Listing quality section is switched on for this build (off unless 'true'). */
+export const qualityEnabled = (): boolean => import.meta.env.VITE_QUALITY_ENABLED === 'true'
