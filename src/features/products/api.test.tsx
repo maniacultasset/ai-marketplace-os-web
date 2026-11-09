@@ -54,4 +54,10 @@ describe('useUpdateProduct', () => {
     const keys = await save({ title: 'New' })
     expect(keys).not.toContainEqual(keysFor('t1').tasks.all())
   })
+
+  it('reads the listings and their issues again after a save, so Review never keeps old blockers (prod QA 9 Nov, item 26)', async () => {
+    const keys = await save({ attributes: { fabric_type: 'cotton' } })
+    expect(keys).toContainEqual(keysFor('t1').listings.all())
+    expect(keys).toContainEqual(keysFor('t1').issues.all())
+  })
 })

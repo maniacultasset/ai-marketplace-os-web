@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { reviewDetail, validationBlocking } from './model'
+import { blockedReason, reviewDetail, validationBlocking } from './model'
 
 describe('reviewDetail (prod QA 9 Nov, item 15)', () => {
   it('names the version and the reason of a decision', () => {
@@ -18,5 +18,15 @@ describe('validationBlocking (prod QA 9 Nov, item 14)', () => {
     expect(validationBlocking(passed, { display_state: 'ready_to_approve', needs_you_count: 0 })).toEqual({ blocking: 0, marketplace: false })
     expect(validationBlocking({ passed: false, blocking_count: 2 }, { display_state: 'needs_you', needs_you_count: 2 })).toEqual({ blocking: 2, marketplace: false })
     expect(validationBlocking(passed, undefined)).toEqual({ blocking: 0, marketplace: false })
+  })
+})
+
+describe('blockedReason (prod QA 9 Nov, item 23)', () => {
+  it('says why a block with no open issue is a block', () => {
+    expect(blockedReason({ status: 'blocked', status_reason: 'rejected' }, 0)).toBe('Rejected by a reviewer')
+    expect(blockedReason({ status: 'blocked', status_reason: 'human_task_open' }, 0)).toBe('A question is waiting in your Inbox')
+    expect(blockedReason({ status: 'blocked', status_reason: null }, 0)).toBe('Blocked: open the listing to see why')
+    expect(blockedReason({ status: 'blocked', status_reason: 'validation_errors' }, 6)).toBeNull()
+    expect(blockedReason({ status: 'validated' }, 0)).toBeNull()
   })
 })

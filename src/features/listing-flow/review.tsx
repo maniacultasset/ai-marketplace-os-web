@@ -73,7 +73,7 @@ import { ApproverNotice } from '@/features/team-account/approver-notice'
 import { AutoFixedChip, FixedForYouCard } from './auto-fix'
 import { autoFixTrail, FIXED_FOR_YOU_HASH, siblingFixes, versionRef } from './auto-fix-model'
 import { EditDialog, SendBackDialog } from './dialogs'
-import { clock, fieldLabel, mpName, plainMessage } from './format'
+import { clock, fieldLabel, mpName, plainMessage, sellerFinding } from './format'
 import { claimFindings, gateCounts, plural, type ErrorItem, type GateResult } from './gates'
 import { ListOnButton } from './list-on'
 import { useListingResolution } from './api'
@@ -1018,12 +1018,12 @@ function ApproveBlockersCard({ items, onClose }: { items: readonly ErrorItem[]; 
             <li key={i} className="flex items-start gap-3 border-b border-attention-line py-3 last:border-b-0 last:pb-0">
               <StatusChip status={f.severity === 'error' ? 'blocked' : 'needs-you'} iconOnly label={f.severity === 'error' ? 'Blocking' : 'Warning'} />
               <div className="min-w-0 flex-1">
-                <p className="text-body text-ink">{f.message}</p>
+                <p className="text-body text-ink">{sellerFinding(f).message}</p>
                 <p className="text-caption text-ink-3">
                   <span title={f.field}>{fieldLabel(f.field)}</span>
                   {f.value_submitted ? ` · sent “${f.value_submitted}”` : ''}
                 </p>
-                {f.suggestion ? <p className="mt-0.5 text-small text-ink-2">{f.suggestion}</p> : null}
+                {sellerFinding(f).action ? <p className="mt-0.5 text-small text-ink-2">{sellerFinding(f).action}</p> : null}
               </div>
             </li>
           ))}
@@ -1049,12 +1049,12 @@ function FindingsCard({ findings }: { findings: readonly ErrorItem[] }) {
           <li key={i} className="flex items-start gap-3 border-b border-line py-3 last:border-b-0 last:pb-0">
             <StatusChip status={f.severity === 'error' ? 'blocked' : 'needs-you'} iconOnly label={f.severity === 'error' ? 'Blocking' : 'Warning'} />
             <div className="min-w-0 flex-1">
-              <p className="text-body text-ink">{f.message}</p>
+              <p className="text-body text-ink">{sellerFinding(f).message}</p>
               <p className="text-caption text-ink-3">
                 <span title={f.field}>{fieldLabel(f.field)}</span>
                 {f.value_submitted ? ` · sent “${f.value_submitted}”` : ''}
               </p>
-              {f.suggestion ? <p className="mt-0.5 text-small text-ink-2">{f.suggestion}</p> : null}
+              {sellerFinding(f).action ? <p className="mt-0.5 text-small text-ink-2">{sellerFinding(f).action}</p> : null}
             </div>
           </li>
         ))}

@@ -46,7 +46,7 @@ import { useFixCounts } from '@/features/home-inbox/api'
 import { AutoFixedChip } from '@/features/listing-flow/auto-fix'
 import { listingDetailQuery, useListingHistory } from '@/features/listings/api'
 import { recallJob } from '@/features/listings/job-memory'
-import { historyLabel, isBusy, reviewDetail, validationBlocking } from '@/features/listings/model'
+import { blockedReason, historyLabel, isBusy, reviewDetail, statusReasonLabel, validationBlocking } from '@/features/listings/model'
 import { auditActorLabel } from '@/features/marketplaces-settings/model'
 import { comingSoon, comingSoonReason, draftOpen } from '@/features/marketplaces/meta'
 import { useProduct, type ProductDetail } from '@/features/products/api'
@@ -687,8 +687,12 @@ function MarketplaceCard({
     )
   }
   const chip = cellChip(l)
-  const issues = data.issuesByListing.get(l.id) ?? 0
+  // The blockers: the open issues, or the server's count when it is higher (its issues of the
+  // current version). A block with none still says why (prod QA 9 Nov, item 23: "Blocked · 0 open
+  // issues").
+  const issues = Math.max(data.issuesByListing.get(l.id) ?? 0, l.needs_you_count ?? 0)
   const fixed = data.autoFixByListing.get(l.id) ?? 0
+  const blockedWhy = blockedReason(l, issues)
   const issuesText =
     data.issuesState === 'error' ? (
       <span title="Couldn’t load issues.">Unknown</span>
@@ -731,7 +735,7 @@ function MarketplaceCard({
             ['Updated', <RelativeTime key="s" iso={l.status_changed_at} />],
             ['Issues', issuesText],
             ...(fixed ? ([['Fixed for you', <AutoFixedChip key="f" listingId={l.id} count={fixed} />]] as [string, ReactNode][]) : []),
-            ...(l.status_reason ? ([['Reason', l.status_reason]] as [string, ReactNode][]) : []),
+            ...(l.status_reason ? ([['Reason', statusReasonLabel(l.status_reason)]] as [string, ReactNode][]) : []),
           ]}
         />
       ) : (
@@ -743,9 +747,15 @@ function MarketplaceCard({
           {data.issuesState === 'error' ? (
             <span title="Couldn’t load issues.">Issues unknown</span>
           ) : (
-            <span className="tabular-nums">
-              {issues} open {issues === 1 ? 'issue' : 'issues'}
-            </span>
+            blockedWhy ? (
+              <Link to="/listings/$listingId/review" params={{ listingId: l.id }} className="font-semibold text-attention-ink underline underline-offset-4" data-testid={`blocked-why-${id}`}>
+                {blockedWhy}
+              </Link>
+            ) : (
+              <span className="tabular-nums">
+                {issues} open {issues === 1 ? 'issue' : 'issues'}
+              </span>
+            )
           )}
           {fixed ? (
             <>
@@ -787,10 +797,10 @@ function MarketplaceCard({
               </Link>
             </Button>
           )
-        ) : chip.status === 'needs-you' ? (
+        ) : chip.status === 'needs-you' || chip.status === 'blocked' ? (
           <Button variant="warn" size="sm" asChild>
             <Link to="/listings/$listingId/review" params={{ listingId: l.id }}>
-              Review
+              {chip.status === 'blocked' ? 'See why' : 'Review'}
             </Link>
           </Button>
         ) : (

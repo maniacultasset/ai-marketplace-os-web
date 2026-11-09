@@ -62,6 +62,7 @@ export const STATUS_META: Record<ListingStatus, { label: string; tone: Tone; hin
 
 /** `listings.status_reason` values the backend writes (services/*), in plain words. */
 const REASON_LABEL: Record<string, string> = {
+  human_task_open: 'A question is waiting in your Inbox',
   validation_errors: 'Checks found blocking issues',
   corrections_exhausted: 'AI could not fix every issue',
   rejected: 'Rejected by a reviewer',
@@ -505,4 +506,15 @@ export function validationBlocking(
   const server = l?.display_state === 'needs_you' ? (l.needs_you_count ?? 0) : 0
   const blocking = Math.max(v?.blocking_count ?? 0, server)
   return { blocking, marketplace: !!v?.passed && (v.blocking_count ?? 0) === 0 && server > 0 }
+}
+
+/**
+ * Why a blocked listing with no open issue is blocked, in plain words ("Rejected by a reviewer",
+ * "A question is waiting in your Inbox"), or null when it is not blocked or issues explain it
+ * (prod QA 9 Nov, item 23: "Blocked · 0 open issues").
+ */
+export function blockedReason(l: { status: ListingStatus; status_reason?: string | null }, openIssues: number): string | null {
+  if (l.status !== 'blocked' || openIssues > 0) return null
+  if (l.status_reason === 'human_task_open') return 'A question is waiting in your Inbox'
+  return statusReasonLabel(l.status_reason) ?? 'Blocked: open the listing to see why'
 }

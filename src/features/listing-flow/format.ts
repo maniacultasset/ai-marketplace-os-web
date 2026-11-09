@@ -63,5 +63,33 @@ const PLAIN_KEY: Readonly<Record<string, string>> = Object.fromEntries(
  * the product form's label, else attrLabel's. Other words are left as they are.
  */
 export function plainMessage(message: string): string {
-  return message.replace(/\b(?:attributes\.)?([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\b/g, (_, key: string) => PLAIN_KEY[key] ?? attrLabel(key))
+  return message
+    .replace(/\battributes\.([a-z][a-z0-9_]*)\b/g, (_, key: string) => PLAIN_KEY[key] ?? attrLabel(key))
+    .replace(/\b([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\b/g, (_, key: string) => PLAIN_KEY[key] ?? attrLabel(key))
+}
+
+const capital = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)
+
+/** Guidance written for the agent (how to fill the row), never for a seller. */
+const AGENT_GUIDANCE = /flag the row|rather than guessing|leave it unset|from the product data/i
+
+/**
+ * A finding in seller words (prod QA 9 Nov, item 25: "Set attributes.color from the product
+ * data. If the source does not state it, leave it unset and flag the row rather than guessing."):
+ * a missing attribute says what to add and where; other messages name fields by their labels;
+ * the agent's own guidance becomes one plain next step.
+ */
+export function sellerFinding(f: { field: string; error_code?: string | null; message: string; suggestion?: string | null }): {
+  message: string
+  action: string | null
+} {
+  const key = f.field.startsWith('attributes.') ? f.field.slice('attributes.'.length) : f.field
+  const label = PLAIN_KEY[key] ?? fieldLabel(f.field)
+  if (f.error_code === 'MISSING_ATTRIBUTE') {
+    return { message: `${label} is required for this category.`, action: `Add ${label.toLowerCase()} on the product page, then check again.` }
+  }
+  const message = capital(plainMessage(f.message.trim()))
+  const raw = f.suggestion?.trim() || null
+  if (!raw) return { message, action: null }
+  return { message, action: AGENT_GUIDANCE.test(raw) ? `Fix ${label.toLowerCase()} on the product page, then check again.` : capital(plainMessage(raw)) }
 }

@@ -166,6 +166,11 @@ export function useUpdateProduct(productId: string) {
       void qc.invalidateQueries({ queryKey: keys.products.list() })
       // A seller value for a key cancels that key's open fact question (superseded).
       if (body.attributes && Object.keys(body.attributes).length) void qc.invalidateQueries({ queryKey: keys.tasks.all() })
+      // New facts: the listings' next read checks them again on the server (prod QA 9 Nov, item
+      // 26: Review kept the old blockers until "Check again"), so read them, their issues and
+      // their marketplace preview again.
+      void qc.invalidateQueries({ queryKey: keys.listings.all() })
+      void qc.invalidateQueries({ queryKey: keys.issues.all() })
     },
   })
 }
