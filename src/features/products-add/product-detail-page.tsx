@@ -75,6 +75,7 @@ import { useConnectedMarketplaces } from './list-on'
 import { ProductDetailsCard, ProductDetailsEditor } from './product-details'
 import { useProductEditSession, type ProductEditSession } from './product-edit-session'
 import { manufacturerSource } from '@/features/products/edit-model'
+import { CategorySuggestionCard } from '@/features/assist/category-suggestion-card'
 import { DETAIL_TABS, type DetailTab } from './detail-tabs'
 import { ProductThumb } from './products-page'
 import { marketplaceLink } from '@/features/listings/external-link'
@@ -523,6 +524,8 @@ const marketplaceName = (id: Marketplace) => MARKETPLACES.find((m) => m.id === i
 function HeaderListOn({ data, variant = 'primary' }: { data: DetailData; variant?: 'primary' | 'secondary' }) {
   const first = useFirstUnlisted(data)
   const [open, setOpen] = useState(false)
+  // A listing needs a category first (422 at `category`): no List action before one is chosen.
+  if (data.product.category === null) return null
   if (first === 'pending') return <Skeleton className="h-9 w-32 rounded-control" />
   if (!first) return null
   return (
@@ -557,7 +560,7 @@ function MarketplaceCards({ data, detailed }: { data: DetailData; detailed?: boo
               m={m}
               data={data}
               detailed={detailed}
-              onList={can('listing:generate') && !data.isVariant ? setAdding : null}
+              onList={can('listing:generate') && !data.isVariant && data.product.category !== null ? setAdding : null}
               connected={connected}
             />
           ))}
@@ -858,6 +861,8 @@ function OverviewTab({ data, session, onEdit }: { data: DetailData; session: Pro
     )
   return (
     <div className="flex flex-col gap-4">
+      {/* SI14: a product saved without a category; renders nothing while the switch is off. */}
+      {data.product.category === null ? <CategorySuggestionCard product={data.product} /> : null}
       <MarketplaceCards data={data} />
       <div className="grid gap-4 lg:grid-cols-2">
         <ProductDetailsCard
@@ -872,7 +877,7 @@ function OverviewTab({ data, session, onEdit }: { data: DetailData; session: Pro
             // SI9: offered only by a backend that has it (its product read carries photo_read), to
             // people who edit products, once the product has listings (before that, Edit changes it).
             onEdit && 'photo_read' in data.product && !data.isVariant && !data.listingsPending && !data.listingsFailed ? (
-              <ChangeCategoryButton productId={data.product.id} current={data.product.category} state={recategorizeState(listingsIn(data))} />
+              <ChangeCategoryButton productId={data.product.id} current={data.product.category ?? ''} state={recategorizeState(listingsIn(data))} />
             ) : null
           }
         />
