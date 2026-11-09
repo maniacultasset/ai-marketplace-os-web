@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { failedJobRemedy, logEntries } from './agent-run'
-import { clock, fieldLabel } from './format'
+import { clock, fieldLabel, plainMessage, sellerFinding } from './format'
 import { applicableRules, claimFindings, currentFindings, fieldGate, findingGate, gateCounts, rollUpGates, ruleGate, type ErrorItem } from './gates'
 import { mappingRows, payloadField } from './mapping'
 import { externalIdFromUrl, liveProof, maskId } from './proof'
@@ -482,5 +482,38 @@ describe('failed job remedy', () => {
     expect(failedJobRemedy('listing_publish', acts({ publish: on }))).toBe('publish')
     expect(failedJobRemedy('listing_publish', acts())).toBe('status')
     expect(failedJobRemedy('listing_status_sync', acts({ publish: on }))).toBe('status')
+  })
+})
+
+describe('plainMessage', () => {
+  it('names raw field keys in the product form words (prod QA 9 Nov)', () => {
+    expect(plainMessage('country_of_origin is required')).toBe('Country of origin is required')
+    expect(plainMessage('attributes.selling_price must be at most mrp')).toBe('Selling price must be at most mrp')
+    expect(plainMessage('fit_type is missing')).toBe('Fit type is missing')
+    expect(plainMessage('The title is too long.')).toBe('The title is too long.')
+  })
+})
+
+describe('sellerFinding (prod QA 9 Nov, item 25)', () => {
+  it('never shows the agent guidance or raw keys', () => {
+    const missing = sellerFinding({
+      field: 'attributes.color',
+      error_code: 'MISSING_ATTRIBUTE',
+      message: 'the color attribute is required for this category',
+      suggestion: 'Set attributes.color from the product data. If the source does not state it, leave it unset and flag the row rather than guessing.',
+    })
+    expect(missing).toEqual({ message: 'Colour is required for this category.', action: 'Add colour on the product page, then check again.' })
+    const other = sellerFinding({
+      field: 'attributes.fabric_type',
+      error_code: 'VALUE_NOT_ALLOWED',
+      message: 'the fabric_type attribute is not allowed',
+      suggestion: 'Set attributes.fabric_type from the product data.',
+    })
+    expect(other.message).toBe('The Fabric type attribute is not allowed')
+    expect(other.action).toBe('Fix fabric type on the product page, then check again.')
+    expect(sellerFinding({ field: 'content.title', message: 'Title is too long.', suggestion: 'Keep it under 200 characters.' })).toEqual({
+      message: 'Title is too long.',
+      action: 'Keep it under 200 characters.',
+    })
   })
 })

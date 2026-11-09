@@ -26,11 +26,11 @@ import {
   LaCard,
   MARKETPLACES,
   MarketplaceName,
-  NOT_YET,
+  RoadmapChip,
   StatusChip,
   TagChip,
-  UnavailableButton,
   VariantCell,
+  WaitlistButton,
   type MarketplaceInfo,
 } from '@/components/la'
 import { EmptyState } from '@/components/states/empty-state'
@@ -46,13 +46,15 @@ import { useFixCounts } from '@/features/home-inbox/api'
 import { AutoFixedChip } from '@/features/listing-flow/auto-fix'
 import { listingDetailQuery, useListingHistory } from '@/features/listings/api'
 import { recallJob } from '@/features/listings/job-memory'
-import { historyLabel, isBusy } from '@/features/listings/model'
-import { draftClosedReason, draftOpen } from '@/features/marketplaces/meta'
+import { blockedReason, historyLabel, isBusy, reviewDetail, statusReasonLabel, validationBlocking } from '@/features/listings/model'
+import { auditActorLabel } from '@/features/marketplaces-settings/model'
+import { comingSoon, comingSoonReason, draftOpen } from '@/features/marketplaces/meta'
 import { useProduct, type ProductDetail } from '@/features/products/api'
 import { RelativeTime } from '@/features/products/format'
 import { mainView, useRefreshProductViews } from '@/features/products/image-views'
 import { Can, OP_ACTION, useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
+import { useMe } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 import { AddMarketplaceDialog } from './add-marketplace-dialog'
 import { useAllListings, useAllProducts, useOpenIssues } from './catalog'
@@ -64,7 +66,6 @@ import {
   matrixKey,
   OVERALL_CHIP,
   overallStatus,
-  shortId,
   variantMatrix,
   type Listing,
   type Marketplace,
@@ -79,7 +80,7 @@ import { ProductThumb } from './products-page'
 import { marketplaceLink } from '@/features/listings/external-link'
 import { recategorizeState } from '@/features/products/recategorize'
 import { ChangeCategoryButton } from '@/features/products/recategorize-dialog'
-import { isNotBuyable, NOT_BUYABLE_NEXT } from '@/lib/listing-chip'
+import { isNotBuyable, NOT_BUYABLE_NEXT, needsYourInfo, needsYourInfoLabel } from '@/lib/listing-chip'
 
 const TAB_LABEL: Record<DetailTab, string> = {
   overview: 'Overview',
@@ -590,19 +591,11 @@ export function MoreMarketplaces() {
         {UNSUPPORTED.map((m) => (
           <li key={m.id} className="flex min-h-11 items-center justify-between gap-3 border-b border-line py-1.5 last:border-b-0 md:[&:nth-last-child(2):nth-child(odd)]:border-b-0">
             <MarketplaceName id={m.id} size="xs" className="gap-2 text-small" />
-            {m.id === 'meesho' ? (
-              // On the roadmap (client input, 8 Nov): the same "Coming soon" as the Sell on list.
-              <span className="flex shrink-0 items-center" data-testid="more-marketplaces-soon-meesho">
-                <ComingSoon />
-              </span>
-            ) : (
-              <span className="flex shrink-0 items-center gap-3">
-                <StatusChip status="not-listed">Not available</StatusChip>
-                <UnavailableButton variant="link" size="xs" reason={NOT_YET.waitlist}>
-                  Join waitlist
-                </UnavailableButton>
-              </span>
-            )}
+            {/* One wording for all four, as on the landing page (prod QA 9 Nov, item 4). */}
+            <span className="flex shrink-0 items-center gap-3" data-testid={`more-marketplaces-${m.id}`}>
+              <RoadmapChip />
+              <WaitlistButton variant="link" size="xs" name={m.name} />
+            </span>
           </li>
         ))}
       </ul>
@@ -652,6 +645,20 @@ function MarketplaceCard({
   // Chip, issues and actions land together.
   if (data.listingsPending || data.issuesState === 'pending' || data.autoFixPending) return <PendingMarketplaceCard m={m} detailed={detailed} />
   const l = data.listings[id]
+  // Publishing is not open there yet (Flipkart): say so, with no List action (prod QA 9 Nov, item 3).
+  if (!l && connected !== null && comingSoon(id, connected)) {
+    return (
+      <DashedCard pad="sm" className={CARD_FRAME} data-testid={`marketplace-card-${id}`}>
+        <div className="flex items-center justify-between gap-2">
+          <MarketplaceName id={m.id} />
+          <ComingSoon />
+        </div>
+        <p className="mt-3 text-small text-ink-2" data-testid={`coming-soon-${id}`}>
+          {comingSoonReason(id)}
+        </p>
+      </DashedCard>
+    )
+  }
   if (!l) {
     return (
       <DashedCard pad="sm" className={CARD_FRAME}>
@@ -668,15 +675,11 @@ function MarketplaceCard({
               <Button variant="secondary" size="sm" onClick={() => onList(id)} data-testid={`list-on-${id}`}>
                 List on {m.name}
               </Button>
-            ) : connected === null ? (
+            ) : (
               // Accounts still loading: same button, held, so the card never changes size.
               <Button variant="secondary" size="sm" disabled data-testid={`list-on-${id}`}>
                 List on {m.name}
               </Button>
-            ) : (
-              <UnavailableButton variant="secondary" size="sm" reason={draftClosedReason(id)} data-testid={`list-on-${id}`}>
-                List on {m.name}
-              </UnavailableButton>
             )}
           </div>
         ) : null}
@@ -684,8 +687,12 @@ function MarketplaceCard({
     )
   }
   const chip = cellChip(l)
-  const issues = data.issuesByListing.get(l.id) ?? 0
+  // The blockers: the open issues, or the server's count when it is higher (its issues of the
+  // current version). A block with none still says why (prod QA 9 Nov, item 23: "Blocked · 0 open
+  // issues").
+  const issues = Math.max(data.issuesByListing.get(l.id) ?? 0, l.needs_you_count ?? 0)
   const fixed = data.autoFixByListing.get(l.id) ?? 0
+  const blockedWhy = blockedReason(l, issues)
   const issuesText =
     data.issuesState === 'error' ? (
       <span title="Couldn’t load issues.">Unknown</span>
@@ -723,12 +730,12 @@ function MarketplaceCard({
       {detailed ? (
         <KV
           rows={[
-            ['Listing', <span key="l" title={l.id}>{shortId(l.id)}</span>],
+            // No raw listing id here (prod QA 9 Nov, items 7 and 18): the status says what it is.
             ...(busy ? [] : ([['Link', viewLive ?? 'Not yet']] as [string, ReactNode][])),
             ['Updated', <RelativeTime key="s" iso={l.status_changed_at} />],
             ['Issues', issuesText],
             ...(fixed ? ([['Fixed for you', <AutoFixedChip key="f" listingId={l.id} count={fixed} />]] as [string, ReactNode][]) : []),
-            ...(l.status_reason ? ([['Reason', l.status_reason]] as [string, ReactNode][]) : []),
+            ...(l.status_reason ? ([['Reason', statusReasonLabel(l.status_reason)]] as [string, ReactNode][]) : []),
           ]}
         />
       ) : (
@@ -740,9 +747,15 @@ function MarketplaceCard({
           {data.issuesState === 'error' ? (
             <span title="Couldn’t load issues.">Issues unknown</span>
           ) : (
-            <span className="tabular-nums">
-              {issues} open {issues === 1 ? 'issue' : 'issues'}
-            </span>
+            blockedWhy ? (
+              <Link to="/listings/$listingId/review" params={{ listingId: l.id }} className="font-semibold text-attention-ink underline underline-offset-4" data-testid={`blocked-why-${id}`}>
+                {blockedWhy}
+              </Link>
+            ) : (
+              <span className="tabular-nums">
+                {issues} open {issues === 1 ? 'issue' : 'issues'}
+              </span>
+            )
           )}
           {fixed ? (
             <>
@@ -784,10 +797,10 @@ function MarketplaceCard({
               </Link>
             </Button>
           )
-        ) : chip.status === 'needs-you' ? (
+        ) : chip.status === 'needs-you' || chip.status === 'blocked' ? (
           <Button variant="warn" size="sm" asChild>
             <Link to="/listings/$listingId/review" params={{ listingId: l.id }}>
-              Review
+              {chip.status === 'blocked' ? 'See why' : 'Review'}
             </Link>
           </Button>
         ) : (
@@ -1080,7 +1093,13 @@ function useListingDetails(listings: readonly Listing[]) {
 
 function ValidationCard({ listing, q, pending }: { listing: Listing; q: ListingDetailQuery; pending: boolean }) {
   const v = q.data?.data.validation
-  const clean = !!v && v.passed && v.blocking_count === 0
+  // The rules run is one of the checks. The server's open blocking issues also count the
+  // marketplace check and its dry run, as Review does (prod QA 9 Nov: "Checks passed, 0
+  // blocking" here while Review showed 6 blockers).
+  const detail = q.data?.data
+  const { blocking, marketplace } = validationBlocking(v, detail)
+  const blockers = detail && needsYourInfo(detail) ? (detail.needs_you_count ?? 0) : 0
+  const clean = !!v && v.passed && blocking === 0
   return (
     <LaCard className={CARD_FRAME} aria-busy={pending || undefined}>
       <div className="flex items-center justify-between gap-2">
@@ -1089,7 +1108,11 @@ function ValidationCard({ listing, q, pending }: { listing: Listing; q: ListingD
           <Skeleton className="h-[22px] w-20 rounded-full" />
         ) : v ? (
           // Green only with real evidence: the checks passed and nothing blocks.
-          <StatusChip status={clean ? 'live' : v.passed ? 'draft' : 'error'}>{v.passed ? 'Checks passed' : 'Checks failed'}</StatusChip>
+          blockers > 0 && detail ? (
+            <StatusChip status="needs-you">{needsYourInfoLabel(detail)}</StatusChip>
+          ) : (
+            <StatusChip status={clean ? 'live' : v.passed ? 'draft' : 'error'}>{v.passed ? 'Checks passed' : 'Checks failed'}</StatusChip>
+          )
         ) : q.error ? null : (
           <TagChip tone="plain">Not checked</TagChip>
         )}
@@ -1112,8 +1135,8 @@ function ValidationCard({ listing, q, pending }: { listing: Listing; q: ListingD
           rows={[
             [
               'Blocking',
-              <span key="b" className="tabular-nums" title={`Stages: ${v.stages?.length ?? 0}`}>
-                {v.blocking_count}
+              <span key="b" className="tabular-nums" title={`Stages: ${v.stages?.length ?? 0}`} data-testid="validation-blocking">
+                {blocking}
               </span>,
             ],
             ['Warnings', <span key="w" className="tabular-nums">{v.warning_count}</span>],
@@ -1122,6 +1145,11 @@ function ValidationCard({ listing, q, pending }: { listing: Listing; q: ListingD
       ) : (
         <p className="mt-3 text-small text-ink-2">No checks have run on this listing yet.</p>
       )}
+      {!pending && marketplace ? (
+        <p className="mt-2 text-small text-ink-2" data-testid="validation-marketplace-note">
+          The rules passed, but the marketplace check blocks this version. See every check for what to fix.
+        </p>
+      ) : null}
       <div className={CARD_ACTIONS}>
         <Button variant="secondary" size="sm" asChild>
           <Link to="/listings/$listingId/review" params={{ listingId: listing.id }}>
@@ -1179,6 +1207,7 @@ function HistoryList({
   onSettled: (listingId: string, settled: boolean) => void
 }) {
   const h = useListingHistory(listing.id)
+  const { data: me } = useMe()
   const settled = !h.isPending
   useEffect(() => onSettled(listing.id, settled), [listing.id, settled, onSettled])
   const waiting = !ready || h.isPending
@@ -1204,10 +1233,17 @@ function HistoryList({
       ) : (
         <ol className="mt-3 flex flex-col">
           {h.rows.map((e) => (
-            <li key={e.id} className="flex items-center justify-between gap-3 border-b border-line py-2.5 text-small last:border-b-0">
-              <span className="min-w-0 truncate text-ink">
-                {historyLabel(e.action)}
-                <span className="text-ink-2"> · {e.actor_type === 'user' ? 'a person' : e.actor_type === 'system' ? 'the agent' : 'support'}</span>
+            <li key={e.id} className="flex items-start justify-between gap-3 border-b border-line py-2.5 text-small last:border-b-0" data-testid="history-row">
+              <span className="min-w-0 text-ink">
+                <span className="block truncate">
+                  {historyLabel(e.action)}
+                  <span className="text-ink-2"> · {auditActorLabel(e, me?.user_id)}</span>
+                </span>
+                {reviewDetail(e.review) ? (
+                  <span className="mt-0.5 block text-caption break-words text-ink-2" data-testid="history-review">
+                    {reviewDetail(e.review)}
+                  </span>
+                ) : null}
               </span>
               <RelativeTime iso={e.occurred_at} className="shrink-0 text-caption text-ink-2" />
             </li>

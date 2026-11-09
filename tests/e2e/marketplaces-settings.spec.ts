@@ -75,16 +75,15 @@ test.describe('marketplaces: p04 list and detail', () => {
 })
 
 test.describe('settings', () => {
-  test('Autonomy: approval is always on; no autonomous option; auto-fix list is disabled', async ({ page }) => {
+  test('Autonomy: approval is always on; no autonomous option; the live auto-fix rules are shown', async ({ page }) => {
     await loginAs(page, USERS.acme.owner, '/settings')
     const s = page.getByTestId('autonomy-settings')
     await expect(s.getByRole('heading', { name: 'Autonomy' })).toBeVisible()
     await expect(s.getByText('Approval is always on')).toBeVisible()
     await expect(s.getByRole('radio', { name: /Approval mode/ })).toHaveAttribute('aria-checked', 'true')
     await expect(s.getByText('Autonomous', { exact: true })).toHaveCount(0)
-    const toggles = s.getByRole('switch')
-    await expect(toggles).toHaveCount(5)
-    for (const t of await toggles.all()) await expect(t).toHaveAttribute('aria-disabled', 'true')
+    await expect(s.getByTestId('autonomy-auto-fix')).toContainText('On its own')
+    await expect(s.getByTestId('autonomy-retry')).toContainText('3 automatic tries')
     await expect(s.getByRole('button', { name: 'Save changes' })).toHaveCount(0)
     await expect(s.getByTestId('autonomy-amazon')).toContainText('Approval required')
   })

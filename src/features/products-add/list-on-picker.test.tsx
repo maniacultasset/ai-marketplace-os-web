@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { DRAFTS_BEFORE_CONNECT, draftClosedReason, draftOpen, openForDrafts } from '@/features/marketplaces/meta'
+import { comingSoon, comingSoonReason, DRAFTS_BEFORE_CONNECT, draftClosedReason, draftOpen, openForDrafts } from '@/features/marketplaces/meta'
 import { firstListable } from './catalog-model'
 import { ListOnPicker } from './list-on'
 
@@ -23,6 +23,13 @@ describe('draftOpen', () => {
     expect(draftOpen('flipkart', ['flipkart'])).toBe(true)
     expect(draftClosedReason('flipkart')).toBe('Connecting Flipkart is coming soon. Flipkart drafts open once it is connected.')
   })
+  it('Flipkart reads Coming soon until the brand has it connected; Amazon never does', () => {
+    expect(comingSoon('flipkart', [])).toBe(true)
+    expect(comingSoon('flipkart', null)).toBe(true)
+    expect(comingSoon('flipkart', ['flipkart'])).toBe(false)
+    expect(comingSoon('amazon', [])).toBe(false)
+    expect(comingSoonReason('flipkart')).toBe('Publishing to Flipkart is coming soon. Kuinn lists on Amazon for now.')
+  })
 })
 
 describe('ListOnPicker', () => {
@@ -35,13 +42,14 @@ describe('ListOnPicker', () => {
     expect(closed.parentElement?.getAttribute('aria-disabled')).toBe('true')
   })
 
-  it('is titled Sell on and shows Meesho as Coming soon, never choosable (SI12)', () => {
+  it('is titled Sell on and shows the four roadmap marketplaces the same way, never choosable', () => {
     picker(['amazon'])
     expect(screen.getByRole('group', { name: 'Sell on' })).toBeTruthy()
-    const meesho = screen.getByTestId('list-on-soon-meesho')
-    expect(meesho.textContent).toContain('Meesho')
-    expect(meesho.textContent).toContain('Coming soon')
-    expect(screen.queryByRole('checkbox', { name: /Meesho/ })).toBeNull()
+    for (const [id, name] of [['myntra', 'Myntra'], ['ajio', 'AJIO'], ['meesho', 'Meesho'], ['nykaa', 'Nykaa']] as const) {
+      const pill = screen.getByTestId(`list-on-roadmap-${id}`)
+      expect(pill.textContent).toBe(`${name}On the roadmap`)
+      expect(screen.queryByRole('checkbox', { name: new RegExp(name) })).toBeNull()
+    }
   })
 
   it('lets a brand with Flipkart connected choose it', () => {

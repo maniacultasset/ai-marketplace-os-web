@@ -4,6 +4,7 @@ import { NOT_YET } from '@/components/la/unavailable'
 import type { CurrentAccounts, MarketplaceAccount } from '@/features/marketplaces/api'
 import {
   AUTO_FIX_SCOPE,
+  AUTO_FIX_TRIES,
   auditActorLabel,
   connectionFor,
   defaultSelection,
@@ -76,14 +77,17 @@ describe('marketplace lists', () => {
     expect([...SUPPORTED, ...WAITLIST.map((w) => w.id)].sort()).toEqual([...designed].sort())
   })
   it('every waitlist row carries the honest reason, never an action', () => {
-    for (const w of WAITLIST) expect(w.reason).toBe(NOT_YET.waitlist)
+    for (const w of WAITLIST) expect([w.note, w.reason]).toEqual(['On the roadmap', NOT_YET.waitlist])
   })
 })
 
 describe('autonomy', () => {
-  it('keeps the five designed auto-fix rows in order', () => {
+  it('keeps the five designed auto-fix rows in order, each with its live mode (prod QA 9 Nov)', () => {
     expect(AUTO_FIX_SCOPE).toHaveLength(5)
-    expect(AUTO_FIX_SCOPE[0]).toMatch(/^Map values/)
+    expect(AUTO_FIX_SCOPE[0]!.label).toMatch(/^Map values/)
+    // data fixes run on their own; content waits for a person; the rest is planned
+    expect(AUTO_FIX_SCOPE.map((r) => r.mode)).toEqual(['auto', 'auto', 'planned', 'planned', 'approval'])
+    expect(AUTO_FIX_TRIES).toBe(3)
   })
 })
 

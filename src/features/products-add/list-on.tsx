@@ -1,11 +1,11 @@
 /**
  * "List on" (hi-fi p08): which marketplaces the agent drafts for after a product is added.
  * Carried between the add screens in the `on` search param ("amazon,flipkart").
- * Only API marketplaces can be chosen; the others are shown disabled with the reason. Flipkart is
+ * Only API marketplaces can be chosen; the other four read "On the roadmap", disabled with the reason. Flipkart is
  * shown as Coming soon, not choosable, until the brand has it connected (marketplaces/meta
  * `draftOpen`). Pre-selection comes from the brand's connected accounts (GET /marketplaces/accounts).
  */
-import { ComingSoon, MARKETPLACES, MarketplaceTile, NOT_YET, UnavailableHint } from '@/components/la'
+import { ComingSoon, MARKETPLACES, MarketplaceTile, ROADMAP, UnavailableHint } from '@/components/la'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCurrentMarketplaceAccounts } from '@/features/marketplaces/api'
@@ -48,17 +48,16 @@ export function ListOnPicker({
       <div className="mt-3 flex flex-wrap gap-2.5">
         {MARKETPLACES.map((m) => {
           if (!m.supported) {
-            // Meesho is on the roadmap (client input, 8 Nov): it says so. The others are not planned yet.
-            const soon = m.id === 'meesho'
+            // All four read "On the roadmap", as on the landing page and every other screen (prod QA 9 Nov).
             return (
-              <UnavailableHint key={m.id} reason={soon ? 'Meesho is coming soon. It can’t be chosen yet.' : `${m.name}: ${NOT_YET.waitlist}`}>
+              <UnavailableHint key={m.id} reason={`${m.name}: ${ROADMAP.reason}`}>
                 <span
-                  className={cn('flex h-11 items-center gap-2.5 rounded-control border border-dashed border-line-strong pl-2 font-medium text-ink-3', soon ? 'pr-3' : 'pr-4')}
-                  data-testid={soon ? 'list-on-soon-meesho' : undefined}
+                  className="flex h-11 items-center gap-2.5 rounded-control border border-dashed border-line-strong pr-3 pl-2 font-medium text-ink-3"
+                  data-testid={`list-on-roadmap-${m.id}`}
                 >
                   <MarketplaceTile id={m.id} size="sm" />
                   {m.short}
-                  {soon ? <ComingSoon /> : null}
+                  <ComingSoon>{ROADMAP.label}</ComingSoon>
                 </span>
               </UnavailableHint>
             )

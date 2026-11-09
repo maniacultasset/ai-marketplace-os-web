@@ -13,7 +13,8 @@ import { useId, type ComponentProps, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { TagChip } from './status-chip'
+import { ROADMAP } from './roadmap'
+import { StatusChip, TagChip } from './status-chip'
 
 export function UnavailableButton({
   reason,
@@ -78,7 +79,7 @@ export function UnavailableHint({ reason, children }: { reason: string; children
 
 /** One sentence per missing backend capability, reused verbatim across screens. */
 export const NOT_YET = {
-  waitlist: 'This marketplace is not supported yet and the waitlist is not open.',
+  waitlist: ROADMAP.reason,
   pickupLocations: 'Pickup locations and shipping defaults are not available yet.',
   brandAuthorisation: 'Uploading brand authorisation proof is not available yet.',
   notifications: 'Notifications are not available yet.',
@@ -88,3 +89,20 @@ export const NOT_YET = {
   chooseCategory: 'A listing keeps the category it was made with, so it can’t be changed here yet.',
   askSupport: 'Contacting support from the app is not available yet.',
 } as const
+
+export function RoadmapChip({ className }: { className?: string }) {
+  return (
+    <StatusChip status="not-listed" className={className}>
+      {ROADMAP.label}
+    </StatusChip>
+  )
+}
+
+/** The one waitlist action for a roadmap marketplace: honest and disabled (no waitlist API). */
+export function WaitlistButton({ name, ...props }: Omit<ComponentProps<typeof UnavailableButton>, 'reason' | 'children'> & { name: string }) {
+  return (
+    <UnavailableButton reason={ROADMAP.reason} aria-label={`${ROADMAP.action} for ${name}`} {...props}>
+      {ROADMAP.action}
+    </UnavailableButton>
+  )
+}

@@ -9,10 +9,11 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import { clearConnectOrigin, readConnectOrigin } from '@/features/marketplaces-settings/use-start-connect'
+import { isPublishingPaused, useBrandProfile } from '@/features/brand/api'
 import { useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { PENDING_HANDLE_RE, useConfirmConnection } from './api'
-import { formatDateTime, formatRelative } from './format'
+import { accessText, formatDateTime } from './format'
 import { MarketplaceMark } from './marketplace-mark'
 import { MARKETPLACE_META } from './meta'
 import { AccountStatusBadge } from './status-badge'
@@ -23,6 +24,8 @@ import { AccountStatusBadge } from './status-badge'
  */
 export function ConfirmConnection({ urlPending }: { urlPending: string | undefined }) {
   const can = useCan()
+  // Item 20: a workspace whose publishing is paused says so (field read only when the API sends it)
+  const profile = useBrandProfile()
   const navigate = useNavigate()
   const [pending, setPending] = useState(() => urlPending ?? null)
   const valid = !!pending && PENDING_HANDLE_RE.test(pending)
@@ -84,6 +87,7 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
   }
   if (confirm.isSuccess) {
     const a = confirm.data
+    const publishingPaused = isPublishingPaused(profile.data?.data)
     const m = MARKETPLACE_META[a.marketplace]
     const fromSetup = origin.from === '/setup/marketplaces'
     return (
@@ -91,7 +95,7 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
         <StatusHead
           tile={<IconTile icon="check" tone="ok" size="lg" />}
           title={`${m.name} connected`}
-          description={`Approved listings can now be published to ${m.short}.`}
+          description={publishingPaused ? 'Publishing is paused for this workspace.' : `Approved listings can now be published to ${m.short}.`}
         />
         <dl className="mx-6 divide-y border-t text-sm sm:mx-8">
           <Row label="Marketplace">
@@ -105,17 +109,15 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
               {a.seller_id}
             </code>
           </Row>
+          {/* Never the 1-hour access-token expiry (prod QA 9 Nov, item 19): it renews itself. */}
           <Row label="Status">
-            <AccountStatusBadge status={a.status} />
+            <span className="inline-flex flex-wrap items-center gap-2" data-testid="connect-access">
+              <AccountStatusBadge status={a.status} />
+              {a.status === 'active' ? <span className="text-ink-2">{accessText(a.status)}</span> : null}
+            </span>
           </Row>
-          <Row label="Token expires">
-            {a.expires_at ? (
-              <time dateTime={a.expires_at} title={formatDateTime(a.expires_at)}>
-                {formatRelative(a.expires_at)}
-              </time>
-            ) : (
-              <span className="text-ink-3">—</span>
-            )}
+          <Row label="Authorized">
+            <time dateTime={a.created_at}>{formatDateTime(a.created_at)}</time>
           </Row>
         </dl>
         <div className="mt-6 flex flex-wrap justify-end gap-2 border-t border-line bg-sunken px-6 py-3.5 max-sm:flex-col-reverse max-sm:*:w-full sm:px-8">

@@ -2,7 +2,8 @@
  * Hi-fi 04 "Connect marketplaces" body: the marketplace list on the left (400px, rows 68, gap 10)
  * and the selected marketplace's detail card on the right. Amazon and Flipkart are real
  * (GET /marketplaces/accounts, POST /marketplaces/connect, POST /marketplaces/accounts/{id}/revoke);
- * the other four are honest disabled "Join waitlist" rows. Reused by /setup/marketplaces.
+ * Flipkart reads "Coming soon" with no Connect while publishing there is not open; the other four
+ * read "On the roadmap" with one disabled "Join waitlist". Reused by /setup/marketplaces.
  */
 import { useRef, useState, type ReactNode } from 'react'
 import { Banner } from '@/components/la/banner'
@@ -10,22 +11,20 @@ import { LaCard } from '@/components/la/cards'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { Icon, IconGlyph } from '@/components/la/icons'
 import { MarketplaceTile, marketplaceInfo } from '@/components/la/marketplace'
-import { StatusChip } from '@/components/la/status-chip'
-import { ComingSoon, NOT_YET, UnavailableButton, UnavailableHint } from '@/components/la/unavailable'
+import { ComingSoon, NOT_YET, UnavailableButton, UnavailableHint, WaitlistButton } from '@/components/la/unavailable'
 import { ErrorState } from '@/components/states/error-state'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useCurrentMarketplaceAccounts, type Marketplace, type MarketplaceAccount } from '@/features/marketplaces/api'
-import { formatDateTime, formatRelative, isPast } from '@/features/marketplaces/format'
-import { MARKETPLACE_META } from '@/features/marketplaces/meta'
+import { useCurrentMarketplaceAccounts, type Marketplace } from '@/features/marketplaces/api'
+import { accessText, formatDateTime, formatRelative } from '@/features/marketplaces/format'
+import { comingSoon, comingSoonReason, MARKETPLACE_META } from '@/features/marketplaces/meta'
 import { RevokeDialog } from '@/features/marketplaces/revoke-dialog'
 import { AccountStatusBadge, NotConnectedBadge } from '@/features/marketplaces/status-badge'
 import { useNow } from '@/features/marketplaces/use-now'
 import { useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
-import { connectionFor, defaultSelection, isTokenExpired, SUPPORTED, WAITLIST, type Connection } from './model'
+import { connectionFor, defaultSelection, SUPPORTED, WAITLIST, type Connection } from './model'
 import { useStartConnect } from './use-start-connect'
 
 type Connector = ReturnType<typeof useStartConnect>
@@ -115,9 +114,7 @@ export function MarketplaceConnections({
                   <span className="block text-caption text-ink-3">{w.note}</span>
                 </span>
               </span>
-              <UnavailableButton variant="secondary" size="sm" reason={w.reason} aria-label={`Join waitlist for ${marketplaceInfo(w.id).name}`}>
-                Join waitlist
-              </UnavailableButton>
+              <WaitlistButton variant="secondary" size="sm" name={marketplaceInfo(w.id).name} />
             </li>
           ))}
         </ul>
@@ -159,6 +156,7 @@ function SupportedRow({
 }) {
   const { marketplace, kind, account } = connection
   const m = MARKETPLACE_META[marketplace]
+  const soon = !account && comingSoon(marketplace, [])
   return (
     <li
       data-testid={`marketplace-card-${marketplace}`}
@@ -189,7 +187,12 @@ function SupportedRow({
         </span>
       </span>
       <span className="relative z-10 flex shrink-0 items-center">
-        {kind === 'not-connected' && canConnect && !connector.notConfigured ? (
+        {soon ? (
+          // Publishing there is not open yet: no Connect (prod QA 9 Nov, item 10).
+          <span data-testid={`coming-soon-${marketplace}`}>
+            <ComingSoon />
+          </span>
+        ) : kind === 'not-connected' && canConnect && !connector.notConfigured ? (
           <Button size="sm" onClick={connector.start} disabled={connector.redirecting} aria-label={`Connect ${m.short}`}>
             {connector.redirecting ? <Spinner data-icon="inline-start" /> : null}
             {connector.redirecting ? 'Redirecting…' : 'Connect'}
@@ -274,7 +277,11 @@ function ConnectionDetail({ connection, canConnect, connector }: { connection: C
         </Banner>
       ) : null}
 
-      {connector.notConfigured ? (
+      {!account && comingSoon(marketplace, []) ? (
+        <Banner tone="neutral" title="Coming soon" icon="clock">
+          <span data-testid="coming-soon-detail">{comingSoonReason(marketplace)}</span>
+        </Banner>
+      ) : connector.notConfigured ? (
         <Banner tone="neutral" title="Coming soon" icon="alert">
           <span data-testid="not-configured">
             Connecting {m.short} is coming soon. {m.short} drafts open once it is connected.
@@ -290,12 +297,11 @@ function ConnectionDetail({ connection, canConnect, connector }: { connection: C
             </Kv>
             <Kv label="Seller ID">{account.seller_id}</Kv>
             <Kv label="Region">{account.region ?? <Dash />}</Kv>
-            <Kv label="Connected">
+            <Kv label="Authorized">
               <time dateTime={account.created_at}>{formatDateTime(account.created_at)}</time>
             </Kv>
-            <Kv label="Token expires">
-              <TokenExpires account={account} now={now} />
-            </Kv>
+            {/* Never the 1-hour access-token expiry (prod QA 9 Nov, item 19): it renews itself. */}
+            <Kv label="Access">{accessText(account.status)}</Kv>
             <Kv label="Pickup locations">
               <UnavailableHint reason={NOT_YET.pickupLocations}>
                 <ComingSoon />
@@ -338,13 +344,13 @@ function ConnectionDetail({ connection, canConnect, connector }: { connection: C
               The last connection (seller <span className="font-semibold text-ink">{previous.seller_id}</span>) was revoked.
             </p>
           ) : null}
-          <p>
+          {comingSoon(marketplace, []) ? null : <p>
             {canConnect
               ? connector.notConfigured
                 ? `Connecting ${m.short} becomes possible once it is configured on this server.`
                 : `Select Connect, approve access on ${m.short}, and you come back here. Approved listings can then be published to ${m.short}.`
               : `An owner or admin can connect ${m.short}.`}
-          </p>
+          </p>}
         </div>
       )}
 
@@ -364,34 +370,6 @@ function Kv({ label, children }: { label: string; children: ReactNode }) {
 
 function Dash() {
   return <span className="text-ink-3">—</span>
-}
-
-function TokenExpires({ account, now }: { account: MarketplaceAccount; now: number }) {
-  if (!account.expires_at) return <Dash />
-  const expired = isTokenExpired(account, now)
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <time
-          dateTime={account.expires_at}
-          tabIndex={0}
-          className="focus-ring rounded-sm underline decoration-line-strong decoration-dotted underline-offset-4"
-        >
-          {expired ? (
-            <StatusChip status="needs-you">Expired {formatRelative(account.expires_at, now)}</StatusChip>
-          ) : isPast(account.expires_at, now) ? (
-            `Expired ${formatRelative(account.expires_at, now)}`
-          ) : (
-            formatRelative(account.expires_at, now)
-          )}
-        </time>
-      </TooltipTrigger>
-      <TooltipContent>
-        {formatDateTime(account.expires_at)}
-        {account.status === 'active' ? ' · refreshed automatically' : ''}
-      </TooltipContent>
-    </Tooltip>
-  )
 }
 
 function RowSkeleton() {

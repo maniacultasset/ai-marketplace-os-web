@@ -1,6 +1,7 @@
 /**
  * Backend listing state → hi-fi status chip. One place, so every screen says the same word for the
- * same state. "Live" is only ever derived from the marketplace's own state (`marketplace_state`
+ * same state. The server's `display_state` wins over `status` for "needs you" (prod QA 9 Nov: a
+ * listing with open blocking issues read "Ready to approve" here while Review blocked it). "Live" is only ever derived from the marketplace's own state (`marketplace_state`
  * live), never from our `published` status alone (hi-fi build rule: "Live means confirmed").
  */
 import type { ChipStatus } from '@/components/la/status-chip'
@@ -45,8 +46,25 @@ export const isNotBuyable = (l: { status: ListingStatus; marketplace_state: Mark
 export const NOT_BUYABLE_NEXT =
   'Amazon made the product page but is not selling it yet. This often clears within a day. If it does not, check price, stock and any listing issue in Seller Central, then check status here.'
 
-export function listingChip(l: { status: ListingStatus; marketplace_state: MarketplaceState }): ChipView {
+type DisplayFields = Partial<Pick<Schema<'ListingOut'>, 'display_state' | 'needs_you_count'>>
+
+/**
+ * The server's display state says open blocking issues keep a person from approving this version
+ * (whatever `status` says: a stored "passed" can be stale). Older API builds omit it: false.
+ */
+export function needsYourInfo(l: DisplayFields): boolean {
+  return l.display_state === 'needs_you'
+}
+
+/** "Needs your info · 6": the count is the open blocking issues on the current version. */
+export function needsYourInfoLabel(l: DisplayFields): string {
+  const n = l.needs_you_count ?? 0
+  return n > 0 ? `Needs your info · ${n}` : 'Needs your info'
+}
+
+export function listingChip(l: { status: ListingStatus; marketplace_state: MarketplaceState } & DisplayFields): ChipView {
   if (l.status === 'published') return BY_MARKETPLACE[l.marketplace_state]
+  if (needsYourInfo(l)) return { status: 'needs-you', label: needsYourInfoLabel(l) }
   return BY_STATUS[l.status]
 }
 

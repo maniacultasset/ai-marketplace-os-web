@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { useCan } from '@/lib/permissions'
 import type { CursorList } from '@/hooks/use-cursor-list'
 import type { MarketplaceAccount } from './api'
-import { formatDateTime, formatRelative, isPast } from './format'
+import { accessText, formatDateTime, formatRelative } from './format'
 import { MarketplaceMark } from './marketplace-mark'
 import { MARKETPLACE_META } from './meta'
 import { RevokeDialog } from './revoke-dialog'
@@ -45,17 +45,21 @@ const columns = col.columns([
       )
     },
   }),
-  col.accessor('expires_at', {
-    header: 'Token expires',
+  // Never the 1-hour access-token expiry (prod QA 9 Nov, item 19): it renews itself.
+  col.display({
+    id: 'access',
+    header: 'Access',
     cell: (c) =>
       c.row.original.status === 'revoked' ? (
         <span className="text-ink-3">—</span>
       ) : (
-        <TokenExpiry account={c.row.original} />
+        <span className="whitespace-nowrap" data-testid="history-access">
+          {accessText(c.row.original.status)}
+        </span>
       ),
   }),
   col.accessor('created_at', {
-    header: 'Connected',
+    header: 'Authorized',
     cell: (c) => (
       <time dateTime={c.getValue()} className="whitespace-nowrap">
         {formatDateTime(c.getValue())}
@@ -80,23 +84,6 @@ function ReconnectSince({ iso }: { iso: string }) {
   return (
     <span className="text-xs text-ink-3" title={formatDateTime(iso)} data-testid="reconnect-since">
       since {formatRelative(iso, now)}
-    </span>
-  )
-}
-
-/** Same rule as the card: an active account whose token time has passed is marked expired. */
-function TokenExpiry({ account }: { account: MarketplaceAccount }) {
-  const now = useNow()
-  const expired = account.status === 'active' && isPast(account.expires_at, now)
-  return (
-    <span
-      className={expired ? 'whitespace-nowrap text-attention' : 'whitespace-nowrap'}
-      title={expired ? `Expired ${formatRelative(account.expires_at, now)}` : undefined}
-      data-testid="token-expiry"
-      data-expired={expired || undefined}
-    >
-      {expired ? 'Expired · ' : ''}
-      {formatDateTime(account.expires_at)}
     </span>
   )
 }
@@ -158,14 +145,12 @@ function HistoryCard({ account }: { account: MarketplaceAccount }) {
       <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-1 text-small">
         <dt className="text-ink-3">Seller</dt>
         <dd className="truncate">{account.seller_id}</dd>
-        <dt className="text-ink-3">Connected</dt>
+        <dt className="text-ink-3">Authorized</dt>
         <dd>{formatDateTime(account.created_at)}</dd>
         {account.status !== 'revoked' ? (
           <>
-            <dt className="text-ink-3">Token expires</dt>
-            <dd>
-              <TokenExpiry account={account} />
-            </dd>
+            <dt className="text-ink-3">Access</dt>
+            <dd>{accessText(account.status)}</dd>
           </>
         ) : null}
       </dl>

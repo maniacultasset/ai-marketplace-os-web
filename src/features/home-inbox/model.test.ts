@@ -26,6 +26,7 @@ import {
   listingBucket,
   liveTile,
   marketplaceCard,
+  problemLabel,
   mergeInbox,
   needsYouCaption,
   needsYouTile,
@@ -56,6 +57,9 @@ const listing = (
   product_id: U(1000 + product),
   marketplace,
   status,
+  // the server's display state; tests that need "needs you" set it themselves
+  display_state: 'draft',
+  needs_you_count: 0,
   marketplace_state,
   status_changed_at: '2026-10-05T09:31:00Z',
   created_at: '2026-10-05T09:30:00Z',
@@ -113,6 +117,9 @@ const submission = (attempt: number, outcome: Submission['outcome'], error?: Par
 describe('listingBucket', () => {
   it('counts Live only when the marketplace confirms it', () => {
     expect(listingBucket({ status: 'published', marketplace_state: 'live' })).toBe('live')
+    // open blocking issues: not "to approve" (prod QA 9 Nov: Home said 1 to approve)
+    expect(listingBucket({ status: 'validated', marketplace_state: 'not_submitted', display_state: 'needs_you' })).toBe('problem')
+    expect(listingBucket({ status: 'validated', marketplace_state: 'not_submitted', display_state: 'ready_to_approve' })).toBe('approve')
     expect(listingBucket({ status: 'published', marketplace_state: 'processing' })).toBe('working')
     expect(listingBucket({ status: 'published', marketplace_state: 'pending_review' })).toBe('working')
     expect(listingBucket({ status: 'published', marketplace_state: 'partially_live' })).toBe('partly')
@@ -150,7 +157,8 @@ describe('summarizeListings and tiles', () => {
   it('counts every bucket and distinct live products', () => {
     expect(s).toMatchObject({ total: 9, live: 3, liveProducts: 2, working: 2, approve: 1, publish: 1, problem: 1, complete: true })
     expect(s.byMarketplace.amazon).toEqual({ listings: 6, live: 2, partly: 0, working: 1, problem: 0 })
-    expect(s.byMarketplace.flipkart).toEqual({ listings: 3, live: 1, partly: 0, working: 1, problem: 1 })
+    expect(s.byMarketplace.flipkart).toMatchObject({ listings: 3, live: 1, partly: 0, working: 1, problem: 1 })
+    expect(s.byMarketplace.flipkart.firstProblem).toEqual({ productId: s.byMarketplace.flipkart.firstProblem!.productId, label: 'The last step failed' })
   })
 
   it('live tile names listings and products, with no "+" when the walk was complete', () => {
@@ -264,12 +272,34 @@ describe('marketplace cards', () => {
   it('connected: live count and what is in flight', () => {
     expect(marketplaceCard({ status: 'active' }, totals, true)).toEqual({
       chip: { status: 'live', label: '2 live' },
-      sub: '1 processing · 1 error',
+      sub: '1 processing · 1 to fix',
       action: null,
     })
   })
+  it('names the one listing to fix and links its product (prod QA 9 Nov, item 22)', () => {
+    const one = { listings: 1, live: 0, partly: 0, working: 0, problem: 1, firstProblem: { productId: 'p1', label: 'Needs your info · 6' } }
+    expect(marketplaceCard({ status: 'active' }, one, true)).toEqual({
+      chip: { status: 'not-listed', label: 'None live yet' },
+      sub: '',
+      action: null,
+      problem: { productId: 'p1', label: 'Needs your info · 6', text: '1 to fix: Needs your info · 6' },
+    })
+    const s = summarizeListings(
+      [{ product_id: 'p1', marketplace: 'amazon', status: 'blocked', status_reason: 'validation_errors', marketplace_state: 'not_submitted', display_state: 'needs_you', needs_you_count: 6 }],
+      true,
+    )
+    expect(s.byMarketplace.amazon.firstProblem).toEqual({ productId: 'p1', label: 'Needs your info · 6' })
+    expect(problemLabel({ status: 'failed', status_reason: 'publish_failed', marketplace_state: 'not_submitted' })).toBe('Publishing failed')
+    expect(problemLabel({ status: 'published', marketplace_state: 'rejected' })).toBe('Rejected by the marketplace')
+  })
   it('not connected and reconnect point to Marketplaces', () => {
     expect(marketplaceCard(null, { ...totals, live: 0 }, true)).toMatchObject({ chip: { label: 'Not connected' }, action: 'connect' })
+    // Publishing not open yet (Flipkart): Coming soon, no connect link (prod QA 9 Nov)
+    expect(marketplaceCard(null, { ...totals, live: 0 }, true, { reason: 'Soon.' })).toEqual({
+      chip: { status: 'not-listed', label: 'Coming soon' },
+      sub: 'Soon.',
+      action: null,
+    })
     expect(marketplaceCard({ status: 'needs_reconnect' }, totals, false)).toMatchObject({
       chip: { status: 'needs-you', label: 'Reconnect' },
       sub: '2+ live · access expired',

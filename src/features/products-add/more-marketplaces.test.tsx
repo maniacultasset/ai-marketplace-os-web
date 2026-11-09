@@ -6,21 +6,19 @@ import { MoreMarketplaces } from './product-detail-page'
 afterEach(cleanup)
 
 describe('More marketplaces', () => {
-  it('shows Meesho as Coming soon, like Sell on, and keeps the others not available', () => {
+  it('reads On the roadmap with one disabled waitlist action for all four, as on the landing page', () => {
     render(
       <TooltipProvider>
         <MoreMarketplaces />
       </TooltipProvider>,
     )
-    const rows = screen.getByTestId('more-marketplaces').querySelectorAll('li')
-    const row = (name: string) => [...rows].find((r) => r.textContent!.startsWith(name))?.textContent ?? ''
-    const text: Record<string, string> = { Meesho: row('Meesho'), Myntra: row('Myntra'), AJIO: row('AJIO'), 'Nykaa Fashion': row('Nykaa') }
-    expect(text.Meesho).toContain('Meesho')
-    expect(screen.getByTestId('more-marketplaces-soon-meesho').textContent).toBe('Coming soon')
-    expect(text.Meesho).not.toContain('Join waitlist')
-    for (const name of ['Myntra', 'AJIO', 'Nykaa Fashion']) {
-      expect(text[name]).toContain('Not available')
-      expect(text[name]).toContain('Join waitlist')
+    for (const [id, name] of [['myntra', 'Myntra'], ['ajio', 'AJIO'], ['meesho', 'Meesho'], ['nykaa', 'Nykaa Fashion']] as const) {
+      const row = screen.getByTestId(`more-marketplaces-${id}`)
+      expect(row.textContent).toContain('On the roadmap')
+      expect(row.textContent).not.toContain('Coming soon')
+      expect(row.textContent).not.toContain('Not available')
+      const join = screen.getByRole('button', { name: `Join waitlist for ${name}` })
+      expect(join.getAttribute('aria-disabled')).toBe('true')
     }
   })
 })

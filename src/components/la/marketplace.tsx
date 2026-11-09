@@ -5,7 +5,8 @@
  *   128px, bundled: no remote image loads). The image is decorative; the name beside it is the
  *   label. Unsupported marketplaces get a flat tile with a softened icon (the card around it is
  *   dashed), so they never out-shout the ones you can connect.
- * - MarketplaceCell: icon-only status chip, then the listing id in 12px ink-3 (Products table).
+ * - MarketplaceCell: icon-only status chip, then an optional short note in 12px ink-3 (Products
+ *   table); the full status is the tooltip and the accessible name.
  * - VariantCell: 34px matrix cell; unavailable combinations are dashed and stay in the data.
  *
  * MARKETPLACES lists every marketplace the design shows. Only `supported` ones exist in the API
@@ -121,12 +122,12 @@ export function MarketplaceCell({
   status: ChipStatus
   /** Accessible name, e.g. "Amazon: Live". */
   label: string
-  /** Small text under the chip: the listing id, "attempt 3", "task". */
+  /** Small text under the chip, e.g. "6 to fix". Never an id. */
   sub?: ReactNode
   className?: string
 }) {
   return (
-    <span className={cn('inline-flex w-14 flex-col items-center gap-0.5', className)}>
+    <span className={cn('inline-flex w-14 flex-col items-center gap-0.5', className)} title={label}>
       <StatusChip status={status} iconOnly label={label} />
       {sub ? <span className="max-w-full truncate text-caption font-normal text-ink-3">{sub}</span> : null}
     </span>

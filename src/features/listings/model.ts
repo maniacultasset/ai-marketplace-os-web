@@ -62,6 +62,7 @@ export const STATUS_META: Record<ListingStatus, { label: string; tone: Tone; hin
 
 /** `listings.status_reason` values the backend writes (services/*), in plain words. */
 const REASON_LABEL: Record<string, string> = {
+  human_task_open: 'A question is waiting in your Inbox',
   validation_errors: 'Checks found blocking issues',
   corrections_exhausted: 'AI could not fix every issue',
   rejected: 'Rejected by a reviewer',
@@ -451,6 +452,20 @@ export function historyLabel(action: string): string {
   return HISTORY_LABEL[action] ?? sentence(action.replace(/^listing\./, ''))
 }
 
+/**
+ * What an approve or reject event decided (the API's `review`): "Version 2 · Poor quality". The
+ * reviewer's free-text note never reaches the history (untrusted text). Null for other events, or
+ * an older API without it (prod QA 9 Nov: "Rejected · a person" said nothing about which version
+ * or why).
+ */
+export function reviewDetail(review: Schema<'AuditReviewOut'> | null | undefined): string | null {
+  if (!review) return null
+  const parts: string[] = []
+  if (review.version) parts.push(`Version ${review.version}`)
+  if (review.reason_code) parts.push(sentence(review.reason_code))
+  return parts.length ? parts.join(' · ') : null
+}
+
 /** The status an audit `before`/`after` snapshot names, when it is a known one. */
 export function snapshotStatus(snap: Record<string, unknown> | null | undefined): ListingStatus | null {
   const s = snap?.['status']
@@ -476,4 +491,30 @@ export const STAGE_LABEL: Record<string, string> = {
   validate_vision: 'Checking images',
   correct: 'Fixing issues',
   quality_check: 'Final quality check',
+}
+
+/**
+ * The Validation tab's blocking count: the rules run's, or the server's open blocking issues on
+ * the current version (the marketplace check and its dry run included), whichever is larger, so
+ * it agrees with Review (prod QA 9 Nov, item 14). `marketplace`: the rules passed but other
+ * checks block.
+ */
+export function validationBlocking(
+  v: { passed: boolean; blocking_count: number } | null | undefined,
+  l: { display_state?: Schema<'ListingOut'>['display_state']; needs_you_count?: number } | null | undefined,
+): { blocking: number; marketplace: boolean } {
+  const server = l?.display_state === 'needs_you' ? (l.needs_you_count ?? 0) : 0
+  const blocking = Math.max(v?.blocking_count ?? 0, server)
+  return { blocking, marketplace: !!v?.passed && (v.blocking_count ?? 0) === 0 && server > 0 }
+}
+
+/**
+ * Why a blocked listing with no open issue is blocked, in plain words ("Rejected by a reviewer",
+ * "A question is waiting in your Inbox"), or null when it is not blocked or issues explain it
+ * (prod QA 9 Nov, item 23: "Blocked · 0 open issues").
+ */
+export function blockedReason(l: { status: ListingStatus; status_reason?: string | null }, openIssues: number): string | null {
+  if (l.status !== 'blocked' || openIssues > 0) return null
+  if (l.status_reason === 'human_task_open') return 'A question is waiting in your Inbox'
+  return statusReasonLabel(l.status_reason) ?? 'Blocked: open the listing to see why'
 }

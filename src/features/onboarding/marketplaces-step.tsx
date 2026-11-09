@@ -6,8 +6,9 @@
  *   POST /marketplaces/connect    { marketplace } → { authorize_url }; the browser goes there and the
  *                                 callback lands on /marketplaces/connected, which confirms it.
  *                                 501 = OAuth not configured on this server.
- * Only Amazon and Flipkart exist in the API. Myntra, AJIO, Meesho and Nykaa Fashion show a disabled
- * "Join waitlist" (no waitlist API). Pickup locations, shipping defaults, listing permissions and
+ * Only Amazon and Flipkart exist in the API; Flipkart reads "Coming soon" with no Connect while
+ * publishing there is not open. Myntra, AJIO, Meesho and Nykaa Fashion read "On the roadmap" with a
+ * disabled "Join waitlist" (no waitlist API). Pickup locations, shipping defaults, listing permissions and
  * brand-authorisation upload have no API: shown disabled, or left out where showing a value would
  * mislead (listing permissions).
  * "Finish setup" needs one `active` account (hi-fi behaviour), then goes to Home.
@@ -20,7 +21,8 @@ import { LaCard } from '@/components/la/cards'
 import { Icon } from '@/components/la/icons'
 import { MARKETPLACES, MarketplaceTile, type MarketplaceId, type MarketplaceInfo } from '@/components/la/marketplace'
 import { StatusChip, TagChip } from '@/components/la/status-chip'
-import { NOT_YET, UnavailableButton } from '@/components/la/unavailable'
+import { ROADMAP } from '@/components/la/roadmap'
+import { ComingSoon, NOT_YET, UnavailableButton, WaitlistButton } from '@/components/la/unavailable'
 import { ErrorState } from '@/components/states/error-state'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -32,6 +34,7 @@ import {
   type MarketplaceAccount,
 } from '@/features/marketplaces/api'
 import { formatDateTime } from '@/features/marketplaces/format'
+import { comingSoon, comingSoonReason } from '@/features/marketplaces/meta'
 import { ApproverNotice } from '@/features/team-account/approver-notice'
 import { rememberConnectOrigin } from '@/features/marketplaces-settings/use-start-connect'
 import { useCan } from '@/lib/permissions'
@@ -163,16 +166,16 @@ function MarketplaceRow({
         <MarketplaceTile id={info.id} className={cn(!info.supported && 'shadow-none')} />
         <span className="min-w-0">
           <b className="block truncate text-ink">{info.name}</b>
-          {!info.supported ? <span className="block text-caption text-ink-3">Not supported yet</span> : null}
+          {!info.supported ? <span className="block text-caption text-ink-3">{ROADMAP.label}</span> : null}
         </span>
       </button>
       <span className="relative z-10 shrink-0">
         {loading ? (
           <Skeleton className="h-[22px] w-24 rounded-full" />
         ) : !info.supported ? (
-          <UnavailableButton variant="secondary" size="sm" reason={NOT_YET.waitlist}>
-            Join waitlist
-          </UnavailableButton>
+          <WaitlistButton variant="secondary" size="sm" name={info.name} />
+        ) : !account && comingSoon(info.id as Marketplace, []) ? (
+          <ComingSoon />
         ) : (
           (chip ?? <TagChip tone="plain">Not connected</TagChip>)
         )}
@@ -228,14 +231,9 @@ function MarketplaceDetail({ info, account, loading }: { info: MarketplaceInfo; 
   if (!info.supported) {
     return (
       <LaCard emphasis="dashed" className="flex flex-col gap-4" data-testid="setup-mp-detail">
-        {header(
-          <UnavailableButton variant="secondary" size="sm" reason={NOT_YET.waitlist}>
-            Join waitlist
-          </UnavailableButton>,
-          'Not supported yet',
-        )}
+        {header(<WaitlistButton variant="secondary" size="sm" name={info.name} />, ROADMAP.label)}
         <p className="text-body text-ink-2">
-          Kuinn lists on Amazon today, with Flipkart coming soon. {info.name} needs API access we do not have yet, and the
+          Kuinn lists on Amazon today, with Flipkart coming soon. {info.name} is on the roadmap with no date yet, and the
           waitlist is not open, so there is nothing to connect here.
         </p>
       </LaCard>
@@ -243,6 +241,16 @@ function MarketplaceDetail({ info, account, loading }: { info: MarketplaceInfo; 
   }
 
   const mp = info.id as Marketplace
+  if (!account && comingSoon(mp, [])) {
+    return (
+      <LaCard emphasis="dashed" className="flex flex-col gap-4" data-testid="setup-mp-detail">
+        {header(undefined, 'Not connected')}
+        <Banner tone="neutral" icon="clock" title="Coming soon" role="status">
+          {comingSoonReason(mp)}
+        </Banner>
+      </LaCard>
+    )
+  }
   const startConnect = () => {
     connect.mutate(mp, {
       onSuccess: ({ authorize_url }) => {

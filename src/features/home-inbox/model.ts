@@ -16,6 +16,8 @@ import { humanizeCode, isAutoFix, TASK_KIND_LABEL, type Issue, type Task } from 
 import { NO_TRAIL_TEXT, onVersion, versionRef } from '@/features/listing-flow/auto-fix-model'
 import { causeLabel, fixState, laneView, type FixContext, type LaneView } from '@/features/listing-flow/lanes'
 import { isBlockingTask, isPhotoQuestion } from '@/features/photo-facts/answer-spec'
+import { statusReasonLabel } from '@/features/listings/model'
+import { needsYourInfoLabel } from '@/lib/listing-chip'
 
 type Listing = Schema<'ListingOut'>
 type Marketplace = Schema<'Marketplace'>
@@ -52,18 +54,21 @@ export function plural(n: number, one: string, many = `${one}s`) {
  *   partly     marketplace_state partially_live
  *   working    the agent or the marketplace is busy: generating, publishing, or sent and waiting
  *              on the marketplace (processing, pending_review, not yet confirmed)
- *   approve    validated or needs_review: maker-checker, a person must approve
+ *   approve    validated or needs_review: maker-checker, a person must approve (not while the
+ *              server's display state is needs_you: open blocking issues come first)
  *   publish    approved: a person must press publish (listing:publish)
  *   problem    blocked, failed, or rejected by the marketplace (shown through Inbox issues)
  *   idle       created (not generated yet), inactive or removed
  */
 export type ListingBucket = 'live' | 'partly' | 'working' | 'approve' | 'publish' | 'problem' | 'idle'
 
-export function listingBucket(l: Pick<Listing, 'status' | 'marketplace_state'>): ListingBucket {
+export function listingBucket(l: Pick<Listing, 'status' | 'marketplace_state'> & Partial<Pick<Listing, 'display_state'>>): ListingBucket {
   const ms = l.marketplace_state
   if (ms === 'live') return 'live'
   if (ms === 'partially_live') return 'partly'
   if (ms === 'rejected') return 'problem'
+  // Open blocking issues: nothing to approve yet. The issues themselves are counted (Inbox).
+  if (l.display_state === 'needs_you' && l.status !== 'published') return 'problem'
   switch (l.status) {
     case 'generating':
     case 'publishing':
@@ -89,6 +94,21 @@ export interface MarketplaceTotals {
   partly: number
   working: number
   problem: number
+  /** The newest listing in the problem bucket, so the card can name it and link to it. */
+  firstProblem?: ProblemRef
+}
+
+/** One listing that needs fixing: its product (the link) and what is wrong, in plain words. */
+export interface ProblemRef {
+  productId: string
+  label: string
+}
+
+/** Prod QA 9 Nov, item 22: "1 error" named nothing. The words for a problem-bucket listing. */
+export function problemLabel(l: Pick<Listing, 'status' | 'marketplace_state'> & Partial<Pick<Listing, 'display_state' | 'needs_you_count' | 'status_reason'>>): string {
+  if (l.marketplace_state === 'rejected') return 'Rejected by the marketplace'
+  if (l.display_state === 'needs_you') return needsYourInfoLabel(l)
+  return statusReasonLabel(l.status_reason) ?? (l.status === 'failed' ? 'The last step failed' : 'Needs attention')
 }
 
 export interface ListingsSnapshot {
@@ -109,7 +129,7 @@ export interface ListingsSnapshot {
 
 const emptyTotals = (): MarketplaceTotals => ({ listings: 0, live: 0, partly: 0, working: 0, problem: 0 })
 
-export function summarizeListings(listings: readonly Pick<Listing, 'status' | 'marketplace_state' | 'marketplace' | 'product_id'>[], complete: boolean): ListingsSnapshot {
+export function summarizeListings(listings: readonly (Pick<Listing, 'status' | 'marketplace_state' | 'marketplace' | 'product_id'> & Partial<Pick<Listing, 'display_state' | 'needs_you_count' | 'status_reason'>>)[], complete: boolean): ListingsSnapshot {
   const s: ListingsSnapshot = {
     total: listings.length,
     complete,
@@ -151,6 +171,7 @@ export function summarizeListings(listings: readonly Pick<Listing, 'status' | 'm
       case 'problem':
         s.problem++
         m.problem++
+        m.firstProblem ??= { productId: l.product_id, label: problemLabel(l) }
         break
       case 'idle':
         break
@@ -257,6 +278,8 @@ export function needsYouTile(p: NeedsYouParts, cap: number): TileView {
 export interface MarketplaceCardView {
   chip: { status: ChipStatus; label: string }
   sub: string
+  /** The one listing to fix, named and linked (prod QA 9 Nov, item 22). */
+  problem?: ProblemRef & { text: string }
   /** Where the sub line links: connect / reconnect on Marketplaces. */
   action: 'connect' | 'reconnect' | null
 }
@@ -266,8 +289,18 @@ export function currentAccount(accounts: readonly Account[], m: Marketplace): Ac
   return accounts.find((a) => a.marketplace === m && a.status !== 'revoked') ?? null
 }
 
-export function marketplaceCard(account: Pick<Account, 'status'> | null, t: MarketplaceTotals, complete: boolean): MarketplaceCardView {
+/**
+ * `soon`: publishing to this marketplace is not open yet (marketplaces/meta `comingSoon`), so a
+ * brand with no account there sees "Coming soon" and no connect link (prod QA 9 Nov, item 3).
+ */
+export function marketplaceCard(
+  account: Pick<Account, 'status'> | null,
+  t: MarketplaceTotals,
+  complete: boolean,
+  soon: { reason: string } | null = null,
+): MarketplaceCardView {
   const plus = complete ? '' : '+'
+  if (!account && soon && !t.live) return { chip: { status: 'not-listed', label: 'Coming soon' }, sub: soon.reason, action: null }
   if (!account) {
     if (t.live) return { chip: { status: 'live', label: `${t.live}${plus} live` }, sub: 'Account disconnected. Connect to keep listing.', action: 'connect' }
     return { chip: { status: 'not-listed', label: 'Not connected' }, sub: 'Connect to list here', action: 'connect' }
@@ -278,12 +311,15 @@ export function marketplaceCard(account: Pick<Account, 'status'> | null, t: Mark
   const sub: string[] = []
   if (t.partly) sub.push(`${t.partly} partly live`)
   if (t.working) sub.push(`${t.working} processing`)
-  if (t.problem) sub.push(`${t.problem} ${plural(t.problem, 'error')}`)
+  // One listing to fix: name it (the card links it); more: the count (the Inbox lists them)
+  const one = t.problem === 1 && t.firstProblem ? t.firstProblem : null
+  if (t.problem && !one) sub.push(`${t.problem} to fix`)
   if (!t.listings) sub.push('Connected. No listings yet.')
   return {
     chip: t.live ? { status: 'live', label: `${t.live}${plus} live` } : { status: 'not-listed', label: 'None live yet' },
-    sub: sub.join(' · ') || 'Nothing else in progress',
+    sub: sub.join(' · ') || (one ? '' : 'Nothing else in progress'),
     action: null,
+    ...(one ? { problem: { ...one, text: `1 to fix: ${one.label}` } } : {}),
   }
 }
 
