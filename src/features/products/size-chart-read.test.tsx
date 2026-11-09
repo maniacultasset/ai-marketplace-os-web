@@ -80,6 +80,24 @@ describe('Read sizes from your size chart photo (SI12)', () => {
     await waitFor(() => expect(onRead).toHaveBeenCalledWith(unknown, null, IMG))
   })
 
+  it('a 200 "unavailable" settles at once, with no product polling and no "try again"', async () => {
+    post.mockReturnValue(answer({ image_id: IMG, job_id: null, status: 'unavailable' }, 200))
+    setup()
+    await userEvent.click(screen.getByTestId('size-chart-read-start'))
+    expect(await screen.findByTestId('size-chart-read-unavailable')).toBeTruthy()
+    expect(fetchProduct).not.toHaveBeenCalled()
+    expect(screen.queryByText(/Try again/)).toBeNull()
+  })
+
+  it('a final 200 answer is read once, never polled', async () => {
+    post.mockReturnValue(answer({ image_id: IMG, status: 'unreadable' }, 200))
+    fetchProduct.mockResolvedValue({ ...product, size_chart_suggestion: null })
+    setup()
+    await userEvent.click(screen.getByTestId('size-chart-read-start'))
+    expect(await screen.findByText(/could not be read/)).toBeTruthy()
+    expect(fetchProduct).toHaveBeenCalledTimes(1)
+  })
+
   it('is hidden while the read is switched off', () => {
     setup({ ...product, size_chart_read_enabled: false })
     expect(screen.queryByTestId('size-chart-read')).toBeNull()
@@ -124,6 +142,7 @@ describe('Read sizes from your size chart photo (SI12)', () => {
     expect(outcomeOf({ image_id: 'other', status: 'read', chart: CHART }, IMG)).toBeNull()
     expect(outcomeOf({ image_id: IMG, status: 'read', chart: CHART }, IMG)).toEqual({ kind: 'read', rows: 2 })
     expect(outcomeOf({ image_id: IMG, status: 'read', chart: null }, IMG)).toEqual({ kind: 'unreadable' })
-    expect(outcomeOf({ image_id: IMG, status: 'unavailable' }, IMG)).toEqual({ kind: 'failed' })
+    expect(outcomeOf({ image_id: IMG, status: 'unavailable' }, IMG)).toEqual({ kind: 'unavailable' })
+    expect(outcomeOf({ image_id: IMG, status: 'failed' }, IMG)).toEqual({ kind: 'failed' })
   })
 })
