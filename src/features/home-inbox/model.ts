@@ -15,7 +15,9 @@ import type { Schema } from '@/api/types'
 import { humanizeCode, isAutoFix, TASK_KIND_LABEL, type Issue, type Task } from '@/features/inbox/model'
 import { NO_TRAIL_TEXT, onVersion, versionRef } from '@/features/listing-flow/auto-fix-model'
 import { causeLabel, fixState, laneView, type FixContext, type LaneView } from '@/features/listing-flow/lanes'
-import { fieldLabel } from '@/features/listing-flow/format'
+import { fieldLabel, isAgentText, sentenceCase } from '@/features/listing-flow/format'
+
+export { sentenceCase }
 import { isBlockingTask, isPhotoQuestion, type LinkedIssue } from '@/features/photo-facts/answer-spec'
 
 type Listing = Schema<'ListingOut'>
@@ -566,14 +568,6 @@ export function isIdentifierTask(task: Pick<Task, 'product_id' | 'target_path'>)
   return !!task.product_id && /^(variants\[[^\]]+\]\.)?facts\.identifier$/.test(task.target_path ?? '')
 }
 
-/** A message in sentence case: rule messages start lowercase ("title longer than 200 characters"). */
-export function sentenceCase(text: string | null | undefined): string {
-  const t = (text ?? '').trim()
-  if (!t) return ''
-  const s = t[0]!.toUpperCase() + t.slice(1)
-  return /[.!?]$/.test(s) ? s : `${s}.`
-}
-
 /** A marketplace's own words, verbatim, with its code when there is one. No internal field path. */
 export function rawMarketplaceText(i: Pick<Issue, 'marketplace_code' | 'raw_message' | 'message'>): string {
   return [i.marketplace_code ? `code ${i.marketplace_code}` : null, i.raw_message ?? i.message].filter(Boolean).join(' · ')
@@ -588,10 +582,6 @@ export function showSuggestion(i: Pick<Issue, 'suggestion' | 'status'>): boolean
   return !!i.suggestion && i.status === 'open' && !isAgentText(i.suggestion)
 }
 
-/** Text written for the agent or a developer: an internal path, or the "flag the row" guidance. */
-export function isAgentText(text: string): boolean {
-  return /\b(?:attributes|facts|content|images|variants)[.[][a-z0-9_]/i.test(text) || /flag the row/i.test(text)
-}
 
 export interface TimelineEntry {
   tone: 'ok' | 'bad' | 'need' | 'now' | 'neutral'

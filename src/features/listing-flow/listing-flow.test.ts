@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { failedJobRemedy, logEntries } from './agent-run'
-import { clock, fieldLabel } from './format'
-import { applicableRules, claimFindings, currentFindings, fieldGate, findingGate, gateCounts, rollUpGates, ruleGate, type ErrorItem } from './gates'
+import { clock, fieldLabel, findingText } from './format'
+import { applicableRules, claimFindings, dedupeFindings, currentFindings, fieldGate, findingGate, gateCounts, rollUpGates, ruleGate, type ErrorItem } from './gates'
 import { mappingRows, payloadField } from './mapping'
 import { externalIdFromUrl, liveProof, maskId } from './proof'
-import { approveAllTargets, approveBlockers, editToContent, sendBackItem, validateEdit, validateSendBack } from './review-model'
+import { approveAllTargets, approveBlockers, editToContent, sendBackItem, titleLimitWarning, validateEdit, validateSendBack } from './review-model'
 import { runIsActive, runSteps } from './run-steps'
 import { contentAuthor, listingActions, type AuditEvent, type Listing, type Submission, type ValidationSummary } from '@/features/listings/model'
 
@@ -496,5 +496,25 @@ describe('failed job remedy', () => {
     expect(failedJobRemedy('listing_publish', acts({ publish: on }))).toBe('publish')
     expect(failedJobRemedy('listing_publish', acts())).toBe('status')
     expect(failedJobRemedy('listing_status_sync', acts({ publish: on }))).toBe('status')
+  })
+})
+
+describe('title limit in the editor', () => {
+  it('warns at the marketplace limit, before the save is blocked', () => {
+    expect(titleLimitWarning('x'.repeat(231), 'amazon', 'Amazon')).toBe('Amazon allows 200 characters. Shorten the title, or this version will be blocked by the checks.')
+    expect(titleLimitWarning('x'.repeat(200), 'amazon', 'Amazon')).toBeNull()
+    expect(titleLimitWarning('x'.repeat(151), 'flipkart', 'Flipkart')).toMatch(/150 characters/)
+  })
+})
+
+describe('one problem, one finding', () => {
+  it('drops a second report of the same field and code', () => {
+    const f = (source: string) => ({ field: 'attributes.color', error_code: 'MISSING_ATTRIBUTE', source }) as never
+    expect(dedupeFindings([f('rules_engine'), f('schema')])).toHaveLength(1)
+  })
+  it('speaks to the seller: sentence case, no agent guidance, "sent" only for a marketplace answer', () => {
+    const t = findingText({ message: 'the color attribute is required for this category', suggestion: 'Set attributes.color from the product data.', source: 'rules_engine', value_submitted: 'Indigo' })
+    expect(t).toEqual({ message: 'The color attribute is required for this category.', suggestion: null, value: 'value “Indigo”' })
+    expect(findingText({ message: 'x', source: 'amazon_adapter', value_submitted: 'Indigo' }).value).toBe('sent “Indigo”')
   })
 })

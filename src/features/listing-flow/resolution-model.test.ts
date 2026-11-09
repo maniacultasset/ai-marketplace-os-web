@@ -178,7 +178,7 @@ describe('resolutionAction and helpers', () => {
     expect(resolutionAction(resolution({ next_step: { kind: 'answer', task_ids: ['t1'], text: '' } }))).toEqual({ kind: 'answer', taskId: 't1' })
     expect(resolutionAction(resolution({ next_step: { kind: 'marketplace', task_ids: ['t2'], text: '' } }))).toEqual({ kind: 'marketplace', taskId: 't2' })
     expect(resolutionAction(resolution({ next_step: { kind: 'resume', task_ids: [], text: '' } }))).toEqual({ kind: 'change' })
-    expect(resolutionAction(resolution({ next_step: { kind: 'regenerate', task_ids: [], text: '' } }))).toEqual({ kind: 'change' })
+    expect(resolutionAction(resolution({ next_step: { kind: 'regenerate', task_ids: [], text: '' } }))).toEqual({ kind: 'regenerate' })
     expect(resolutionAction(resolution({ next_step: { kind: 'wait', task_ids: [], text: '' } }))).toEqual({ kind: 'none' })
   })
 
@@ -204,5 +204,31 @@ describe('resolutionAction and helpers', () => {
     expect(v.triesText).toBe('2 of 3 automatic tries')
     expect(v.action.kind).toBe('approve')
     expect(v.nextText).toBe('Kuinn prepared a fix.')
+  })
+})
+
+describe('QA 2026-11-09: truthful resolution copy', () => {
+  it('an inactive listing is on the marketplace, not "waiting to confirm"', () => {
+    const h = headline({ state: 'live' }, { marketplace: 'amazon', marketplaceState: 'inactive' })
+    expect(h.title).toBe('On Amazon, not buyable yet')
+    expect(h.line).not.toContain('Waiting')
+  })
+  it('a reviewer is not told the answer is theirs to give', () => {
+    expect(resolutionHeadline(resolution({ state: 'needs_you' }), { marketplace: 'amazon', canAnswer: false }).line).toContain('operator or owner')
+  })
+  it('a seller answer is "What changed", and an answered question is no longer "What needs you"', () => {
+    const r = resolution({
+      state: 'idle',
+      next_step: { kind: 'none', task_ids: [], text: '' },
+      attempts: [
+        attempt({
+          failed: [{ field: 'attributes.color', message: 'Colour not allowed.', lane: 'seller', cause: 'seller_fact' }],
+          changed: [{ kind: 'seller_answer', field: 'attributes.color', summary: 'The seller answered this question.' }],
+        }),
+      ],
+    })
+    const v = resolutionView(r, { marketplace: 'amazon' })
+    expect(v.steps[0]!.changedTitle).toBe('What changed, not sent yet')
+    expect(v.steps[0]!.needsYou).toEqual([])
   })
 })
