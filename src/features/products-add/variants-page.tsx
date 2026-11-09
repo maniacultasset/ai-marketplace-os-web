@@ -26,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
-import { imageIdFromKey, marketplaceReports, SLOT_LABEL, validateImageFile, type ImageSlot } from '@/features/analytics-images/images/report'
+import { checkImageReadable, imageIdFromKey, marketplaceReports, SLOT_LABEL, validateImageFile, type ImageSlot } from '@/features/analytics-images/images/report'
 import { ALL_COLOURS, colourGroups, type ColourGroup, type ColourSource } from '@/features/analytics-images/images/colour-groups'
 import { uploadImage } from '@/features/analytics-images/images/upload'
 import { useImportHistory } from '@/features/imports/history'
@@ -45,11 +45,13 @@ import {
   buildFamilyCsv,
   buildVariants,
   cellKey,
+  cleanMoney,
   colourProblem,
   emptyVariants,
   GTIN_MAX,
   MAX_COLOUR,
   MAX_SIZE,
+  seedFromVariants,
   SIZE_SYSTEMS,
   sizeProblem,
   validateVariants,
@@ -182,6 +184,7 @@ function MoneyInput({
   onChange,
   onBlur,
   error,
+  placeholder,
 }: {
   id: string
   label: string
@@ -189,6 +192,8 @@ function MoneyInput({
   onChange: (v: string) => void
   onBlur: () => void
   error?: string
+  /** The style's value, shown muted: a blank cell uses it. */
+  placeholder?: string
 }) {
   return (
     <div className="min-w-0">
@@ -205,6 +210,7 @@ function MoneyInput({
           autoComplete="off"
           maxLength={24}
           value={value}
+          placeholder={placeholder}
           {...filterInput({ onChange: (e) => onChange(e.target.value) }, decimal)}
           onBlur={onBlur}
           aria-invalid={error ? true : undefined}
@@ -279,7 +285,9 @@ function useImageUploads(productId: string) {
       return { id: newIdempotencyKey(), file, preview, slot: slotFor(i), colourwayId, state: problem ? { kind: 'invalid', message: problem } : { kind: 'uploading' } }
     })
     setUploads((l) => [...l, ...created])
-    created.filter((u) => u.state.kind === 'uploading').forEach((u) => send(u))
+    // Decode first: a file that is not a photo is refused here, before it is sent.
+    for (const u of created.filter((x) => x.state.kind === 'uploading'))
+      void checkImageReadable(u.file).then((problem) => (problem ? patch(u.id, { kind: 'invalid', message: problem }) : send(u)))
   }
   return { uploads, add, retry: (u: Upload) => send(u) }
 }
@@ -548,6 +556,15 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
 
   const p = q.data
   const existingVariants = useMemo(() => (all.data?.rows ?? []).filter((x) => x.parent_product_id === productId), [all.data, productId])
+  // Reopened for a style that has variants: start from what was saved, once, before any edit.
+  const seeded = useRef(false)
+  const [edited, setEdited] = useState(false)
+  useEffect(() => {
+    if (seeded.current || !p || !all.data) return
+    seeded.current = true
+    const saved = seedFromVariants(p, existingVariants)
+    if (saved) setS(saved)
+  }, [p, all.data, existingVariants])
   const rows = useMemo(() => (p ? buildVariants(p.sku, s) : []), [p, s])
   const allErrors = useMemo(() => (p ? validateVariants(p.sku, s) : {}), [p, s])
   const errors = useMemo<VariantErrors>(() => {
@@ -581,6 +598,7 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
 
   const change = (next: Partial<VariantsState>) => {
     intent.reset()
+    setEdited(true)
     setS((x) => ({ ...x, ...next }))
   }
   const setCommercial = (key: string, patch: Partial<Commercial>) =>
@@ -621,6 +639,9 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
     setFocusTick((n) => n + 1)
     return false
   }
+  // Blank variant prices inherit the style's (backend CP14): shown, never copied in.
+  const styleMrp = p.mrp ? cleanMoney(p.mrp) : null
+  const stylePrice = p.selling_price ? cleanMoney(p.selling_price) : null
   const csv = () => buildFamilyCsv({ sku: p.sku, title: p.title, category: p.category }, s)
   const visible = showAll ? rows : rows.slice(0, PREVIEW_ROWS)
   const first = rows[0]
@@ -639,7 +660,17 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
               · {p.sku}
             </>
           }
-          actions={upload.isPending ? <StatusChip status="working">Uploading…</StatusChip> : <StatusChip status="draft">Not saved yet</StatusChip>}
+          actions={
+            upload.isPending ? (
+              <StatusChip status="working">Uploading…</StatusChip>
+            ) : existingVariants.length && !edited ? (
+              <StatusChip status="ready" data-testid="variants-saved">
+                {existingVariants.length} {existingVariants.length === 1 ? 'variant' : 'variants'} saved
+              </StatusChip>
+            ) : (
+              <StatusChip status="draft">Not saved yet</StatusChip>
+            )
+          }
         />
         {existingVariants.length ? (
           <Banner tone="info" className="mb-4">
@@ -770,10 +801,10 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
                           <CellError id={`sku-${r.sku}-error`} error={errors[`${r.key}.sku`]} />
                         </td>
                         <td className="px-2 py-2">
-                          <MoneyInput id={`mrp-${r.sku}`} label={`MRP for ${r.sku}`} value={c.mrp} onChange={(v) => setCommercial(r.key, { mrp: v })} onBlur={() => touch(`${r.key}.mrp`)} error={errors[`${r.key}.mrp`]} />
+                          <MoneyInput id={`mrp-${r.sku}`} label={`MRP for ${r.sku}`} value={c.mrp} onChange={(v) => setCommercial(r.key, { mrp: v })} onBlur={() => touch(`${r.key}.mrp`)} error={errors[`${r.key}.mrp`]} placeholder={styleMrp ?? undefined} />
                         </td>
                         <td className="px-2 py-2">
-                          <MoneyInput id={`price-${r.sku}`} label={`Price for ${r.sku}`} value={c.price} onChange={(v) => setCommercial(r.key, { price: v })} onBlur={() => touch(`${r.key}.price`)} error={errors[`${r.key}.price`]} />
+                          <MoneyInput id={`price-${r.sku}`} label={`Price for ${r.sku}`} value={c.price} onChange={(v) => setCommercial(r.key, { price: v })} onBlur={() => touch(`${r.key}.price`)} error={errors[`${r.key}.price`]} placeholder={stylePrice ?? undefined} />
                         </td>
                         <td className="px-2 py-2">
                           <Input
@@ -800,6 +831,11 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
                 </tbody>
               </table>
             </div>
+            <p className="border-t border-line px-4 py-3 text-caption text-ink-3" data-testid="variants-price-hint">
+              {styleMrp || stylePrice
+                ? `Leave MRP or price blank to use the style’s (${[styleMrp ? `₹${styleMrp} MRP` : null, stylePrice ? `₹${stylePrice} price` : null].filter(Boolean).join(', ')}). Fill a cell only when that variant costs differently.`
+                : 'This style has no price yet. Add one in its details, or fill each variant.'}
+            </p>
             <div className="flex flex-col gap-1 border-t border-line px-4 py-3">
               <label className="flex min-h-10 items-center gap-2.5 self-start text-small text-ink-2">
                 <Switch checked={s.exempt} onCheckedChange={(exempt) => change({ exempt })} aria-describedby="v-exempt-hint" data-testid="variants-exempt" />

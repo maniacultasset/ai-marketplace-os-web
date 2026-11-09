@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseCsv } from './csv-header'
-import { buildFamilyCsv, buildVariants, cellKey, colourCode, colourProblem, emptyVariants, gtinProblem, gtinValid, sizeProblem, validateVariants, variantSku } from './variants-model'
+import { buildFamilyCsv, buildVariants, cellKey, colourCode, colourProblem, emptyVariants, gtinProblem, gtinValid, sizeProblem, validateVariants, variantSku, seedFromVariants } from './variants-model'
 
 describe('variant SKUs', () => {
   it('builds codes like the design', () => {
@@ -108,5 +108,27 @@ describe('field checks', () => {
   it('flags a variant that reuses the style SKU', () => {
     const k = cellKey('', 'S')
     expect(validateVariants('FSH', { ...emptyVariants(), sizes: ['S'], skus: { [k]: 'FSH' } })[`${k}.sku`]).toMatch(/style’s own SKU/)
+  })
+})
+
+describe('seedFromVariants: reopening a style that has variants', () => {
+  const style = { sku: 'QV-TS-77899', colourways: [{ colour: 'Black' }, { colour: 'Off White' }] }
+  const v = (colour: string, size: string, over = {}) => ({ sku: variantSku(style.sku, colour, size), attributes: { size, color: colour }, ...over })
+  it('loads the saved colours, sizes and cells, and marks the missing cell not made', () => {
+    const children = ['S', 'M', 'L', 'XL'].map((z) => v('Black', z)).concat(['S', 'M', 'L'].map((z) => v('Off White', z, { mrp: '899' })))
+    const s = seedFromVariants(style, children)!
+    expect(s.colours).toEqual(['Black', 'Off White'])
+    expect(s.sizes).toEqual(['S', 'M', 'L', 'XL'])
+    expect(s.unavailable).toEqual([cellKey('Off White', 'XL')])
+    expect(s.commercial[cellKey('Off White', 'M')]).toEqual({ mrp: '899', price: '', identifier: '' })
+    // Saving it again updates the same SKUs: no colourless duplicates.
+    expect(buildVariants(style.sku, s).map((r) => r.sku)).toEqual(children.map((c) => c.sku))
+  })
+  it('keeps a SKU that does not follow the default pattern', () => {
+    const s = seedFromVariants(style, [{ sku: 'CUSTOM-1', attributes: { size: 'M', color: 'Black' } }])!
+    expect(buildVariants(style.sku, s).map((r) => r.sku)).toEqual(['CUSTOM-1'])
+  })
+  it('is null for a style with no variants', () => {
+    expect(seedFromVariants(style, [])).toBeNull()
   })
 })

@@ -255,3 +255,51 @@ export function addTag(list: readonly string[], raw: string): string[] {
   if (!v || list.some((x) => x.toLowerCase() === v.toLowerCase())) return [...list]
   return [...list, v]
 }
+
+/** What a saved variant row carries that the matrix needs. */
+export interface SavedVariant {
+  sku: string
+  attributes?: Record<string, unknown> | null
+  mrp?: string | null
+  selling_price?: string | null
+  product_identifier?: { value: string } | null
+  identifier_exemption?: boolean
+}
+
+/**
+ * The matrix of a style that already has variants, so reopening the step shows what was saved
+ * (not a blank S to XL that one Save would turn into colourless duplicates). Colours come from the
+ * style's colourways, sizes from each variant's `attributes.size` in saved order, each variant's
+ * colour from its `attributes.color` or by matching its SKU, and every cell with no variant is
+ * "not made". Null when the style has no variants.
+ */
+export function seedFromVariants(style: { sku: string; colourways?: readonly { colour: string }[] | null }, children: readonly SavedVariant[]): VariantsState | null {
+  if (!children.length) return null
+  const colours = [...new Set((style.colourways ?? []).map((c) => c.colour.trim()).filter(Boolean))]
+  const sizes: string[] = []
+  const placed: { colour: string; size: string; v: SavedVariant }[] = []
+  for (const v of children) {
+    const size = typeof v.attributes?.['size'] === 'string' ? (v.attributes['size'] as string).trim() : ''
+    const named = typeof v.attributes?.['color'] === 'string' ? (v.attributes['color'] as string).trim() : ''
+    let colour = colours.find((c) => c.toLowerCase() === named.toLowerCase()) ?? ''
+    if (!colour) colour = colours.find((c) => v.sku === variantSku(style.sku, c, size || null)) ?? ''
+    if (named && !colour && !colours.includes(named)) {
+      colours.push(named)
+      colour = named
+    }
+    if (size && !sizes.includes(size)) sizes.push(size)
+    placed.push({ colour, size, v })
+  }
+  const s: VariantsState = { ...emptyVariants(), colours, sizes, exempt: children.some((v) => v.identifier_exemption) }
+  const filled = new Set<string>()
+  for (const { colour, size, v } of placed) {
+    const key = cellKey(colour, size)
+    filled.add(key)
+    if (v.sku !== variantSku(style.sku, colour || null, size || null)) s.skus[key] = v.sku
+    const c = { mrp: v.mrp ?? '', price: v.selling_price ?? '', identifier: v.product_identifier?.value ?? '' }
+    if (c.mrp || c.price || c.identifier) s.commercial[key] = c
+  }
+  for (const c of colours.length ? colours : [''])
+    for (const z of sizes.length ? sizes : ['']) if (!filled.has(cellKey(c, z))) s.unavailable.push(cellKey(c, z))
+  return s
+}
