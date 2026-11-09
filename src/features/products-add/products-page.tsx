@@ -47,7 +47,7 @@ import {
   categoriesOf,
   cellChip,
   filterCatalog,
-  humanizeSlug,
+  productCategoryLabel,
   OVERALL_CHIP,
   type Bucket,
   type CatalogRow,
@@ -191,7 +191,7 @@ const columns = col.columns([
           <b className="block max-w-72 truncate text-ink" title={row.original.product.title}>
             {row.original.product.title}
           </b>
-          <small className="block truncate text-caption text-ink-2">{humanizeSlug(row.original.product.category)}</small>
+          <small className="block truncate text-caption text-ink-2">{productCategoryLabel(row.original.product.category)}</small>
         </span>
       </span>
     ),
@@ -261,7 +261,7 @@ function ProductCard({ row, selected, toggle, canSelect }: { row: CatalogRow; se
             {row.product.title}
           </Link>
           <p className="truncate text-caption text-ink-2">
-            {row.product.sku} · {humanizeSlug(row.product.category)}
+            {row.product.sku} · {productCategoryLabel(row.product.category)}
             {row.variants.length ? ` · ${row.variants.length} ${row.variants.length === 1 ? 'variant' : 'variants'}` : ''}
           </p>
         </div>
@@ -518,7 +518,7 @@ export function ProductsPage() {
                   label="Category"
                   value={category}
                   onChange={setCategory}
-                  options={categories.map((c) => ({ value: c, label: humanizeSlug(c) }))}
+                  options={categories.map((c) => ({ value: c, label: productCategoryLabel(c) }))}
                 />
                 {catalog.listingsState === 'error' ? null : (
                   <FilterSelect

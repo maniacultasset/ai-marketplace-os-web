@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { MarketplaceTile as LaMarketplaceTile } from '@/components/la/marketplace'
+import { categoryLabel } from '@/features/products/categories'
 import { cn } from '@/lib/utils'
 import { MARKETPLACE_LABEL, type Marketplace, type Rule } from './labels'
 
@@ -57,7 +58,9 @@ export function MarketplaceMark({
 /** Category slug. Sans (DESIGN: no mono for categories); the slug still reads as typed. */
 export function CategoryText({ category }: { category: string | null | undefined }) {
   return category ? (
-    <span className="text-foreground">{category}</span>
+    <span className="text-foreground" title={category}>
+      {categoryLabel(category)}
+    </span>
   ) : (
     <span className="text-muted-foreground">All categories</span>
   )

@@ -10,6 +10,7 @@
  */
 import type { Schema } from '@/api/types'
 import type { ChipStatus } from '@/components/la/status-chip'
+import { categoryLabel } from '@/features/products/categories'
 import { listingChip, type ChipView } from '@/lib/listing-chip'
 import { draftOpen } from '@/features/marketplaces/meta'
 
@@ -198,7 +199,15 @@ export function categoriesOf(rows: readonly CatalogRow[]): string[] {
 /** Shown for a product saved without a category (SI14), until the seller picks one. */
 export const NO_CATEGORY_LABEL = 'No category yet'
 
-/** "ethnic_wear_kurta_sets" → "Ethnic wear kurta sets"; null (no category yet) reads as such. */
+/**
+ * A product's category in the words the editor uses ("ethnic_wear_kurta_sets" → "Kurta sets",
+ * "tshirts" → "T-shirts"); null (no category yet) reads as such.
+ */
+export function productCategoryLabel(slug: string | null | undefined): string {
+  return slug == null ? NO_CATEGORY_LABEL : categoryLabel(slug)
+}
+
+/** "fabric_type" → "Fabric type"; null reads as "No category yet". */
 export function humanizeSlug(slug: string | null): string {
   if (slug === null) return NO_CATEGORY_LABEL
   const s = slug.replace(/[_-]+/g, ' ').trim()

@@ -20,7 +20,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { useListingHistory, useListingsList, useListingSubmissions } from '@/features/listings/api'
 import { useProduct } from '@/features/products/api'
-import { historyLabel, historyReason, sentence, type Listing } from '@/features/listings/model'
+import { categoryLabel } from '@/features/listing-flow/format'
+import { historyLabel, historyReason, type Listing } from '@/features/listings/model'
 import { mpName } from '@/features/listing-flow/format'
 import { formatDateTime, formatRelative } from '@/features/marketplaces/format'
 import { useMe } from '@/lib/auth'
@@ -117,7 +118,7 @@ function ListingActivityRow({ listing }: { listing: Listing }) {
         <div className="order-first min-w-0 basis-full lg:order-none lg:basis-auto">
           <ListingProductName productId={listing.product_id} />
           <p className="text-caption text-ink-3 lg:truncate">
-            {listing.category ? `${sentence(listing.category)} · ` : ''}Status changed{' '}
+            {listing.category ? `${categoryLabel(listing.category)} · ` : ''}Status changed{' '}
             <time dateTime={listing.status_changed_at} title={formatDateTime(listing.status_changed_at)}>
               {formatRelative(listing.status_changed_at)}
             </time>

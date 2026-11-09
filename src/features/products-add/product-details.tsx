@@ -45,7 +45,7 @@ import { countryName, fromPackageOut, normalizeCountry, packageHasSize, packageH
 import { CountryField, HsnField, PackageFields } from '@/features/products/seller-field-inputs'
 import { SizeChartReadButton } from '@/features/products/size-chart-read-button'
 import { normalizeBarcode } from '@/features/products/barcode'
-import { humanizeSlug } from './catalog-model'
+import { humanizeSlug, productCategoryLabel } from './catalog-model'
 import type { ProductEditSession } from './product-edit-session'
 import { ATTR_FIELDS, ATTR_LABEL } from './guided-model'
 import { focusFirstInvalid } from '@/lib/validation'
@@ -236,7 +236,7 @@ export function ProductDetailsCard({
       <div data-testid="product-attributes">
         <dl className={cn('mt-4 text-small', KV_GRID)}>
           <Row k="Category">
-            {humanizeSlug(product.category)} <SourceBadge source={fieldSource(product, 'category') ?? { kind: 'you' }} />
+            {productCategoryLabel(product.category)} <SourceBadge source={fieldSource(product, 'category') ?? { kind: 'you' }} />
             {categoryAction}
           </Row>
           {isVariant ? null : <Row k="Style number">{product.style_number ? <span className="font-mono">{product.style_number}</span> : <Missing />}</Row>}

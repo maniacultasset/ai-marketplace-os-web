@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
+import { categoryLabel } from '@/features/products/categories'
 import { useCan } from '@/lib/permissions'
 import { fieldLabel, RULE_TYPE_INFO, ruleTypeLabel, type Rule } from './labels'
 import {
@@ -189,7 +190,7 @@ function RuleDetail({ rule, onShowCategory }: { rule: Rule; onShowCategory: (rul
           ) : null}
           {rule.category ? (
             <Button variant="outline" onClick={() => onShowCategory(rule)} className="min-w-0">
-              <span className="truncate">Show all {rule.category} rules</span>
+              <span className="truncate">Show all {categoryLabel(rule.category)} rules</span>
             </Button>
           ) : null}
         </div>
