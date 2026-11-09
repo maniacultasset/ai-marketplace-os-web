@@ -17,6 +17,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
+import { STICKY_ASIDE } from '@/components/app/split-layout'
 import { useLampsEnabled } from '@/features/assist/flags'
 import { CategoryCodes } from '@/features/products/category-select'
 import {
@@ -283,77 +284,79 @@ export function UploadForm() {
         </Card>
       </div>
 
-      <Card className="gap-0 py-0">
-        <h2 className="px-5 pt-5 pb-1 text-[0.9375rem] font-semibold tracking-tight">Before you upload</h2>
+      <div className={STICKY_ASIDE}>
+        <Card className="gap-0 py-0">
+          <h2 className="px-5 pt-5 pb-1 text-[0.9375rem] font-semibold tracking-tight">Before you upload</h2>
 
-        <section className="space-y-2 px-5 pt-3 pb-5">
-          <h3 className={GUIDE_HEADING}>Required columns</h3>
-          <ul className="flex flex-wrap gap-1.5">
-            {REQUIRED_COLUMNS.map((c) => (
-              <li key={c}>
-                <span className={CATEGORY_CHIP}>{c}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">
-            Photos are not read from the file. Add them on each product’s Media tab after the import.
-          </p>
-        </section>
+          <section className="space-y-2 px-5 pt-3 pb-5">
+            <h3 className={GUIDE_HEADING}>Required columns</h3>
+            <ul className="flex flex-wrap gap-1.5">
+              {REQUIRED_COLUMNS.map((c) => (
+                <li key={c}>
+                  <span className={CATEGORY_CHIP}>{c}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">
+              Photos are not read from the file. Add them on each product’s Media tab after the import.
+            </p>
+          </section>
 
-        <section className="space-y-2 border-t px-5 py-5" data-testid="template-categories">
-          <h3 className={GUIDE_HEADING}>Categories the agent can list</h3>
-          <CategoryCodes lampsEnabled={lamps.pending ? null : lamps.enabled} />
-          <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">
-            Put the code in the <code className={INLINE_CODE}>category</code> column. Rows with any other category fail with{' '}
-            <code className={INLINE_CODE}>CATEGORY_NOT_MAPPED</code>.
-          </p>
-        </section>
+          <section className="space-y-2 border-t px-5 py-5" data-testid="template-categories">
+            <h3 className={GUIDE_HEADING}>Categories the agent can list</h3>
+            <CategoryCodes lampsEnabled={lamps.pending ? null : lamps.enabled} />
+            <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">
+              Put the code in the <code className={INLINE_CODE}>category</code> column. Rows with any other category fail with{' '}
+              <code className={INLINE_CODE}>CATEGORY_NOT_MAPPED</code>.
+            </p>
+          </section>
 
-        <section className="space-y-2 border-t px-5 py-5">
-          <h3 className={GUIDE_HEADING}>How rows are handled</h3>
-          <ul className="space-y-2 text-[0.8125rem] leading-relaxed text-muted-foreground">
-            {ROW_RULES.map((r) => (
-              <li key={r} className="flex gap-2.5">
-                <span aria-hidden className="mt-[0.5625rem] size-1 shrink-0 rounded-full bg-muted-foreground/60" />
-                {r}
-              </li>
-            ))}
-          </ul>
-        </section>
+          <section className="space-y-2 border-t px-5 py-5">
+            <h3 className={GUIDE_HEADING}>How rows are handled</h3>
+            <ul className="space-y-2 text-[0.8125rem] leading-relaxed text-muted-foreground">
+              {ROW_RULES.map((r) => (
+                <li key={r} className="flex gap-2.5">
+                  <span aria-hidden className="mt-[0.5625rem] size-1 shrink-0 rounded-full bg-muted-foreground/60" />
+                  {r}
+                </li>
+              ))}
+            </ul>
+          </section>
 
-        <Collapsible className="border-t">
-          <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 px-5 py-3.5 text-left text-sm font-medium outline-none transition-colors duration-150 hover:bg-hover focus-visible:bg-hover focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset">
-            All accepted columns
-            <Icon name="chev" size={16} className="text-muted-foreground transition-transform duration-150 group-data-[state=open]:rotate-180 motion-reduce:transition-none" />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-4 border-t border-line bg-sunken px-5 py-4">
-            {COLUMN_GROUPS.map((g) => (
-              <div key={g.label} className="space-y-1" data-testid="column-group">
-                <h3 className="text-xs font-medium text-foreground">
-                  {g.label}
-                  {g.notStored ? <span className="font-normal text-muted-foreground"> · accepted, not stored (warning when filled)</span> : null}
-                  {g.photoLinks ? <span className="font-normal text-muted-foreground"> · accepted, no photo is downloaded from them</span> : null}
-                </h3>
-                <p className={cn('font-mono text-[11px] leading-relaxed break-words', g.notStored || g.photoLinks ? 'text-muted-foreground' : 'text-foreground/80')}>
-                  {g.columns.join(', ')}
-                </p>
-                {g.note ? <p className="text-xs leading-relaxed text-muted-foreground">{g.note}</p> : null}
+          <Collapsible className="border-t">
+            <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 px-5 py-3.5 text-left text-sm font-medium outline-none transition-colors duration-150 hover:bg-hover focus-visible:bg-hover focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset">
+              All accepted columns
+              <Icon name="chev" size={16} className="text-muted-foreground transition-transform duration-150 group-data-[state=open]:rotate-180 motion-reduce:transition-none" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-4 border-t border-line bg-sunken px-5 py-4">
+              {COLUMN_GROUPS.map((g) => (
+                <div key={g.label} className="space-y-1" data-testid="column-group">
+                  <h3 className="text-xs font-medium text-foreground">
+                    {g.label}
+                    {g.notStored ? <span className="font-normal text-muted-foreground"> · accepted, not stored (warning when filled)</span> : null}
+                    {g.photoLinks ? <span className="font-normal text-muted-foreground"> · accepted, no photo is downloaded from them</span> : null}
+                  </h3>
+                  <p className={cn('font-mono text-[11px] leading-relaxed break-words', g.notStored || g.photoLinks ? 'text-muted-foreground' : 'text-foreground/80')}>
+                    {g.columns.join(', ')}
+                  </p>
+                  {g.note ? <p className="text-xs leading-relaxed text-muted-foreground">{g.note}</p> : null}
+                </div>
+              ))}
+              <div className="space-y-1" data-testid="column-aliases">
+                <h3 className="text-xs font-medium text-foreground">Aliases</h3>
+                <ul className="space-y-0.5 font-mono text-[11px] leading-relaxed">
+                  {COLUMN_ALIASES.map((a) => (
+                    <li key={a.alias} className="break-words">
+                      {a.alias} <span className="text-muted-foreground">→ {a.column}</span>
+                      {a.note ? <span className="font-sans text-muted-foreground"> ({a.note})</span> : null}
+                    </li>
+                  ))}
+                </ul>
               </div>
-            ))}
-            <div className="space-y-1" data-testid="column-aliases">
-              <h3 className="text-xs font-medium text-foreground">Aliases</h3>
-              <ul className="space-y-0.5 font-mono text-[11px] leading-relaxed">
-                {COLUMN_ALIASES.map((a) => (
-                  <li key={a.alias} className="break-words">
-                    {a.alias} <span className="text-muted-foreground">→ {a.column}</span>
-                    {a.note ? <span className="font-sans text-muted-foreground"> ({a.note})</span> : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </Card>
+            </CollapsibleContent>
+          </Collapsible>
+        </Card>
+      </div>
     </div>
   )
 }

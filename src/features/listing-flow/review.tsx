@@ -68,6 +68,7 @@ import { useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
 import { toast, toastError } from '@/lib/toast'
 import { cn } from '@/lib/utils'
+import { STICKY_ASIDE } from '@/components/app/split-layout'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { useApproverState } from '@/features/team-account/approver'
 import { ApproverNotice } from '@/features/team-account/approver-notice'
@@ -477,7 +478,8 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
               {/* Unsupported claims already show on the bullet and in the claim card. */}
               {otherFindings.length ? <FindingsCard findings={otherFindings} /> : null}
             </div>
-            <div className="flex min-w-0 flex-col gap-4">
+            {/* What Kuinn did, the gates and the photo facts stay in view while the listing scrolls. */}
+            <div className={cn('flex min-w-0 flex-col gap-4', STICKY_ASIDE)}>
               {/* Lands with the gates (same ready flag), so it never pushes the cards below it. */}
               {rview && checks.gatesReady && !fixesQ.isPending ? (
                 <ResolutionCard
@@ -1104,7 +1106,7 @@ function FindingsCard({ findings }: { findings: readonly ErrorItem[] }) {
   const hiddenCount = Math.max(0, warnings.length - WARNINGS_SHOWN)
   const shown = [...errors, ...(allWarnings ? warnings : warnings.slice(0, WARNINGS_SHOWN))]
   return (
-    <LaCard data-testid="findings" id="findings" className="scroll-mt-20">
+    <LaCard data-testid="findings" id="findings" className="scroll-mt-20 md:scroll-mt-4">
       <CardHead title="What the checks found" sub="Fix blocking items first." />
       <ul className="m-0 mt-3 flex list-none flex-col p-0">
         {shown.map((f, i) => (

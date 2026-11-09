@@ -20,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useKeys } from '@/lib/query-keys'
 import { focusFirstInvalid, FORM_VALIDATION_MODE } from '@/lib/validation'
 import { cn } from '@/lib/utils'
+import { STICKY_ASIDE } from '@/components/app/split-layout'
 import { AttributesSection, ContentSection, KeywordsSection, TargetSection } from './draft-fields'
 import { ErrorLine } from './error-line'
 import { CATEGORY_RE, type Marketplace } from './labels'
@@ -433,7 +434,7 @@ export function DryRunTool({
 
         <aside
           ref={resultRef}
-          className="min-w-0 scroll-mt-20 space-y-4 lg:sticky lg:top-20 lg:-m-1 lg:max-h-[calc(100svh-6.5rem)] lg:overflow-y-auto lg:overscroll-contain lg:p-1"
+          className={cn('min-w-0 scroll-mt-20 space-y-4 md:scroll-mt-4', STICKY_ASIDE)}
           aria-live="polite"
         >
           {problem ? <ProblemAlert problem={problem} onDismiss={() => setProblem(null)} /> : null}

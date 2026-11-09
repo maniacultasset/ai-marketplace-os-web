@@ -6,6 +6,7 @@ import { NOT_YET } from '@/components/la/unavailable'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCan, type Policy } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
+import { ScrollPane, SplitLayout } from '@/components/app/split-layout'
 
 /**
  * Settings area (hi-fi 19): a 200px sub-nav beside the page from 1024px, a horizontal scroller
@@ -75,12 +76,16 @@ function SettingsLayout() {
     active?.scrollIntoView?.({ inline: 'center', block: 'nearest' })
   }, [pathname])
   return (
-    <div className="grid min-h-[calc(100svh-56px)] grid-cols-1 grid-rows-[auto_1fr] lg:grid-cols-[200px_minmax(0,1fr)] lg:grid-rows-1">
-      <nav
+    // From 1024px the sub-nav and the page scroll on their own: a long page never carries the nav
+    // away, and the page starts at its top on each settings link.
+    <SplitLayout className="min-h-[calc(100svh-56px)] grid-rows-[auto_1fr] lg:min-h-0 lg:grid-cols-[200px_minmax(0,1fr)] lg:grid-rows-1">
+      <ScrollPane
+        as="nav"
         ref={navRef}
+        scrollId="settings-nav"
         aria-label="Settings"
         data-testid="settings-nav"
-        className="flex scroll-pr-8 scroll-pl-3 items-start gap-0.5 self-start overflow-x-auto border-b border-line bg-canvas px-3 py-2 lg:flex-col lg:items-stretch lg:self-stretch lg:overflow-visible lg:border-r lg:border-b-0 lg:py-6"
+        className="flex scroll-pr-8 scroll-pl-3 items-start gap-0.5 self-start overflow-x-auto border-b border-line bg-canvas px-3 py-2 lg:flex-col lg:items-stretch lg:self-stretch lg:overflow-x-hidden lg:border-r lg:border-b-0 lg:py-6"
       >
         {items.map((i, n) => (
           <div key={i.label} className="contents">
@@ -109,10 +114,10 @@ function SettingsLayout() {
         ))}
         {/* Right-edge cue that more items scroll in (horizontal layout only). */}
         <span aria-hidden className="pointer-events-none sticky right-0 w-6 shrink-0 self-stretch bg-linear-to-l from-canvas lg:hidden" />
-      </nav>
-      <div className="min-w-0">
+      </ScrollPane>
+      <ScrollPane scrollId="settings-page" resetOnNavigate data-testid="settings-page">
         <Outlet />
-      </div>
-    </div>
+      </ScrollPane>
+    </SplitLayout>
   )
 }

@@ -9,7 +9,7 @@ export const Route = createFileRoute('/_app/_settings/settings/compliance')({
   component: () => (
     <Page className="mx-0 max-w-[1100px]">
       {/* The settings sub-nav takes 200px, so the context column joins the card only from 1280px. */}
-      <SetupColumns className="lg:grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px]" main={<BrandManufacturer />} aside={<ComplianceAside />} />
+      <SetupColumns asideFrom="xl" className="lg:grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px]" main={<BrandManufacturer />} aside={<ComplianceAside />} />
     </Page>
   ),
 })

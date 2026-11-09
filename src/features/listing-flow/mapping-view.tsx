@@ -17,6 +17,7 @@ import { recallJob } from '@/features/listings/job-memory'
 import type { ListingDetail } from '@/features/listings/model'
 import { listingChip } from '@/lib/listing-chip'
 import { cn } from '@/lib/utils'
+import { STICKY_ASIDE } from '@/components/app/split-layout'
 import { categoryLabel, clock, fieldLabel, findingText, mpName, sentenceCase } from './format'
 import { plural, type ErrorItem } from './gates'
 import { attrLabel, mappingRows, otherFindings, type MappingRow, type RowState } from './mapping'
@@ -143,7 +144,7 @@ function MappingBody({ checks, listing }: { checks: ReturnType<typeof useListing
             {mp} field names come from the preview of what would be sent. A field the preview does not name the same way shows as not matched; nothing is guessed.
           </p>
         </div>
-        <div className="flex min-w-0 flex-col gap-4">
+        <div className={cn('flex min-w-0 flex-col gap-4', STICKY_ASIDE)}>
           <LaCard data-testid="gates-card">
             <h3 className="text-h3 text-ink">Quality gates</h3>
             {checks.gatesReady ? (

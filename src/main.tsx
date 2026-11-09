@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { onSessionEnd } from '@/api/session'
 import { setEnrollmentHandler } from '@/api/step-up'
 import { Page } from '@/components/app/page-header'
+import { PANE_RESET_SELECTOR } from '@/components/app/split-layout'
 import { ErrorState } from '@/components/states/error-state'
 import { NotFound } from '@/components/states/not-found'
 import { queryClient } from '@/lib/query-client'
@@ -23,6 +24,9 @@ const router = createRouter({
   scrollRestoration: true,
   // Restores jump straight to the saved position; they never animate.
   scrollRestorationBehavior: 'instant',
+  // On desktop the shell's <main> scrolls, not the window, and some split panes reset with it
+  // (see components/app/split-layout.tsx). Other panes keep their position across navigations.
+  scrollToTopSelectors: ['#main', PANE_RESET_SELECTOR],
   defaultErrorComponent: ({ error, reset }) => (
     <Page>
       <ErrorState error={error} onRetry={reset} />

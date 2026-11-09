@@ -70,6 +70,7 @@ import { ListOnButton } from './list-on'
 import { liveProof } from './proof'
 import { runIsActive, runSteps } from './run-steps'
 import { ActionButton, CardSkeleton, HeadSkeleton, ScreenHead, stepTone, Timeline, TimelineItem, type DotTone } from './ui'
+import { STICKY_ASIDE } from '@/components/app/split-layout'
 
 export function AgentRun({ runId }: { runId: string }) {
   const keys = useKeys()
@@ -267,23 +268,25 @@ function RunBody({
       </div>
 
       <div className="grid items-start gap-4 lg:grid-cols-[270px_minmax(0,1fr)]">
-        <LaCard data-testid="run-progress">
-          <h3 className="text-h3 text-ink">Progress</h3>
-          <Timeline className="mt-4" label="Progress">
-            {steps.map((s) => (
-              <TimelineItem
-                key={s.id}
-                tone={stepTone(s.state)}
-                meta={s.state === 'now' && jobActive ? <NowMeta sub={s.sub} since={job.started_at ?? job.queued_at} /> : s.sub}
-                className={s.state === 'todo' ? 'text-ink-3' : undefined}
-              >
-                <span data-step={s.id} data-state={s.state} className={s.state === 'todo' ? '' : 'font-bold text-ink'}>
-                  {s.label}
-                </span>
-              </TimelineItem>
-            ))}
-          </Timeline>
-        </LaCard>
+        <div className={STICKY_ASIDE}>
+          <LaCard data-testid="run-progress">
+            <h3 className="text-h3 text-ink">Progress</h3>
+            <Timeline className="mt-4" label="Progress">
+              {steps.map((s) => (
+                <TimelineItem
+                  key={s.id}
+                  tone={stepTone(s.state)}
+                  meta={s.state === 'now' && jobActive ? <NowMeta sub={s.sub} since={job.started_at ?? job.queued_at} /> : s.sub}
+                  className={s.state === 'todo' ? 'text-ink-3' : undefined}
+                >
+                  <span data-step={s.id} data-state={s.state} className={s.state === 'todo' ? '' : 'font-bold text-ink'}>
+                    {s.label}
+                  </span>
+                </TimelineItem>
+              ))}
+            </Timeline>
+          </LaCard>
+        </div>
 
         <div className="flex min-w-0 flex-col gap-4">
           <LaCard data-testid="run-marketplaces">

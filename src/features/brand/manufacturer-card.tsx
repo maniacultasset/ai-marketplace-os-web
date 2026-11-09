@@ -121,7 +121,7 @@ export function ManufacturerCard({
   }
 
   return (
-    <LaCard id="manufacturer" data-testid="brand-manufacturer-card" className="scroll-mt-24">
+    <LaCard id="manufacturer" data-testid="brand-manufacturer-card" className="scroll-mt-24 md:scroll-mt-4">
       <CardHead
         icon="store"
         title="Manufacturer"

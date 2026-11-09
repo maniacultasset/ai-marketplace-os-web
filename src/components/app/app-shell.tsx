@@ -3,6 +3,9 @@
  * (page title and avatar) over the canvas content area. Product search and notifications have no
  * API, so the top bar does not show them. Below 768px the sidebar is a
  * drawer opened from the top bar.
+ *
+ * From 768px the shell is fixed to the viewport and only <main> (or the panes of a split screen)
+ * scrolls; see split-layout.tsx. Below 768px the document scrolls as usual.
  */
 import { Outlet, useRouterState } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
@@ -39,8 +42,11 @@ function writePref(v: Pref) {
   }
 }
 
+/** The desktop scroll container; on phones the window scrolls and this has no scroll of its own. */
+const MAIN_SCROLLER = () => document.getElementById('main')
+
 function TopBar({ title, onOpenMenu }: { title: string; onOpenMenu: () => void }) {
-  const scrolled = useScrolled()
+  const scrolled = useScrolled(4, MAIN_SCROLLER)
   return (
     <header data-scrolled={scrolled || undefined} className="material-bar sticky top-[var(--banner-h,0px)] z-30 h-14 shrink-0">
       {/* Same width and gutters as <Page>, so the title lines up with the page h1 and the avatar
@@ -105,11 +111,11 @@ export function AppShell() {
       </a>
       <div
         className={cn(
-          'grid min-h-svh grid-cols-1 bg-canvas md:transition-[grid-template-columns] md:duration-200 md:ease-[var(--ease-tactile)] motion-reduce:transition-none',
+          'grid min-h-svh grid-cols-1 bg-canvas md:h-[calc(100svh-var(--banner-h,0px))] md:min-h-0 md:overflow-hidden md:transition-[grid-template-columns] md:duration-200 md:ease-[var(--ease-tactile)] motion-reduce:transition-none',
           collapsed ? 'md:grid-cols-[72px_minmax(0,1fr)]' : 'md:grid-cols-[232px_minmax(0,1fr)]',
         )}
       >
-        <aside className="sticky top-[var(--banner-h,0px)] hidden h-[calc(100svh-var(--banner-h,0px))] md:block">
+        <aside className="hidden min-h-0 md:block">
           <AppSidebar
             collapsed={collapsed}
             onToggleCollapsed={() => {
@@ -121,9 +127,19 @@ export function AppShell() {
             }}
           />
         </aside>
-        <div className="flex min-w-0 flex-col">
+        <div className="flex min-w-0 flex-col md:min-h-0">
           <TopBar title={title} onOpenMenu={() => setDrawer(true)} />
-          <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
+          <main
+            id="main"
+            tabIndex={-1}
+            className={cn(
+              'min-w-0 flex-1 outline-none',
+              // Desktop: the one page scroller under a fixed top bar. A split screen fills it and
+              // scrolls its own panes, so main itself stops scrolling (and drops the gutter).
+              'md:flex md:min-h-0 md:flex-col md:overflow-y-auto md:[scrollbar-gutter:stable] md:scroll-pt-4',
+              'lg:has-[[data-slot=split-layout]]:overflow-hidden lg:has-[[data-slot=split-layout]]:[scrollbar-gutter:auto]',
+            )}
+          >
             <AiPausedBanner />
             <Outlet />
           </main>
