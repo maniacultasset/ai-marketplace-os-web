@@ -632,7 +632,7 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
     setFocusTick((n) => n + 1)
     return false
   }
-  const csv = () => buildFamilyCsv({ sku: p.sku, title: p.title, category: p.category }, s)
+  const csv = () => buildFamilyCsv({ sku: p.sku, title: p.title, category: p.category ?? '' }, s)
   const visible = showAll ? rows : rows.slice(0, PREVIEW_ROWS)
   const first = rows[0]
 

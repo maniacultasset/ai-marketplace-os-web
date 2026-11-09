@@ -527,7 +527,7 @@ function CategoryField({ session, lock, onRetry }: { session: ProductEditSession
           <SelectValue placeholder="Choose" />
         </SelectTrigger>
         <SelectContent>
-          {categoryChoices(session.base.category).map((c) => (
+          {categoryChoices(session.base.category ?? '').map((c) => (
             <SelectItem key={c.value} value={c.value}>
               {c.label}
             </SelectItem>

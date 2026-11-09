@@ -90,6 +90,7 @@ const TASK_ICON: Record<Task['kind'], IconSource> = {
   reconnect_account: CONCEPT_ICON.reconnect,
   image_replacement: CONCEPT_ICON.imageProblem,
   marketplace_error_review: 'store',
+  category_review: CONCEPT_ICON.agent,
 }
 
 type RowItem =

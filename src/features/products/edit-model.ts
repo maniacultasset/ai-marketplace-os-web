@@ -128,7 +128,7 @@ export function toEditDraft(p: Product, source: ManufacturerSource = manufacture
   const comp = p.attributes?.fiber_composition
   return {
     title: p.title,
-    category: p.category,
+    category: p.category ?? '',
     styleNumber: p.style_number ?? '',
     attrs,
     composition: compositionRows(typeof comp === 'string' ? comp : null, p.fiber_composition),

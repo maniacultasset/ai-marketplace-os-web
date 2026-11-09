@@ -262,6 +262,7 @@ describe('marketplace cards', () => {
     marketplace,
     status,
     seller_id: 'S1',
+    publishing_enabled: true,
     created_at: '2026-10-01T00:00:00Z',
   })
   it('picks the non-revoked account', () => {

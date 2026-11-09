@@ -18,6 +18,7 @@ const account = (over: Partial<MarketplaceAccount> = {}): MarketplaceAccount => 
   id: '0b1c2d3e-0000-4000-8000-000000000301',
   marketplace: 'amazon',
   seller_id: 'A1FAKESELLER',
+  publishing_enabled: true,
   region: 'eu-west-1',
   status: 'active',
   needs_reconnect_since: null,
