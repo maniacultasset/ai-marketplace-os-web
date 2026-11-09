@@ -19,7 +19,7 @@ import { ErrorState } from '@/components/states'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useBrandName } from '@/features/brand/api'
+import { useAmazonPublishing, useBrandName } from '@/features/brand/api'
 import { useIssuesList, useTasksList } from '@/features/inbox/api'
 import { MARKETPLACE_LABEL } from '@/features/inbox/model'
 import { useCurrentMarketplaceAccounts } from '@/features/marketplaces/api'
@@ -42,6 +42,8 @@ import {
   mergeInbox,
   standaloneIssues,
   needsYouTile,
+  pausedText,
+  publishCounts,
   splitTasks,
   taskMeta,
   type ListingsSnapshot,
@@ -99,12 +101,15 @@ function DashboardBody({
   // Listings to approve or publish are work only for a role that can do it (admins do no listing
   // work, operators do not approve, reviewers do not publish).
   const approve = can('listing:approve') ? snapshot.approve : 0
-  const publish = can('listing:publish') ? snapshot.publish : 0
+  // While Amazon publishing is switched off, approved Amazon listings are said, not counted as work.
+  const counts = publishCounts(snapshot, useAmazonPublishing(), can('listing:publish'))
+  const publish = counts.publish
+  const paused = can('listing:approve') || can('listing:publish') ? counts.paused : 0
 
   const live = liveTile(snapshot, LISTINGS_CAP)
   const working = inProgressTile(snapshot, LISTINGS_CAP)
   const needs = needsYouTile(
-    { tasks: split.blocking, improve: split.improve, issues: issuesCount, approve, publish, snapshotComplete: snapshot.complete },
+    { tasks: split.blocking, improve: split.improve, issues: issuesCount, approve, publish, paused, snapshotComplete: snapshot.complete },
     LISTINGS_CAP,
   )
   const inboxError = tasks.error ?? issues.error
@@ -233,7 +238,7 @@ function DashboardBody({
       <MarketplaceRow snapshot={snapshot} />
 
       <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <WaitingCard tasks={tasks} issues={issues} total={fmtCount({ n: tasksCount.n + issuesCount.n, more: tasksCount.more || issuesCount.more })} approve={approve} publish={publish} />
+        <WaitingCard tasks={tasks} issues={issues} total={fmtCount({ n: tasksCount.n + issuesCount.n, more: tasksCount.more || issuesCount.more })} approve={approve} publish={publish} paused={paused} />
         <LaCard data-testid="agent-feed">
           <CardHead title="What the agent did" icon="activity" iconTone="neutral" />
           <p className="mt-3 max-w-[52ch] text-small text-ink-2">
@@ -432,6 +437,7 @@ function WaitingCard({
   total,
   approve,
   publish,
+  paused,
 }: {
   tasks: ReturnType<typeof useTasksList>
   issues: ReturnType<typeof useIssuesList>
@@ -439,6 +445,8 @@ function WaitingCard({
   /** Listings waiting for a person on their product page (not in the Inbox). */
   approve: number
   publish: number
+  /** Approved Amazon listings waiting while Amazon publishing is paused (nothing to do). */
+  paused: number
 }) {
   const items = mergeInbox(tasks.rows, issues.rows).slice(0, WAITING_ROWS)
   const products = useProductsById(items.map((i) => (i.kind === 'task' ? i.task.product_id : null)))
@@ -491,6 +499,14 @@ function WaitingCard({
                   {approve > 0
                     ? `${approve} ${approve === 1 ? 'listing is' : 'listings are'} ready to approve`
                     : `${publish} ${publish === 1 ? 'listing is' : 'listings are'} ready to publish`}
+                </Link>
+                .
+              </span>
+            ) : paused > 0 ? (
+              <span>
+                Nothing needs you right now.{' '}
+                <Link to="/products" className="font-bold text-brand underline-offset-4 hover:underline" data-testid="waiting-paused">
+                  {pausedText(paused)}
                 </Link>
                 .
               </span>

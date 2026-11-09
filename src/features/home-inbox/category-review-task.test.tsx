@@ -14,6 +14,8 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 vi.mock('@/lib/auth', async (orig) => ({ ...(await orig<typeof import('@/lib/auth')>()), useSession: () => ({ tenantId: 't1' }) }))
 vi.mock('@/lib/permissions', async (orig) => ({ ...(await orig<typeof import('@/lib/permissions')>()), useCan: () => () => true }))
+// Amazon publishing on: the tenant read is not part of this screen's test.
+vi.mock('@/features/brand/api', async (orig) => ({ ...(await orig<object>()), useAmazonPublishing: () => ({ paused: false, known: true }) }))
 vi.mock('@/features/inbox/dismiss-issue', () => ({ DismissIssueButton: () => <button type="button">Dismiss</button> }))
 let productRead: { isPending: boolean; data?: unknown; error?: unknown } = { isPending: true }
 vi.mock('@/features/products/api', async (orig) => ({ ...(await orig<object>()), useProduct: () => productRead }))

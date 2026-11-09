@@ -114,6 +114,8 @@ export interface HeadlineContext {
   marketplaceState?: string | null
   /** Whether the viewer may answer questions (product:import). Reviewers may not. */
   canAnswer?: boolean
+  /** Amazon publishing is switched off: approving a fix sends nothing (publishGate). */
+  publishingPaused?: boolean
 }
 
 export function resolutionHeadline(r: Pick<Resolution, 'state' | 'attempts' | 'cycles_used' | 'max_cycles'>, ctx: HeadlineContext): ResolutionHeadline {
@@ -131,7 +133,9 @@ export function resolutionHeadline(r: Pick<Resolution, 'state' | 'attempts' | 'c
         ? h('Fixed for you', `Kuinn changed how a value is sent, and ${mp} accepted the resend. Your product facts and text stayed the same.`, 'success', true)
         : h(`Sent again to ${mp}`, `Kuinn changed how a value is sent and sent it again. Your product facts and text stayed the same.`, 'working', true)
     case 'fix_ready':
-      return h('Fix ready: approve to resend', 'Kuinn changed the text. A teammate who did not make the change approves it, then it is sent again.', 'attention')
+      return ctx.publishingPaused
+        ? h('Fix ready to approve', 'Kuinn changed the text. A teammate who did not make the change approves it. Publishing to Amazon is paused for now, so nothing is sent.', 'attention')
+        : h('Fix ready: approve to resend', 'Kuinn changed the text. A teammate who did not make the change approves it, then it is sent again.', 'attention')
     case 'needs_you':
       return ctx.canAnswer === false
         ? h('Needs an answer', 'Kuinn needs an answer from an operator or owner before it can fix the listing.', 'attention')

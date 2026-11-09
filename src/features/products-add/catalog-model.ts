@@ -10,7 +10,7 @@
  */
 import type { Schema } from '@/api/types'
 import type { ChipStatus } from '@/components/la/status-chip'
-import { listingChip, type ChipView } from '@/lib/listing-chip'
+import { listingChip, type ChipContext, type ChipView } from '@/lib/listing-chip'
 import { draftOpen } from '@/features/marketplaces/meta'
 
 export type Product = Schema<'ProductOut'>
@@ -29,7 +29,7 @@ export function firstListable(listings: Partial<Record<Marketplace, unknown>>, c
 }
 
 /** Overall status of a product, from its listings (one word per row, p07 "Overall"). */
-export type Overall = 'live' | 'partly-live' | 'ready' | 'ready-to-list' | 'working' | 'needs-you' | 'error' | 'draft'
+export type Overall = 'live' | 'partly-live' | 'ready' | 'ready-to-list' | 'paused' | 'working' | 'needs-you' | 'error' | 'draft'
 
 /** Segmented filter buckets. Every product falls in exactly one, so the counts sum to All. */
 export type Bucket = 'live' | 'progress' | 'needs-you' | 'error' | 'draft'
@@ -46,6 +46,8 @@ export const OVERALL_CHIP: Record<Overall, { status: ChipStatus; label: string }
   'partly-live': { status: 'partly-live', label: 'Partly live' },
   ready: { status: 'ready', label: 'Awaiting approval' },
   'ready-to-list': { status: 'ready', label: 'Ready to list' },
+  // Approved on Amazon while Amazon publishing is switched off: nobody can send it, so nothing waits on a person.
+  paused: { status: 'paused', label: 'Publishing paused' },
   working: { status: 'working', label: 'Working' },
   'needs-you': { status: 'needs-you', label: 'Needs you' },
   error: { status: 'error', label: 'Error' },
@@ -76,12 +78,14 @@ export interface CatalogRow {
  *  4. any listing validated (waiting for a person to approve)        → Awaiting approval;
  *     else any listing approved (waiting for a person to list it)     → Ready to list.
  *     Both count in the Needs-you bucket (a person acts next, nothing is running)
+ *     While Amazon publishing is switched off an approved Amazon listing is not "ready to list".
  *  5. any listing generating, publishing or processing at the marketplace → Working
- *  6. otherwise (no listing, or only created / removed / inactive ones)   → Draft
+ *  6. any approved Amazon listing while Amazon publishing is paused       → Publishing paused
+ *  7. otherwise (no listing, or only created / removed / inactive ones)   → Draft
  */
-export function overallStatus(listings: readonly Listing[]): Overall {
+export function overallStatus(listings: readonly Listing[], ctx?: ChipContext): Overall {
   if (listings.length === 0) return 'draft'
-  const chips = listings.map((l) => listingChip(l).status)
+  const chips = listings.map((l) => listingChip(l, ctx).status)
   if (chips.includes('error')) return 'error'
   const live = chips.filter((c) => c === 'live' || c === 'partly-live').length
   if (live > 0) return live === chips.length && chips.every((c) => c === 'live') ? 'live' : 'partly-live'
@@ -89,6 +93,7 @@ export function overallStatus(listings: readonly Listing[]): Overall {
   if (listings.some((l) => l.status === 'validated')) return 'ready'
   if (chips.includes('ready')) return 'ready-to-list'
   if (chips.includes('working')) return 'working'
+  if (chips.includes('paused')) return 'paused'
   return 'draft'
 }
 
@@ -98,6 +103,7 @@ export function bucketOf(o: Overall): Bucket {
     case 'partly-live':
       return 'live'
     case 'working':
+    case 'paused':
       return 'progress'
     case 'needs-you':
     case 'ready':
@@ -117,7 +123,7 @@ const later = (a: string, b: string) => (Date.parse(b) > Date.parse(a) ? b : a)
  * A variant whose parent is not among the loaded products still gets its own row, so nothing
  * loaded is ever hidden.
  */
-export function buildCatalog(products: readonly Product[], listings: readonly Listing[], issues: readonly Issue[]): CatalogRow[] {
+export function buildCatalog(products: readonly Product[], listings: readonly Listing[], issues: readonly Issue[], ctx?: ChipContext): CatalogRow[] {
   const ids = new Set(products.map((p) => p.id))
   const variantsOf = new Map<string, Product[]>()
   for (const p of products) {
@@ -149,7 +155,7 @@ export function buildCatalog(products: readonly Product[], listings: readonly Li
       if (!prev || Date.parse(l.updated_at) > Date.parse(prev.updated_at)) byMarketplace[l.marketplace] = l
     }
     const kept = Object.values(byMarketplace)
-    const overall = overallStatus(kept)
+    const overall = overallStatus(kept, ctx)
     let activityAt = p.updated_at
     for (const l of kept) activityAt = later(later(activityAt, l.status_changed_at), l.updated_at)
     rows.push({
@@ -211,8 +217,8 @@ export function shortId(id: string): string {
 }
 
 /** The chip for one marketplace cell, or "not listed" when the product has no listing there. */
-export function cellChip(l: Listing | undefined): ChipView {
-  return l ? listingChip(l) : { status: 'not-listed', label: 'Not listed' }
+export function cellChip(l: Listing | undefined, ctx?: ChipContext): ChipView {
+  return l ? listingChip(l, ctx) : { status: 'not-listed', label: 'Not listed' }
 }
 
 /**

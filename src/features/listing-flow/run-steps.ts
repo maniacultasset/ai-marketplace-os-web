@@ -78,6 +78,8 @@ export interface RunInput {
    * `marketplace_state` of live is the marketplace's word only, and the last step stays open.
    */
   liveConfirmed?: boolean
+  /** Amazon publishing is switched off (publishGate): an approved listing is not sent. */
+  publishingPaused?: boolean
 }
 
 const MP: Record<string, string> = { amazon: 'Amazon', flipkart: 'Flipkart' }
@@ -94,7 +96,7 @@ function upTo(id: StepId, state: StepState, sub?: string): RunStep[] {
 const ACTIVE = new Set(['queued', 'running'])
 const ENDED_BAD = new Set(['failed', 'dead_letter', 'cancelled'])
 
-export function runSteps({ job, listing, validation, liveConfirmed = false }: RunInput): RunStep[] {
+export function runSteps({ job, listing, validation, liveConfirmed = false, publishingPaused = false }: RunInput): RunStep[] {
   const mp = listing ? (MP[listing.marketplace] ?? listing.marketplace) : ''
   const genJob = job?.kind === 'listing_generate' ? job : null
   const checkSub = validation
@@ -130,8 +132,8 @@ export function runSteps({ job, listing, validation, liveConfirmed = false }: Ru
     case 'needs_review':
       return withSub(upTo('approve', 'needs-you', 'Read the warnings, then approve'), 'check', checkSub)
     case 'approved':
-      // The done label already says "Approved"; a sub would repeat it.
-      return upTo('submit', 'todo')
+      // The done label already says "Approved"; a sub would repeat it. Paused: say why nothing is sent.
+      return upTo('submit', 'todo', publishingPaused ? 'Publishing paused' : undefined)
     case 'publishing':
       return upTo('submit', 'now', `Sending to ${mp}…`)
     case 'published':

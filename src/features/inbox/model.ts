@@ -260,11 +260,16 @@ export function linkedIssues(taskId: string, issues: readonly Issue[]): Issue[] 
 
 const SELLER_PORTAL: Record<Issue['marketplace'], string> = { amazon: 'Amazon Seller Central', flipkart: 'Flipkart Seller Hub' }
 
-/** What the person does about an account task, in plain words. */
-export function accountTaskHelp(kind: AccountReviewKind, marketplace: Issue['marketplace'] | null): string {
+/**
+ * What the person does about an account task, in plain words. `publishingPaused`: Amazon publishing
+ * is switched off (publishGate), so the listing is not sent again yet.
+ */
+export function accountTaskHelp(kind: AccountReviewKind, marketplace: Issue['marketplace'] | null, publishingPaused = false): string {
   const mp = marketplace ? MARKETPLACE_LABEL[marketplace] : 'The marketplace'
   if (kind === 'permission_decision')
-    return `${mp} needs an approval on your seller account for this category. Ask for it in ${marketplace ? SELLER_PORTAL[marketplace] : 'your seller account'}. Once it is approved, open the listing to send it again.`
+    return `${mp} needs an approval on your seller account for this category. Ask for it in ${marketplace ? SELLER_PORTAL[marketplace] : 'your seller account'}. ${
+      publishingPaused ? `Publishing to ${mp} is paused for now, so the listing waits after that.` : 'Once it is approved, open the listing to send it again.'
+    }`
   return `Kuinn doesn’t know this ${marketplace ? `${mp} ` : ''}error yet, so it can’t fix it on its own. Read what ${marketplace ? mp : 'the marketplace'} said, change the product or the listing, then generate it again.`
 }
 

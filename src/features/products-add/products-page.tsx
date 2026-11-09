@@ -37,7 +37,8 @@ import { useRefreshListViews } from '@/features/products/image-views'
 import { Can, useCan } from '@/lib/permissions'
 import { AI_PAUSED_REASON } from '@/features/ai-credit/model'
 import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
-import { needsYourInfo } from '@/lib/listing-chip'
+import { useChipContext } from '@/features/listing-flow/publishing'
+import { APPROVED_PAUSED_LABEL, needsYourInfo } from '@/lib/listing-chip'
 import { cn } from '@/lib/utils'
 import { AddMarketplaceDialog } from './add-marketplace-dialog'
 import { useCatalog, type LoadState } from './catalog'
@@ -138,10 +139,11 @@ function IssuesCell({ row, card }: { row: CatalogRow; card?: boolean }) {
 
 function MarketCell({ row, id, className }: { row: CatalogRow; id: MarketplaceId; className?: string }) {
   const { listings: state } = useContext(LoadCtx)
+  const chipCtx = useChipContext()
   const info = MARKETPLACES.find((m) => m.id === id)!
   if (state === 'error') return <Unknown what={`${info.name} status`} className={className} />
   const listing = row.listings[id as Marketplace]
-  const chip = cellChip(listing)
+  const chip = cellChip(listing, chipCtx)
   // No listing id here (prod QA 9 Nov: "5B028E•" under the icon read as noise). Only the count of
   // blocking fixes, which the chip's tooltip spells out.
   const fixes = listing && needsYourInfo(listing) ? (listing.needs_you_count ?? 0) : 0
@@ -317,13 +319,15 @@ function ProductCardSkeleton() {
 /** Phone card: the listing's status as a labelled chip (the table uses the icon-only cell). */
 function CardMarketStatus({ row, id, name }: { row: CatalogRow; id: Marketplace; name: string }) {
   const { listings } = useContext(LoadCtx)
+  const chipCtx = useChipContext()
   if (listings === 'error') return <Unknown what={`${name} status`} />
-  const chip = cellChip(row.listings[id])
+  const chip = cellChip(row.listings[id], chipCtx)
   return <StatusChip status={chip.status}>{chip.label}</StatusChip>
 }
 
 /** The status signs, behind a small "Key" button instead of a permanent line. */
 function GlyphKey() {
+  const { amazonPublishingPaused } = useChipContext()
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -347,6 +351,14 @@ function GlyphKey() {
               Awaiting approval or ready to list <span className="text-ink-3">(counted in Needs you)</span>
             </span>
           </li>
+          {amazonPublishingPaused ? (
+            <li className="flex items-center gap-2" data-testid="key-publishing-paused">
+              <Glyph status="paused" className="text-ink-2" />
+              <span>
+                {APPROVED_PAUSED_LABEL} <span className="text-ink-3">(counted in In progress)</span>
+              </span>
+            </li>
+          ) : null}
         </ul>
         <p className="mt-2 text-caption text-ink-3">The small text under a sign is the listing ID.</p>
       </PopoverContent>
