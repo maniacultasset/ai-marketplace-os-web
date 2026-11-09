@@ -452,18 +452,16 @@ export function historyLabel(action: string): string {
 }
 
 /**
- * What an approve or reject event decided (the API's `review`): "Version 2 · Poor quality: the
- * title repeats the brand". Null for other events, or an older API without it (prod QA 9 Nov:
- * "Rejected · a person" said nothing about which version or why).
+ * What an approve or reject event decided (the API's `review`): "Version 2 · Poor quality". The
+ * reviewer's free-text note never reaches the history (untrusted text). Null for other events, or
+ * an older API without it (prod QA 9 Nov: "Rejected · a person" said nothing about which version
+ * or why).
  */
 export function reviewDetail(review: Schema<'AuditReviewOut'> | null | undefined): string | null {
   if (!review) return null
   const parts: string[] = []
   if (review.version) parts.push(`Version ${review.version}`)
-  const reason = review.reason_code ? sentence(review.reason_code) : null
-  const note = review.feedback?.trim() || null
-  if (reason && note) parts.push(`${reason}: ${note}`)
-  else if (reason ?? note) parts.push((reason ?? note)!)
+  if (review.reason_code) parts.push(sentence(review.reason_code))
   return parts.length ? parts.join(' · ') : null
 }
 

@@ -188,7 +188,7 @@ test.describe('marketplaces', () => {
     await expect(card).toHaveAttribute('data-status', 'active')
     await expect(card.getByTestId('seller-id')).toHaveText('A1FAKESELLER')
     // p04 detail card: the connected account is selected by default.
-    await expect(page.getByTestId('marketplace-detail').getByText('Token expires')).toBeVisible()
+    await expect(page.getByTestId('marketplace-detail').getByText('Renews automatically')).toBeVisible()
     const history = page.getByRole('table', { name: 'Marketplace connection history' })
     await expect(history.getByRole('row').filter({ hasText: 'A1FAKESELLER' }).filter({ hasText: 'Connected' })).toHaveCount(1)
     await shot(page, 'list-connected')
@@ -405,7 +405,8 @@ test.describe('marketplaces', () => {
     const detail = page.getByTestId('marketplace-detail')
     await expect(detail).toHaveAttribute('data-marketplace', 'flipkart')
     await expect(detail.getByRole('button', { name: 'Revoke' })).toBeVisible()
-    await expect(detail).toContainText(/Expired (just now|.+ ago)/)
+    // the 1-hour access-token expiry is never shown (prod QA 9 Nov, item 19)
+    await expect(detail).toContainText('Renews automatically')
     await expect(page.getByTestId('marketplace-card-amazon')).toHaveAttribute('data-status', 'none')
     const cardText = await detail.innerText()
 
@@ -418,8 +419,7 @@ test.describe('marketplaces', () => {
     await expect.poll(() => bodyRows.count()).toBeGreaterThan(50)
     const row = bodyRows.filter({ hasText: 'Flipkart' }).filter({ hasText: 'Connected' })
     await expect(row).toHaveCount(1)
-    await expect(row.getByTestId('token-expiry')).toHaveAttribute('data-expired', 'true')
-    await expect(row.getByTestId('token-expiry')).toContainText('Expired')
+    await expect(row.getByTestId('history-access')).toHaveText('Renews automatically')
     await shot(page, 'history-load-more')
 
     // The cards do not depend on how far History has been paged.

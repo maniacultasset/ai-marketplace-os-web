@@ -20,6 +20,15 @@ import type { TenantOut, TenantPatch } from './profile-model'
 
 export const fetchProfile = () => unwrapVersioned(api.GET('/tenants/me'))
 
+/**
+ * Prod QA 9 Nov, item 20: a workspace whose publishing is switched off (`publishing_enabled:
+ * false`, a read-only flag a later API adds to /tenants/me). Absent, or any other value: false,
+ * so today's copy stays.
+ */
+export function isPublishingPaused(tenant: object | null | undefined): boolean {
+  return !!tenant && (tenant as { publishing_enabled?: unknown }).publishing_enabled === false
+}
+
 /** GET /tenants/me with its ETag (`Versioned<TenantOut>`). */
 export function useBrandProfile() {
   const keys = useKeys()

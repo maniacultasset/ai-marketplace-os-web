@@ -1230,7 +1230,6 @@ function HistoryList({
                   <span className="text-ink-2"> · {auditActorLabel(e, me?.user_id)}</span>
                 </span>
                 {reviewDetail(e.review) ? (
-                  // The reviewer's note is plain text, shown as typed (never markup).
                   <span className="mt-0.5 block text-caption break-words text-ink-2" data-testid="history-review">
                     {reviewDetail(e.review)}
                   </span>

@@ -2,10 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { reviewDetail, validationBlocking } from './model'
 
 describe('reviewDetail (prod QA 9 Nov, item 15)', () => {
-  it('names the version, the reason and the note of a decision', () => {
-    expect(reviewDetail({ version: 2, reason_code: 'poor_quality', feedback: ' Title repeats the brand. ' })).toBe(
-      'Version 2 · Poor quality: Title repeats the brand.',
-    )
+  it('names the version and the reason of a decision', () => {
+    expect(reviewDetail({ version: 2, reason_code: 'poor_quality' })).toBe('Version 2 · Poor quality')
     expect(reviewDetail({ version: 3 })).toBe('Version 3')
     expect(reviewDetail({ reason_code: 'off_brand' })).toBe('Off brand')
     expect(reviewDetail(null)).toBeNull()
