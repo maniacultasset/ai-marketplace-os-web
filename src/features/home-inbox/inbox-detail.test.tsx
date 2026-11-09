@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -165,6 +166,7 @@ describe('QA 2026-11-09: inbox detail tells the truth', () => {
     }) as never
   const showTask = (task: never, openIssues: Issue[] = []) =>
     render(
+      <QueryClientProvider client={new QueryClient()}>
       <TooltipProvider>
         <InboxDetail
           selectedKey={`task:${TASK}`}
@@ -174,7 +176,8 @@ describe('QA 2026-11-09: inbox detail tells the truth', () => {
           products={{ map: new Map([[PRODUCT, { sku: 'RS-TS-202-L', title: 'Tee' }]]), pending: false }}
           openIssues={openIssues}
         />
-      </TooltipProvider>,
+      </TooltipProvider>
+      </QueryClientProvider>,
     )
 
   it('a list error leaves the detail pane blank, never "Nothing needs you"', () => {

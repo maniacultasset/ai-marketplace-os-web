@@ -31,7 +31,9 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { SavedPhoto } from '@/components/la/saved-photo'
 import { RelativeTime } from '@/features/products/format'
+import { useRefreshListViews } from '@/features/products/image-views'
 import { Can, useCan } from '@/lib/permissions'
 import { AI_PAUSED_REASON } from '@/features/ai-credit/model'
 import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
@@ -66,18 +68,43 @@ const BUCKET_GLYPH: Record<(typeof BUCKETS)[number]['value'], { status: ChipStat
 /** Interactive elements inside a row sit above the row's stretched SKU link. */
 const ABOVE = 'relative z-10'
 
-export function ProductThumb({ size = 40, className }: { size?: number; className?: string }) {
-  // Product images are storage keys, not URLs the browser can show, so every row gets the image
-  // placeholder (hi-fi "Product thumbnail 40"); `box` stays the catalog icon, not a photo stand-in.
+/**
+ * The product's main photo (hi-fi "Product thumbnail 40"): the signed `thumbnail_url` of the list or
+ * detail read, faded in over the image placeholder at a fixed size, so a row never shifts. No photo
+ * yet (none uploaded, or still being checked) keeps the placeholder.
+ */
+export function ProductThumb({
+  size = 40,
+  className,
+  src,
+  alt = '',
+  onError,
+}: {
+  size?: number
+  className?: string
+  src?: string | null
+  /** The product's name for the photo; empty when the row beside it already says it. */
+  alt?: string
+  onError?: () => void
+}) {
   return (
-    <span
-      aria-hidden
-      className={cn('inline-flex shrink-0 items-center justify-center rounded-tile border border-line bg-field text-ink-3 shadow-inset-sm', className)}
-      style={{ width: size, height: size }}
-    >
-      <Icon name="image" size={size > 40 ? 22 : 18} />
+    <span className="inline-flex shrink-0" style={{ width: size, height: size }} aria-hidden={alt ? undefined : true}>
+      <SavedPhoto
+        src={src}
+        alt={alt}
+        onError={onError}
+        iconSize={size > 40 ? 22 : 18}
+        testId="product-thumb"
+        className={cn('size-full rounded-tile border border-line bg-field text-ink-3 shadow-inset-sm', className)}
+      />
     </span>
   )
+}
+
+/** A list row's thumbnail; a link that fails to load asks for a fresh list read (throttled). */
+function RowThumb({ product }: { product: CatalogRow['product'] }) {
+  const refresh = useRefreshListViews()
+  return <ProductThumb src={product.thumbnail_url} onError={refresh} />
 }
 
 /**
@@ -156,7 +183,7 @@ const columns = col.columns([
     },
     cell: ({ row }) => (
       <span className="flex min-w-0 items-center gap-2.5">
-        <ProductThumb />
+        <RowThumb product={row.original.product} />
         <span className="min-w-0">
           <b className="block max-w-72 truncate text-ink" title={row.original.product.title}>
             {row.original.product.title}
@@ -221,7 +248,7 @@ function ProductCard({ row, selected, toggle, canSelect }: { row: CatalogRow; se
         {canSelect ? (
           <Checkbox className={cn(ABOVE, 'mt-0.5')} checked={selected} onCheckedChange={(v) => toggle(!!v)} aria-label={`Select ${row.product.sku}`} />
         ) : null}
-        <ProductThumb />
+        <RowThumb product={row.product} />
         <div className="min-w-0 flex-1">
           <Link
             to="/products/$productId"

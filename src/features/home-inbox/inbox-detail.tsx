@@ -14,8 +14,10 @@ import { DismissIssueButton } from '@/features/inbox/dismiss-issue'
 import { useListing } from '@/features/listings/api'
 import { useListingResolution } from '@/features/listing-flow/api'
 import { AnswerCard, AnswerResult, type AnswerOutcome } from '@/features/photo-facts/answer-card'
-import { factKey, isBlockingTask, isPhotoQuestion } from '@/features/photo-facts/answer-spec'
+import { factKey, isBlockingTask, isPhotoQuestion, taskImageId } from '@/features/photo-facts/answer-spec'
 import { fieldLabel } from '@/features/listing-flow/format'
+import { SavedPhoto } from '@/components/la/saved-photo'
+import { useRefreshProductViews } from '@/features/products/image-views'
 import { factLabel } from '@/features/photo-facts/model'
 import {
   canDismiss,
@@ -219,6 +221,9 @@ function TaskDetail({
   const identifier = isIdentifierTask(task)
   // An answer to a question behind a marketplace refusal goes into a new version by itself.
   const refusal = linked.some((i) => ADAPTER_SOURCES.has(i.source))
+  // The photo the question is about. Its frame is held from the first paint (the id is on the task),
+  // so the picture fades in once the product read lands, with nothing moving.
+  const imageId = task.product_id ? taskImageId(task) : null
   return (
     <article className="flex max-w-[760px] flex-col gap-4" data-testid="task-detail" data-task-id={task.id}>
       <div>
@@ -235,9 +240,18 @@ function TaskDetail({
 
       <LaCard emphasis="tint" pad="sm">
         <h3 className="text-[15px] font-bold text-ink">Why we are asking</h3>
-        <p className="mt-1 text-small text-ink" data-testid="task-reason">
-          {task.reason}
-        </p>
+        {imageId ? (
+          <div className="mt-1 flex items-start gap-3">
+            <TaskPhoto productId={task.product_id} src={product?.views?.get(imageId)} />
+            <p className="min-w-0 flex-1 text-small text-ink" data-testid="task-reason">
+              {task.reason}
+            </p>
+          </div>
+        ) : (
+          <p className="mt-1 text-small text-ink" data-testid="task-reason">
+            {task.reason}
+          </p>
+        )}
         <div className="mt-3 flex flex-wrap items-center gap-2 text-small text-ink">
           <span className="rounded-md border border-line-strong bg-surface px-2 py-px text-caption font-semibold text-ink-2">Affects</span>
           {productPending && !product ? (
@@ -415,6 +429,21 @@ function ReconnectTask({ task, remaining }: { task: Task; remaining: number }) {
       </div>
       {remaining > 0 ? <p className="text-center text-small text-ink-3 lg:hidden">{remaining} more after this</p> : null}
     </>
+  )
+}
+
+/** The photo a question is about, from the product read's signed link (a failed link reads it again). */
+function TaskPhoto({ productId, src }: { productId: string | null | undefined; src: string | undefined }) {
+  const refresh = useRefreshProductViews(productId)
+  return (
+    <SavedPhoto
+      src={src}
+      alt="The product photo this question is about"
+      onError={refresh}
+      iconSize={20}
+      testId="task-photo"
+      className="size-[72px] rounded-tile border border-line bg-field text-ink-3 shadow-inset-sm"
+    />
   )
 }
 
