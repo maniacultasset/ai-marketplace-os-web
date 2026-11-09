@@ -1,7 +1,7 @@
 import { act, cleanup, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { useScrolled } from '@/lib/use-scrolled'
-import { PANE_RESET_SELECTOR, ScrollPane, SplitLayout, STICKY_ASIDE } from './split-layout'
+import { PANE_RESET_SELECTOR, ScrollPane, SplitLayout, STICKY_ASIDE, STICKY_ASIDE_2XL, STICKY_ASIDE_XL } from './split-layout'
 
 afterEach(cleanup)
 
@@ -53,6 +53,10 @@ describe('STICKY_ASIDE', () => {
     const c = STICKY_ASIDE.split(' ')
     expect(c).toEqual(expect.arrayContaining(['lg:sticky', 'lg:self-start', 'lg:overflow-y-auto']))
     expect(c.every((x) => x.startsWith('lg:'))).toBe(true)
+  })
+
+  it('lets the wheel over a short side column scroll the page', () => {
+    for (const v of [STICKY_ASIDE, STICKY_ASIDE_XL, STICKY_ASIDE_2XL]) expect(v).not.toMatch(/overscroll/)
   })
 })
 

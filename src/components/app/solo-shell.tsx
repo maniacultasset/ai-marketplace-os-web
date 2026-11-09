@@ -4,6 +4,9 @@
  *
  * A screen with unsaved work registers what "Save and exit" must do first with `useSoloExit`
  * (./solo-exit).
+ *
+ * From 768px the frame is fixed to the viewport like the app shell: the header never moves and
+ * only <main> scrolls (see split-layout.tsx). Below 768px the document scrolls as usual.
  */
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
@@ -36,8 +39,8 @@ export function SoloShell({ title }: { title?: string }) {
 
   return (
     <SoloExitContext.Provider value={exitRef}>
-      <div className="flex min-h-svh flex-col bg-canvas">
-        <header className="border-b border-line bg-surface">
+      <div className="flex min-h-svh flex-col bg-canvas md:h-svh md:min-h-0 md:overflow-hidden">
+        <header className="shrink-0 border-b border-line bg-surface">
           {/* SETUP_CONTAINER: the logo and "Save and exit" share the body's left and right edges. */}
           <div className={cn(SETUP_CONTAINER, 'flex items-center justify-between gap-4 py-[18px]')}>
             <Link to="/home" aria-label="Kuinn home" className="rounded-control">
@@ -55,7 +58,7 @@ export function SoloShell({ title }: { title?: string }) {
             </Button>
           </div>
         </header>
-        <main id="main" className="flex min-w-0 flex-1 flex-col">
+        <main id="main" className="flex min-w-0 flex-1 flex-col md:min-h-0 md:overflow-y-auto md:[scrollbar-gutter:stable] md:scroll-pt-4">
           <Outlet />
         </main>
       </div>
