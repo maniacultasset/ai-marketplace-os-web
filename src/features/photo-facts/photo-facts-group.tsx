@@ -9,7 +9,9 @@
 import { useMemo } from 'react'
 import { Icon, SourceBadge } from '@/components/la'
 import { Button } from '@/components/ui/button'
+import { SavedPhoto } from '@/components/la/saved-photo'
 import type { ProductDetail } from '@/features/products/api'
+import { useRefreshProductViews, viewsById } from '@/features/products/image-views'
 import { OP_ACTION, useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { usePhotoFactActions } from './api'
@@ -39,6 +41,9 @@ function Group({ product, rows, actions }: { product: ProductDetail; rows: reado
   const shown = useMemo(() => withPending(rows, actions.pending), [rows, actions.pending])
   const toCheck = toCheckCount(shown)
   const factByKey = useMemo(() => new Map((product.photo_facts ?? []).map((f) => [f.key, f])), [product.photo_facts])
+  // The photo each value was read from, so the seller can check it against the picture.
+  const views = useMemo(() => viewsById(product), [product])
+  const refreshViews = useRefreshProductViews(product.id)
   if (shown.length === 0) return null
 
   return (
@@ -102,7 +107,21 @@ function Group({ product, rows, actions }: { product: ProductDetail; rows: reado
                     </span>
                   ) : null}
                 </div>
-                {r.status === 'photo' && r.photo ? <p className="text-caption text-ink-3">From the {r.photo.toLocaleLowerCase('en')}</p> : null}
+                {r.status === 'photo' && r.photo ? (
+                  <p className="mt-0.5 flex items-center gap-2 text-caption text-ink-3" data-testid="photo-fact-source">
+                    {fact && views.has(fact.image_id) ? (
+                      <SavedPhoto
+                        src={views.get(fact.image_id)}
+                        alt={r.photo}
+                        onError={refreshViews}
+                        iconSize={14}
+                        testId="photo-fact-photo"
+                        className="size-8 rounded-md ring-1 ring-border"
+                      />
+                    ) : null}
+                    <span>From the {r.photo.toLocaleLowerCase('en')}</span>
+                  </p>
+                ) : null}
                 {error ? (
                   <p role="alert" className="mt-0.5 text-caption text-danger" data-testid="photo-fact-error">
                     {error}

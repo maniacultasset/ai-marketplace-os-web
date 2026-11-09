@@ -13,6 +13,7 @@ import { api, unwrap } from '@/api/client'
 import type { Page } from '@/api/types'
 import { BUSY_REFETCH_MS } from '@/features/listings/api'
 import { isBusy } from '@/features/listings/model'
+import { viewRefreshDelay } from '@/features/products/image-views'
 import { useKeys } from '@/lib/query-keys'
 import { buildCatalog, type Issue, type Listing, type Product } from './catalog-model'
 
@@ -44,6 +45,9 @@ export function useAllProducts() {
   return useQuery({
     queryKey: [...keys.products.list(), 'all'] as const,
     staleTime: STALE_MS,
+    // The thumbnails are signed for about 10 minutes: read again just before the first expires.
+    refetchInterval: (q) => viewRefreshDelay(q.state.data?.rows ?? []),
+    refetchIntervalInBackground: false,
     queryFn: () =>
       walkPages<Product>((cursor) =>
         unwrap(api.GET('/products', { params: { query: { limit: WALK_PAGE_SIZE, cursor } } })),
