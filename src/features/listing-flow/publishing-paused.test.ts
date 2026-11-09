@@ -143,7 +143,7 @@ describe('listing live screen', () => {
 })
 
 describe('resolution card and Inbox', () => {
-  const fixReady = { state: 'fix_ready' as const, attempts: [], cycles_used: 1, max_cycles: 3 }
+  const fixReady = { state: 'fix_ready' as const, attempts: [], cycles_used: 1, max_cycles: 3 as const }
 
   it('paused: a fix is approved, never "approve to resend"', () => {
     const h = resolutionHeadline(fixReady, { marketplace: 'amazon', publishingPaused: true })

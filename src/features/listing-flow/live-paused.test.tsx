@@ -31,7 +31,7 @@ vi.mock('@/lib/permissions', () => ({ useCan: () => () => true }))
 vi.mock('@/features/brand/api', async (orig) => {
   const real = await orig<typeof import('@/features/brand/api')>()
   // The shared hook, on the real helper: the tenant read is the only input.
-  return { ...real, useAmazonPublishing: () => ({ paused: real.isAmazonPublishingPaused(s.tenant), known: !!s.tenant }) }
+  return { ...real, useAmazonPublishing: () => ({ paused: real.isAmazonPublishingPaused(s.tenant as Parameters<typeof real.isAmazonPublishingPaused>[0]), known: !!s.tenant }) }
 })
 vi.mock('@/features/listings/api', () => ({
   useListing: () => ({ isPending: false, error: null, data: { data: listing } }),
