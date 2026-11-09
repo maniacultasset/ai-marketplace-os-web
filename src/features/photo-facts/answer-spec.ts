@@ -38,15 +38,22 @@ export function isPhotoQuestion(task: Pick<Task, 'kind' | 'product_id' | 'target
   return task.suggestions.some((s) => !!s && typeof s === 'object' && 'evidence_ref' in s && typeof s.evidence_ref === 'string' && s.evidence_ref.startsWith('image:'))
 }
 
+/** An issue as far as blocking goes: an open error linked to a question holds its listing back. */
+export type LinkedIssue = { human_task_id?: string | null; severity: string; status: string }
+
 /**
- * Whether a task holds a listing back. A photo question never blocks by itself (SI3 decision 9):
- * only an open blocking error behind it does, and that error shows as its own issue. If the API
- * ever sends `blocking`, that wins.
+ * Whether a task holds a listing back. A photo question never blocks by itself (SI3 decision 9),
+ * but when the backend links an open blocking error to it (issue sync reuses it as the fact
+ * question), answering it is what clears that block. If the API ever sends `blocking`, that wins.
  */
-export function isBlockingTask(task: Pick<Task, 'kind' | 'product_id' | 'target_path' | 'image_id' | 'suggestions'>): boolean {
+export function isBlockingTask(
+  task: Pick<Task, 'kind' | 'product_id' | 'target_path' | 'image_id' | 'suggestions'> & { id?: string },
+  issues: readonly LinkedIssue[] = [],
+): boolean {
   const flag = (task as { blocking?: unknown }).blocking
   if (typeof flag === 'boolean') return flag
-  return !isPhotoQuestion(task)
+  if (!isPhotoQuestion(task)) return true
+  return !!task.id && issues.some((i) => i.human_task_id === task.id && i.severity === 'error' && i.status === 'open')
 }
 
 /* ------------------------------------------------------------------------------ Suggestions */

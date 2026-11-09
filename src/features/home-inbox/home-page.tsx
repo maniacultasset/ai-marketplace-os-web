@@ -24,6 +24,7 @@ import { useIssuesList, useTasksList } from '@/features/inbox/api'
 import { MARKETPLACE_LABEL } from '@/features/inbox/model'
 import { useCurrentMarketplaceAccounts } from '@/features/marketplaces/api'
 import { useMe } from '@/lib/auth'
+import { fieldLabel } from '@/features/listing-flow/format'
 import { useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { LISTINGS_CAP, useListingsSnapshot, useProductsById } from './api'
@@ -38,6 +39,7 @@ import {
   liveTile,
   marketplaceCard,
   mergeInbox,
+  standaloneIssues,
   needsYouTile,
   splitTasks,
   taskMeta,
@@ -89,14 +91,19 @@ function DashboardBody({
   const issues = useIssuesList({})
   const inboxReady = !!tasks.data && !!issues.data
   const tasksCount = { n: tasks.rows.length, more: !!tasks.hasNextPage }
-  const issuesCount = { n: issues.rows.length, more: !!issues.hasNextPage }
-  // Photo questions improve a listing but never hold one back: they are not in the number.
-  const split = splitTasks(tasks.rows, tasksCount.more)
+  // An issue linked to an open question is the same thing to do: counted once, as the question.
+  const issuesCount = { n: standaloneIssues(issues.rows, tasks.rows).length, more: !!issues.hasNextPage }
+  // Photo questions improve a listing and hold none back, unless an open error is linked to one.
+  const split = splitTasks(tasks.rows, tasksCount.more, issues.rows)
+  // Listings to approve or publish are work only for a role that can do it (admins do no listing
+  // work, operators do not approve, reviewers do not publish).
+  const approve = can('listing:approve') ? snapshot.approve : 0
+  const publish = can('listing:publish') ? snapshot.publish : 0
 
   const live = liveTile(snapshot, LISTINGS_CAP)
   const working = inProgressTile(snapshot, LISTINGS_CAP)
   const needs = needsYouTile(
-    { tasks: split.blocking, improve: split.improve, issues: issuesCount, approve: snapshot.approve, publish: snapshot.publish, snapshotComplete: snapshot.complete },
+    { tasks: split.blocking, improve: split.improve, issues: issuesCount, approve, publish, snapshotComplete: snapshot.complete },
     LISTINGS_CAP,
   )
   const inboxError = tasks.error ?? issues.error
@@ -193,12 +200,12 @@ function DashboardBody({
                 // The main button goes where the work is: the Inbox only when it holds something that blocks
                 // a listing (photo questions are reached from Waiting for you).
                 <div className="flex flex-wrap gap-2">
-                  {split.blocking.n + issuesCount.n > 0 || snapshot.approve + snapshot.publish === 0 ? (
+                  {split.blocking.n + issuesCount.n > 0 || approve + publish === 0 ? (
                     <Button asChild size="sm" variant="warn" data-testid="tile-needs-inbox">
                       <Link to="/inbox">Open Inbox</Link>
                     </Button>
                   ) : null}
-                  {snapshot.approve + snapshot.publish > 0 ? (
+                  {approve + publish > 0 ? (
                     <Button
                       asChild
                       size="sm"
@@ -209,7 +216,7 @@ function DashboardBody({
                       <Link to="/products">
                         {/* One text item: the button is a flex row with a gap, and the label must not split. */}
                         <span className="min-w-0 truncate">
-                          {snapshot.approve ? 'Approve' : 'Publish'}
+                          {approve ? 'Approve' : 'Publish'}
                           <span className="max-lg:sr-only"> in Products</span>
                         </span>
                       </Link>
@@ -225,7 +232,7 @@ function DashboardBody({
       <MarketplaceRow snapshot={snapshot} />
 
       <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <WaitingCard tasks={tasks} issues={issues} total={fmtCount({ n: tasksCount.n + issuesCount.n, more: tasksCount.more || issuesCount.more })} approve={snapshot.approve} publish={snapshot.publish} />
+        <WaitingCard tasks={tasks} issues={issues} total={fmtCount({ n: tasksCount.n + issuesCount.n, more: tasksCount.more || issuesCount.more })} approve={approve} publish={publish} />
         <LaCard data-testid="agent-feed">
           <CardHead title="What the agent did" icon="activity" iconTone="neutral" />
           <p className="mt-3 max-w-[52ch] text-small text-ink-2">
@@ -302,6 +309,8 @@ const MARKETPLACE_ROW = 'mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3'
 
 function MarketplaceRow({ snapshot }: { snapshot: ListingsSnapshot }) {
   const accounts = useCurrentMarketplaceAccounts()
+  // Connecting is an owner or admin's job: other roles get the reason, not a dead-end link.
+  const canConnect = useCan()('marketplace:connect')
   return (
     <div className={cn('stagger-children [--stagger-base:80ms]', MARKETPLACE_ROW)} data-testid="home-marketplaces">
       {SUPPORTED_CARDS.map((m) => {
@@ -332,9 +341,14 @@ function MarketplaceRow({ snapshot }: { snapshot: ListingsSnapshot }) {
             <p className="mt-2 text-caption text-ink-2">
               {!view ? (
                 "Couldn't load the account."
+              ) : view.action && !canConnect ? (
+                <span data-testid="mp-connect-who">
+                  {view.action === 'reconnect' ? 'Access expired. An owner or admin can reconnect it.' : 'Not connected. An owner or admin can connect it.'}
+                </span>
               ) : view.action ? (
                 <Link
                   to="/marketplaces"
+                  search={{ mp: m }}
                   className="inline-flex min-h-10 items-center gap-1 font-semibold text-attention-ink underline decoration-attention-line underline-offset-4 hover:decoration-attention pointer-fine:min-h-0"
                 >
                   {view.sub}
@@ -478,8 +492,8 @@ function WaitingCard({
             const title = it.kind === 'task' ? it.task.question : issueTitle(it.issue)
             const meta =
               it.kind === 'task'
-                ? [product?.sku, taskMeta(it.task)].filter(Boolean).join(' · ')
-                : `${MARKETPLACE_LABEL[it.issue.marketplace]} · ${it.issue.severity === 'error' ? 'Error' : 'Warning'} on ${it.issue.field_path}`
+                ? [product?.sku, taskMeta(it.task, issues.rows)].filter(Boolean).join(' · ')
+                : `${MARKETPLACE_LABEL[it.issue.marketplace]} · ${it.issue.severity === 'error' ? 'Error' : 'Warning'} on ${fieldLabel(it.issue.field_path)}`
             return (
               <TaskRow
                 key={itemKey(it)}

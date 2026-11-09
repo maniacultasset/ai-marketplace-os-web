@@ -15,7 +15,8 @@ import type { Schema } from '@/api/types'
 import { humanizeCode, isAutoFix, TASK_KIND_LABEL, type Issue, type Task } from '@/features/inbox/model'
 import { NO_TRAIL_TEXT, onVersion, versionRef } from '@/features/listing-flow/auto-fix-model'
 import { causeLabel, fixState, laneView, type FixContext, type LaneView } from '@/features/listing-flow/lanes'
-import { isBlockingTask, isPhotoQuestion } from '@/features/photo-facts/answer-spec'
+import { fieldLabel } from '@/features/listing-flow/format'
+import { isBlockingTask, isPhotoQuestion, type LinkedIssue } from '@/features/photo-facts/answer-spec'
 
 type Listing = Schema<'ListingOut'>
 type Marketplace = Schema<'Marketplace'>
@@ -212,14 +213,24 @@ export interface NeedsYouParts {
  * never blocks by itself (SI3), unless the API says so. When more pages exist, both parts are lower
  * bounds: the unloaded rows could be either.
  */
-export function splitTasks(tasks: readonly Task[], more: boolean): { blocking: Count; improve: Count } {
-  const blocking = tasks.filter(isBlockingTask).length
+export function splitTasks(tasks: readonly Task[], more: boolean, issues: readonly LinkedIssue[] = []): { blocking: Count; improve: Count } {
+  const blocking = tasks.filter((t) => isBlockingTask(t, issues)).length
   return { blocking: { n: blocking, more }, improve: { n: tasks.length - blocking, more } }
 }
 
 /** The second line of a question row: a photo question says what answering does. */
-export function taskMeta(task: Task): string {
-  return isPhotoQuestion(task) && !isBlockingTask(task) ? 'Answer to improve the listing' : TASK_KIND_LABEL[task.kind]
+export function taskMeta(task: Task, issues: readonly LinkedIssue[] = []): string {
+  return isPhotoQuestion(task) && !isBlockingTask(task, issues) ? 'Answer to improve the listing' : TASK_KIND_LABEL[task.kind]
+}
+
+/**
+ * Issues that are their own thing to do. An issue whose `human_task_id` is an open question is
+ * the same problem as that question (backend listing_issues.link_task): it is counted and listed
+ * through the question, and the question's detail shows it.
+ */
+export function standaloneIssues<I extends Pick<Issue, 'human_task_id'>>(issues: readonly I[], openTasks: readonly Pick<Task, 'id'>[]): I[] {
+  const open = new Set(openTasks.map((t) => t.id))
+  return issues.filter((i) => !i.human_task_id || !open.has(i.human_task_id))
 }
 
 /** "3 questions, 1 listing to approve, 2 issues". Empty parts are left out. */
@@ -364,10 +375,11 @@ export function parseItemKey(key: string | undefined): { kind: 'task' | 'issue';
  * Questions that block a listing first, then errors, then photo questions (they only improve a
  * listing), then warnings; newest first inside each group. Stable for equal times.
  */
-export function mergeInbox(tasks: readonly Task[], issues: readonly Issue[]): InboxItem[] {
+export function mergeInbox(tasks: readonly Task[], issues: readonly Issue[], linked: readonly LinkedIssue[] = issues): InboxItem[] {
   const t: InboxItem[] = tasks.map((task) => ({ kind: 'task', id: task.id, at: task.created_at, task }))
-  const i: InboxItem[] = issues.map((issue) => ({ kind: 'issue', id: issue.id, at: issue.last_seen_at, issue }))
-  const rank = (x: InboxItem) => (x.kind === 'task' ? (isBlockingTask(x.task) ? 0 : 2) : x.issue.severity === 'error' ? 1 : 3)
+  // An issue linked to a listed question shows once, as that question.
+  const i: InboxItem[] = standaloneIssues(issues, tasks).map((issue) => ({ kind: 'issue', id: issue.id, at: issue.last_seen_at, issue }))
+  const rank = (x: InboxItem) => (x.kind === 'task' ? (isBlockingTask(x.task, linked) ? 0 : 2) : x.issue.severity === 'error' ? 1 : 3)
   return [...t, ...i]
     .map((x, idx) => ({ x, idx }))
     .sort((a, b) => rank(a.x) - rank(b.x) || b.x.at.localeCompare(a.x.at) || a.idx - b.idx)
@@ -523,13 +535,62 @@ export function issueTrailLink(
   return onVersion(i, versionRef(listing)) ? 'review' : 'activity'
 }
 
-/** "Unknown error, not auto-fixable" (p16 "Class"). */
-export function issueClassLine(i: Pick<Issue, 'error_class' | 'auto_fixable'>): string {
-  return `${humanizeCode(i.error_class)}, ${i.auto_fixable ? 'marked auto-fixable' : 'not auto-fixable'}`
+const ERROR_CLASS_LABEL: Record<Issue['error_class'], string> = {
+  missing_data: 'Missing information',
+  invalid_value: 'Value not accepted',
+  category_mismatch: 'Wrong category',
+  variation_error: 'Size or colour problem',
+  media_error: 'Photo problem',
+  content_error: 'Listing text problem',
+  identifier_error: 'Barcode problem',
+  compliance_error: 'Marketplace rule',
+  account_permission: 'Account access',
+  marketplace_technical: 'Marketplace problem',
+  unknown: 'Other problem',
 }
 
-export function issueAffects(i: Pick<Issue, 'listing_item_id' | 'field_path'>): string {
-  return `${i.listing_item_id ? 'One variant' : 'The whole listing'} · ${i.field_path}`
+/** "Photo problem" (p16 "Class"), in plain words. What happens next is the Next step row. */
+export function issueClassLine(i: Pick<Issue, 'error_class'>): string {
+  return ERROR_CLASS_LABEL[i.error_class] ?? humanizeCode(i.error_class)
+}
+
+/** "RS-KS-102-L · Hand Block Print Kurta Set · Whole listing · Color". The product leads when known. */
+export function issueAffects(i: Pick<Issue, 'listing_item_id' | 'field_path'>, product?: { sku: string; title: string }): string {
+  return [product ? `${product.sku} · ${product.title}` : null, i.listing_item_id ? 'One variant' : 'The whole listing', fieldLabel(i.field_path)]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+/** A question about the product's barcode: answered on the product (BarcodeField), not here. */
+export function isIdentifierTask(task: Pick<Task, 'product_id' | 'target_path'>): boolean {
+  return !!task.product_id && /^(variants\[[^\]]+\]\.)?facts\.identifier$/.test(task.target_path ?? '')
+}
+
+/** A message in sentence case: rule messages start lowercase ("title longer than 200 characters"). */
+export function sentenceCase(text: string | null | undefined): string {
+  const t = (text ?? '').trim()
+  if (!t) return ''
+  const s = t[0]!.toUpperCase() + t.slice(1)
+  return /[.!?]$/.test(s) ? s : `${s}.`
+}
+
+/** A marketplace's own words, verbatim, with its code when there is one. No internal field path. */
+export function rawMarketplaceText(i: Pick<Issue, 'marketplace_code' | 'raw_message' | 'message'>): string {
+  return [i.marketplace_code ? `code ${i.marketplace_code}` : null, i.raw_message ?? i.message].filter(Boolean).join(' · ')
+}
+
+/**
+ * Whether an issue's suggestion is shown to the seller. Some seeded rule suggestions are written
+ * for the agent ("Set attributes.color from the product data ... flag the row rather than
+ * guessing"): those name internal paths and stay hidden. Only while the issue is open.
+ */
+export function showSuggestion(i: Pick<Issue, 'suggestion' | 'status'>): boolean {
+  return !!i.suggestion && i.status === 'open' && !isAgentText(i.suggestion)
+}
+
+/** Text written for the agent or a developer: an internal path, or the "flag the row" guidance. */
+export function isAgentText(text: string): boolean {
+  return /\b(?:attributes|facts|content|images|variants)[.[][a-z0-9_]/i.test(text) || /flag the row/i.test(text)
 }
 
 export interface TimelineEntry {

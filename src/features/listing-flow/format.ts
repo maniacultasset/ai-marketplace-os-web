@@ -31,6 +31,10 @@ const FIELD_NAME: Record<string, string> = {
   keywords: 'Search terms',
   images: 'Images',
   category: 'Category',
+  'facts.identifier': 'Barcode',
+  identifier: 'Barcode',
+  'facts.gender': 'Gender',
+  'facts.brand_name': 'Brand name',
 }
 
 /**
@@ -48,5 +52,8 @@ export function fieldLabel(path: string | null | undefined): string {
   const term = /^(?:keywords\.)?search_terms\[(\d+)\]$/.exec(p)
   if (term) return `Search term ${Number(term[1]) + 1}`
   if (p.startsWith('attributes.')) return attrLabel(p.slice('attributes.'.length))
+  // Fact paths: "facts.attributes.color" → "Color", "variants[SKU].facts.identifier" → "Barcode".
+  const fact = /^(?:variants\[[^\]]+\]\.)?facts\.(.+)$/.exec(p)
+  if (fact) return fieldLabel(fact[1]!)
   return attrLabel(p.replace(/\[(\d+)\]/g, ' $1'))
 }

@@ -36,6 +36,7 @@ import { toastError } from '@/lib/toast'
 import { useTaskIssues } from './api'
 import { CloseTaskActions } from './close-task'
 import { supportsClose } from './close-task-api'
+import { rawMarketplaceText } from './model'
 import { CodeBlock } from './parts'
 import { AI_PAUSED_REASON, isAiPausedError } from '@/features/ai-credit/model'
 import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
@@ -103,7 +104,7 @@ function ListingBlock({ kind, issues, listing }: { kind: AccountReviewKind; issu
         <div>
           <div className="text-caption text-ink-3">What {MARKETPLACE_LABEL[first.marketplace]} said (unchanged)</div>
           <CodeBlock>
-            {[first.marketplace_code ? `code ${first.marketplace_code}` : null, `field: ${first.field_path}`, first.raw_message ?? first.message].filter(Boolean).join(' · ')}
+            {rawMarketplaceText(first)}
           </CodeBlock>
         </div>
         {issues.length > 1 ? (

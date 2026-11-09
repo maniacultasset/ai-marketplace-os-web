@@ -228,9 +228,11 @@ test.describe('inbox', () => {
       page.request.get('/api/v1/issues?limit=50', { headers: auth(access_token) }),
       page.request.get('/api/v1/tasks?limit=50', { headers: auth(access_token) }),
     ])
-    const issues = (await i.json()) as PageBody<unknown>
-    const tasks = (await t.json()) as PageBody<unknown>
-    const n = issues.data.length + tasks.data.length
+    const issues = (await i.json()) as PageBody<{ human_task_id?: string | null }>
+    const tasks = (await t.json()) as PageBody<{ id: string }>
+    // An issue linked to an open question counts once, as the question.
+    const open = new Set(tasks.data.map((x) => x.id))
+    const n = issues.data.filter((x) => !x.human_task_id || !open.has(x.human_task_id)).length + tasks.data.length
     const more = issues.page.has_more || tasks.page.has_more
     await loginAs(page, USERS.acme.owner, '/products')
     const badge = page.getByTestId('inbox-nav-badge')
@@ -242,9 +244,12 @@ test.describe('inbox', () => {
 test.describe('issue detail', () => {
   test('shows the raw marketplace text unchanged and the listing’s submissions', async ({ page }) => {
     const { access_token } = await apiLogin(page.request, USERS.acme.owner)
-    const res = await page.request.get('/api/v1/issues?limit=1', { headers: auth(access_token) })
-    const issue = ((await res.json()) as PageBody<{ id: string; listing_id: string; raw_message?: string | null; message: string }>).data[0]
-    test.skip(!issue, 'the demo seed has no open issues')
+    const res = await page.request.get('/api/v1/issues?limit=50', { headers: auth(access_token) })
+    // Only a marketplace's own words are shown raw; Kuinn's checks speak in plain language.
+    const issue = ((await res.json()) as PageBody<{ id: string; listing_id: string; source: string; raw_message?: string | null; message: string }>).data.find(
+      (x) => x.source.endsWith('_adapter'),
+    )
+    test.skip(!issue, 'the demo seed has no open marketplace issues')
 
     await loginAs(page, USERS.acme.owner, `/issues/${issue!.id}?listing=${issue!.listing_id}`)
     const card = page.getByTestId('issue-card')
