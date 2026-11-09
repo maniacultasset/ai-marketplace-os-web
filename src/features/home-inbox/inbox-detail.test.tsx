@@ -120,29 +120,39 @@ describe('Inbox image replacement task', () => {
     updated_at: '2026-11-07T09:00:00Z',
   } as never
   const item = { kind: 'task' as const, id: ID, at: '2026-11-07T09:00:00Z', task }
-  const showTask = (photoFixes: boolean | undefined) =>
+  const showTask = (photoFixes: boolean | undefined, over: Record<string, unknown> = {}) =>
     render(
-      <TooltipProvider>
-        <InboxDetail
-          selectedKey={`task:${ID}`}
-          items={[item]}
-          pending={false}
-          search={{}}
-          products={{ map: photoFixes === undefined ? new Map() : new Map([[PRODUCT, { sku: 'S1', title: 'Tee', photoFixes }]]), pending: false }}
-        />
-      </TooltipProvider>,
+      <QueryClientProvider client={new QueryClient()}>
+        <TooltipProvider>
+          <InboxDetail
+            selectedKey={`task:${ID}`}
+            items={[{ ...item, task: { ...(task as object), ...over } as never }]}
+            pending={false}
+            search={{}}
+            products={{ map: photoFixes === undefined ? new Map() : new Map([[PRODUCT, { sku: 'S1', title: 'Tee', photoFixes }]]), pending: false }}
+          />
+        </TooltipProvider>
+      </QueryClientProvider>,
     )
 
-  it('links to the product photos when the backend has photo fixes', () => {
-    showTask(true)
+  it.each([true, false, undefined])('offers Fix the photo and no dead answer controls (photo fixes: %s)', (photoFixes) => {
+    showTask(photoFixes)
     expect(screen.getByTestId('task-open-photos').textContent).toContain('Fix the photo')
-    expect(screen.queryByTestId('task-open-product')).toBeNull()
+    expect(screen.queryByTestId('answer-soon')).toBeNull()
+    expect(screen.queryByTestId('task-confirm')).toBeNull()
+    expect(screen.queryByRole('radio')).toBeNull()
+    expect(screen.getByTestId('task-detail').textContent).not.toContain('coming soon')
+    const how = screen.getByTestId('image-task-how').textContent ?? ''
+    expect(how.includes('Make white background')).toBe(photoFixes === true)
+    expect(how).toContain('regenerate the listing')
   })
 
-  it.each([false, undefined])('keeps Open product otherwise (photo fixes: %s)', (photoFixes) => {
-    showTask(photoFixes)
-    expect(screen.getByTestId('task-open-product').textContent).toBe('Open product')
-    expect(screen.queryByTestId('task-open-photos')).toBeNull()
+  it('words a stored reason with raw check codes for the seller (prod demo 9 Nov)', () => {
+    showTask(true, { reason: 'The current image failed these checks: BACKGROUND OFF, RESOLUTION LOW, WRONG ASPECT.' })
+    const reason = screen.getByTestId('task-reason').textContent ?? ''
+    expect(reason).toBe(
+      'The current photo can’t be used: the background is not plain white; the photo is smaller than the marketplace asks for; the photo is not the shape the marketplace asks for.',
+    )
   })
 })
 

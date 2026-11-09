@@ -194,6 +194,21 @@ export function fixTrailQuery(keys: QueryKeys, listingId: string) {
   })
 }
 
+/**
+ * One listing's open issues (up to 4 pages). The Review gates fold in its blocking ones, so they
+ * count what the server's `needs_you_count` counts (prod demo 9 Nov: the header said "Needs your
+ * info · 3" for three failed photo checks while Review said "0 need you"). Under `issues.all()`.
+ */
+export function useOpenListingIssues(listingId: string | undefined) {
+  const keys = useKeys()
+  return useQuery({
+    queryKey: [...keys.issues.all(), 'open-by-listing', listingId ?? null] as const,
+    enabled: !!listingId,
+    staleTime: 20_000,
+    queryFn: (): Promise<Issue[]> => walkIssues((cursor) => fetchIssuesPage({ status: 'open', listingId }, cursor), 4),
+  })
+}
+
 export function useFixTrail(listingId: string) {
   const keys = useKeys()
   return useQuery(fixTrailQuery(keys, listingId))

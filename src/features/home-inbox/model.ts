@@ -755,3 +755,49 @@ export function fixContext(
   if (!resolution || !listing) return null
   return { attempts: resolution.attempts ?? [], approved: !!listing.current_version_id && listing.approved_version_id === listing.current_version_id }
 }
+
+/* ---------------------------------------------------------------------------------------------- */
+/* Photo questions: the reason in seller words                                                     */
+/* ---------------------------------------------------------------------------------------------- */
+
+/**
+ * Each image check code (backend ImageIssueCode) and check name in seller words. Mirrors the
+ * backend `auto_fix.text.IMAGE_PROBLEMS`, which words new questions; this rewrites the reason of a
+ * question stored before it ("failed these checks: BACKGROUND OFF, RESOLUTION LOW, WRONG ASPECT").
+ */
+export const IMAGE_PROBLEMS: Readonly<Record<string, string>> = {
+  BACKGROUND_OFF: 'the background is not plain white',
+  RESOLUTION_LOW: 'the photo is smaller than the marketplace asks for',
+  WRONG_ASPECT: 'the photo is not the shape the marketplace asks for',
+  TEXT_DETECTED: 'there is text on the photo',
+  WATERMARK: 'the photo has a watermark',
+  FILL_RATIO_LOW: 'the product fills too little of the photo',
+  FORMAT_UNSUPPORTED: 'the file type is not accepted (use JPEG or PNG)',
+  FILE_TOO_LARGE: 'the file is too large',
+  CORRUPT: 'the file could not be opened',
+  LOGO_PROHIBITED: 'the photo shows a logo the marketplace does not allow',
+  BACKGROUND: 'the background is not plain white',
+  RESOLUTION: 'the photo is smaller than the marketplace asks for',
+  ASPECT_RATIO: 'the photo is not the shape the marketplace asks for',
+  TEXT_OVERLAY: 'there is text on the photo',
+  FILL_RATIO: 'the product fills too little of the photo',
+  FORMAT: 'the file type is not accepted (use JPEG or PNG)',
+  FILE_SIZE: 'the file is too large',
+  CORRUPTION: 'the file could not be opened',
+  LOGO: 'the photo shows a logo the marketplace does not allow',
+  EXIF_ORIENTATION: 'the photo is turned on its side',
+}
+const IMAGE_PROBLEM_DEFAULT = 'it does not meet the marketplace photo rules'
+const LEGACY_IMAGE_REASON = /^The current image failed these checks: (.+?)(?: \.\.\.)?\.?$/
+
+/** A question's reason, with an old image reason's raw check codes put in plain words. */
+export function taskReason(task: Pick<Task, 'kind' | 'reason'>): string {
+  const reason = task.reason ?? ''
+  if (task.kind !== 'image_replacement') return reason
+  const m = LEGACY_IMAGE_REASON.exec(reason.trim())
+  if (!m) return reason
+  const words = m[1]!
+    .split(',')
+    .map((c) => IMAGE_PROBLEMS[c.trim().toUpperCase().replace(/[\s-]+/g, '_')] ?? IMAGE_PROBLEM_DEFAULT)
+  return `The current photo can’t be used: ${[...new Set(words)].join('; ')}.`
+}

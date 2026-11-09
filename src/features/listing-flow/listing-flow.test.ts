@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { failedJobRemedy, logEntries } from './agent-run'
 import { clock, fieldLabel, findingText, plainMessage, sellerFinding } from './format'
-import { applicableRules, claimFindings, dedupeFindings, currentFindings, fieldGate, findingGate, gateCounts, rollUpGates, ruleGate, type ErrorItem } from './gates'
+import { applicableRules, claimFindings, dedupeFindings, currentFindings, fieldGate, findingGate, gateCounts, issueFindings, rollUpGates, ruleGate, type ErrorItem } from './gates'
 import { mappingRows, payloadField } from './mapping'
 import { externalIdFromUrl, liveProof, maskId } from './proof'
-import { approveAllTargets, approveBlockers, editToContent, sendBackItem, titleLimitWarning, validateEdit, validateSendBack } from './review-model'
+import { answeredAfter, approveAllTargets, approveBlockers, editToContent, sendBackItem, titleLimitWarning, validateEdit, validateSendBack } from './review-model'
 import { runIsActive, runSteps } from './run-steps'
 import { contentAuthor, listingActions, type AuditEvent, type Listing, type Submission, type ValidationSummary } from '@/features/listings/model'
 
@@ -124,6 +124,57 @@ describe('gates', () => {
       expect(g.note).toBe(`Add at least one image. ${name} needs a main image.`)
     }
     expect(media({ imageCount: 0 }).note).toBe('Add at least one image. The marketplace needs a main image.')
+  })
+
+  it('folds the open blocking issues the server counts into the gates (prod demo 9 Nov)', () => {
+    // three failed stored photo checks: the header said "Needs your info · 3", Review "0 need you"
+    const photo = (code: string, over: Record<string, unknown> = {}) => ({
+      status: 'open' as const,
+      severity: 'error' as const,
+      listing_version_id: V1,
+      field_path: 'images[0]',
+      error_code: 'IMAGE_NON_COMPLIANT' as const,
+      error_class: 'media_error' as const,
+      source: 'vision_model' as const,
+      message: `image check failed: ${code}`,
+      plain_message: null,
+      marketplace_code: code,
+      auto_fixable: false,
+      ...over,
+    })
+    const rows = [
+      photo('BACKGROUND_OFF'),
+      photo('RESOLUTION_LOW', { listing_version_id: null }),
+      photo('WRONG_ASPECT'),
+      photo('OLD', { listing_version_id: V0 }), // an older version's row is history
+      photo('WARN', { severity: 'warning' }), // a warning never blocks
+      photo('SHUT', { status: 'resolved' }),
+    ]
+    const issues = issueFindings(rows as never, V1)
+    expect(issues.map((i) => i.raw_code)).toEqual(['BACKGROUND_OFF', 'RESOLUTION_LOW', 'WRONG_ASPECT'])
+    const g = media({ imageCount: 1, issues })
+    expect(g).toMatchObject({ state: 'blocked', note: '3 blocking issues' })
+    const gates = rollUpGates({ listing: baseListing, validation: validation([]), rules: null, preview: null, imageCount: 1, issues })
+    expect(gateCounts(gates).blocked).toBe(1)
+    // the same gap from the rules run and an issue counts once
+    const twice = rollUpGates({
+      listing: baseListing,
+      validation: validation([item({ field: 'images[0]', error_code: 'IMAGE_NON_COMPLIANT' })]),
+      rules: null,
+      preview: null,
+      issues: issueFindings([photo('X', { raw_code: undefined })] as never, V1),
+    })
+    expect(twice.find((x) => x.id === 'media')!.findings).toHaveLength(1)
+  })
+
+  it('offers Regenerate on Review for a fact answered after the version was written', () => {
+    const t = (over: Record<string, unknown>) => ({ kind: 'missing_fact' as const, product_id: 'p1', answered_at: '2026-11-09T10:00:00Z', ...over })
+    expect(answeredAfter([t({})], 'p1', '2026-11-09T09:00:00Z')).toBe(true)
+    expect(answeredAfter([t({})], 'p1', '2026-11-09T11:00:00Z')).toBe(false) // a newer version uses it
+    expect(answeredAfter([t({ product_id: 'p2' })], 'p1', '2026-11-09T09:00:00Z')).toBe(false)
+    expect(answeredAfter([t({ kind: 'image_replacement' })], 'p1', '2026-11-09T09:00:00Z')).toBe(false)
+    expect(answeredAfter([t({ answered_at: null })], 'p1', '2026-11-09T09:00:00Z')).toBe(false)
+    expect(answeredAfter([t({})], 'p1', null)).toBe(false)
   })
 
   it('passes media only on a vision check of the current version', () => {
