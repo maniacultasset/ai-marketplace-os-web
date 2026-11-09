@@ -15,6 +15,7 @@ import { BUSY_REFETCH_MS } from '@/features/listings/api'
 import { isBusy } from '@/features/listings/model'
 import { viewRefreshDelay } from '@/features/products/image-views'
 import { useKeys } from '@/lib/query-keys'
+import { useChipContext } from '@/features/listing-flow/publishing'
 import { buildCatalog, type Issue, type Listing, type Product } from './catalog-model'
 
 export const WALK_PAGE_SIZE = 200
@@ -115,9 +116,11 @@ export function useCatalog() {
     if (wasBusy.current && !busy) void refetchIssues()
     wasBusy.current = busy
   }, [busy, refetchIssues])
+  // Amazon publishing switched off: an approved Amazon listing reads "publishing paused", not "ready to list".
+  const { amazonPublishingPaused } = useChipContext()
   const rows = useMemo(
-    () => (products.data ? buildCatalog(products.data.rows, listings.data?.rows ?? [], issues.data?.rows ?? []) : []),
-    [products.data, listings.data, issues.data],
+    () => (products.data ? buildCatalog(products.data.rows, listings.data?.rows ?? [], issues.data?.rows ?? [], { amazonPublishingPaused }) : []),
+    [products.data, listings.data, issues.data, amazonPublishingPaused],
   )
   const variantCount = useMemo(
     () => (products.data ? products.data.rows.filter((p) => p.parent_product_id).length : 0),

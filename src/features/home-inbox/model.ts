@@ -126,6 +126,8 @@ export interface ListingsSnapshot {
   working: number
   approve: number
   publish: number
+  /** Of `publish`, the approved listings on Amazon (they wait while Amazon publishing is paused). */
+  publishAmazon: number
   problem: number
   byMarketplace: Record<Marketplace, MarketplaceTotals>
 }
@@ -142,6 +144,7 @@ export function summarizeListings(listings: readonly (Pick<Listing, 'status' | '
     working: 0,
     approve: 0,
     publish: 0,
+    publishAmazon: 0,
     problem: 0,
     byMarketplace: { amazon: emptyTotals(), flipkart: emptyTotals() },
   }
@@ -170,6 +173,7 @@ export function summarizeListings(listings: readonly (Pick<Listing, 'status' | '
         break
       case 'publish':
         s.publish++
+        if (l.marketplace === 'amazon') s.publishAmazon++
         break
       case 'problem':
         s.problem++
@@ -220,6 +224,24 @@ export function inProgressTile(s: ListingsSnapshot, cap: number): TileView {
   }
 }
 
+/**
+ * Approved listings a person can publish now, and the Amazon ones that wait while Amazon publishing
+ * is switched off (useAmazonPublishing). Those are not work: nobody can send them, so they are
+ * never "to publish". Amazon approvals also wait for the tenant read, so "ready to publish" is
+ * never said and then taken back.
+ */
+export function publishCounts(
+  s: Pick<ListingsSnapshot, 'publish' | 'publishAmazon'>,
+  amazon: { paused: boolean; known: boolean },
+  canPublish: boolean,
+): { publish: number; paused: number } {
+  const amazonOpen = amazon.known && !amazon.paused ? s.publishAmazon : 0
+  return { publish: canPublish ? s.publish - s.publishAmazon + amazonOpen : 0, paused: amazon.paused ? s.publishAmazon : 0 }
+}
+
+/** "2 listings approved · publishing paused". */
+export const pausedText = (n: number) => `${n} ${plural(n, 'listing')} approved · publishing paused`
+
 export interface NeedsYouParts {
   /** Open questions that hold a listing back. */
   tasks: Count
@@ -229,6 +251,8 @@ export interface NeedsYouParts {
   snapshotComplete: boolean
   /** Open photo questions: answering improves a listing, and none of them blocks one. */
   improve?: Count
+  /** Approved Amazon listings waiting while Amazon publishing is paused: said, never counted. */
+  paused?: number
 }
 
 /**
@@ -281,7 +305,8 @@ export function needsYouTile(p: NeedsYouParts, cap: number): TileView {
   const notes: string[] = []
   if (p.tasks.more || p.issues.more) notes.push('Only the first page of open questions and issues is counted.')
   if (!p.snapshotComplete) notes.push(SNAPSHOT_NOTE(cap))
-  return { value: fmtCount({ n, more }), caption: needsYouCaption(p), note: notes.join(' ') || undefined, aside: improveAside(p.improve) }
+  const aside = [improveAside(p.improve), p.paused ? `${pausedText(p.paused)}.` : undefined].filter(Boolean).join(' ')
+  return { value: fmtCount({ n, more }), caption: needsYouCaption(p), note: notes.join(' ') || undefined, aside: aside || undefined }
 }
 
 /* ---------------------------------------------------------------------------------------------- */

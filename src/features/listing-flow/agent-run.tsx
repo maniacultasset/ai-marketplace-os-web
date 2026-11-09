@@ -10,7 +10,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
-import { BUILT } from '@/api/capabilities'
 import { isApiError, isNotFound } from '@/api/errors'
 import { useIntentKey } from '@/api/idempotency'
 import type { JobEnvelope } from '@/api/types'
@@ -68,6 +67,7 @@ import { useProductListings } from './api'
 import { clock, mpName } from './format'
 import { ListOnButton } from './list-on'
 import { liveProof } from './proof'
+import { useChipContext, usePublishGate } from './publishing'
 import { runIsActive, runSteps } from './run-steps'
 import { ActionButton, CardSkeleton, HeadSkeleton, ScreenHead, stepTone, Timeline, TimelineItem, type DotTone } from './ui'
 import { STICKY_ASIDE } from '@/components/app/split-layout'
@@ -158,6 +158,9 @@ function RunBody({
   const cancel = useCancelJob()
   const cancelKey = useIntentKey()
   const subs = useListingSubmissions(listingId, listing?.status === 'published')
+  // Amazon publishing switched off: no Publish or retry, and an approved listing reads as paused.
+  const { paused: publishingPaused } = usePublishGate(listing?.marketplace ?? '')
+  const chipCtx = useChipContext()
 
   const validation = listing?.validation && listing.validation.listing_version_id === listing.current_version_id ? listing.validation : null
   // Same proof rule as the Live screen: the marketplace's word alone does not finish the run.
@@ -167,6 +170,7 @@ function RunBody({
     listing,
     validation: validation ? { blocking: validation.blocking_count, warnings: validation.warning_count } : null,
     liveConfirmed,
+    publishingPaused,
   }
   const steps = runSteps(runInput)
   const active = runIsActive(runInput)
@@ -188,7 +192,7 @@ function RunBody({
     )
 
   const p = product.data
-  const chip = active ? { status: 'working' as const, label: 'Working' } : listingChip(listing)
+  const chip = active ? { status: 'working' as const, label: 'Working' } : listingChip(listing, chipCtx)
   const jobFailed = job.status === 'failed' || job.status === 'dead_letter'
   const ready = !active && (listing.status === 'validated' || listing.status === 'needs_review')
   const sub = [
@@ -387,7 +391,8 @@ function FailedJobAction({
   const retryKey = useIntentKey()
   const publish = usePublishListings()
   const publishKey = useIntentKey()
-  const actions = listingActions({ listing, validation: listing.validation, can, publishBuilt: BUILT['listings.publish'] })
+  const { publishBuilt } = usePublishGate(listing.marketplace)
+  const actions = listingActions({ listing, validation: listing.validation, can, publishBuilt })
   const remedy = failedJobRemedy(job.kind, actions)
   const mp = mpName(listing.marketplace)
 
@@ -557,11 +562,12 @@ function Lanes({
   headerReview: boolean
 }) {
   const missing = SUPPORTED_MARKETPLACES.filter((m) => !listings.some((l) => l.marketplace === m.id))
+  const chipCtx = useChipContext()
   return (
     <ul className="m-0 mt-4 flex list-none flex-col p-0">
       {listings.map((l) => {
         const run = l.id === runListingId
-        const chip = run && active ? { status: 'working' as const, label: 'Working' } : listingChip(l)
+        const chip = run && active ? { status: 'working' as const, label: 'Working' } : listingChip(l, chipCtx)
         return (
           <li key={l.id} data-lane={l.marketplace} className={LANE_ROW}>
             <MarketplaceTile id={l.marketplace} />

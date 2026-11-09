@@ -62,9 +62,25 @@ export function needsYourInfoLabel(l: DisplayFields): string {
   return n > 0 ? `Needs your info · ${n}` : 'Needs your info'
 }
 
-export function listingChip(l: { status: ListingStatus; marketplace_state: MarketplaceState } & DisplayFields): ChipView {
+/** What every screen says about an approved Amazon listing while Amazon publishing is switched off. */
+export const APPROVED_PAUSED_LABEL = 'Approved · publishing paused'
+
+/** Deployment switches that change what a chip may promise (GET /tenants/me capabilities). */
+export interface ChipContext {
+  /** Amazon publishing is switched off: an approved Amazon listing waits, nobody can send it. */
+  amazonPublishingPaused?: boolean
+}
+
+type ChipInput = { status: ListingStatus; marketplace_state: MarketplaceState; marketplace?: string } & DisplayFields
+
+/** An approved Amazon listing that cannot be sent while Amazon publishing is off. */
+export const isApprovedPaused = (l: Pick<ChipInput, 'status' | 'marketplace'>, ctx?: ChipContext) =>
+  !!ctx?.amazonPublishingPaused && l.marketplace === 'amazon' && l.status === 'approved'
+
+export function listingChip(l: ChipInput, ctx?: ChipContext): ChipView {
   if (l.status === 'published') return BY_MARKETPLACE[l.marketplace_state]
   if (needsYourInfo(l)) return { status: 'needs-you', label: needsYourInfoLabel(l) }
+  if (isApprovedPaused(l, ctx)) return { status: 'paused', label: APPROVED_PAUSED_LABEL }
   return BY_STATUS[l.status]
 }
 

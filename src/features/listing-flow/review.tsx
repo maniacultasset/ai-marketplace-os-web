@@ -24,7 +24,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useLocation, useNavigate } from '@tanstack/react-router'
 import { useId, useState } from 'react'
-import { BUILT } from '@/api/capabilities'
 import { isApiError, isNotFound, isNotImplemented } from '@/api/errors'
 import { useIntentKey } from '@/api/idempotency'
 import { Page } from '@/components/app/page-header'
@@ -70,7 +69,7 @@ import { toast, toastError } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { STICKY_ASIDE } from '@/components/app/split-layout'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
-import { AMAZON_PUBLISHING_PAUSED_TEXT, useAmazonPublishing } from '@/features/brand/api'
+import { AMAZON_PUBLISHING_PAUSED_TEXT } from '@/features/brand/api'
 import { useApproverState } from '@/features/team-account/approver'
 import { ApproverNotice } from '@/features/team-account/approver-notice'
 import { AutoFixedChip, FixedForYouCard } from './auto-fix'
@@ -81,7 +80,7 @@ import { claimFindings, gateCounts, plural, type ErrorItem, type GateResult } fr
 import { answeredAfter } from './review-model'
 import { ListOnButton } from './list-on'
 import { useListingResolution } from './api'
-import { publishGate } from './publishing'
+import { useChipContext, usePublishGate } from './publishing'
 import { approveThenPublish, isResend, resendView, TEAMMATE_TEXT } from './resend'
 import { hasResolution, resolutionView } from './resolution-model'
 import { ResolutionActionLink, ResolutionCard } from './resolution-timeline'
@@ -189,7 +188,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   const mp = mpName(listing.marketplace)
   const product = checks.product.data
   // Amazon publishing switched off for this deployment: nothing here offers or promises a send.
-  const { paused: publishingPaused, publishBuilt } = publishGate(listing.marketplace, useAmazonPublishing(), BUILT['listings.publish'])
+  const { paused: publishingPaused, publishBuilt } = usePublishGate(listing.marketplace)
   const actions = listingActions({
     listing,
     validation: listing.validation,
@@ -226,7 +225,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   const resend = resendView({ resolution, listing, approve: approveShown, can, publishBuilt })
   // While publishing is paused an edit is saved as a plain new version: nothing is resent.
   const resendEdit = amazon && isResend(resolution) && !publishingPaused
-  const rview = resolution && hasResolution(resolution) ? resolutionView(resolution, { marketplace: listing.marketplace, marketplaceState: listing.marketplace_state, canAnswer: can('product:import') }) : null
+  const rview = resolution && hasResolution(resolution) ? resolutionView(resolution, { marketplace: listing.marketplace, marketplaceState: listing.marketplace_state, canAnswer: can('product:import'), publishingPaused }) : null
   // "Approve all" approves the other marketplaces' fixes too: read them, and name them in the footer.
   const others = allTargets.filter((l) => l.id !== listing.id)
   const otherFixes = useFixCounts(others)
@@ -711,12 +710,13 @@ function MarketplaceTabs({
   counts: ReturnType<typeof gateCounts>
   gatesKnown: boolean
 }) {
+  const chipCtx = useChipContext()
   const sorted = [...siblings].sort((a, b) => a.marketplace.localeCompare(b.marketplace))
   return (
     <nav aria-label="Marketplaces" className="mb-5 flex w-full gap-1 overflow-x-auto border-b border-line" data-testid="review-tabs">
       {sorted.map((l) => {
         const on = l.id === currentId
-        const chip = listingChip(l)
+        const chip = listingChip(l, chipCtx)
         return (
           <Link
             key={l.id}
