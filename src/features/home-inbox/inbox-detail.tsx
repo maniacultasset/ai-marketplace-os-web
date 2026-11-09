@@ -165,14 +165,14 @@ function nextLink(items: readonly InboxItem[], idx: number, search: InboxSearch,
 
 function Missing({ selectedKey, hasItems }: { selectedKey: string | undefined; hasItems: boolean }) {
   const parsed = parseItemKey(selectedKey)
+  // An empty Inbox is said once, in the list pane with its next step; this pane stays quiet.
+  if (!parsed && !hasItems) return null
   if (!parsed)
     return (
       <div className="flex flex-col items-center py-16 text-center" data-testid="inbox-detail-empty">
-        <IconTile icon={hasItems ? 'inbox' : 'check'} tone={hasItems ? 'brand' : 'ok'} size="lg" className="mb-4" />
-        <p className="font-display text-h2 text-ink">{hasItems ? 'Pick an item' : 'Nothing needs you'}</p>
-        <p className="mt-1 text-body text-ink-2">
-          {hasItems ? 'Choose a question or an issue on the left.' : 'The agent asks here when a fact is missing, and marketplace problems land here too.'}
-        </p>
+        <IconTile icon="inbox" tone="brand" size="lg" className="mb-4" />
+        <p className="font-display text-h2 text-ink">Pick an item</p>
+        <p className="mt-1 text-body text-ink-2">Choose a question or an issue on the left.</p>
       </div>
     )
   return (

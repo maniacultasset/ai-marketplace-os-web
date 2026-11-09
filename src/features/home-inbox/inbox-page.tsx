@@ -147,6 +147,17 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
                   ? 'No items with this status.'
                   : 'When the agent needs a fact or a marketplace refuses something, it appears here.'}
               </p>
+              <Button variant="secondary" size="sm" className="mt-4" asChild>
+                {filteredStatus ? (
+                  <Link to="/inbox" search={{ view: search.view }} data-testid="inbox-empty-action">
+                    Show open items
+                  </Link>
+                ) : (
+                  <Link to="/products" data-testid="inbox-empty-action">
+                    See your products
+                  </Link>
+                )}
+              </Button>
             </li>
           ) : (
             items.map((it) => (

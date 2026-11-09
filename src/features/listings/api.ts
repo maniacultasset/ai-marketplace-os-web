@@ -117,13 +117,17 @@ export function useListingSubmissions(listingId: string, enabled = true) {
   })
 }
 
-export function useListingPreview(listingId: string, enabled: boolean) {
-  const keys = useKeys()
-  return useQuery<MarketplacePreview>({
+/** What the adapter would send (no marketplace call), shared by Review and the product's Validation tab. */
+export function listingPreviewQuery(keys: QueryKeys, listingId: string) {
+  return queryOptions<MarketplacePreview>({
     queryKey: keys.listings.preview(listingId),
-    enabled,
     queryFn: () => unwrap(api.GET('/listings/{listing_id}/preview', { params: { path: { listing_id: listingId } } })),
   })
+}
+
+export function useListingPreview(listingId: string, enabled: boolean) {
+  const keys = useKeys()
+  return useQuery({ ...listingPreviewQuery(keys, listingId), enabled })
 }
 
 /* ---------------------------------------------------------------------------------------------- */
