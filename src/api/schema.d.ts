@@ -3640,7 +3640,8 @@ export interface components {
             current_version_id?: string | null;
             /**
              * Display State
-             * @description The state every screen shows, computed by the server. `needs_you`: open blocking issues on the current version (`needs_you_count` of them) keep a person from approving it, whatever `status` says. The other values follow `status` (validated is ready_to_approve, approved is ready_to_list, publishing is submitting, failed is error). A stale reviewable listing is checked again with today's rules on read.
+             * @description The state every screen shows, computed by the server. `needs_you`: open blocking issues on the current version (`needs_you_count` of them) keep a person from approving it, whatever `status` says. The other values follow `status` (validated is ready_to_approve, approved is ready_to_list, publishing is submitting, failed is error). A stale reviewable listing is checked again with today's rules on read. Always sent; an older payload without it reads as its status's value.
+             * @default draft
              * @enum {string}
              */
             display_state: "draft" | "working" | "needs_you" | "needs_review" | "ready_to_approve" | "ready_to_list" | "submitting" | "published" | "blocked" | "error";
@@ -3661,6 +3662,7 @@ export interface components {
             /**
              * Needs You Count
              * @description Open blocking issues on the current version (the seller's fixes).
+             * @default 0
              */
             needs_you_count: number;
             /**
@@ -3713,7 +3715,8 @@ export interface components {
             current_version_id?: string | null;
             /**
              * Display State
-             * @description The state every screen shows, computed by the server. `needs_you`: open blocking issues on the current version (`needs_you_count` of them) keep a person from approving it, whatever `status` says. The other values follow `status` (validated is ready_to_approve, approved is ready_to_list, publishing is submitting, failed is error). A stale reviewable listing is checked again with today's rules on read.
+             * @description The state every screen shows, computed by the server. `needs_you`: open blocking issues on the current version (`needs_you_count` of them) keep a person from approving it, whatever `status` says. The other values follow `status` (validated is ready_to_approve, approved is ready_to_list, publishing is submitting, failed is error). A stale reviewable listing is checked again with today's rules on read. Always sent; an older payload without it reads as its status's value.
+             * @default draft
              * @enum {string}
              */
             display_state: "draft" | "working" | "needs_you" | "needs_review" | "ready_to_approve" | "ready_to_list" | "submitting" | "published" | "blocked" | "error";
@@ -3734,6 +3737,7 @@ export interface components {
             /**
              * Needs You Count
              * @description Open blocking issues on the current version (the seller's fixes).
+             * @default 0
              */
             needs_you_count: number;
             /**
