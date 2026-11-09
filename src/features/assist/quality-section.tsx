@@ -1,7 +1,8 @@
 /**
  * SI14 listing quality on Listing reports: first-pass rate, blocked rate, edit rate at approval and
  * cost per listing for the chosen range. Platform admins also get the staff view across brands
- * (ids and counts only). Renders nothing on a backend that does not serve the quality read.
+ * (ids and counts only). Renders nothing until the quality read has answered once, so a backend
+ * that does not serve it shows no new block, not even a loading one.
  */
 import { useState } from 'react'
 import { isApiError } from '@/api/errors'
@@ -44,6 +45,9 @@ export function QualitySection({ range, className }: { range: DayRange; classNam
   const platformOk = staff && platform.isSuccess
   const q = scope === 'platform' && platformOk ? platform : brand
 
+  // Nothing shows until the backend has answered the quality read once: a backend without it (or a
+  // role it refuses) looks exactly as before, with no loading block or error card in between.
+  if (!brand.data && !platformOk) return null
   if (brand.isError && absent(brand.error) && !platformOk) return null
 
   return (

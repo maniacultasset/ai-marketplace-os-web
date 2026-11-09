@@ -6,6 +6,9 @@
  *   POST /imports/column-maps/{map_id}/confirm   {mappings:[{position, key|null}]}, from ready|failed
  *   POST /products/bulk  `column_map_id`          applies the confirmed map before the header check
  * A backend without these routes answers 404 or 405: the upload then works exactly as before.
+ * The routes have no switch of their own (only `COLUMN_MAP_AI_ENABLED` for the leftovers), so the
+ * review shows only when the backend asked Kuinn (`columnReviewOn`). With the switch off the upload
+ * keeps today's read-only table and name matching, and no `column_map_id` is sent.
  * Sample cells are never sent: the review needs only the headers.
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
@@ -32,6 +35,12 @@ export const METHOD_LABEL: Record<MapMethod, string> = {
 
 /** position -> chosen key; null means "don't import this column". */
 export type Answers = Readonly<Record<number, string | null>>
+
+/**
+ * Whether the column review is on: the create answered `mapping` (Kuinn maps the leftovers), or a
+ * column carries Kuinn's match. Neither happens while `COLUMN_MAP_AI_ENABLED` is off.
+ */
+export const columnReviewOn = (m: Pick<ColumnMap, 'status' | 'mappings'>) => m.status === 'mapping' || m.mappings.some((e) => e.method === 'ai')
 
 export const needsAnswer = (e: ColumnMapEntry) => e.needs_review || e.confidence < REVIEW_BELOW
 

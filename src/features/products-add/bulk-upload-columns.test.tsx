@@ -43,8 +43,13 @@ const map = {
     { position: 1, header_shown: 'seller_sku', key: 'seller_sku', method: 'exact', confidence: 1, needs_review: false },
     { position: 2, header_shown: 'product_name', key: 'product_name', method: 'exact', confidence: 1, needs_review: false },
     { position: 3, header_shown: 'category', key: 'category', method: 'exact', confidence: 1, needs_review: false },
-    { position: 4, header_shown: 'colour shade', key: 'color_name', method: 'fuzzy', confidence: 0.72, needs_review: true },
+    { position: 4, header_shown: 'colour shade', key: 'color_name', method: 'ai', confidence: 0.72, needs_review: true },
   ],
+}
+/** What the backend answers while `COLUMN_MAP_AI_ENABLED` is off: the leftover stays unmapped. */
+const plainMap = {
+  ...map,
+  mappings: [...map.mappings.slice(0, 3), { position: 4, header_shown: 'colour shade', key: null, method: 'none', confidence: 0, needs_review: true }],
 }
 
 const csv = () => new File(['seller_sku,product_name,category,colour shade\nKS-1,Kurta,ethnic_wear_kurta_sets,Red\nKS-2,Kurta,ethnic_wear_kurta_sets,Blue\n'], 'catalog.csv', { type: 'text/csv' })
@@ -90,7 +95,7 @@ describe('Bulk upload column review (SI14)', () => {
     expect(post.mock.calls[0]![1].body).toEqual({ headers: ['seller_sku', 'product_name', 'category', 'colour shade'] })
     const row = screen.getAllByTestId('column-map-row').find((r) => r.dataset.position === '4')!
     expect(row.dataset.review).toBe('true')
-    expect(row.textContent).toContain('Close match')
+    expect(row.textContent).toContain('Kuinn')
     expect(row.textContent).toContain('72%')
     expect(screen.getByTestId('column-map-summary').textContent).toBe('1 column needs your check before the rows are read.')
     const upload = screen.getByTestId('bulk-upload') as HTMLButtonElement
@@ -106,6 +111,16 @@ describe('Bulk upload column review (SI14)', () => {
     expect(confirm[1].body.mappings).toContainEqual({ position: 4, key: 'color_name' })
     const fd = post.mock.calls.find((c) => c[0] === '/products/bulk')![1].body as FormData
     expect(fd.get('column_map_id')).toBe(MAP)
+  }, 15_000)
+
+  it('keeps today’s read-only matching while Kuinn is not asked about the columns (switch off)', async () => {
+    post.mockImplementation((path: string) => (path === '/imports/column-maps' ? ok(plainMap, 201) : ok({ import_id: 'i1', job_id: 'j1', status: 'queued' }, 202)))
+    setup()
+    await chooseFile()
+    await waitFor(() => expect(post.mock.calls.some((c) => c[0] === '/imports/column-maps')).toBe(true))
+    await waitFor(() => expect((screen.getByTestId('bulk-upload') as HTMLButtonElement).textContent).toBe('Fix the columns first'))
+    expect(screen.queryByTestId('column-map-review')).toBeNull()
+    expect(screen.getByLabelText('Column matching')).toBeTruthy()
   })
 
   it('keeps today’s read-only matching against a backend without column maps', async () => {

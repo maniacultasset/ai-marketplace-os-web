@@ -9,8 +9,10 @@
  *
  * Column matching: with SI14 column maps (features/assist/column-map.ts) the backend matches each
  * header (exact, known name, close match, or Kuinn for leftovers) and the seller confirms every
- * match below 80% before the upload, which then carries `column_map_id`. A backend without column
- * maps keeps the read-only table of what the server will do with each column (./csv-header.ts).
+ * match below 80% before the upload, which then carries `column_map_id`. This shows only while the
+ * backend asks Kuinn for the leftovers (`columnReviewOn`); a backend without column maps, or with
+ * that switch off, keeps the read-only table of what the server will do with each column
+ * (./csv-header.ts).
  * XLSX is not accepted by the API: the dropzone takes .csv only.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -50,6 +52,7 @@ import { ListOnPicker, serializeListOn, useConnectedMarketplaces } from './list-
 import { NeedsPhotosCard } from './needs-photos-card'
 import { ColumnMapReview } from '@/features/assist/column-map-review'
 import {
+  columnReviewOn,
   confirmBody,
   duplicatePositions,
   mappableHeaders,
@@ -201,8 +204,13 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
     setAnalysis(next)
     const headers = next.columns.map((c) => c.raw)
     if (mappableHeaders(headers)) {
-      // A refusal (an older backend, a header it rejects) keeps the read-only table below.
-      createMap.mutate(headers, { onSuccess: (m) => setMapSeed(m) })
+      // A refusal (an older backend, a header it rejects), or a map Kuinn was not asked about (its
+      // switch off), keeps the read-only table below.
+      createMap.mutate(headers, {
+        onSuccess: (m) => {
+          if (columnReviewOn(m)) setMapSeed(m)
+        },
+      })
     }
   }
 
@@ -306,12 +314,6 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
               </div>
               {map ? (
                 <ColumnMapReview map={map} answers={answers} onAnswer={(position, key) => setAnswers((a) => ({ ...a, [position]: key }))} />
-              ) : analysis && createMap.isPending ? (
-                <div className="flex flex-col gap-2 border-t border-line px-4 py-4" aria-busy="true" aria-label="Matching columns">
-                  {analysis.columns.slice(0, 4).map((c) => (
-                    <Skeleton key={c.position} className="h-9 w-full" />
-                  ))}
-                </div>
               ) : analysis ? (
                 <ColumnTable analysis={analysis} />
               ) : (
