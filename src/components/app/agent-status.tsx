@@ -54,15 +54,13 @@ export function useAgentWork() {
   // Home already walks every listing: while that snapshot is fresh, the card reads it and makes
   // no calls of its own.
   const home = client.getQueryState<ListingsSnapshot>([...keys.listings.lists(), 'home-snapshot'])
-  const homeAge = home?.data ? Date.now() - home.dataUpdatedAt : Infinity
-  const homeFresh = homeAge < REFRESH_MS
-  // Look again when the snapshot turns stale, so the card's own reads take over on time.
-  const [, wake] = useState(0)
+  // A clock that moves every 15 s, so freshness is read from state, not from Date.now in render.
+  const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
-    if (!homeFresh) return
-    const t = setTimeout(() => wake((n) => n + 1), REFRESH_MS - homeAge + 50)
-    return () => clearTimeout(t)
-  }, [homeFresh, homeAge])
+    const t = setInterval(() => setNow(Date.now()), 15_000)
+    return () => clearInterval(t)
+  }, [])
+  const homeFresh = !!home?.data && now - home.dataUpdatedAt < REFRESH_MS
   const results = useQueries({
     queries: WORKING_STATUSES.map((status) => ({
       enabled: !homeFresh,

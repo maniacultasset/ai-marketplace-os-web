@@ -531,6 +531,8 @@ function ProductPicker({ listOn }: { listOn: Marketplace[] }) {
 
 const PREVIEW_ROWS = 4
 
+const DEFAULT_VARIANTS: VariantsState = { ...emptyVariants(), sizes: [...SIZE_SYSTEMS[0]!.sizes] }
+
 /** `listOn` is the p08 "List on" choice, carried through to the check-and-send step. */
 export function VariantsPage({ productId, listOn = [] }: { productId: string | null; listOn?: Marketplace[] }) {
   if (!productId) return <ProductPicker listOn={listOn} />
@@ -545,7 +547,8 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
   const imagesLive = useCapability('images')
   const history = useImportHistory()
   const intent = useIntentKey()
-  const [s, setS] = useState<VariantsState>(() => ({ ...emptyVariants(), sizes: [...SIZE_SYSTEMS[0]!.sizes] }))
+  /** The person's own matrix once they change anything; until then the saved one (or the default). */
+  const [own, setOwn] = useState<VariantsState | null>(null)
   const [showAll, setShowAll] = useState(false)
   /** Fields the person has left: their errors show from then on, re-checked on every change. */
   const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set())
@@ -556,15 +559,10 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
 
   const p = q.data
   const existingVariants = useMemo(() => (all.data?.rows ?? []).filter((x) => x.parent_product_id === productId), [all.data, productId])
-  // Reopened for a style that has variants: start from what was saved, once, before any edit.
-  const seeded = useRef(false)
-  const [edited, setEdited] = useState(false)
-  useEffect(() => {
-    if (seeded.current || !p || !all.data) return
-    seeded.current = true
-    const saved = seedFromVariants(p, existingVariants)
-    if (saved) setS(saved)
-  }, [p, all.data, existingVariants])
+  // Reopened for a style that has variants: start from what was saved, until the first edit.
+  const saved = useMemo(() => (p && all.data ? seedFromVariants(p, existingVariants) : null), [p, all.data, existingVariants])
+  const s = own ?? saved ?? DEFAULT_VARIANTS
+  const edited = own !== null
   const rows = useMemo(() => (p ? buildVariants(p.sku, s) : []), [p, s])
   const allErrors = useMemo(() => (p ? validateVariants(p.sku, s) : {}), [p, s])
   const errors = useMemo<VariantErrors>(() => {
@@ -598,8 +596,7 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
 
   const change = (next: Partial<VariantsState>) => {
     intent.reset()
-    setEdited(true)
-    setS((x) => ({ ...x, ...next }))
+    setOwn((x) => ({ ...(x ?? s), ...next }))
   }
   const setCommercial = (key: string, patch: Partial<Commercial>) =>
     change({ commercial: { ...s.commercial, [key]: { mrp: '', price: '', identifier: '', ...s.commercial[key], ...patch } } })

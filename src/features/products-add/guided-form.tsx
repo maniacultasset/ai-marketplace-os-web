@@ -214,7 +214,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
   /** Staging uploads in flight, awaited before the product is saved. */
   const staging = useRef(new Map<string, Promise<void>>())
   /** When a create in this session got no answer (status 0). Null: every create was answered. */
-  const lostCreateAt = useRef<number | null>(null)
+  const [lostCreateAt, setLostCreateAt] = useState<number | null>(null)
   // A pending focus move: it runs once the form is enabled again (focus() on a field inside the
   // disabled fieldset does nothing).
   const pendingFocus = useRef(false)
@@ -349,10 +349,10 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
   // product with the SKU is someone else's and gets "use a different SKU".
   const canContinue =
     !!conflict &&
-    lostCreateAt.current !== null &&
+    lostCreateAt !== null &&
     conflict.title === values.title.trim() &&
     conflict.category === values.category &&
-    Date.parse(conflict.created_at) >= lostCreateAt.current - 5_000
+    Date.parse(conflict.created_at) >= lostCreateAt - 5_000
 
   // SI12: what the ticked marketplaces need for this category, while it is empty.
   const requirements = useRequirements(values.category)
@@ -503,7 +503,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
       } else {
         // No answer (connection dropped): the create may have gone through. Only then can a later
         // SKU conflict be this session's own product.
-        if (isApiError(err) && err.status === 0) lostCreateAt.current ??= startedAt
+        if (isApiError(err) && err.status === 0) setLostCreateAt((t) => t ?? startedAt)
         setFormError(err)
       }
       return null
