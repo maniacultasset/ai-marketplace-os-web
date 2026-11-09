@@ -705,13 +705,16 @@ function ImageRow({
             {report.isPending && live && !slot ? (
               <Skeleton className="my-0.5 h-4 w-24" />
             ) : (
-              <p className="truncate text-sm font-medium" data-testid="image-title">
+              <p className="truncate text-sm font-medium" data-testid="image-title" title={storageKey ?? imageId}>
                 {title}
               </p>
             )}
-            <p className="truncate font-mono text-xs text-muted-foreground" title={storageKey ?? imageId}>
-              {imageId}
-            </p>
+            {/* The file name while it is this visit's upload; the internal id stays in the tooltip only. */}
+            {upload ? (
+              <p className="truncate text-xs text-muted-foreground" title={storageKey ?? imageId}>
+                {upload.file.name}
+              </p>
+            ) : null}
             {badges ? <div className="mt-1.5 flex flex-wrap gap-1.5">{badges}</div> : null}
           </div>
           <div className="flex shrink-0 items-center gap-2">
