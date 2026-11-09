@@ -59,13 +59,13 @@ function ShellPending() {
   return (
     <div
       className={cn(
-        'grid min-h-svh grid-cols-1 bg-canvas',
+        'grid min-h-svh grid-cols-1 bg-canvas md:h-[calc(100svh-var(--banner-h,0px))] md:min-h-0 md:overflow-hidden',
         collapsed ? 'md:grid-cols-[72px_minmax(0,1fr)]' : 'md:grid-cols-[232px_minmax(0,1fr)]',
       )}
       aria-busy="true"
       aria-label="Loading Kuinn"
     >
-      <div className="sticky top-0 hidden h-svh flex-col gap-0.5 border-r border-line bg-canvas px-3 py-4 md:flex">
+      <div className="hidden min-h-0 flex-col gap-0.5 border-r border-line bg-canvas px-3 py-4 md:flex">
         <div
           className={cn(
             'mb-3.5 flex items-center gap-2.5 px-1.5 font-display text-[15px] font-bold text-ink',

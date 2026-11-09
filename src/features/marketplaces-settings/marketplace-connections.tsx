@@ -24,6 +24,7 @@ import { AccountStatusBadge, NotConnectedBadge } from '@/features/marketplaces/s
 import { useNow } from '@/features/marketplaces/use-now'
 import { useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
+import { STICKY_ASIDE } from '@/components/app/split-layout'
 import { connectionFor, defaultSelection, SUPPORTED, WAITLIST, type Connection } from './model'
 import { useStartConnect } from './use-start-connect'
 
@@ -76,7 +77,7 @@ export function MarketplaceConnections({
       <section
         aria-labelledby={showHeading ? 'where-heading' : undefined}
         aria-label={showHeading ? undefined : 'Marketplace accounts'}
-        className="flex flex-col gap-2.5"
+        className={cn('flex flex-col gap-2.5', STICKY_ASIDE)}
       >
         {showHeading ? (
           <div className="mb-0.5">
@@ -125,7 +126,8 @@ export function MarketplaceConnections({
         ) : null}
       </section>
 
-      <div ref={detailRef} className="scroll-mt-20">
+      {/* Both sides stay in view; whichever is taller than the screen scrolls inside itself. */}
+      <div ref={detailRef} className={cn('min-w-0 scroll-mt-20 md:scroll-mt-4', STICKY_ASIDE)}>
         {current.data ? (
           <ConnectionDetail
             key={selected}

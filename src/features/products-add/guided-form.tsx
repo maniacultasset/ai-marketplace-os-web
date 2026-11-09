@@ -34,6 +34,7 @@ import {
   TagChip,
   fieldHintId,
 } from '@/components/la'
+import { ScrollPane, SplitLayout } from '@/components/app/split-layout'
 import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -579,8 +580,12 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
   const sendLabel = busy === 'send' && phaseLabel ? phaseLabel : listOn.length && !aiPaused ? 'Send to agent now' : 'Save product'
 
   // Phones: the section list scrolls sideways; keep the current one in view. 'nearest' never moves the page.
+  // Desktop: the form pane scrolls on its own; a new section starts at its top.
+  const firstSection = useRef(true)
   useEffect(() => {
     navRef.current?.querySelector<HTMLElement>('[aria-current="step"]')?.scrollIntoView?.({ inline: 'nearest', block: 'nearest' })
+    if (firstSection.current) firstSection.current = false
+    else bodyRef.current?.scrollTo?.({ top: 0 })
   }, [section])
 
   const attrField = (f: AttrField) =>
@@ -879,9 +884,11 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
   })()
 
   return (
-    <div className="flex min-h-[calc(100svh-56px)] flex-col">
-      <div className="grid flex-1 grid-cols-1 content-start lg:grid-cols-[190px_minmax(0,1fr)_290px] lg:content-stretch">
-        <nav aria-label="Sections" className="border-b border-line bg-canvas px-3.5 py-4 lg:border-r lg:border-b-0 lg:py-6">
+    // From 1024px the sections list, the form and the summary scroll on their own above the pinned
+    // footer, so the short columns never scroll away with a long section.
+    <SplitLayout className="flex min-h-[calc(100svh-56px)] flex-col lg:min-h-0">
+      <div className="grid flex-1 grid-cols-1 content-start lg:min-h-0 lg:grid-cols-[190px_minmax(0,1fr)_290px] lg:content-stretch">
+        <ScrollPane as="nav" scrollId="guided-sections" aria-label="Sections" className="border-b border-line bg-canvas px-3.5 py-4 lg:border-r lg:border-b-0 lg:py-6">
           <h2 className="mb-2 px-2.5 font-display text-h3 text-ink">Sections</h2>
           <ul ref={navRef} className="relative flex gap-0.5 overflow-x-auto lg:flex-col">
             {SECTIONS.map((s) => (
@@ -901,9 +908,16 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               </li>
             ))}
           </ul>
-        </nav>
+        </ScrollPane>
 
-        <section ref={bodyRef} aria-labelledby="g-heading" className="flex min-w-0 flex-col gap-5 px-4 py-6 md:px-7">
+        <ScrollPane
+          as="section"
+          ref={bodyRef}
+          scrollId="guided-form"
+          resetOnNavigate
+          aria-labelledby="g-heading"
+          className="flex flex-col gap-5 px-4 py-6 md:px-7"
+        >
           <div className="min-w-0">
             <h1 id="g-heading" className="truncate font-display text-h1 text-ink">
               {values.title.trim() || 'New product'}
@@ -980,10 +994,10 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               {body}
             </fieldset>
           </div>
-        </section>
+        </ScrollPane>
 
-        <aside aria-labelledby="g-summary" className="border-t border-line bg-canvas px-4 py-6 lg:border-t-0 lg:border-l">
-          <div className="flex flex-col gap-3 lg:sticky lg:top-[calc(var(--topbar-h)+16px)]">
+        <ScrollPane as="aside" scrollId="guided-summary" aria-labelledby="g-summary" className="border-t border-line bg-canvas px-4 py-6 lg:border-t-0 lg:border-l">
+          <div className="flex flex-col gap-3">
             <h2 id="g-summary" className="font-display text-h3 text-ink">
               Before you save
             </h2>
@@ -1050,7 +1064,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               </p>
             </LaCard>
           </div>
-        </aside>
+        </ScrollPane>
       </div>
 
       <FooterBar
@@ -1090,7 +1104,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
           {sendLabel}
         </Button>
       </FooterBar>
-    </div>
+    </SplitLayout>
   )
 }
 

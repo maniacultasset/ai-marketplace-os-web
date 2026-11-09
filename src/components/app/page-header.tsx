@@ -9,6 +9,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
 import { cn } from '@/lib/utils'
+import { STICKY_ASIDE } from './split-layout'
 
 export interface Crumb {
   label: string
@@ -85,7 +86,8 @@ export function Page({ children, className }: { children: ReactNode; className?:
 
 /**
  * Two-column page body at lg: the main column (forms, detail content) and a side column
- * (summary, help, related records from real data). The aside sticks below the top bar.
+ * (summary, help, related records from real data). The aside stays at the top of the page's scroll
+ * container while the main column scrolls (it scrolls inside itself when taller than the screen).
  * Below lg the aside stacks under the main column (or above it with `asideFirst`).
  *
  *   <PageColumns aside={<SummaryCard … />}>
@@ -115,7 +117,7 @@ export function PageColumns({
   return (
     <div className={cn('grid items-start gap-5 lg:gap-6', cols, className)}>
       <div className={cn('flex min-w-0 flex-col gap-5', asideFirst && 'order-2 lg:order-1')}>{children}</div>
-      <aside className={cn('flex min-w-0 flex-col gap-4 lg:sticky lg:top-[calc(5rem+var(--banner-h,0px))]', asideFirst && 'order-1 lg:order-2')}>
+      <aside className={cn('flex min-w-0 flex-col gap-4', STICKY_ASIDE, asideFirst && 'order-1 lg:order-2')}>
         {aside}
       </aside>
     </div>
@@ -123,7 +125,8 @@ export function PageColumns({
 }
 
 /**
- * Bottom action bar for long forms: sticks to the viewport bottom while the form scrolls, so the
+ * Bottom action bar for long forms: sticks to the bottom of its scroll container (the window on a
+ * phone, <main> or the split pane on desktop) while the form scrolls, so the
  * primary action is always reachable. Put it as the last child of the form.
  */
 export function StickyActions({ children, className }: { children: ReactNode; className?: string }) {

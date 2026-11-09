@@ -40,6 +40,7 @@ import { rememberConnectOrigin } from '@/features/marketplaces-settings/use-star
 import { useCan } from '@/lib/permissions'
 import { toastError } from '@/lib/toast'
 import { cn } from '@/lib/utils'
+import { STICKY_ASIDE } from '@/components/app/split-layout'
 import { activeAccounts } from './model'
 import { SetupBody, SetupFooter } from './setup-frame'
 
@@ -62,7 +63,7 @@ export function MarketplacesStep() {
     <>
       <SetupBody step={2}>
         <div className="grid items-start gap-6 lg:grid-cols-[400px_minmax(0,1fr)]">
-          <div className="flex min-w-0 flex-col gap-2.5">
+          <div className={cn('flex min-w-0 flex-col gap-2.5', STICKY_ASIDE)}>
             <div>
               <h2 className="text-h2 text-ink">Where do you sell?</h2>
               <p className="mt-1 text-small text-ink-2">Connect one to start. Add the rest any time.</p>

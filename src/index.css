@@ -432,6 +432,13 @@
   html:has([data-slot='footer-bar']) {
     scroll-padding-bottom: calc(6rem + env(safe-area-inset-bottom));
   }
+  /* From 768px the shell's <main> and the split panes are the scroll containers: same rule there. */
+  @media (width >= 48rem) {
+    #main:has([data-slot='footer-bar']),
+    [data-slot='scroll-pane']:has([data-slot='footer-bar']) {
+      scroll-padding-bottom: 6rem;
+    }
+  }
   body {
     @apply bg-canvas text-body text-ink;
     caret-color: var(--brand);

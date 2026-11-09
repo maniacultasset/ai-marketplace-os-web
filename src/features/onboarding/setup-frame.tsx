@@ -14,6 +14,7 @@ import { Stepper } from '@/components/la/progress'
 import { useBrandProfile } from '@/features/brand/api'
 import { useBrandManufacturer } from '@/features/products/api'
 import { cn } from '@/lib/utils'
+import { STICKY_ASIDE, STICKY_ASIDE_XL } from '@/components/app/split-layout'
 import { SETUP_STEPS, setupStepsDone } from './model'
 
 export function SetupBody({ step, children }: { step: 0 | 1 | 2; children: ReactNode }) {
@@ -31,11 +32,22 @@ export function SetupBody({ step, children }: { step: 0 | 1 | 2; children: React
 }
 
 /** Form card + 340px context column (02, 03). Stacks below 1024px. */
-export function SetupColumns({ main, aside, className }: { main: ReactNode; aside: ReactNode; className?: string }) {
+export function SetupColumns({
+  main,
+  aside,
+  className,
+  asideFrom = 'lg',
+}: {
+  main: ReactNode
+  aside: ReactNode
+  className?: string
+  /** The breakpoint from which the aside sits beside the form (and stays in place while it scrolls). */
+  asideFrom?: 'lg' | 'xl'
+}) {
   return (
     <div className={cn('grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]', className)}>
       <div className="min-w-0">{main}</div>
-      <aside className="flex min-w-0 flex-col gap-4">{aside}</aside>
+      <aside className={cn('flex min-w-0 flex-col gap-4', asideFrom === 'xl' ? STICKY_ASIDE_XL : STICKY_ASIDE)}>{aside}</aside>
     </div>
   )
 }

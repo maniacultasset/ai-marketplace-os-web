@@ -13,6 +13,8 @@ import { RolesLegend } from '@/features/team-account/roles-legend'
 import { useMembersList } from '@/features/team-account/use-members'
 import { tenantName, useMe } from '@/lib/auth'
 import { useCan } from '@/lib/permissions'
+import { cn } from '@/lib/utils'
+import { STICKY_ASIDE_2XL } from '@/components/app/split-layout'
 
 /** `?invite=1` opens "Invite a teammate" (the approver notice and Home link here). */
 const searchSchema = z.object({ invite: z.coerce.number().int().optional().catch(undefined) })
@@ -52,7 +54,9 @@ function TeamPage() {
             <MembersTable />
             <PendingInvites list={invites} />
           </div>
-          <RolesLegend className="2xl:mt-7" />
+          <div className={cn('min-w-0', STICKY_ASIDE_2XL, '2xl:mt-5')}>
+            <RolesLegend />
+          </div>
         </div>
         <InviteDialog open={open} onClose={() => setOpen(false)} members={members.rows} pending={invites.rows} />
       </RequireAction>

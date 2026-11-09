@@ -45,7 +45,7 @@ export function FixedForYouCard({
     )
   if (!shown) return null
   return (
-    <LaCard pad="none" ref={ref} id={FIXED_FOR_YOU_HASH} className="scroll-mt-20" data-testid="fixed-for-you">
+    <LaCard pad="none" ref={ref} id={FIXED_FOR_YOU_HASH} className="scroll-mt-20 md:scroll-mt-4" data-testid="fixed-for-you">
       <button
         ref={toggleRef}
         type="button"

@@ -10,6 +10,7 @@
 import { Link } from '@tanstack/react-router'
 import { formatDistanceToNowStrict } from 'date-fns'
 import { useCallback, useState } from 'react'
+import { ScrollPane, SplitLayout } from '@/components/app/split-layout'
 import { IconTile } from '@/components/la/icons'
 import { Segmented } from '@/components/la/tabs'
 import { ErrorState } from '@/components/states'
@@ -88,8 +89,12 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
   const filteredStatus = (view === 'questions' && statuses.task !== 'open') || (view === 'issues' && statuses.issue !== 'open')
 
   return (
-    <div className="grid min-h-[calc(100svh-var(--topbar-h))] grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)]">
-      <section
+    // Each side scrolls on its own: picking a row keeps the list where it is, and the detail starts
+    // at its top for each new item.
+    <SplitLayout className="min-h-[calc(100svh-var(--topbar-h))] lg:min-h-0 lg:grid-cols-[340px_minmax(0,1fr)]">
+      <ScrollPane
+        as="section"
+        scrollId="inbox-list"
         aria-label="Inbox items"
         className={cn('flex min-w-0 flex-col gap-3 border-line bg-canvas px-4 py-5 lg:border-r', search.item && 'max-lg:hidden')}
         data-testid="inbox-list"
@@ -169,9 +174,16 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
             {lists.some((l) => l.isFetchingNextPage) ? 'Loading…' : 'Load more'}
           </Button>
         ) : null}
-      </section>
+      </ScrollPane>
 
-      <section aria-label="Selected item" className={cn('min-w-0 bg-canvas', !search.item && 'max-lg:hidden')} data-testid="inbox-detail">
+      <ScrollPane
+        as="section"
+        scrollId="inbox-detail"
+        resetOnNavigate
+        aria-label="Selected item"
+        className={cn('bg-canvas', !search.item && 'max-lg:hidden')}
+        data-testid="inbox-detail"
+      >
         <InboxDetail
           selectedKey={selectedKey}
           items={items}
@@ -184,8 +196,8 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
           outcomes={outcomes}
           onOutcome={onOutcome}
         />
-      </section>
-    </div>
+      </ScrollPane>
+    </SplitLayout>
   )
 }
 
