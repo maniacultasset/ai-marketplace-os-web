@@ -71,7 +71,7 @@ import { ApproverNotice } from '@/features/team-account/approver-notice'
 import { AutoFixedChip, FixedForYouCard } from './auto-fix'
 import { autoFixTrail, FIXED_FOR_YOU_HASH, siblingFixes, versionRef } from './auto-fix-model'
 import { EditDialog, SendBackDialog } from './dialogs'
-import { clock, fieldLabel, mpName } from './format'
+import { clock, fieldLabel, mpName, plainMessage } from './format'
 import { claimFindings, gateCounts, plural, type ErrorItem, type GateResult } from './gates'
 import { ListOnButton } from './list-on'
 import { useListingResolution } from './api'
@@ -807,7 +807,7 @@ function ReadsAs({
           <span className="flex min-w-0 flex-1 items-start gap-2">
             <Icon name="alert" size={16} className="mt-0.5 shrink-0" aria-hidden />
             <span className="min-w-0 break-words">
-              <b>{plural(mappingErrors.length, 'mapping problem')}:</b> {mappingErrors[0]!.message}
+              <b>{plural(mappingErrors.length, 'mapping problem')}:</b> {plainMessage(mappingErrors[0]!.message)}
             </span>
           </span>
           <Button size="sm" variant="ghost" asChild>

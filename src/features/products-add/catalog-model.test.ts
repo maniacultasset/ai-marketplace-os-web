@@ -27,6 +27,8 @@ function listing(productId: string, l: Partial<Listing> = {}): Listing {
     product_id: productId,
     marketplace: 'amazon',
     status: 'created',
+    display_state: 'draft',
+    needs_you_count: 0,
     marketplace_state: 'not_submitted',
     created_at: T0,
     updated_at: T0,
@@ -38,6 +40,12 @@ const issue = (listingId: string, status: Issue['status'] = 'open') => ({ id: id
 
 describe('overallStatus', () => {
   it('is draft with no listings', () => expect(overallStatus([])).toBe('draft'))
+  it('is Needs you, never Awaiting approval, while the server reports open blocking issues', () => {
+    const p = product()
+    const stale = listing(p.id, { status: 'validated', display_state: 'needs_you', needs_you_count: 6 })
+    expect(overallStatus([stale])).toBe('needs-you')
+    expect(overallStatus([{ ...stale, display_state: 'ready_to_approve', needs_you_count: 0 }])).toBe('ready')
+  })
   it('error wins over live', () => {
     expect(overallStatus([listing('p', { status: 'failed' }), listing('p', { marketplace: 'flipkart', status: 'published', marketplace_state: 'live' })])).toBe('error')
   })

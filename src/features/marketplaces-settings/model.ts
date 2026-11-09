@@ -3,6 +3,7 @@
  * every rule is unit tested (model.test.ts).
  */
 import type { MarketplaceId } from '@/components/la/marketplace'
+import { ROADMAP } from '@/components/la/roadmap'
 import { NOT_YET } from '@/components/la/unavailable'
 import type { CurrentAccounts, Marketplace, MarketplaceAccount } from '@/features/marketplaces/api'
 
@@ -51,8 +52,8 @@ export function isTokenExpired(account: MarketplaceAccount | null, now: number):
 
 /**
  * Unsupported marketplaces in the order p04 lists them. Myntra and Meesho show "Connect" in the
- * design; in v1 none of the four is in the API, so every one is a disabled "Join waitlist" with
- * the reason (DESIGN.md "Not in the API yet").
+ * design; in v1 none of the four is in the API, so every one reads "On the roadmap" with one
+ * disabled "Join waitlist" (la/unavailable `ROADMAP`, the landing page's wording; prod QA 9 Nov).
  */
 export interface WaitlistRow {
   id: Exclude<MarketplaceId, Marketplace>
@@ -61,12 +62,11 @@ export interface WaitlistRow {
   reason: string
 }
 
-export const WAITLIST: readonly WaitlistRow[] = [
-  { id: 'myntra', note: 'Not supported yet', reason: NOT_YET.waitlist },
-  { id: 'ajio', note: 'API access needed', reason: NOT_YET.waitlist },
-  { id: 'meesho', note: 'Not supported yet', reason: NOT_YET.waitlist },
-  { id: 'nykaa', note: 'API access needed', reason: NOT_YET.waitlist },
-]
+export const WAITLIST: readonly WaitlistRow[] = (['myntra', 'ajio', 'meesho', 'nykaa'] as const).map((id) => ({
+  id,
+  note: ROADMAP.label,
+  reason: ROADMAP.reason,
+}))
 
 /** Hi-fi 19 "The agent may fix these on its own": planned scope only, none of it runs in v1. */
 export const AUTO_FIX_SCOPE: readonly string[] = [

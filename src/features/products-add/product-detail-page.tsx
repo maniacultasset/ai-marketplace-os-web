@@ -26,11 +26,11 @@ import {
   LaCard,
   MARKETPLACES,
   MarketplaceName,
-  NOT_YET,
+  RoadmapChip,
   StatusChip,
   TagChip,
-  UnavailableButton,
   VariantCell,
+  WaitlistButton,
   type MarketplaceInfo,
 } from '@/components/la'
 import { EmptyState } from '@/components/states/empty-state'
@@ -47,7 +47,7 @@ import { AutoFixedChip } from '@/features/listing-flow/auto-fix'
 import { listingDetailQuery, useListingHistory } from '@/features/listings/api'
 import { recallJob } from '@/features/listings/job-memory'
 import { historyLabel, isBusy } from '@/features/listings/model'
-import { draftClosedReason, draftOpen } from '@/features/marketplaces/meta'
+import { comingSoon, comingSoonReason, draftOpen } from '@/features/marketplaces/meta'
 import { useProduct, type ProductDetail } from '@/features/products/api'
 import { RelativeTime } from '@/features/products/format'
 import { Can, OP_ACTION, useCan } from '@/lib/permissions'
@@ -582,19 +582,11 @@ export function MoreMarketplaces() {
         {UNSUPPORTED.map((m) => (
           <li key={m.id} className="flex min-h-11 items-center justify-between gap-3 border-b border-line py-1.5 last:border-b-0 md:[&:nth-last-child(2):nth-child(odd)]:border-b-0">
             <MarketplaceName id={m.id} size="xs" className="gap-2 text-small" />
-            {m.id === 'meesho' ? (
-              // On the roadmap (client input, 8 Nov): the same "Coming soon" as the Sell on list.
-              <span className="flex shrink-0 items-center" data-testid="more-marketplaces-soon-meesho">
-                <ComingSoon />
-              </span>
-            ) : (
-              <span className="flex shrink-0 items-center gap-3">
-                <StatusChip status="not-listed">Not available</StatusChip>
-                <UnavailableButton variant="link" size="xs" reason={NOT_YET.waitlist}>
-                  Join waitlist
-                </UnavailableButton>
-              </span>
-            )}
+            {/* One wording for all four, as on the landing page (prod QA 9 Nov, item 4). */}
+            <span className="flex shrink-0 items-center gap-3" data-testid={`more-marketplaces-${m.id}`}>
+              <RoadmapChip />
+              <WaitlistButton variant="link" size="xs" name={m.name} />
+            </span>
           </li>
         ))}
       </ul>
@@ -644,6 +636,20 @@ function MarketplaceCard({
   // Chip, issues and actions land together.
   if (data.listingsPending || data.issuesState === 'pending' || data.autoFixPending) return <PendingMarketplaceCard m={m} detailed={detailed} />
   const l = data.listings[id]
+  // Publishing is not open there yet (Flipkart): say so, with no List action (prod QA 9 Nov, item 3).
+  if (!l && connected !== null && comingSoon(id, connected)) {
+    return (
+      <DashedCard pad="sm" className={CARD_FRAME} data-testid={`marketplace-card-${id}`}>
+        <div className="flex items-center justify-between gap-2">
+          <MarketplaceName id={m.id} />
+          <ComingSoon />
+        </div>
+        <p className="mt-3 text-small text-ink-2" data-testid={`coming-soon-${id}`}>
+          {comingSoonReason(id)}
+        </p>
+      </DashedCard>
+    )
+  }
   if (!l) {
     return (
       <DashedCard pad="sm" className={CARD_FRAME}>
@@ -660,15 +666,11 @@ function MarketplaceCard({
               <Button variant="secondary" size="sm" onClick={() => onList(id)} data-testid={`list-on-${id}`}>
                 List on {m.name}
               </Button>
-            ) : connected === null ? (
+            ) : (
               // Accounts still loading: same button, held, so the card never changes size.
               <Button variant="secondary" size="sm" disabled data-testid={`list-on-${id}`}>
                 List on {m.name}
               </Button>
-            ) : (
-              <UnavailableButton variant="secondary" size="sm" reason={draftClosedReason(id)} data-testid={`list-on-${id}`}>
-                List on {m.name}
-              </UnavailableButton>
             )}
           </div>
         ) : null}

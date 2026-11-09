@@ -76,7 +76,7 @@ describe('marketplace lists', () => {
     expect([...SUPPORTED, ...WAITLIST.map((w) => w.id)].sort()).toEqual([...designed].sort())
   })
   it('every waitlist row carries the honest reason, never an action', () => {
-    for (const w of WAITLIST) expect(w.reason).toBe(NOT_YET.waitlist)
+    for (const w of WAITLIST) expect([w.note, w.reason]).toEqual(['On the roadmap', NOT_YET.waitlist])
   })
 })
 

@@ -73,14 +73,14 @@ test.describe('home', () => {
     }
   })
 
-  test('unsupported marketplaces are honest: Not available, waitlist disabled', async ({ page }) => {
+  test('unsupported marketplaces are honest: On the roadmap, waitlist disabled', async ({ page }) => {
     const { access_token } = await apiLogin(page.request, USERS.acme.owner)
     const l = await page.request.get('/api/v1/listings?limit=1', { headers: auth(access_token) })
     test.skip(((await l.json()) as PageBody<unknown>).data.length === 0, 'first run: no marketplace row')
     await loginAs(page, USERS.acme.owner, '/home')
     for (const id of ['myntra', 'ajio']) {
       const card = page.getByTestId(`home-mp-${id}`)
-      await expect(card).toContainText('Not available')
+      await expect(card).toContainText('On the roadmap')
       await expect(card.getByRole('button', { name: 'Join waitlist' })).toHaveAttribute('aria-disabled', 'true')
     }
   })

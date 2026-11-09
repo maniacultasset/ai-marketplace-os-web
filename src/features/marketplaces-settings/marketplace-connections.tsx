@@ -2,7 +2,8 @@
  * Hi-fi 04 "Connect marketplaces" body: the marketplace list on the left (400px, rows 68, gap 10)
  * and the selected marketplace's detail card on the right. Amazon and Flipkart are real
  * (GET /marketplaces/accounts, POST /marketplaces/connect, POST /marketplaces/accounts/{id}/revoke);
- * the other four are honest disabled "Join waitlist" rows. Reused by /setup/marketplaces.
+ * Flipkart reads "Coming soon" with no Connect while publishing there is not open; the other four
+ * read "On the roadmap" with one disabled "Join waitlist". Reused by /setup/marketplaces.
  */
 import { useRef, useState, type ReactNode } from 'react'
 import { Banner } from '@/components/la/banner'
@@ -11,7 +12,7 @@ import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { Icon, IconGlyph } from '@/components/la/icons'
 import { MarketplaceTile, marketplaceInfo } from '@/components/la/marketplace'
 import { StatusChip } from '@/components/la/status-chip'
-import { ComingSoon, NOT_YET, UnavailableButton, UnavailableHint } from '@/components/la/unavailable'
+import { ComingSoon, NOT_YET, UnavailableButton, UnavailableHint, WaitlistButton } from '@/components/la/unavailable'
 import { ErrorState } from '@/components/states/error-state'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -19,7 +20,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCurrentMarketplaceAccounts, type Marketplace, type MarketplaceAccount } from '@/features/marketplaces/api'
 import { formatDateTime, formatRelative, isPast } from '@/features/marketplaces/format'
-import { MARKETPLACE_META } from '@/features/marketplaces/meta'
+import { comingSoon, comingSoonReason, MARKETPLACE_META } from '@/features/marketplaces/meta'
 import { RevokeDialog } from '@/features/marketplaces/revoke-dialog'
 import { AccountStatusBadge, NotConnectedBadge } from '@/features/marketplaces/status-badge'
 import { useNow } from '@/features/marketplaces/use-now'
@@ -115,9 +116,7 @@ export function MarketplaceConnections({
                   <span className="block text-caption text-ink-3">{w.note}</span>
                 </span>
               </span>
-              <UnavailableButton variant="secondary" size="sm" reason={w.reason} aria-label={`Join waitlist for ${marketplaceInfo(w.id).name}`}>
-                Join waitlist
-              </UnavailableButton>
+              <WaitlistButton variant="secondary" size="sm" name={marketplaceInfo(w.id).name} />
             </li>
           ))}
         </ul>
@@ -159,6 +158,7 @@ function SupportedRow({
 }) {
   const { marketplace, kind, account } = connection
   const m = MARKETPLACE_META[marketplace]
+  const soon = !account && comingSoon(marketplace, [])
   return (
     <li
       data-testid={`marketplace-card-${marketplace}`}
@@ -189,7 +189,12 @@ function SupportedRow({
         </span>
       </span>
       <span className="relative z-10 flex shrink-0 items-center">
-        {kind === 'not-connected' && canConnect && !connector.notConfigured ? (
+        {soon ? (
+          // Publishing there is not open yet: no Connect (prod QA 9 Nov, item 10).
+          <span data-testid={`coming-soon-${marketplace}`}>
+            <ComingSoon />
+          </span>
+        ) : kind === 'not-connected' && canConnect && !connector.notConfigured ? (
           <Button size="sm" onClick={connector.start} disabled={connector.redirecting} aria-label={`Connect ${m.short}`}>
             {connector.redirecting ? <Spinner data-icon="inline-start" /> : null}
             {connector.redirecting ? 'Redirecting…' : 'Connect'}
@@ -274,7 +279,11 @@ function ConnectionDetail({ connection, canConnect, connector }: { connection: C
         </Banner>
       ) : null}
 
-      {connector.notConfigured ? (
+      {!account && comingSoon(marketplace, []) ? (
+        <Banner tone="neutral" title="Coming soon" icon="clock">
+          <span data-testid="coming-soon-detail">{comingSoonReason(marketplace)}</span>
+        </Banner>
+      ) : connector.notConfigured ? (
         <Banner tone="neutral" title="Coming soon" icon="alert">
           <span data-testid="not-configured">
             Connecting {m.short} is coming soon. {m.short} drafts open once it is connected.
@@ -338,13 +347,13 @@ function ConnectionDetail({ connection, canConnect, connector }: { connection: C
               The last connection (seller <span className="font-semibold text-ink">{previous.seller_id}</span>) was revoked.
             </p>
           ) : null}
-          <p>
+          {comingSoon(marketplace, []) ? null : <p>
             {canConnect
               ? connector.notConfigured
                 ? `Connecting ${m.short} becomes possible once it is configured on this server.`
                 : `Select Connect, approve access on ${m.short}, and you come back here. Approved listings can then be published to ${m.short}.`
               : `An owner or admin can connect ${m.short}.`}
-          </p>
+          </p>}
         </div>
       )}
 

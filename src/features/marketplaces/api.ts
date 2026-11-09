@@ -2,9 +2,9 @@
  * Marketplace accounts API hooks.
  * Every mutation that changes accounts invalidates `keys.marketplaceAccounts.list()`.
  */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type InfiniteData, type QueryClient, type QueryKey } from '@tanstack/react-query'
 import { api, unwrap } from '@/api/client'
-import type { Schema } from '@/api/types'
+import type { Page, Schema } from '@/api/types'
 import { PAGE_SIZE, useCursorList } from '@/hooks/use-cursor-list'
 import { useKeys } from '@/lib/query-keys'
 
@@ -44,6 +44,7 @@ export interface CurrentAccounts {
  */
 export function useCurrentMarketplaceAccounts() {
   const keys = useKeys()
+  const qc = useQueryClient()
   return useQuery({
     queryKey: [...keys.marketplaceAccounts.list(), 'current'] as const,
     queryFn: async (): Promise<CurrentAccounts> => {
@@ -54,6 +55,10 @@ export function useCurrentMarketplaceAccounts() {
         const page = await unwrap(
           api.GET('/marketplaces/accounts', { params: { query: { limit: CURRENT_PAGE_SIZE, cursor } } }),
         )
+        // The same first page (newest first) is the History table's first page: hand it over, so
+        // the table never waits on its own copy of this request (prod QA 9 Nov, item 12). A table
+        // that already has rows keeps them; its own answer still replaces this one when it lands.
+        if (cursor === undefined) seedHistory(qc, keys.marketplaceAccounts.list(), page)
         for (const a of page.data) {
           if (a.status === 'revoked') previous[a.marketplace] ??= a
           else live[a.marketplace] ??= a
@@ -64,6 +69,10 @@ export function useCurrentMarketplaceAccounts() {
       return { live, previous }
     },
   })
+}
+
+function seedHistory(qc: QueryClient, key: QueryKey, page: Page<MarketplaceAccount>) {
+  qc.setQueryData<InfiniteData<Page<MarketplaceAccount>, string | undefined>>(key, (old) => old ?? { pages: [page], pageParams: [undefined] })
 }
 
 /** POST /marketplaces/connect -> { authorize_url }. The caller navigates the browser there. */

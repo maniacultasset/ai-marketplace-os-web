@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { failedJobRemedy, logEntries } from './agent-run'
-import { clock, fieldLabel } from './format'
+import { clock, fieldLabel, plainMessage } from './format'
 import { applicableRules, claimFindings, currentFindings, fieldGate, findingGate, gateCounts, rollUpGates, ruleGate, type ErrorItem } from './gates'
 import { mappingRows, payloadField } from './mapping'
 import { externalIdFromUrl, liveProof, maskId } from './proof'
@@ -482,5 +482,14 @@ describe('failed job remedy', () => {
     expect(failedJobRemedy('listing_publish', acts({ publish: on }))).toBe('publish')
     expect(failedJobRemedy('listing_publish', acts())).toBe('status')
     expect(failedJobRemedy('listing_status_sync', acts({ publish: on }))).toBe('status')
+  })
+})
+
+describe('plainMessage', () => {
+  it('names raw field keys in the product form words (prod QA 9 Nov)', () => {
+    expect(plainMessage('country_of_origin is required')).toBe('Country of origin is required')
+    expect(plainMessage('attributes.selling_price must be at most mrp')).toBe('Selling price must be at most mrp')
+    expect(plainMessage('fit_type is missing')).toBe('Fit type is missing')
+    expect(plainMessage('The title is too long.')).toBe('The title is too long.')
   })
 })

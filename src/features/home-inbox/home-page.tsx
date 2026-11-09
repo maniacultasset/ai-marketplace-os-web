@@ -14,7 +14,7 @@ import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { Icon, IconGlyph, IconTile } from '@/components/la/icons'
 import { MARKETPLACES, MarketplaceTile, type MarketplaceId } from '@/components/la/marketplace'
 import { StatusChip } from '@/components/la/status-chip'
-import { NOT_YET, UnavailableButton } from '@/components/la/unavailable'
+import { RoadmapChip, WaitlistButton } from '@/components/la/unavailable'
 import { ErrorState } from '@/components/states'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -23,6 +23,7 @@ import { useBrandName } from '@/features/brand/api'
 import { useIssuesList, useTasksList } from '@/features/inbox/api'
 import { MARKETPLACE_LABEL } from '@/features/inbox/model'
 import { useCurrentMarketplaceAccounts } from '@/features/marketplaces/api'
+import { comingSoon, comingSoonReason } from '@/features/marketplaces/meta'
 import { useMe } from '@/lib/auth'
 import { useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
@@ -307,7 +308,8 @@ function MarketplaceRow({ snapshot }: { snapshot: ListingsSnapshot }) {
       {SUPPORTED_CARDS.map((m) => {
         if (accounts.isPending) return <MarketplaceCardSkeleton key={m} />
         const account = accounts.data?.live[m] ?? null
-        const view = accounts.isError ? null : marketplaceCard(account, snapshot.byMarketplace[m], snapshot.complete)
+        const soon = comingSoon(m, account ? [m] : []) ? { reason: comingSoonReason(m) } : null
+        const view = accounts.isError ? null : marketplaceCard(account, snapshot.byMarketplace[m], snapshot.complete, soon)
         return (
           // Solid once anything is live on it; dashed only while nothing is listed and nothing to fix.
           <LaCard
@@ -381,15 +383,13 @@ function UnsupportedMarketplaces() {
               {MARKETPLACES.find((x) => x.id === id)?.name ?? id}
             </span>
             <span className="ml-auto flex items-center gap-2">
-              <StatusChip status="not-listed">Not available</StatusChip>
-              <UnavailableButton
-                reason={NOT_YET.waitlist}
+              <RoadmapChip />
+              <WaitlistButton
+                name={MARKETPLACES.find((x) => x.id === id)?.name ?? id}
                 variant="link"
                 size="xs"
                 className="h-auto px-0 text-caption font-medium text-ink-3 no-underline aria-disabled:opacity-100"
-              >
-                Join waitlist
-              </UnavailableButton>
+              />
             </span>
           </li>
         ))}

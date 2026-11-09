@@ -35,6 +35,7 @@ import { RelativeTime } from '@/features/products/format'
 import { Can, useCan } from '@/lib/permissions'
 import { AI_PAUSED_REASON } from '@/features/ai-credit/model'
 import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
+import { needsYourInfo } from '@/lib/listing-chip'
 import { cn } from '@/lib/utils'
 import { AddMarketplaceDialog } from './add-marketplace-dialog'
 import { useCatalog, type LoadState } from './catalog'
@@ -46,7 +47,6 @@ import {
   filterCatalog,
   humanizeSlug,
   OVERALL_CHIP,
-  shortId,
   type Bucket,
   type CatalogRow,
   type Marketplace,
@@ -115,7 +115,10 @@ function MarketCell({ row, id, className }: { row: CatalogRow; id: MarketplaceId
   if (state === 'error') return <Unknown what={`${info.name} status`} className={className} />
   const listing = row.listings[id as Marketplace]
   const chip = cellChip(listing)
-  const sub = listing ? (chip.status === 'needs-you' ? 'task' : shortId(listing.id)) : undefined
+  // No listing id here (prod QA 9 Nov: "5B028E•" under the icon read as noise). Only the count of
+  // blocking fixes, which the chip's tooltip spells out.
+  const fixes = listing && needsYourInfo(listing) ? (listing.needs_you_count ?? 0) : 0
+  const sub = fixes > 0 ? `${fixes} to fix` : undefined
   return (
     <Link
       to="/products/$productId"

@@ -1,3 +1,4 @@
+import { NEED_FIELDS } from '@/features/products/needs'
 import { attrLabel } from './mapping'
 
 /** Times as the hi-fi writes them: "10:42" today, "14 Oct, 10:42" otherwise. Local time. */
@@ -49,4 +50,18 @@ export function fieldLabel(path: string | null | undefined): string {
   if (term) return `Search term ${Number(term[1]) + 1}`
   if (p.startsWith('attributes.')) return attrLabel(p.slice('attributes.'.length))
   return attrLabel(p.replace(/\[(\d+)\]/g, ' $1'))
+}
+
+/** The seller fact keys in the words the product form uses ("country_of_origin" → "Country of origin"). */
+const PLAIN_KEY: Readonly<Record<string, string>> = Object.fromEntries(
+  NEED_FIELDS.flatMap((f) => [[f.id, f.label] as const, ...f.keys.map((k) => [k, f.label] as const)]),
+)
+
+/**
+ * A mapping or check message with its raw field keys in plain words (prod QA 9 Nov: "6 mapping
+ * problems: country_of_origin is required"): a snake_case key, bare or under `attributes.`, takes
+ * the product form's label, else attrLabel's. Other words are left as they are.
+ */
+export function plainMessage(message: string): string {
+  return message.replace(/\b(?:attributes\.)?([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\b/g, (_, key: string) => PLAIN_KEY[key] ?? attrLabel(key))
 }

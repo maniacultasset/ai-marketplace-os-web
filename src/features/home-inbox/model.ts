@@ -52,18 +52,21 @@ export function plural(n: number, one: string, many = `${one}s`) {
  *   partly     marketplace_state partially_live
  *   working    the agent or the marketplace is busy: generating, publishing, or sent and waiting
  *              on the marketplace (processing, pending_review, not yet confirmed)
- *   approve    validated or needs_review: maker-checker, a person must approve
+ *   approve    validated or needs_review: maker-checker, a person must approve (not while the
+ *              server's display state is needs_you: open blocking issues come first)
  *   publish    approved: a person must press publish (listing:publish)
  *   problem    blocked, failed, or rejected by the marketplace (shown through Inbox issues)
  *   idle       created (not generated yet), inactive or removed
  */
 export type ListingBucket = 'live' | 'partly' | 'working' | 'approve' | 'publish' | 'problem' | 'idle'
 
-export function listingBucket(l: Pick<Listing, 'status' | 'marketplace_state'>): ListingBucket {
+export function listingBucket(l: Pick<Listing, 'status' | 'marketplace_state'> & Partial<Pick<Listing, 'display_state'>>): ListingBucket {
   const ms = l.marketplace_state
   if (ms === 'live') return 'live'
   if (ms === 'partially_live') return 'partly'
   if (ms === 'rejected') return 'problem'
+  // Open blocking issues: nothing to approve yet. The issues themselves are counted (Inbox).
+  if (l.display_state === 'needs_you' && l.status !== 'published') return 'problem'
   switch (l.status) {
     case 'generating':
     case 'publishing':
@@ -109,7 +112,7 @@ export interface ListingsSnapshot {
 
 const emptyTotals = (): MarketplaceTotals => ({ listings: 0, live: 0, partly: 0, working: 0, problem: 0 })
 
-export function summarizeListings(listings: readonly Pick<Listing, 'status' | 'marketplace_state' | 'marketplace' | 'product_id'>[], complete: boolean): ListingsSnapshot {
+export function summarizeListings(listings: readonly (Pick<Listing, 'status' | 'marketplace_state' | 'marketplace' | 'product_id'> & Partial<Pick<Listing, 'display_state'>>)[], complete: boolean): ListingsSnapshot {
   const s: ListingsSnapshot = {
     total: listings.length,
     complete,
@@ -266,8 +269,18 @@ export function currentAccount(accounts: readonly Account[], m: Marketplace): Ac
   return accounts.find((a) => a.marketplace === m && a.status !== 'revoked') ?? null
 }
 
-export function marketplaceCard(account: Pick<Account, 'status'> | null, t: MarketplaceTotals, complete: boolean): MarketplaceCardView {
+/**
+ * `soon`: publishing to this marketplace is not open yet (marketplaces/meta `comingSoon`), so a
+ * brand with no account there sees "Coming soon" and no connect link (prod QA 9 Nov, item 3).
+ */
+export function marketplaceCard(
+  account: Pick<Account, 'status'> | null,
+  t: MarketplaceTotals,
+  complete: boolean,
+  soon: { reason: string } | null = null,
+): MarketplaceCardView {
   const plus = complete ? '' : '+'
+  if (!account && soon && !t.live) return { chip: { status: 'not-listed', label: 'Coming soon' }, sub: soon.reason, action: null }
   if (!account) {
     if (t.live) return { chip: { status: 'live', label: `${t.live}${plus} live` }, sub: 'Account disconnected. Connect to keep listing.', action: 'connect' }
     return { chip: { status: 'not-listed', label: 'Not connected' }, sub: 'Connect to list here', action: 'connect' }
