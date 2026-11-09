@@ -28,7 +28,7 @@ const base: ProductDetail = {
   category: 'kurtas',
   created_at: 'x',
   identifier_exemption: false,
-  brand_name_inherited: false, size_chart_read_enabled: false,
+  brand_name_inherited: false, size_chart_read_enabled: false, category_suggest_enabled: false,
   updated_at: 'x',
   attributes: { neckline: 'v-neck', fit: 'slim fit', pattern: 'solid' },
   attribute_literals: {},

@@ -10,7 +10,10 @@ import { StatusChip } from '@/components/la/status-chip'
 import { UnavailableButton } from '@/components/la/unavailable'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ErrorState } from '@/components/states/error-state'
+import { CategorySuggestionCard } from '@/features/assist/category-suggestion-card'
 import { DismissIssueButton } from '@/features/inbox/dismiss-issue'
+import { useProduct } from '@/features/products/api'
 import { RegenerateListings } from '@/features/listings/regenerate-action'
 import { useListing } from '@/features/listings/api'
 import { useListingResolution } from '@/features/listing-flow/api'
@@ -282,7 +285,9 @@ function TaskDetail({
                 : 'Fix the photo to improve your listing.'
               : account
               ? ''
-              : identifier
+              : task.kind === 'category_review'
+                ? 'Drafts can start once the category is chosen.'
+                : identifier
                 ? 'This holds your listing back. Regenerate the listing after you add it.'
                 : fact && refusal
                   ? 'Kuinn adds your answer to a new version and checks it. A teammate then approves the resend.'
@@ -308,6 +313,8 @@ function TaskDetail({
         <ReconnectTask task={task} remaining={remaining} />
       ) : open && isAccountReviewTask(task) ? (
         <AccountTask task={task} kind={task.kind} remaining={remaining} />
+      ) : open && task.kind === 'category_review' ? (
+        <CategoryReviewTask task={task} remaining={remaining} />
       ) : open && identifier ? (
         <IdentifierTask task={task} remaining={remaining} />
       ) : open && task.kind === 'image_replacement' && task.product_id ? (
@@ -445,6 +452,33 @@ function IdentifierTask({ task, remaining }: { task: Task; remaining: number }) 
  * account. It closes by itself when the same seller reconnects on Marketplaces, or is cancelled
  * when the account is revoked. Answering in the Inbox does nothing for it, so no answer controls.
  */
+/**
+ * SI14 `category_review`: Kuinn was not confident about a product's category. The seller confirms a
+ * candidate or picks another right here; saving the category closes the task on the server.
+ */
+function CategoryReviewTask({ task, remaining }: { task: Task; remaining: number }) {
+  const product = useProduct(task.product_id)
+  return (
+    <>
+      {product.isPending ? (
+        <Skeleton className="h-48 rounded-card" data-testid="category-review-loading" />
+      ) : product.data && product.data.category === null && product.data.category_suggest_enabled ? (
+        <CategorySuggestionCard product={product.data} />
+      ) : product.data ? (
+        <Banner tone="neutral" role="status">
+          {product.data.category
+            ? 'This product has a category now. Nothing else is needed here.'
+            : 'Choose the category on the product page.'}
+        </Banner>
+      ) : product.error ? (
+        <ErrorState error={product.error} compact onRetry={() => void product.refetch()} />
+      ) : null}
+      <TaskLinks task={task} photoFixes={false} />
+      {remaining > 0 ? <p className="text-center text-small text-ink-3 lg:hidden">{remaining} more after this</p> : null}
+    </>
+  )
+}
+
 function ReconnectTask({ task, remaining }: { task: Task; remaining: number }) {
   const can = useCan()
   const allowed = can('marketplace:connect')

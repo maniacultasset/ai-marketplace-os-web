@@ -287,3 +287,55 @@ describe('ProductImagesCard saved photos (after a reload)', () => {
     expect(within(front).getByTestId('photo-slot-image').querySelector('img')?.getAttribute('src')).toBe(VIEW1)
   })
 })
+
+describe('ProductImagesCard photo QA warnings (SI14)', () => {
+  const REPORT = '/images/{image_id}/report'
+  const reportFor = (qa: boolean) => ({
+    image_id: I1,
+    compliance_status: 'passed' as const,
+    reports: {
+      amazon: {
+        image_id: I1,
+        marketplace: 'amazon' as const,
+        slot: 'main' as const,
+        pass: true,
+        processed_at: '2026-11-09T10:00:00Z',
+        checks: [
+          { check: 'format' as const, method: 'deterministic' as const, passed: true },
+          ...(qa
+            ? [
+                { check: 'text_overlay' as const, method: 'deterministic' as const, passed: false },
+                { check: 'fill_ratio' as const, method: 'deterministic' as const, passed: false },
+              ]
+            : []),
+        ],
+        issues: qa ? [{ code: 'FILL_RATIO_LOW' as const, check: 'fill_ratio' as const, suggestion: 'Zoom or crop so the product fills the frame' }] : [],
+      },
+      flipkart: null,
+    },
+  })
+  const single = { ...product, colourways: [], images: [`${T}/${P}/images/${I1}`], image_details: [product.image_details[0]!] }
+
+  beforeEach(() => {
+    live = true
+  })
+
+  it('shows calm chips on the row and the Front tile while photo QA reports warnings, and still says Checked', async () => {
+    answers.set(REPORT, () => ok(reportFor(true)))
+    setup(single)
+    const chips = await screen.findAllByTestId('photo-qa')
+    expect(chips.length).toBe(2)
+    for (const c of chips) expect(within(c).getAllByRole('listitem').map((li) => li.dataset.check)).toEqual(['text_overlay', 'fill_ratio'])
+    expect(within(screen.getByTestId('photo-slot-front')).getByText('Checked')).toBeTruthy()
+    expect(within(screen.getByTestId('photo-slot-front')).getByText('Low fill')).toBeTruthy()
+    // A warning, never a block: no alert role on the chips.
+    expect(within(chips[0]!).queryByRole('alert')).toBeNull()
+  })
+
+  it('shows nothing new while photo QA is off', async () => {
+    answers.set(REPORT, () => ok(reportFor(false)))
+    setup(single)
+    await waitFor(() => expect(screen.getByTestId('image-row').dataset.compliance).toBe('passed'))
+    expect(screen.queryByTestId('photo-qa')).toBeNull()
+  })
+})

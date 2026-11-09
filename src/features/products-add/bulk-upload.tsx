@@ -7,8 +7,12 @@
  *   POST /listings/generate per imported style/standalone x marketplace        → "Send N to the agent"
  * The import itself never starts generation (backend: T67), so sending is a separate, explicit step.
  *
- * Column matching: the API matches by header name only (no mapping endpoint), so the detected
- * columns are shown read-only with what the server will do with each (./csv-header.ts).
+ * Column matching: with SI14 column maps (features/assist/column-map.ts) the backend matches each
+ * header (exact, known name, close match, or Kuinn for leftovers) and the seller confirms every
+ * match below 80% before the upload, which then carries `column_map_id`. This shows only while the
+ * backend asks Kuinn for the leftovers (`columnReviewOn`); a backend without column maps, or with
+ * that switch off, keeps the read-only table of what the server will do with each column
+ * (./csv-header.ts).
  * XLSX is not accepted by the API: the dropzone takes .csv only.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -33,6 +37,7 @@ import { sentenceCase } from '@/features/listing-flow/format'
 import { useImportHistory } from '@/features/imports/history'
 import { useImportReport } from '@/features/imports/import-report'
 import { markJobLive, useImportJob } from '@/features/imports/use-import-job'
+import { useLampsEnabled } from '@/features/assist/flags'
 import { CategoryCodes } from '@/features/products/category-select'
 import { useCan } from '@/lib/permissions'
 import { AI_PAUSED_REASON } from '@/features/ai-credit/model'
@@ -45,6 +50,19 @@ import { analyzeCsv, MATCH_COPY, type ColumnMatch, type HeaderAnalysis } from '.
 import { generateMany, planGenerate, type ItemOutcome } from './generate'
 import { ListOnPicker, serializeListOn, useConnectedMarketplaces } from './list-on'
 import { NeedsPhotosCard } from './needs-photos-card'
+import { ColumnMapReview } from '@/features/assist/column-map-review'
+import {
+  columnReviewOn,
+  confirmBody,
+  duplicatePositions,
+  mappableHeaders,
+  unanswered,
+  useColumnMap,
+  useConfirmColumnMap,
+  useCreateColumnMap,
+  type Answers,
+  type ColumnMap,
+} from '@/features/assist/column-map'
 
 type ImportRow = Schema<'ImportRowResult'>
 
@@ -117,14 +135,33 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
   const [file, setFile] = useState<File | null>(null)
   const [analysis, setAnalysis] = useState<HeaderAnalysis | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
-  const products = useAllProducts()
-  const brandCategories = products.data ? products.data.rows.map((p) => p.category) : products.isError ? [] : null
+  const lamps = useLampsEnabled()
+
+  // SI14 column review: the backend matches the headers and the seller checks the weak matches.
+  // `null` until a map exists; a backend without column maps leaves the old read-only table.
+  const createMap = useCreateColumnMap()
+  const [mapSeed, setMapSeed] = useState<ColumnMap | null>(null)
+  const mapQ = useColumnMap(mapSeed)
+  const map = mapSeed ? (mapQ.data ?? mapSeed) : null
+  const [answers, setAnswers] = useState<Answers>({})
+  const confirmMap = useConfirmColumnMap()
+  const confirmIntent = useIntentKey()
+  const mapWaiting = map ? map.status === 'mapping' || unanswered(map, answers).length > 0 || duplicatePositions(map, answers).size > 0 : false
 
   const upload = useMutation({
     meta: { toast: false },
-    mutationFn: (f: File) => {
+    mutationFn: async (f: File) => {
+      let mapId: string | null = null
+      if (map) {
+        const confirmed =
+          map.status === 'confirmed' ? map : await confirmMap.mutateAsync({ id: map.id, body: confirmBody(map, answers), key: confirmIntent.get() })
+        confirmIntent.reset()
+        setMapSeed(confirmed)
+        mapId = confirmed.id
+      }
       const fd = new FormData()
       fd.append('file', f, f.name)
+      if (mapId) fd.append('column_map_id', mapId)
       return unwrap(api.POST('/products/bulk', { params: { header: idempotencyHeader(intent.get()) }, body: fd as never }))
     },
     onSuccess: (res, f) => {
@@ -142,10 +179,13 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
 
   const pick = async (f: File | null, rejected?: FileRejection) => {
     intent.reset()
+    confirmIntent.reset()
     upload.reset()
     setProblem(null)
     setAnalysis(null)
     setFile(null)
+    setMapSeed(null)
+    setAnswers({})
     if (rejected) {
       setProblem(rejected.errors[0]?.code === 'file-invalid-type' ? 'Choose a .csv file. Excel files are not accepted yet: save as CSV first.' : 'Upload one file at a time.')
       return
@@ -154,10 +194,23 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
     if (f.size === 0) return setProblem('The file is empty.')
     if (f.size > MAX_FILE_BYTES) return setProblem(`The file is larger than 10 MB (${formatBytes(f.size)}).`)
     setFile(f)
+    let next: HeaderAnalysis
     try {
-      setAnalysis(analyzeCsv(await f.text()))
+      next = analyzeCsv(await f.text())
     } catch {
       setProblem('This file could not be read as text.')
+      return
+    }
+    setAnalysis(next)
+    const headers = next.columns.map((c) => c.raw)
+    if (mappableHeaders(headers)) {
+      // A refusal (an older backend, a header it rejects), or a map Kuinn was not asked about (its
+      // switch off), keeps the read-only table below.
+      createMap.mutate(headers, {
+        onSuccess: (m) => {
+          if (columnReviewOn(m)) setMapSeed(m)
+        },
+      })
     }
   }
 
@@ -201,7 +254,7 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
               </p>
               <h3 className="mt-4 text-small font-bold text-ink">Category column</h3>
               <p className="mt-1 text-small text-ink-2">Use one of these codes. Rows with any other category fail.</p>
-              <CategoryCodes className="mt-2" brandCategories={brandCategories} />
+              <CategoryCodes className="mt-2" lampsEnabled={lamps.pending ? null : lamps.enabled} />
             </LaCard>
             <LaCard emphasis="tint">
               <CardHead title="How columns are matched" icon={CONCEPT_ICON.columns} />
@@ -250,9 +303,18 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
             </LaCard>
             <LaCard pad="none" className="overflow-hidden">
               <div className="p-4">
-                <CardHead title="Column matching" sub="What the import will do with each column. Matching is by name; it can’t be changed here." />
+                <CardHead
+                  title="Column matching"
+                  sub={
+                    map
+                      ? 'How each of your columns was matched. Check any match below 80% before the rows are read.'
+                      : 'What the import will do with each column. Matching is by name; it can’t be changed here.'
+                  }
+                />
               </div>
-              {analysis ? (
+              {map ? (
+                <ColumnMapReview map={map} answers={answers} onAnswer={(position, key) => setAnswers((a) => ({ ...a, [position]: key }))} />
+              ) : analysis ? (
                 <ColumnTable analysis={analysis} />
               ) : (
                 <p className="border-t border-line px-4 py-6 text-small text-ink-2">Choose a file to see its columns.</p>
@@ -289,7 +351,13 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
           </Banner>
         ) : null}
 
-        {serverErr ? (
+        {confirmMap.error && !upload.isPending ? (
+          <Banner tone="danger" role="alert" className="mt-4" title="The columns could not be confirmed">
+            {isApiError(confirmMap.error) && confirmMap.error.type === 'IMPORT_FAILED'
+              ? (confirmMap.error.errorReport?.errors ?? []).map((e) => e.message).join('; ') || confirmMap.error.message
+              : describeError(confirmMap.error)}
+          </Banner>
+        ) : serverErr ? (
           <Banner tone="danger" role="alert" className="mt-4" title="The file was refused">
             <p>
               {serverErr.type === 'IMPORT_FAILED'
@@ -325,12 +393,20 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
           </Button>
         ) : (
           <Button
-            disabled={!file || !analysis || analysis.refused || tooMany || empty || upload.isPending}
+            disabled={!file || !analysis || (map ? mapWaiting : analysis.refused || createMap.isPending) || tooMany || empty || upload.isPending}
             onClick={() => file && upload.mutate(file)}
             data-testid="bulk-upload"
           >
             {upload.isPending ? <Spinner data-icon="inline-start" /> : null}
-            {analysis?.refused ? 'Fix the columns first' : empty ? 'No product rows' : analysis ? `Upload ${rowsLabel(analysis.rows)}` : 'Upload'}
+            {map && mapWaiting
+              ? 'Check the columns first'
+              : !map && analysis?.refused
+                ? 'Fix the columns first'
+                : empty
+                  ? 'No product rows'
+                  : analysis
+                    ? `Upload ${rowsLabel(analysis.rows)}`
+                    : 'Upload'}
           </Button>
         )}
       </FooterBar>

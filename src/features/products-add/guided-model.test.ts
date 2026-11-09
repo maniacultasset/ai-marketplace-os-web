@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { emptySizeRow } from '@/features/products/intake-model'
-import { emptyGuided, errorOrder, mapCreateErrors, missingCritical, reviveGuided, sectionStates, toProductCreate, validateGuided } from './guided-model'
+import { emptyGuided, errorOrder, isEmptyGuided, mapCreateErrors, missingCritical, reviveGuided, sectionStates, toProductCreate, validateGuided } from './guided-model'
 
 const filled = () => ({ ...emptyGuided(), sku: 'FSH-TEE-001', title: 'Relaxed Cotton Tee', category: 'tshirts' })
 
@@ -75,6 +75,18 @@ describe('guided form', () => {
     expect(validateGuided({ ...filled(), category: 'kurtas' }).category).toMatch(/Choose a category from the list/)
     expect(validateGuided({ ...filled(), category: 'ethnic_wear_kurta_sets' }).category).toBeUndefined()
     expect(validateGuided({ ...filled(), category: 'home_decor_lamps' }).category).toBeUndefined()
+  })
+
+  it('lets the seller skip the category only when Kuinn suggests it (SI14)', () => {
+    expect(validateGuided({ ...filled(), category: '', kuinnSuggests: true }).category).toBeUndefined()
+    expect(validateGuided({ ...filled(), category: '', kuinnSuggests: false }).category).toBe('Choose a category.')
+    // Skipped: the create leaves the category out, so the backend classifies the product.
+    expect('category' in toProductCreate({ ...filled(), category: '', kuinnSuggests: true })).toBe(false)
+    // Switch off (the form clears kuinnSuggests): the body is exactly as before.
+    expect(toProductCreate({ ...filled(), category: 'tshirts' }).category).toBe('tshirts')
+    expect(isEmptyGuided({ ...emptyGuided(), kuinnSuggests: true })).toBe(false)
+    expect(reviveGuided({ kuinnSuggests: true }).kuinnSuggests).toBe(true)
+    expect(reviveGuided({}).kuinnSuggests).toBe(false)
   })
 
   it('accepts real product names with digits, symbols and any script', () => {

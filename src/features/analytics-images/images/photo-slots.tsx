@@ -10,7 +10,7 @@ import { SavedPhoto } from '@/components/la/saved-photo'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { IMAGE_CONTENT_TYPES, MAX_IMAGE_BYTES, type PhotoSlotDef } from './report'
+import { IMAGE_CONTENT_TYPES, MAX_IMAGE_BYTES, type PhotoQaWarning, type PhotoSlotDef } from './report'
 
 export type TileTone = 'muted' | 'ok' | 'busy' | 'bad' | 'warn'
 
@@ -22,6 +22,32 @@ export interface TileState {
   /** One short line under the label: "Ready", "Uploading…", "Checked". */
   status?: string
   tone?: TileTone
+  /** SI14 photo QA warnings (never blocking). */
+  warnings?: readonly PhotoQaWarning[]
+}
+
+/**
+ * Calm chips for the photo QA warnings: a suggestion, never a failure. Nothing renders when there
+ * are none, which is always the case while the backend's photo QA switch is off.
+ */
+export function PhotoQaChips({ warnings, className }: { warnings: readonly PhotoQaWarning[] | undefined; className?: string }) {
+  if (!warnings?.length) return null
+  return (
+    <ul className={cn('flex flex-wrap gap-1', className)} aria-label="Photo suggestions" data-testid="photo-qa">
+      {warnings.map((w) => (
+        <li
+          key={w.check}
+          className="inline-flex max-w-full items-center gap-1 rounded-md border border-line-strong bg-subtle px-1.5 py-0.5 text-caption text-ink-2"
+          title={w.suggestion ?? undefined}
+          data-check={w.check}
+        >
+          <Icon name="info" size={12} className="shrink-0 text-ink-3" aria-hidden />
+          <span className="truncate">{w.label}</span>
+          {w.suggestion ? <span className="sr-only">: {w.suggestion}</span> : null}
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 export function PhotoSlotGrid({ children, className }: { children: ReactNode; className?: string }) {
@@ -165,6 +191,7 @@ export function PhotoTile({
         <span className="line-clamp-2">{state.status}</span>
       </p>
       ) : null}
+      <PhotoQaChips warnings={state.warnings} className="mt-1" />
     </div>
   )
 }

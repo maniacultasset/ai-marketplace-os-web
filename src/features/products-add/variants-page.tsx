@@ -654,7 +654,7 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
   }
   const styleMrp = plainMoney(p.mrp)
   const stylePrice = plainMoney(p.selling_price)
-  const csv = () => buildFamilyCsv({ sku: p.sku, title: p.title, category: p.category }, s)
+  const csv = () => buildFamilyCsv({ sku: p.sku, title: p.title, category: p.category ?? '' }, s)
   const visible = showAll ? rows : rows.slice(0, PREVIEW_ROWS)
   const first = rows[0]
 

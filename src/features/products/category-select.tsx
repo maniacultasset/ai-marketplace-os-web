@@ -14,23 +14,28 @@ export function CategorySelect({
   value,
   onChange,
   onBlur,
-  brandCategories,
+  lampsEnabled,
   error,
   hint = 'Decides which marketplace template the agent fills.',
   submitCount,
+  required = true,
+  disabled,
 }: {
   id: string
   value: string
   onChange: (slug: string) => void
   onBlur?: () => void
-  /** Categories the brand's products already use (lamps are offered only to brands that sell them). */
-  brandCategories: Iterable<string>
+  /** The backend's lamps switch (features/assist/flags.ts): lamps are offered only while it is on. */
+  lampsEnabled: boolean
   error?: string
   hint?: ReactNode
   submitCount?: number
+  /** False while the seller lets Kuinn suggest the category (SI14). */
+  required?: boolean
+  disabled?: boolean
 }) {
   const current = value.trim()
-  const choices = brandCategoryChoices(brandCategories, current)
+  const choices = brandCategoryChoices(lampsEnabled, current)
   const unmapped = current !== '' && !isMappedCategory(current)
   return (
     <LaField
@@ -41,11 +46,12 @@ export function CategorySelect({
       needsInput={unmapped && !error}
       source={current ? { kind: 'you' } : undefined}
       submitCount={submitCount}
-      required
+      required={required}
       confirmFix
     >
       <Select
         value={current}
+        disabled={disabled}
         onValueChange={(v) => {
           onChange(v)
           onBlur?.()
@@ -68,10 +74,10 @@ export function CategorySelect({
 
 /**
  * For spreadsheets: the value to put in the `category` column for each category the agent can
- * list. `brandCategories` null while the brand's products load (same-size placeholders).
+ * list. `lampsEnabled` null while the lamps switch is read (same-size placeholders).
  */
-export function CategoryCodes({ brandCategories, className }: { brandCategories: readonly string[] | null; className?: string }) {
-  const choices = brandCategories ? brandCategoryChoices(brandCategories).filter((c) => c.mapped) : null
+export function CategoryCodes({ lampsEnabled, className }: { lampsEnabled: boolean | null; className?: string }) {
+  const choices = lampsEnabled === null ? null : brandCategoryChoices(lampsEnabled).filter((c) => c.mapped)
   return (
     <ul className={cn('flex flex-wrap gap-1.5', className)} aria-busy={choices ? undefined : true} data-testid="category-codes">
       {choices

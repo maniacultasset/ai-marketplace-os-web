@@ -69,3 +69,27 @@ export function useAnalyticsTrend(range: DayRange, enabled: boolean) {
     staleTime: 60_000,
   })
 }
+
+/**
+ * SI14 quality (routers/analytics.py `analytics_quality`; staff: `admin_quality`, platform admins
+ * only). Sent through the same one-at-a-time queue: it shares the tenant's in-flight cap.
+ */
+export function useQuality(range: DayRange, scope: 'brand' | 'platform' = 'brand', enabled = true) {
+  const keys = useKeys()
+  return useQuery({
+    queryKey: [...keys.analytics.all(), 'quality', scope, { from: range.from, to: range.to }] as const,
+    queryFn: ({ signal }) =>
+      queue.run(
+        () =>
+          unwrap(
+            scope === 'platform'
+              ? api.GET('/admin/quality', { params: { query: { from: range.from, to: range.to } }, signal })
+              : api.GET('/analytics/quality', { params: { query: { from: range.from, to: range.to } }, signal }),
+          ),
+        signal,
+      ),
+    enabled,
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+  })
+}

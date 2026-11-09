@@ -192,11 +192,15 @@ export function filterCatalog(rows: readonly CatalogRow[], f: CatalogFilter): Ca
 }
 
 export function categoriesOf(rows: readonly CatalogRow[]): string[] {
-  return [...new Set(rows.map((r) => r.product.category))].sort()
+  return [...new Set(rows.flatMap((r) => (r.product.category ? [r.product.category] : [])))].sort()
 }
 
-/** "ethnic_wear_kurta_sets" → "Ethnic wear kurta sets". */
-export function humanizeSlug(slug: string): string {
+/** Shown for a product saved without a category (SI14), until the seller picks one. */
+export const NO_CATEGORY_LABEL = 'No category yet'
+
+/** "ethnic_wear_kurta_sets" → "Ethnic wear kurta sets"; null (no category yet) reads as such. */
+export function humanizeSlug(slug: string | null): string {
+  if (slug === null) return NO_CATEGORY_LABEL
   const s = slug.replace(/[_-]+/g, ' ').trim()
   return s ? s[0]!.toUpperCase() + s.slice(1) : slug
 }

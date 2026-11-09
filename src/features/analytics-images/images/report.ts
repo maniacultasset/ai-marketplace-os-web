@@ -149,6 +149,40 @@ export const CHECK_LABEL: Record<ImageCheckName, string> = {
 
 export type CheckOutcome = 'pass' | 'warn' | 'fail'
 
+/**
+ * SI14 photo QA: text on the image, a watermark, and a product that fills too little of the
+ * frame. Only reported while the backend's `PHOTO_QA_ENABLED` is on, and always a warning: the
+ * backend clamps them so they never block a listing, and the app never shows them as a failure.
+ */
+export const PHOTO_QA_CHECKS = ['text_overlay', 'watermark', 'fill_ratio'] as const satisfies readonly ImageCheckName[]
+export type PhotoQaCheck = (typeof PHOTO_QA_CHECKS)[number]
+
+export const PHOTO_QA_LABEL: Record<PhotoQaCheck, string> = {
+  text_overlay: 'Text on image',
+  watermark: 'Watermark',
+  fill_ratio: 'Low fill',
+}
+
+const isQa = (c: ImageCheckName): c is PhotoQaCheck => (PHOTO_QA_CHECKS as readonly string[]).includes(c)
+
+export interface PhotoQaWarning {
+  check: PhotoQaCheck
+  label: string
+  /** The backend's suggestion, when it gave one. */
+  suggestion: string | null
+}
+
+/** The photo QA warnings on an image, across marketplaces, once each, in a fixed order. */
+export function photoQaWarnings(out: ImageReportOut | null | undefined): PhotoQaWarning[] {
+  if (!out) return []
+  const found = new Map<PhotoQaCheck, string | null>()
+  for (const r of marketplaceReports(out)) {
+    for (const c of r.checks ?? []) if (isQa(c.check) && !c.passed && !found.has(c.check)) found.set(c.check, null)
+    for (const i of r.issues ?? []) if (isQa(i.check) && !found.get(i.check)) found.set(i.check, i.suggestion)
+  }
+  return PHOTO_QA_CHECKS.filter((c) => found.has(c)).map((c) => ({ check: c, label: PHOTO_QA_LABEL[c], suggestion: found.get(c) ?? null }))
+}
+
 export interface CheckRow {
   check: ImageCheckName
   label: string
@@ -171,13 +205,13 @@ export function checkRows(report: ImageReport): CheckRow[] {
   const rows: CheckRow[] = (report.checks ?? []).map((c) => ({
     check: c.check,
     label: CHECK_LABEL[c.check],
-    outcome: c.passed ? 'pass' : failed,
+    outcome: c.passed ? 'pass' : isQa(c.check) ? 'warn' : failed,
     method: c.method,
     suggestions: byCheck.get(c.check) ?? [],
   }))
   const seen = new Set(rows.map((r) => r.check))
   for (const [check, suggestions] of byCheck) {
-    if (!seen.has(check)) rows.push({ check, label: CHECK_LABEL[check], outcome: failed, method: 'deterministic', suggestions })
+    if (!seen.has(check)) rows.push({ check, label: CHECK_LABEL[check], outcome: isQa(check) ? 'warn' : failed, method: 'deterministic', suggestions })
   }
   const order: Record<CheckOutcome, number> = { fail: 0, warn: 1, pass: 2 }
   return rows.sort((a, b) => order[a.outcome] - order[b.outcome])
@@ -192,7 +226,8 @@ export function tally(rows: CheckRow[]): Record<CheckOutcome, number> {
 /** A report that passed with a warning on some check (for example the background). */
 export function hasWarnings(out: ImageReportOut | undefined): boolean {
   if (!out) return false
-  return marketplaceReports(out).some((r) => tally(checkRows(r)).warn > 0)
+  // SI14 photo QA warnings carry their own calm chips (`photoQaWarnings`), so they are not counted here.
+  return marketplaceReports(out).some((r) => checkRows(r).some((c) => c.outcome === 'warn' && !isQa(c.check)))
 }
 
 /** A report whose background check did not pass (warning or failure). */

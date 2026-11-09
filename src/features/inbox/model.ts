@@ -65,6 +65,7 @@ export const TASK_KIND_LABEL: Record<TaskKind, string> = {
   reconnect_account: 'Reconnect account',
   image_replacement: 'Image replacement',
   marketplace_error_review: 'Marketplace error review',
+  category_review: 'Category review',
 }
 
 export const RESOLUTION_LABEL: Record<IssueResolution, string> = {

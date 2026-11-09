@@ -17,8 +17,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
+import { useLampsEnabled } from '@/features/assist/flags'
 import { CategoryCodes } from '@/features/products/category-select'
-import { useAllProducts } from '@/features/products-add/catalog'
 import {
   COLUMN_ALIASES,
   COLUMN_GROUPS,
@@ -63,8 +63,7 @@ export function UploadForm() {
   const intent = useIntentKey()
   const [file, setFile] = useState<File | null>(null)
   const [problem, setProblem] = useState<Problem | null>(null)
-  const products = useAllProducts()
-  const brandCategories = products.data ? products.data.rows.map((p) => p.category) : products.isError ? [] : null
+  const lamps = useLampsEnabled()
 
   const upload = useMutation({
     meta: { toast: false },
@@ -303,7 +302,7 @@ export function UploadForm() {
 
         <section className="space-y-2 border-t px-5 py-5" data-testid="template-categories">
           <h3 className={GUIDE_HEADING}>Categories the agent can list</h3>
-          <CategoryCodes brandCategories={brandCategories} />
+          <CategoryCodes lampsEnabled={lamps.pending ? null : lamps.enabled} />
           <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">
             Put the code in the <code className={INLINE_CODE}>category</code> column. Rows with any other category fail with{' '}
             <code className={INLINE_CODE}>CATEGORY_NOT_MAPPED</code>.

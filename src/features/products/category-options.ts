@@ -1,7 +1,8 @@
 /**
  * Category choices for adding products (guided form, spreadsheet help), on top of ./categories.ts
- * (shared with the product editor). Apparel is always offered. A mapped category outside apparel
- * (lamps) is offered only to a brand that already sells it, so an apparel brand never sees lamps.
+ * (shared with the product editor). Apparel is always offered. Lamps are offered only while the
+ * backend's lamps switch is on (features/assist/flags.ts `useLampsEnabled`, SI14): while it is off
+ * the backend refuses a new lamps listing, so offering lamps would lead nowhere.
  * There is no "Other": any other category saves, but the agent refuses it (CATEGORY_NOT_MAPPED).
  * There is no GET for the mapped categories yet, so keep these in step with the backend templates.
  */
@@ -20,12 +21,11 @@ export const UNMAPPED_CATEGORY_HINT = 'The agent can’t list this category yet.
 export type CategoryOption = CategoryChoice & { mapped: boolean }
 
 /**
- * The choices for a new product: apparel, plus lamps when the brand already has a lamp product.
- * The current value stays in the list even without a template, so an old draft still shows it.
+ * The choices for a new product: apparel, plus lamps while the lamps switch is on. The current
+ * value stays in the list even when it is not offered, so an old draft still shows it.
  */
-export function brandCategoryChoices(brandCategories: Iterable<string>, current = ''): CategoryOption[] {
-  const used = new Set([...brandCategories].map((c) => c.trim()))
-  const base: CategoryChoice[] = [...APPAREL_CATEGORIES, ...BRAND_ONLY.filter((s) => used.has(s)).map((s) => ({ value: s, label: categoryLabel(s) }))]
+export function brandCategoryChoices(lampsEnabled: boolean, current = ''): CategoryOption[] {
+  const base: CategoryChoice[] = [...APPAREL_CATEGORIES, ...(lampsEnabled ? BRAND_ONLY.map((s) => ({ value: s, label: categoryLabel(s) })) : [])]
   const cur = current.trim()
   const all = cur && !base.some((c) => c.value === cur) ? [...base, { value: cur, label: categoryLabel(cur) }] : base
   return all.map((c) => ({ ...c, mapped: isMappedCategory(c.value) }))

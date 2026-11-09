@@ -12,6 +12,7 @@ const account = (marketplace: Account['marketplace'], status: Account['status'])
   id: `0b1c2d3e-0000-4000-8000-${marketplace === 'amazon' ? '000000000001' : '000000000002'}`,
   marketplace,
   seller_id: 'A1SELLER',
+  publishing_enabled: true,
   status,
   created_at: '2026-10-01T10:00:00Z',
   expires_at: null,

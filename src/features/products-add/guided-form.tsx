@@ -57,6 +57,7 @@ import {
 } from '@/features/products/intake-model'
 import { ATTRIBUTE_KEY_SUGGESTIONS, ATTRIBUTE_TEXT_MAX, SKU_MAX, TITLE_MAX } from '@/features/products/schema'
 import { categoryLabel } from '@/features/products/categories'
+import { useCategorySuggestEnabled, useLampsEnabled } from '@/features/assist/flags'
 import { CategorySelect } from '@/features/products/category-select'
 import { invalidateListingWork } from '@/features/listings/api'
 import { tenantName, useMe, useSession } from '@/lib/auth'
@@ -167,7 +168,11 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
   const { tenantId } = useSession()
   const draftKey = `${DRAFT_PREFIX}${tenantId ?? 'none'}`
   const [initial] = useState(() => readDraft(draftKey))
-  const [values, setValues] = useState<GuidedValues>(() => initial?.values ?? emptyGuided())
+  const [rawValues, setValues] = useState<GuidedValues>(() => initial?.values ?? emptyGuided())
+  // SI14: "Let Kuinn suggest" counts only while the backend's classifier is on.
+  const suggestOn = useCategorySuggestEnabled()
+  const lamps = useLampsEnabled()
+  const values = useMemo(() => (suggestOn || !rawValues.kuinnSuggests ? rawValues : { ...rawValues, kuinnSuggests: false }), [rawValues, suggestOn])
   const [savedAt, setSavedAt] = useState<string | null>(initial?.savedAt ?? null)
   const [section, setSection] = useState<SectionId>(startAt)
   /** Errors from the last save attempt's API response, cleared per field as it is edited. */
@@ -194,7 +199,6 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
 
   const products = useAllProducts()
   const storeName = tenantName(useMe().data)
-  const brandCategories = useMemo(() => (products.data?.rows ?? []).map((p) => p.category), [products.data])
 
   // The brand's default manufacturer: every product inherits it unless it sets its own.
   const brand = useBrandManufacturer()
@@ -386,6 +390,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
     sku: ['sku'],
     title: ['title'],
     category: ['category'],
+    kuinnSuggests: ['category'],
     styleNumber: ['style_number'],
     mrp: ['mrp', 'selling_price'],
     sellingPrice: ['selling_price'],
@@ -530,7 +535,10 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
       setPhase(null)
       return
     }
-    if (listOn.length && can('listing:generate') && !aiPaused) {
+    if (!p.category) {
+      // SI14: no category yet, so no draft can start. Kuinn's suggestion waits on the product page.
+      toast.success('Product saved', { description: 'Kuinn is suggesting a category. Choose it on the product page, then start the drafts.' })
+    } else if (listOn.length && can('listing:generate') && !aiPaused) {
       // The agent reads photos once their check has prepared them: wait for that (briefly), so
       // the first draft already has the photos.
       if (imagesRef.current.some((i) => i.stage.kind === 'done')) {
@@ -684,15 +692,35 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
       case 'category':
         return (
           <div className="grid gap-x-5 gap-y-4 md:grid-cols-2">
-            <CategorySelect
-              id="g-category"
-              value={values.category}
-              onChange={(category) => set({ category })}
-              onBlur={() => touch('category')}
-              brandCategories={brandCategories}
-              error={errors.category}
-              submitCount={submitCount}
-            />
+            <div className="flex flex-col gap-2.5">
+              <CategorySelect
+                id="g-category"
+                value={values.category}
+                onChange={(category) => set({ category, kuinnSuggests: false })}
+                onBlur={() => touch('category')}
+                lampsEnabled={lamps.enabled}
+                error={errors.category}
+                submitCount={submitCount}
+                required={!values.kuinnSuggests}
+                disabled={values.kuinnSuggests}
+                hint={values.kuinnSuggests ? 'Kuinn suggests a category after you save. You choose the one to use.' : undefined}
+              />
+              {suggestOn ? (
+                <label className="flex cursor-pointer items-center gap-2.5 text-small text-ink" data-testid="g-kuinn-suggests">
+                  <Switch
+                    checked={values.kuinnSuggests}
+                    onCheckedChange={(on) => set(on ? { kuinnSuggests: true, category: '' } : { kuinnSuggests: false })}
+                    aria-describedby="g-kuinn-suggests-hint"
+                  />
+                  <span>
+                    Let Kuinn suggest
+                    <span id="g-kuinn-suggests-hint" className="block text-caption text-ink-3">
+                      Not sure? Skip it, and confirm Kuinn’s suggestion on the product page.
+                    </span>
+                  </span>
+                </label>
+              ) : null}
+            </div>
             <AudienceSelect
               id="g-gender"
               needed={need('gender')}
@@ -881,7 +909,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               {values.title.trim() || 'New product'}
             </h1>
             <p className="mt-1 truncate text-body text-ink-2">
-              {[values.styleNumber.trim(), values.sku.trim(), values.category.trim() ? categoryLabel(values.category) : null].filter(Boolean).join(' · ') ||
+              {[values.styleNumber.trim(), values.sku.trim(), values.category.trim() ? categoryLabel(values.category) : values.kuinnSuggests ? 'Category from Kuinn' : null].filter(Boolean).join(' · ') ||
                 'Fill in what you know. Only the name, SKU and category are needed to save.'}
             </p>
           </div>
@@ -1018,7 +1046,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
             <LaCard pad="sm">
               <p className="text-caption text-ink-2">Category</p>
               <p className="mt-1 truncate text-small font-semibold text-ink" data-testid="guided-category-summary">
-                {values.category.trim() ? categoryLabel(values.category) : 'Not chosen yet'}
+                {values.category.trim() ? categoryLabel(values.category) : values.kuinnSuggests ? 'Kuinn suggests after saving' : 'Not chosen yet'}
               </p>
             </LaCard>
           </div>

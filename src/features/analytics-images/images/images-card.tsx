@@ -31,6 +31,7 @@ import {
   imageIdFromKey,
   imageLabel,
   marketplaceReports,
+  photoQaWarnings,
   MAX_IMAGE_BYTES,
   MORE_SLOTS,
   photoSlotOf,
@@ -48,7 +49,7 @@ import {
   type PhotoSlotDef,
   type UploadStage,
 } from './report'
-import { PhotoSlotGrid, PhotoSlotRowCaption, PhotoTile, type TileState } from './photo-slots'
+import { PhotoQaChips, PhotoSlotGrid, PhotoSlotRowCaption, PhotoTile, type TileState } from './photo-slots'
 import { ALL_COLOURS, colourGroups, type ColourGroup, type ColourSource } from './colour-groups'
 import { uploadImage } from './upload'
 import { useImageCandidates } from './candidates-api'
@@ -202,8 +203,9 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
     const held = details.find((d) => photoSlotOf(d.slot, d.role) === def.id && (def.slot === 'size_chart' || (d.colourway_id ?? null) === cw))
     if (!held) return { filled: false }
     const previewUrl = held.view_url ?? undefined
-    if (held.compliance_status === 'passed') return { filled: true, previewUrl, ...passedTile(held) }
-    if (held.compliance_status === 'failed') return { filled: true, previewUrl, status: 'Needs a fix, see below', tone: 'bad' }
+    const warnings = qaById.get(held.image_id)
+    if (held.compliance_status === 'passed') return { filled: true, previewUrl, ...passedTile(held), warnings }
+    if (held.compliance_status === 'failed') return { filled: true, previewUrl, status: 'Needs a fix, see below', tone: 'bad', warnings }
     return { filled: true, previewUrl, status: 'Checking…', tone: 'busy' }
   }
 
@@ -286,6 +288,8 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
   ]
   const reportsQ = useQueries({ queries: rowIds.map((id) => reportQuery(keys, id, live)) })
   const reportsSettled = !live || reportsQ.every((r) => !r.isPending)
+  // SI14 photo QA warnings per image, for the tiles (the rows read their own report).
+  const qaById = new Map(rowIds.map((id, i) => [id, photoQaWarnings(reportsQ[i]?.data)] as const))
 
   const listedRow = (key: string) => {
     const id = imageIdFromKey(key)
@@ -716,6 +720,7 @@ function ImageRow({
               </p>
             ) : null}
             {badges ? <div className="mt-1.5 flex flex-wrap gap-1.5">{badges}</div> : null}
+            <PhotoQaChips warnings={photoQaWarnings(report.data)} className="mt-1.5" />
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {live && (report.isPending || !settled) ? (

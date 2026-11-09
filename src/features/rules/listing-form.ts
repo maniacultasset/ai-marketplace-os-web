@@ -252,7 +252,7 @@ export function fromProduct(p: ProductOut, current: DraftValues): DraftValues {
   return {
     ...current,
     product_id: p.id,
-    category: p.category,
+    category: p.category ?? '',
     title: p.title,
     attributes,
   }
