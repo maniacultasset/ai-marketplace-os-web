@@ -53,7 +53,7 @@ export const RETRYABLE: ReadonlySet<FailureReason> = new Set(['model_failed', 's
 export const AI_LIMIT_COPY = FAILURE_COPY.budget
 export const AI_OFF_COPY = 'AI image editing is switched off right now.'
 export const AI_HINT = 'Uses AI. Counts toward your daily limit.'
-export const FREE_HINT = 'No AI. Free.'
+export const FREE_HINT = 'Free. Does not use AI.'
 export const CACHE_HIT_COPY = 'Made before, so no new cost.'
 
 /** Badge for an image that came from a candidate; null for the seller's own photo. */

@@ -44,6 +44,7 @@ export function CandidateBlock({
   canAct,
   aiLimit,
   onPreviewError,
+  hasSizeChartImage = false,
 }: {
   productId: string
   sourceId: string | null
@@ -57,6 +58,8 @@ export function CandidateBlock({
   aiLimit: boolean
   /** A preview URL expired (signed for 10 minutes): read the list again. */
   onPreviewError: () => void
+  /** The product already has a size chart image, so a new one replaces it. */
+  hasSizeChartImage?: boolean
 }) {
   const create = useCreateCandidate(productId)
   const [createError, setCreateError] = useState<{ kind: CandidateKind; error: unknown } | null>(null)
@@ -122,7 +125,8 @@ export function CandidateBlock({
                   <Button
                     variant="secondary"
                     size="sm"
-                    disabled={busy || create.isPending}
+                    // One open result per kind at a time: Use or Discard it before making another.
+                    disabled={busy || create.isPending || open.some((c) => c.kind === kind && c.status !== 'failed')}
                     onClick={() => make(kind)}
                     data-testid={`make-${kind}`}
                   >
@@ -163,6 +167,7 @@ export function CandidateBlock({
           onAccepted={session.markAccepted}
           onRetry={canAct && !busy && !create.isPending ? () => make(c.kind) : undefined}
           onPreviewError={onPreviewError}
+          replaces={hasSizeChartImage}
         />
       ))}
     </div>
@@ -196,8 +201,11 @@ export function CandidateReview({
   onRetry,
   onPreviewError,
   onAccepted,
+  replaces = false,
 }: {
   productId: string
+  /** A size chart result replaces the product's current size chart image. */
+  replaces?: boolean
   candidate: Candidate
   cacheHit: boolean
   canDecide: boolean
@@ -288,7 +296,7 @@ export function CandidateReview({
           ) : (
             <>
               <Icon name="check" size={16} className="text-success" />
-              {cacheHit ? `Ready. ${CACHE_HIT_COPY}` : c.kind === 'size_chart' ? 'Ready. Replaces the current size chart image.' : 'Ready. Your original stays as an extra image.'}
+              {cacheHit ? `Ready. ${CACHE_HIT_COPY}` : c.kind === 'size_chart' ? (replaces ? 'Ready. Replaces the current size chart image.' : 'Ready. Becomes your size chart image.') : 'Ready. Your original stays as an extra image.'}
             </>
           )}
         </p>

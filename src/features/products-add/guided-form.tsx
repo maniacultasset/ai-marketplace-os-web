@@ -40,7 +40,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
-import { type ImageRole, type ImageSlot } from '@/features/analytics-images/images/report'
+import { checkImageReadable, type ImageRole, type ImageSlot } from '@/features/analytics-images/images/report'
 import { StageUnavailable, stageImageForNewProduct, uploadImage } from '@/features/analytics-images/images/upload'
 import { fetchProduct, useBrandManufacturer } from '@/features/products/api'
 import { BarcodeField } from '@/features/products/barcode-field'
@@ -213,6 +213,11 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
     setImages((list) => list.map((i) => (i.localId === localId ? { ...i, ...next } : i)))
   /** Staging uploads in flight, awaited before the product is saved. */
   const staging = useRef(new Map<string, Promise<void>>())
+  /** When a create in this session got no answer (status 0). Null: every create was answered. */
+  const lostCreateAt = useRef<number | null>(null)
+  // A pending focus move: it runs once the form is enabled again (focus() on a field inside the
+  // disabled fieldset does nothing).
+  const pendingFocus = useRef(false)
   useEffect(() => {
     const ref = imagesRef
     return () => ref.current.forEach((i) => URL.revokeObjectURL(i.previewUrl))
@@ -243,11 +248,33 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
       delete next.images
       return next
     })
-    const valid = added.filter((a) => a.stage.kind === 'queued')
+    const queued = added.filter((a) => a.stage.kind === 'queued')
+    // Decode each file before it is staged or uploaded: a file that is not a photo never reads
+    // "Ready". The check sits in `staging`, so a save waits for it like for a staged photo.
+    const toUpload: PendingImage[] = []
+    const checks = queued.map((a) => {
+      const run = checkImageReadable(a.file).then(async (problem) => {
+        if (problem) {
+          patchImage(a.localId, { stage: { kind: 'invalid', message: problem } })
+          return
+        }
+        if (created) toUpload.push(a)
+        else if (a.slot === 'main') {
+          stage(a)
+          await staging.current.get(a.localId)
+        }
+      })
+      staging.current.set(a.localId, run)
+      void run.finally(() => {
+        if (staging.current.get(a.localId) === run) staging.current.delete(a.localId)
+      })
+      return run
+    })
     // Already saved (for example "Continue with it"): photos go straight to the product.
-    if (created) {
-      if (valid.length) void uploadAfterSave(created.id, valid).finally(() => setPhase(null))
-    } else for (const a of valid) if (a.slot === 'main') stage(a)
+    if (created)
+      void Promise.all(checks).then(() => {
+        if (toUpload.length) void uploadAfterSave(created.id, toUpload).finally(() => setPhase(null))
+      })
   }
   const removeImage = (localId: string) =>
     setImages((list) => {
@@ -310,11 +337,22 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
   }, [clientErrors, serverErrors, touched, submitCount, values])
   const touch = (key: string) => setTouched((t) => (t.has(key) ? t : new Set(t).add(key)))
   useEffect(() => {
-    if (focusTick) focusFirstInvalid(bodyRef.current)
-  }, [focusTick])
+    if (!focusTick || !pendingFocus.current || busy !== null) return
+    pendingFocus.current = false
+    focusFirstInvalid(bodyRef.current)
+  }, [focusTick, busy])
 
   const states = sectionStates(values, ctx, errors)
   const missing = missingCritical(values, ctx)
+  // "Continue with it" only for this session's own product: a create here got no answer, and the
+  // product with this SKU has the same name and category and was made since that try. Any other
+  // product with the SKU is someone else's and gets "use a different SKU".
+  const canContinue =
+    !!conflict &&
+    lostCreateAt.current !== null &&
+    conflict.title === values.title.trim() &&
+    conflict.category === values.category &&
+    Date.parse(conflict.created_at) >= lostCreateAt.current - 5_000
 
   // SI12: what the ticked marketplaces need for this category, while it is empty.
   const requirements = useRequirements(values.category)
@@ -395,6 +433,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
     const first = errorOrder(Object.keys(fields))[0]
     if (first) {
       setSection(sectionOfError(first))
+      pendingFocus.current = true
       setFocusTick((n) => n + 1)
     }
     return first
@@ -416,6 +455,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
     const first = errorOrder(Object.keys(validateGuided(values)))[0]
     if (first) {
       setSection(sectionOfError(first))
+      pendingFocus.current = true
       setFocusTick((n) => n + 1)
       return null
     }
@@ -428,6 +468,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
         ? { id: stagedMain.stage.productId, images: [{ storage_key: stagedMain.stage.storageKey, slot: stagedMain.slot }] }
         : undefined
     const attempt = async (withUploads: boolean): Promise<Product> => create.mutateAsync(toProductCreate(values, withUploads ? uploads : undefined))
+    const startedAt = Date.now()
     try {
       let p: Product
       try {
@@ -459,7 +500,12 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
         const { fields, unmapped } = mapCreateErrors(err, values)
         const firstKey = showErrors(fields)
         if (unmapped || !firstKey) setFormError(err)
-      } else setFormError(err)
+      } else {
+        // No answer (connection dropped): the create may have gone through. Only then can a later
+        // SKU conflict be this session's own product.
+        if (isApiError(err) && err.status === 0) lostCreateAt.current ??= startedAt
+        setFormError(err)
+      }
       return null
     } finally {
       setPhase(null)
@@ -850,13 +896,13 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
           {conflict && !created ? (
             <div data-testid="sku-conflict">
               <Banner tone="attention" role="status" title={`${conflict.sku} is already in your catalog`}>
-                {conflict.title === values.title.trim()
+                {canContinue
                   ? 'If you saved it a moment ago and the connection dropped, it did go through. '
                   : 'Use a different SKU for a new product, or open the existing one. '}
                 <Link to="/products/$productId" params={{ productId: conflict.id }} className="font-semibold underline">
                   Open {conflict.sku}
                 </Link>
-                {conflict.title === values.title.trim() ? (
+                {canContinue ? (
                   <>
                     {' · '}
                     <button
@@ -869,8 +915,10 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
                         setServerErrors({})
                         writeDraft(draftKey, null)
                         setSavedAt(null)
-                        // Photos the first attempt may not have attached go up to it now.
-                        const rest = imagesRef.current.filter((i) => i.stage.kind !== 'invalid' && i.stage.kind !== 'done')
+                        // Photos the first attempt may not have attached go up to it now. Never the
+                        // Front when the product has one: Continue fills gaps, it does not replace.
+                        const hasFront = p.image_details ? p.image_details.some((d) => d.slot === 'main') : true
+                        const rest = imagesRef.current.filter((i) => i.stage.kind !== 'invalid' && i.stage.kind !== 'done' && !(hasFront && i.slot === 'main'))
                         if (rest.length)
                           void uploadAfterSave(p.id, rest).finally(() => setPhase(null))
                       }}

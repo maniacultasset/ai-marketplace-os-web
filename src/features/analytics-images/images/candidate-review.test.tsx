@@ -84,7 +84,7 @@ describe('fix buttons', () => {
     post.mockReturnValueOnce(new Promise((r) => (settle = r)))
     setup({ kinds: ['white_background', 'fix'] })
     expect(screen.getByTestId('hint-white_background').textContent).toMatch(/Uses AI/)
-    expect(screen.getByTestId('hint-fix').textContent).toBe('No AI. Free.')
+    expect(screen.getByTestId('hint-fix').textContent).toBe('Free. Does not use AI.')
     const btn = screen.getByTestId('make-white_background') as HTMLButtonElement
     fireEvent.click(btn)
     fireEvent.click(btn)
