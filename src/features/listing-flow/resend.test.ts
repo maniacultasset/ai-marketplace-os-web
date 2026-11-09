@@ -34,6 +34,10 @@ describe('resendView: maker-checker decides who sees "Approve and resend"', () =
     expect(resendView(input({ resolution: afterAnswer })).kind).toBe('approve_and_resend')
   })
 
+  it('while Amazon publishing is paused (publishGate: no publish) the plain approve, never a send', () => {
+    expect(resendView(input({ publishBuilt: false })).kind).toBe('none')
+  })
+
   it('a role that may approve but not publish gets the plain approve', () => {
     const can = (a: Action) => a !== 'listing:publish'
     expect(resendView(input({ can })).kind).toBe('none')

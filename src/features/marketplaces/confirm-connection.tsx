@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import { clearConnectOrigin, readConnectOrigin } from '@/features/marketplaces-settings/use-start-connect'
-import { isPublishingPaused, useBrandProfile } from '@/features/brand/api'
+import { AMAZON_PUBLISHING_PAUSED_TEXT, isAmazonPublishingPaused, useBrandProfile } from '@/features/brand/api'
 import { useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { PENDING_HANDLE_RE, useConfirmConnection } from './api'
@@ -24,7 +24,7 @@ import { AccountStatusBadge } from './status-badge'
  */
 export function ConfirmConnection({ urlPending }: { urlPending: string | undefined }) {
   const can = useCan()
-  // Item 20: a workspace whose publishing is paused says so (field read only when the API sends it)
+  // Item 20: while Amazon publishing is switched off, the success screen says so (tenant capabilities)
   const profile = useBrandProfile()
   const navigate = useNavigate()
   const [pending, setPending] = useState(() => urlPending ?? null)
@@ -87,7 +87,8 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
   }
   if (confirm.isSuccess) {
     const a = confirm.data
-    const publishingPaused = isPublishingPaused(profile.data?.data)
+    // The confirmed account carries the same switch, so the line is right even before the tenant read lands.
+    const publishingPaused = a.marketplace === 'amazon' && isAmazonPublishingPaused(profile.data?.data, a)
     const m = MARKETPLACE_META[a.marketplace]
     const fromSetup = origin.from === '/setup/marketplaces'
     return (
@@ -95,7 +96,7 @@ export function ConfirmConnection({ urlPending }: { urlPending: string | undefin
         <StatusHead
           tile={<IconTile icon="check" tone="ok" size="lg" />}
           title={`${m.name} connected`}
-          description={publishingPaused ? 'Publishing is paused for this workspace.' : `Approved listings can now be published to ${m.short}.`}
+          description={publishingPaused ? AMAZON_PUBLISHING_PAUSED_TEXT : `Approved listings can now be published to ${m.short}.`}
         />
         <dl className="mx-6 divide-y border-t text-sm sm:mx-8">
           <Row label="Marketplace">
