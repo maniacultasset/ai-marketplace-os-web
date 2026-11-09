@@ -379,8 +379,13 @@ function Chip({ name, checked, onChange, disabled, children, testId }: { name: s
 
 /* -------------------------------------------------------------------------------- Result */
 
-/** After the answer: what was saved, and the one next step (regenerate on the product page). */
-export function AnswerResult({ outcome, next }: { outcome: AnswerOutcome; next?: ReactNode }) {
+/**
+ * After the answer: what was saved, and the one next step. `regenerate`: the Regenerate controls
+ * for the product's listings (the text uses the answer only after one). `auto`: Kuinn puts the
+ * answer into a new version by itself (an answer behind a marketplace refusal, SI11), so there is
+ * nothing to regenerate.
+ */
+export function AnswerResult({ outcome, next, regenerate, auto = false }: { outcome: AnswerOutcome; next?: ReactNode; regenerate?: ReactNode; auto?: boolean }) {
   const { task } = outcome
   if (outcome.kind === 'closed')
     return (
@@ -404,13 +409,17 @@ export function AnswerResult({ outcome, next }: { outcome: AnswerOutcome; next?:
         ) : (
           <>
             {key ? `${factLabel(key)} is now ` : 'Saved: '}
-            <b data-testid="answer-saved-value">{answerText('value' in outcome.body ? outcome.body.value : '')}</b>. Regenerate the listing to use your answer.
+            <b data-testid="answer-saved-value">{answerText('value' in outcome.body ? outcome.body.value : '')}</b>.{' '}
+            {auto
+              ? 'Kuinn adds it to a new version and checks it. The listing stays a draft until it is approved.'
+              : 'Regenerate the listing to use your answer. It stays a draft until it is approved.'}
           </>
         )}
       </Banner>
       <div className="flex flex-wrap gap-2">
+        {skipped || auto ? null : regenerate}
         {next}
-        <TaskProductLink task={task} primary={!skipped && !next} />
+        <TaskProductLink task={task} primary={!skipped && !next && (auto || !regenerate)} />
       </div>
     </div>
   )

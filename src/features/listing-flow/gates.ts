@@ -13,6 +13,10 @@
  *   - Media is blocked when the listing has no image, and passes only on a vision check
  *     (a `vision_model` validation stage) of the current version. Rules never make it pass.
  *   - Submission is decided by the marketplace itself (listing status and marketplace state).
+ *   - The listing's open blocking issues on its current version (GET /issues) are findings too:
+ *     they are what the server's `needs_you_count` counts (the stored photo checks, the
+ *     marketplace check), so the gates never say "0 need you" while the header says
+ *     "Needs your info · 3" (prod demo 9 Nov).
  *   - Anything else is "Not checked yet". Never a green dot without evidence.
  */
 import type { Schema } from '@/api/types'
@@ -163,6 +167,33 @@ export interface GateInput {
   imageCount?: number | null
   /** Marketplace display name for notes ("Amazon"). */
   marketplaceName?: string
+  /** Open blocking issues on the current version, as findings (issueFindings). */
+  issues?: readonly ErrorItem[]
+}
+
+type OpenIssue = Pick<
+  Schema<'IssueOut'>,
+  'status' | 'severity' | 'listing_version_id' | 'field_path' | 'error_code' | 'error_class' | 'source' | 'message' | 'plain_message' | 'marketplace_code' | 'auto_fixable'
+>
+
+/**
+ * The open blocking issues the server counts in `needs_you_count` (backend
+ * listing_issues.open_error_counts): severity error, on the current version or on none.
+ */
+export function issueFindings(issues: readonly OpenIssue[], currentVersionId: string | null | undefined): ErrorItem[] {
+  return issues
+    .filter((i) => i.status === 'open' && i.severity === 'error' && (i.listing_version_id == null || i.listing_version_id === currentVersionId))
+    .map((i) => ({
+      field: i.field_path,
+      error_code: i.error_code,
+      error_class: i.error_class,
+      severity: i.severity,
+      source: i.source,
+      message: i.plain_message?.trim() || i.message,
+      raw_code: i.marketplace_code ?? null,
+      retryable: false,
+      auto_fixable: i.auto_fixable,
+    }))
 }
 
 const SUBMISSION_BLOCKED = new Set(['marketplace_rejected', 'publish_failed', 'publish_partial', 'publish_attempts_exhausted', 'marketplace_action_required'])
@@ -178,11 +209,15 @@ export function dedupeFindings<F extends Pick<ErrorItem, 'field' | 'error_code'>
   })
 }
 
-export function rollUpGates({ listing, validation, rules, preview, imageCount, marketplaceName }: GateInput): GateResult[] {
+export function rollUpGates({ listing, validation, rules, preview, imageCount, marketplaceName, issues = [] }: GateInput): GateResult[] {
   const { findings, checked } = currentFindings(validation, listing.current_version_id)
   // The rules check and the marketplace mapping can report the same gap (both say colour is
-  // missing): one problem counts once.
-  const all = dedupeFindings([...findings, ...(preview?.errors ?? [])])
+  // missing): one problem counts once. A stored issue the checks already report is that problem
+  // too; the other issues are distinct rows (three failed checks of one photo are three), as the
+  // server counts them.
+  const checks = dedupeFindings([...findings, ...(preview?.errors ?? [])])
+  const reported = new Set(checks.map((f) => `${f.field}|${f.error_code}`))
+  const all = [...checks, ...issues.filter((i) => !reported.has(`${i.field}|${i.error_code}`))]
   const covered = new Set<GateId>()
   if (checked) for (const r of rules ?? []) if (!NOT_EVALUATED_RULE_TYPES.has(r.rule_type)) covered.add(ruleGate(r))
   if (preview && preview.productType) covered.add('classification')

@@ -225,6 +225,29 @@ describe('AnswerResult', () => {
     expect(screen.getByTestId('answer-result').textContent).toMatch(/Colour is now Maroon\. Regenerate the listing to use your answer\./)
     expect(screen.getByTestId('task-open-product').getAttribute('href')).toBe('/products/$productId')
   })
+  it('puts the Regenerate control first after an answer (prod demo 9 Nov)', () => {
+    render(
+      <AnswerResult
+        outcome={{ kind: 'answered', task: task({ status: 'applied' }), body: { value: 'maroon' } }}
+        regenerate={<button type="button" data-testid="answer-regenerate">Regenerate listing</button>}
+      />,
+    )
+    const result = screen.getByTestId('answer-result')
+    expect(result.textContent).toContain('It stays a draft until it is approved.')
+    expect(screen.getByTestId('answer-regenerate')).toBeTruthy()
+    expect(screen.getByTestId('task-open-product').className).not.toContain('bg-brand ')
+  })
+  it('an answer Kuinn applies itself offers no Regenerate', () => {
+    render(
+      <AnswerResult
+        auto
+        outcome={{ kind: 'answered', task: task({ status: 'applied' }), body: { value: 'maroon' } }}
+        regenerate={<button type="button" data-testid="answer-regenerate">Regenerate listing</button>}
+      />,
+    )
+    expect(screen.queryByTestId('answer-regenerate')).toBeNull()
+    expect(screen.getByTestId('answer-result').textContent).toContain('Kuinn adds it to a new version and checks it.')
+  })
   it('a skip says nothing changed', () => {
     render(<AnswerResult outcome={{ kind: 'answered', task: task({ status: 'applied' }), body: { skip: true } }} />)
     expect(screen.getByTestId('answer-result').dataset.result).toBe('skipped')

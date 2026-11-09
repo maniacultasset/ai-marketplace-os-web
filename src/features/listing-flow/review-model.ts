@@ -117,3 +117,21 @@ export function approveBlockers(result: Pick<BatchResult, 'items'>, listingId: s
   const items = item.error.errors ?? []
   return [...items.filter((e) => e.severity === 'error'), ...items.filter((e) => e.severity !== 'error')]
 }
+
+const FACT_TASKS: ReadonlySet<string> = new Set(['missing_fact', 'conflicting_facts'])
+
+/**
+ * Whether the seller answered a fact question about this product after the current version was
+ * written: the text does not use that answer until the listing is generated again (backend
+ * tasks.py: resuming is not automatic), so Review offers Regenerate. A version with no time is
+ * never "older" (no false prompt).
+ */
+export function answeredAfter(
+  tasks: readonly Pick<Schema<'TaskOut'>, 'kind' | 'product_id' | 'answered_at'>[],
+  productId: string,
+  versionCreatedAt: string | null | undefined,
+): boolean {
+  const since = versionCreatedAt ? Date.parse(versionCreatedAt) : NaN
+  if (Number.isNaN(since)) return false
+  return tasks.some((t) => FACT_TASKS.has(t.kind) && t.product_id === productId && !!t.answered_at && Date.parse(t.answered_at) > since)
+}

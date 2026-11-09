@@ -76,6 +76,7 @@ import { autoFixTrail, FIXED_FOR_YOU_HASH, siblingFixes, versionRef } from './au
 import { EditDialog, SendBackDialog } from './dialogs'
 import { clock, fieldLabel, findingText, mpName, plainMessage, sellerFinding, sentenceCase } from './format'
 import { claimFindings, gateCounts, plural, type ErrorItem, type GateResult } from './gates'
+import { answeredAfter } from './review-model'
 import { ListOnButton } from './list-on'
 import { useListingResolution } from './api'
 import { approveThenPublish, isResend, resendView, TEAMMATE_TEXT } from './resend'
@@ -169,6 +170,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   const validate = useValidateListing(listing.id)
   // Open questions (shared with the Inbox badge's cache): read only for a listing blocked on one.
   const openTasks = useTasksList('open', { enabled: listing.status === 'blocked' && listing.status_reason === 'human_task_open' })
+  const appliedTasks = useTasksList('applied', { enabled: !!listing.content && listing.status !== 'created' })
   const review = useReviewListings()
   const publish = usePublishListings()
   const approveKey = useIntentKey()
@@ -348,11 +350,14 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   )
   // Blocked on a question that is no longer open: the answers are saved, and nothing moves until
   // the listing is generated again (backend tasks.py: resuming is not automatic).
+  // Prod demo 9 Nov: a photo question still open kept this hidden after an answer, so nothing on
+  // Review offered Regenerate. A fact answered after this version was written shows it too.
   const answered =
-    listing.status === 'blocked' &&
-    listing.status_reason === 'human_task_open' &&
-    !!openTasks.data &&
-    !openTasks.rows.some((t) => t.product_id === listing.product_id)
+    (listing.status === 'blocked' &&
+      listing.status_reason === 'human_task_open' &&
+      !!openTasks.data &&
+      !openTasks.rows.some((t) => t.product_id === listing.product_id)) ||
+    answeredAfter(appliedTasks.rows, listing.product_id, listing.content?.created_at)
   const shownBlockers = blockers && blockers.version === listing.current_version_id ? blockers.items : null
 
   return (
@@ -409,7 +414,9 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
             data-testid="answered-regenerate"
             action={<RegenerateButton listing={listing} state={actions.regenerate} testId="answered-regenerate-button" />}
           >
-            Generate the listing again to use them. Until then it stays blocked.
+            {listing.status === 'blocked'
+              ? 'Generate the listing again to use them. Until then it stays blocked.'
+              : 'Generate the listing again to use them. The new version stays a draft until it is approved.'}
           </Banner>
         ) : null}
         {listing.status === 'approved' ? (
@@ -945,6 +952,7 @@ function GatesCard({
   const stage = onCurrent ? v.stages?.[v.stages.length - 1] : undefined
   const counts = gateCounts(gates)
   const needs = gates.filter((g) => g.state === 'blocked' || g.state === 'warning')
+  const serverBlocking = listing.display_state === 'needs_you' ? (listing.needs_you_count ?? 0) : 0
   const listedSet = new Set(listed)
   return (
     <LaCard data-testid="gates-card">
@@ -991,6 +999,14 @@ function GatesCard({
                 )
               })}
             </ul>
+          ) : serverBlocking > 0 ? (
+            // The open issues could not be read here, but the server counts them: never "nothing blocks".
+            <p className="mt-2 text-small text-ink" data-testid="gates-server-blocking">
+              {plural(serverBlocking, 'open issue')} {serverBlocking === 1 ? 'blocks' : 'block'} approval.{' '}
+              <Link to="/inbox" className="focus-ring rounded-sm font-semibold text-brand hover:underline">
+                Open the Inbox
+              </Link>
+            </p>
           ) : onCurrent ? (
             <p className="mt-2 text-small text-ink">
               {counts.passed === counts.total ? `All ${counts.total} checks passed.` : 'Nothing blocks approval in the checks that ran.'}

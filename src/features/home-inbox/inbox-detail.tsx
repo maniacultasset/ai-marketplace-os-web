@@ -14,6 +14,7 @@ import { ErrorState } from '@/components/states/error-state'
 import { CategorySuggestionCard } from '@/features/assist/category-suggestion-card'
 import { DismissIssueButton } from '@/features/inbox/dismiss-issue'
 import { useProduct } from '@/features/products/api'
+import { RegenerateListings } from '@/features/listings/regenerate-action'
 import { useListing } from '@/features/listings/api'
 import { useListingResolution } from '@/features/listing-flow/api'
 import { AnswerCard, AnswerResult, type AnswerOutcome } from '@/features/photo-facts/answer-card'
@@ -51,6 +52,7 @@ import {
   isIdentifierTask,
   rawMarketplaceText,
   sentenceCase,
+  taskReason,
   showSuggestion,
   positionLabel,
   type InboxItem,
@@ -247,12 +249,12 @@ function TaskDetail({
           <div className="mt-1 flex items-start gap-3">
             <TaskPhoto productId={task.product_id} src={product?.views?.get(imageId)} />
             <p className="min-w-0 flex-1 text-small text-ink" data-testid="task-reason">
-              {task.reason}
+              {taskReason(task)}
             </p>
           </div>
         ) : (
           <p className="mt-1 text-small text-ink" data-testid="task-reason">
-            {task.reason}
+            {taskReason(task)}
           </p>
         )}
         <div className="mt-3 flex flex-wrap items-center gap-2 text-small text-ink">
@@ -277,7 +279,11 @@ function TaskDetail({
           Asked <Ago iso={task.created_at} />.{' '}
           {photo && !blocking
             ? 'This doesn’t block your listing. Answer to improve it.'
-            : account
+            : task.kind === 'image_replacement'
+              ? blocking
+                ? 'This holds your listing back until the photo is fixed.'
+                : 'Fix the photo to improve your listing.'
+              : account
               ? ''
               : task.kind === 'category_review'
                 ? 'Drafts can start once the category is chosen.'
@@ -292,7 +298,12 @@ function TaskDetail({
       </LaCard>
 
       {outcome ? (
-        <AnswerResult outcome={outcome} next={next} />
+        <AnswerResult
+          outcome={outcome}
+          next={next}
+          auto={!!fact && refusal}
+          regenerate={task.product_id ? <RegenerateListings productId={task.product_id} /> : undefined}
+        />
       ) : open && fact && onOutcome ? (
         <>
           <AnswerCard task={task} onOutcome={onOutcome} />
@@ -306,6 +317,8 @@ function TaskDetail({
         <CategoryReviewTask task={task} remaining={remaining} />
       ) : open && identifier ? (
         <IdentifierTask task={task} remaining={remaining} />
+      ) : open && task.kind === 'image_replacement' && task.product_id ? (
+        <ImageTask productId={task.product_id} photoFixes={product?.photoFixes === true} remaining={remaining} />
       ) : open ? (
         <>
           <fieldset disabled className="flex flex-col gap-2" aria-describedby={`answer-soon-${task.id}`}>
@@ -349,6 +362,48 @@ function TaskDetail({
         </>
       )}
     </article>
+  )
+}
+
+/**
+ * A photo the marketplace checks refused (`image_replacement`). The tasks API takes no answer for
+ * it: the seller replaces or fixes the photo on the product's Photos tab (where "Make white
+ * background" lives when the backend offers photo fixes), then regenerates so the listing uses the
+ * new photo. Only those actions: no answer choices and no "Confirm" (prod demo 9 Nov).
+ */
+function ImageTask({ productId, photoFixes, remaining }: { productId: string; photoFixes: boolean; remaining: number }) {
+  const can = useCan()
+  return (
+    <>
+      <Banner tone="attention" icon="image">
+        <span data-testid="image-task-how">
+          <b>{photoFixes ? 'Fix or replace the photo on the product’s Photos tab.' : 'Replace the photo on the product’s Photos tab.'}</b>{' '}
+          {photoFixes ? 'Make white background can fix the background for you. ' : ''}Then regenerate the listing so it uses the new
+          photo. This question closes once the new version passes the photo checks.
+        </span>
+      </Banner>
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        {can('product:import') ? (
+          <Button asChild size="lg" className="max-sm:h-[52px] max-sm:w-full" data-testid="task-open-photos">
+            <Link to="/products/$productId" params={{ productId }} search={{ tab: 'media' }}>
+              <Icon name="image" size={16} />
+              Fix the photo
+            </Link>
+          </Button>
+        ) : (
+          <UnavailableButton
+            size="lg"
+            className="max-sm:h-[52px] max-sm:w-full"
+            reason="An operator or owner changes the product photos."
+            data-testid="task-open-photos"
+          >
+            Fix the photo
+          </UnavailableButton>
+        )}
+        <RegenerateListings productId={productId} variant="secondary" />
+      </div>
+      {remaining > 0 ? <p className="text-center text-small text-ink-3 lg:hidden">{remaining} more after this</p> : null}
+    </>
   )
 }
 

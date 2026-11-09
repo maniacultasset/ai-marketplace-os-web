@@ -15,10 +15,7 @@
  * GET /listings/{id}. The pane paints once all have answered.
  */
 import { useQueries } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
-import { BUILT } from '@/api/capabilities'
-import { isApiError } from '@/api/errors'
-import { useIntentKey } from '@/api/idempotency'
+import { Link } from '@tanstack/react-router'
 import { Banner } from '@/components/la/banner'
 import { LaCard } from '@/components/la/cards'
 import { Icon } from '@/components/la/icons'
@@ -26,20 +23,15 @@ import { ErrorState } from '@/components/states/error-state'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { accountTaskHelp, issueHeadline, issuesByListing, MARKETPLACE_LABEL, type AccountReviewKind, type Issue, type Task } from '@/features/inbox/model'
-import { listingDetailQuery, useRegenerateListing } from '@/features/listings/api'
-import { rememberJob } from '@/features/listings/job-memory'
-import { listingActions, type ListingDetail } from '@/features/listings/model'
-import { ActionButton } from '@/features/listing-flow/ui'
-import { useCan } from '@/lib/permissions'
+import { listingDetailQuery } from '@/features/listings/api'
+import { RegenerateAction } from '@/features/listings/regenerate-action'
+import type { ListingDetail } from '@/features/listings/model'
 import { useKeys } from '@/lib/query-keys'
-import { toastError } from '@/lib/toast'
 import { useTaskIssues } from './api'
 import { CloseTaskActions } from './close-task'
 import { supportsClose } from './close-task-api'
 import { rawMarketplaceText } from './model'
 import { CodeBlock } from './parts'
-import { AI_PAUSED_REASON, isAiPausedError } from '@/features/ai-credit/model'
-import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
 
 export function AccountTask({ task, kind, remaining }: { task: Task; kind: AccountReviewKind; remaining: number }) {
   const keys = useKeys()
@@ -138,40 +130,3 @@ function ListingBlock({ kind, issues, listing }: { kind: AccountReviewKind; issu
   )
 }
 
-function RegenerateAction({ listing }: { listing: ListingDetail }) {
-  const can = useCan()
-  const navigate = useNavigate()
-  const regenerate = useRegenerateListing(listing.id)
-  const key = useIntentKey()
-  const paused = useAiPaused()
-  const base = listingActions({ listing, validation: listing.validation, can, publishBuilt: BUILT['listings.publish'] }).regenerate
-  const state = paused && base.show ? { show: true, enabled: false, reason: AI_PAUSED_REASON } : base
-  return (
-    <ActionButton
-      state={state}
-      disabled={regenerate.isPending}
-      data-testid="task-regenerate"
-      onClick={() =>
-        regenerate.mutate(
-          { instructions: null, key: key.get() },
-          {
-            onSuccess: (a) => {
-              key.reset()
-              rememberJob(listing.id, a.job_id)
-              void navigate({ to: '/runs/$runId', params: { runId: a.job_id } })
-            },
-            onError: (e) => {
-              if (isApiError(e) && !e.isNetwork) key.reset()
-              // A pause shows in the app-wide banner instead.
-              if (isAiPausedError(e)) return
-              toastError(e, 'Couldn’t start a new generation')
-            },
-          },
-        )
-      }
-    >
-      <Icon name="refresh" size={16} />
-      {regenerate.isPending ? 'Starting…' : 'Generate again'}
-    </ActionButton>
-  )
-}
