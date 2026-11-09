@@ -18,6 +18,8 @@ import { codePoints } from './schema'
 
 export type SizeChart = Schema<'SizeChart'>
 export type SizeChartRow = Schema<'SizeChartRow'>
+/** A chart read from a size-chart photo: its unit may be `unknown` (never saved as such). */
+export type SuggestedSizeChart = Schema<'SuggestedSizeChart'>
 export type PartyIn = Schema<'PartyIn'>
 export type PartyOut = Schema<'PartyOut'>
 
@@ -245,9 +247,15 @@ export const SIZE_MAX = 20
 export type SizeRowDraft = { size: string } & Record<Measure, string>
 
 export interface SizeChartDraft {
-  unit: 'cm' | 'in'
+  /** Null: not chosen yet (a read from the photo found no unit it could check). Never defaulted. */
+  unit: 'cm' | 'in' | null
   basis: 'garment' | 'body'
   rows: SizeRowDraft[]
+  /**
+   * Rows read from a size-chart photo wait for the seller's unit. `line` is the printed line the
+   * read unit came from (null when no unit was read). Cleared once the seller picks or confirms.
+   */
+  unitCheck?: { line: string | null } | null
 }
 
 export const emptySizeRow = (size = ''): SizeRowDraft => ({ size, chest: '', waist: '', hip: '', length: '', shoulder: '', sleeve: '', inseam: '' })
@@ -260,11 +268,26 @@ export function measuresInUse(d: SizeChartDraft, extra: readonly Measure[] = [])
   return MEASURES.filter((m) => DEFAULT_MEASURES.includes(m) || extra.includes(m) || d.rows.some((r) => r[m].trim() !== ''))
 }
 
-/** Field errors: `size_chart.rows.<i>.<size|measure>` and `size_chart` for the whole chart. */
+export const UNIT_CHOOSE_MSG = 'Choose the unit printed on your size chart.'
+export const UNIT_CONFIRM_MSG = 'Confirm the unit read from your photo.'
+
+/** The seller still has to choose (no unit) or confirm (a read unit) the unit of a filled chart. */
+export function unitPending(d: SizeChartDraft): 'choose' | 'confirm' | null {
+  if (!d.rows.some(rowFilled)) return null
+  if (d.unit === null) return 'choose'
+  return d.unitCheck ? 'confirm' : null
+}
+
+/** The seller picked or confirmed `unit`: the draft no longer waits on the read. */
+export const withUnit = (d: SizeChartDraft, unit: 'cm' | 'in'): SizeChartDraft => ({ ...d, unit, unitCheck: null })
+
+/** Field errors: `size_chart.rows.<i>.<size|measure>`, `size_chart.unit` and `size_chart` for the whole chart. */
 export function sizeChartProblems(d: SizeChartDraft): Record<string, string> {
   const e: Record<string, string> = {}
   const rows = d.rows.map((r, i) => ({ r, i })).filter(({ r }) => rowFilled(r))
   if (rows.length > MAX_SIZE_ROWS) e.size_chart = `Use at most ${MAX_SIZE_ROWS} sizes.`
+  const pending = unitPending(d)
+  if (pending) e['size_chart.unit'] = pending === 'choose' ? UNIT_CHOOSE_MSG : UNIT_CONFIRM_MSG
   const seen = new Set<string>()
   for (const { r, i } of rows) {
     const size = r.size.trim()
@@ -291,27 +314,48 @@ export function sizeChartProblems(d: SizeChartDraft): Record<string, string> {
 export const SIZE_CHART_REFUSED =
   'Check the size chart: every size needs at least one measurement, each above 0 and up to 500, with at most one decimal.'
 
-/** Draft -> the `SizeChart` to send, or null when no row is filled. Call after `sizeChartProblems` is empty. */
-export function toSizeChart(d: SizeChartDraft): SizeChart | null {
+/**
+ * Draft -> the `SizeChart` to send, null when no row is filled, or undefined when rows are filled
+ * but the seller has not chosen or confirmed the unit yet (nothing can be sent: the unit is never
+ * guessed). Call after `sizeChartProblems` is empty.
+ */
+export function toSizeChart(d: SizeChartDraft): SizeChart | null | undefined {
   const rows = d.rows.filter(rowFilled).map((r) => {
     const out: SizeChartRow = { size: r.size.trim() }
     for (const m of MEASURES) if (r[m].trim()) out[m] = Number(r[m].trim())
     return out
   })
-  return rows.length ? { unit: d.unit, basis: d.basis, rows } : null
+  if (!rows.length) return null
+  if (d.unit === null || d.unitCheck) return undefined
+  return { unit: d.unit, basis: d.basis, rows }
 }
+
+/** The chart as the seller sees it (unit chosen or not), to tell whether it changed. */
+export const sizeChartKey = (d: SizeChartDraft): string => {
+  const rows = d.rows.filter(rowFilled).map((r) => [r.size.trim(), ...MEASURES.map((m) => r[m].trim())])
+  return rows.length ? JSON.stringify([d.unit, d.unitCheck ? 'check' : '', d.basis, rows]) : ''
+}
+
+const draftRows = (rows: readonly SizeChartRow[]): SizeRowDraft[] =>
+  rows.map((r) => {
+    const d = emptySizeRow(r.size)
+    for (const m of MEASURES) d[m] = r[m] == null ? '' : String(r[m])
+    return d
+  })
 
 export function fromSizeChart(c: SizeChart | null | undefined): SizeChartDraft {
   if (!c) return emptySizeChart()
-  return {
-    unit: c.unit,
-    basis: c.basis,
-    rows: c.rows.map((r) => {
-      const d = emptySizeRow(r.size)
-      for (const m of MEASURES) d[m] = r[m] == null ? '' : String(r[m])
-      return d
-    }),
-  }
+  return { unit: c.unit, basis: c.basis, rows: draftRows(c.rows), unitCheck: null }
+}
+
+/**
+ * Rows read from a size-chart photo, for the seller to check. A read `cm` or `in` is only
+ * pre-selected next to its printed line, and the seller confirms it; an `unknown` unit is left
+ * for the seller to choose. Either way nothing is saved until the seller has.
+ */
+export function fromReadChart(c: SuggestedSizeChart, line: string | null | undefined): SizeChartDraft {
+  const unit = c.unit === 'unknown' ? null : c.unit
+  return { unit, basis: c.basis, rows: draftRows(c.rows), unitCheck: { line: unit ? line?.trim() || null : null } }
 }
 
 /** Filled rows (for completeness marks). */
@@ -514,6 +558,7 @@ export function bodyErrorKey(loc: readonly (string | number)[]): string | null {
   if (segs[0] === 'manufacturer') return segs[1] ? `manufacturer.${segs[1]}` : 'manufacturer'
   if (segs[0] === 'size_chart') {
     if (segs[1] === 'rows' && segs[2] !== undefined) return segs[3] ? `size_chart.rows.${segs[2]}.${segs[3]}` : `size_chart.rows.${segs[2]}.size`
+    if (segs[1] === 'unit') return 'size_chart.unit'
     return 'size_chart'
   }
   return segs.join('.')

@@ -1897,7 +1897,9 @@ export interface paths {
          *     read (`read` or `unreadable`) with no new job. Nothing is saved as a fact: save the edited
          *     chart with `PATCH /products/{product_id}` and `size_chart_image_id`. A variant is 422
          *     `FACT_LEVEL_INVALID`, no size-chart photo 422, a photo still being checked 409. While AI is
-         *     paused for every brand it is 503 with the pause's code (SI10); past the daily cap 429.
+         *     paused for every brand it is 503 with the pause's code (SI10); past the daily cap 429. While
+         *     the read is switched off (`size_chart_read_enabled: false` on the product) it is 200
+         *     `unavailable` with no job and nothing spent.
          */
         post: operations["size_chart_read_create"];
         delete?: never;
@@ -4517,6 +4519,12 @@ export interface components {
              */
             selling_price?: string | null;
             size_chart?: components["schemas"]["SizeChart"] | null;
+            /**
+             * Size Chart Read Enabled
+             * @description SI12: whether `POST /products/{product_id}/size-chart-read` can read the photo; while false it answers `unavailable` (hide the button). False on lists.
+             * @default false
+             */
+            size_chart_read_enabled: boolean;
             /** @description SI12: the size-chart read of a style or standalone; null on lists. */
             size_chart_suggestion?: components["schemas"]["SizeChartSuggestionOut"] | null;
             /** Size Chart Url */
@@ -4939,7 +4947,12 @@ export interface components {
              */
             password: string;
         };
-        /** SizeChart */
+        /**
+         * SizeChart
+         * @description A saved size chart. The seller always sends the unit: a read never supplies it, and a read
+         *     whose unit is `unknown` must be given `cm` or `in` first (else 422 `VALIDATION_FAILED` at
+         *     `size_chart.unit`).
+         */
         SizeChart: {
             /**
              * Basis
@@ -4950,6 +4963,7 @@ export interface components {
             rows: components["schemas"]["SizeChartRow"][];
             /**
              * Unit
+             * @description Required: `cm` or `in`, chosen by the seller.
              * @enum {string}
              */
             unit: "cm" | "in";
@@ -5000,7 +5014,7 @@ export interface components {
          *     saves (with `size_chart_image_id`); never a fact by itself.
          */
         SizeChartSuggestionOut: {
-            chart?: components["schemas"]["SizeChart"] | null;
+            chart?: components["schemas"]["SuggestedSizeChart"] | null;
             /** Confidence */
             confidence?: number | null;
             /**
@@ -5015,6 +5029,11 @@ export interface components {
              * @enum {string}
              */
             status: "queued" | "reading" | "read" | "unreadable" | "failed" | "unavailable";
+            /**
+             * Unit Source Line
+             * @description The printed line the read unit came from (for example `All measurements in cm`), shown so the seller can confirm the unit; null when `chart.unit` is `unknown`.
+             */
+            unit_source_line?: string | null;
         };
         /**
          * StepUpOut
@@ -5115,6 +5134,25 @@ export interface components {
             /** Data */
             data: components["schemas"]["SubmissionOut"][];
             page: components["schemas"]["PageInfo"];
+        };
+        /**
+         * SuggestedSizeChart
+         * @description SI12: a chart as read from a size-chart photo. `unit` is `unknown` when the photo prints no
+         *     unit, or the read unit could not be backed by a printed line: the seller picks one.
+         */
+        SuggestedSizeChart: {
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "garment" | "body";
+            /** Rows */
+            rows: components["schemas"]["SizeChartRow"][];
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "cm" | "in" | "unknown";
         };
         /** SuggestionsOut */
         SuggestionsOut: {

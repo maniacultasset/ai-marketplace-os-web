@@ -22,6 +22,8 @@ import {
   MEASURE_LABEL,
   MEASURES,
   measuresInUse,
+  unitPending,
+  withUnit,
   type FibreRow,
   type Measure,
   type PartyDraft,
@@ -426,10 +428,15 @@ export function CompositionEditor({
 
 /* -------------------------------------------------------------------------------- Size chart */
 
+const UNIT_WORD = { cm: 'cm', in: 'inches' } as const
+
 /**
  * The garment or body measurements per size. Unit and basis are toggles; measurement columns
  * can be added; common sizes are one tap. On a phone the table scrolls sideways inside its box.
- * Errors: `size_chart` and `size_chart.rows.<i>.<size|measure>`.
+ * Rows read from a size-chart photo (SI12) need the seller's unit: none is selected when the read
+ * found no unit it could check, and a read unit is pre-selected next to the line it was read from
+ * until the seller confirms it. Errors: `size_chart`, `size_chart.unit` and
+ * `size_chart.rows.<i>.<size|measure>`.
  */
 export function SizeChartEditor({
   id,
@@ -454,20 +461,31 @@ export function SizeChartEditor({
   const rowErrors = (i: number) =>
     ['size', ...MEASURES].map((f) => errors[`size_chart.rows.${i}.${f}`]).filter((x): x is string => !!x)
   const titleId = useId()
+  const unitNoteId = useId()
+  const pending = unitPending(value)
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-        <div className="flex items-center gap-2">
-          <span className="text-small font-bold text-ink">Unit</span>
+        <div className="flex flex-wrap items-center gap-2" aria-describedby={pending ? unitNoteId : undefined}>
+          <span className="text-small font-bold text-ink">
+            Unit
+            {pending === 'choose' ? <span className="sr-only"> (required)</span> : null}
+          </span>
           <Segmented
-            label="Unit"
+            label={pending === 'choose' ? 'Unit, required' : 'Unit'}
             value={value.unit}
-            onChange={(unit) => onChange({ ...value, unit })}
+            onChange={(unit) => onChange(withUnit(value, unit))}
             options={[
               { value: 'in', label: 'Inches' },
               { value: 'cm', label: 'cm' },
             ]}
           />
+          {pending === 'confirm' && value.unit ? (
+            <Button type="button" variant="secondary" size="sm" onClick={() => onChange(withUnit(value, value.unit!))} data-testid="size-chart-unit-confirm">
+              <Icon name="check" size={16} />
+              Confirm {UNIT_WORD[value.unit]}
+            </Button>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <span className="text-small font-bold text-ink">Measured on</span>
@@ -482,6 +500,26 @@ export function SizeChartEditor({
           />
         </div>
       </div>
+
+      {pending ? (
+        <p id={unitNoteId} className="-mt-1 flex items-start gap-1.5 text-caption text-ink-2" data-testid="size-chart-unit-note">
+          <Icon name="info" size={14} className="mt-[calc((1lh-14px)/2)] shrink-0" />
+          {pending === 'choose' ? (
+            <span>We couldn’t check the unit on your photo. Choose the unit printed on your size chart before you save.</span>
+          ) : value.unitCheck?.line ? (
+            <span className="min-w-0 break-words">
+              Read from: <q className="font-semibold text-ink">{value.unitCheck.line}</q>. Check it matches your chart, then confirm the unit.
+            </span>
+          ) : (
+            <span>Check the unit matches your size chart, then confirm it.</span>
+          )}
+        </p>
+      ) : null}
+      {errors['size_chart.unit'] ? (
+        <p className="-mt-1 text-caption text-danger" role="alert">
+          {errors['size_chart.unit']}
+        </p>
+      ) : null}
 
       <div className="flex flex-col gap-2">
         <p className="text-small font-bold text-ink">Add sizes</p>
@@ -511,7 +549,7 @@ export function SizeChartEditor({
           <div className="max-w-full overflow-x-auto rounded-card border border-line bg-surface shadow-raised-sm">
             <table className="w-full min-w-max text-small" aria-labelledby={titleId}>
               <caption id={titleId} className="sr-only">
-                Size chart in {value.unit === 'in' ? 'inches' : 'centimetres'}, measured on the {value.basis}
+                Size chart in {value.unit === 'in' ? 'inches' : value.unit === 'cm' ? 'centimetres' : 'a unit not chosen yet'}, measured on the {value.basis}
               </caption>
               <thead>
                 <tr className="bg-sunken text-left text-caption text-ink-2">

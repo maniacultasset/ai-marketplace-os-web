@@ -31,6 +31,7 @@ const product = {
   identifier_exemption: false,
   attribute_literals: {},
   image_details: [{ image_id: IMG, slot: 'size_chart' as const, position: 0, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' as const }],
+  size_chart_read_enabled: true,
 }
 
 const answer = (body: unknown, status: number) => Promise.resolve({ data: status < 400 ? body : undefined, error: status >= 400 ? body : undefined, response: new Response(JSON.stringify(body), { status }) })
@@ -62,12 +63,28 @@ describe('Read sizes from your size chart photo (SI12)', () => {
     post.mockReturnValue(answer({ image_id: IMG, job_id: 'j1', status: 'queued' }, 202))
     fetchProduct
       .mockResolvedValueOnce({ ...product, size_chart_suggestion: { image_id: IMG, status: 'reading' } })
-      .mockResolvedValue({ ...product, size_chart_suggestion: { image_id: IMG, status: 'read', chart: CHART, confidence: 0.9 } })
+      .mockResolvedValue({ ...product, size_chart_suggestion: { image_id: IMG, status: 'read', chart: CHART, unit_source_line: 'Size chart (cm)', confidence: 0.9 } })
     const { onRead } = setup()
     await userEvent.click(screen.getByRole('button', { name: 'Read sizes from your size chart photo' }))
     expect(post.mock.calls[0]![0]).toBe('/products/{product_id}/size-chart-read')
     expect(post.mock.calls[0]![1].params.header['Idempotency-Key']).toBeTruthy()
-    await waitFor(() => expect(onRead).toHaveBeenCalledWith(CHART, IMG), { timeout: 4000 })
+    await waitFor(() => expect(onRead).toHaveBeenCalledWith(CHART, 'Size chart (cm)', IMG), { timeout: 4000 })
+  })
+
+  it('hands over a chart whose unit is unknown, with no printed line', async () => {
+    const unknown = { ...CHART, unit: 'unknown' as const }
+    post.mockReturnValue(answer({ image_id: IMG, status: 'read' }, 200))
+    fetchProduct.mockResolvedValue({ ...product, size_chart_suggestion: { image_id: IMG, status: 'read', chart: unknown, unit_source_line: null } })
+    const { onRead } = setup()
+    await userEvent.click(screen.getByTestId('size-chart-read-start'))
+    await waitFor(() => expect(onRead).toHaveBeenCalledWith(unknown, null, IMG))
+  })
+
+  it('is hidden while the read is switched off', () => {
+    setup({ ...product, size_chart_read_enabled: false })
+    expect(screen.queryByTestId('size-chart-read')).toBeNull()
+    expect(screen.queryByTestId('size-chart-read-none')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Read sizes/ })).toBeNull()
   })
 
   it('says so when the photo could not be read, and loads nothing', async () => {

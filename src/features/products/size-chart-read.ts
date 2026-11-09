@@ -7,10 +7,13 @@
  *     200 {status: read|unreadable}          this photo was read before: no new job
  *     422 no size-chart photo (or a variant), 409 the photo is still being checked,
  *     503 AI paused (SI10 codes), 429 past the daily cap
- *   GET /products/{id}  `size_chart_suggestion: {image_id, status, chart, confidence}`
+ *   GET /products/{id}  `size_chart_suggestion: {image_id, status, chart, unit_source_line, confidence}`
+ *   `size_chart_read_enabled` false: the read is switched off, so the button is hidden.
  *
  * The rows go into the editor with the photo's id; saving sends `size_chart` with
- * `size_chart_image_id` (edit-model `buildPatch`).
+ * `size_chart_image_id` (edit-model `buildPatch`). The unit is never taken as read: `chart.unit`
+ * `unknown` leaves it for the seller to choose, and a read `cm` or `in` is pre-selected next to
+ * `unit_source_line` for the seller to confirm (intake-model `fromReadChart`).
  */
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
@@ -24,7 +27,9 @@ import { fetchProduct, productQuery, type ProductDetail } from './api'
 
 export type SizeChartSuggestion = Schema<'SizeChartSuggestionOut'>
 export type SizeChartReadStatus = SizeChartSuggestion['status']
-type SizeChart = Schema<'SizeChart'>
+type SuggestedSizeChart = Schema<'SuggestedSizeChart'>
+/** Gets the rows read from the photo, the printed line their unit came from, and the photo id. */
+export type OnRead = (chart: SuggestedSizeChart, line: string | null | undefined, imageId: string) => void
 
 const FINAL: readonly SizeChartReadStatus[] = ['read', 'unreadable', 'failed', 'unavailable']
 export const isFinalRead = (s: SizeChartReadStatus | undefined) => !!s && FINAL.includes(s)
@@ -65,10 +70,10 @@ const POLL_MS = 1500
 const POLL_FOR_MS = 120_000
 
 /**
- * Start a read and follow it on the product read. `onRead` gets the chart and the photo id once
- * the read has rows; the caller loads them into the editor.
+ * Start a read and follow it on the product read. `onRead` gets the chart, its unit's printed
+ * line and the photo id once the read has rows; the caller loads them into the editor.
  */
-export function useSizeChartRead(productId: string, onRead: (chart: SizeChart, imageId: string) => void) {
+export function useSizeChartRead(productId: string, onRead: OnRead) {
   const keys = useKeys()
   const qc = useQueryClient()
   const [state, setState] = useState<ReadState>({ kind: 'idle' })
@@ -88,7 +93,7 @@ export function useSizeChartRead(productId: string, onRead: (chart: SizeChart, i
     const s = p.size_chart_suggestion
     const out = outcomeOf(s, imageId)
     if (!out) return false
-    if (out.kind === 'read' && s?.chart) onReadRef.current(s.chart, imageId)
+    if (out.kind === 'read' && s?.chart) onReadRef.current(s.chart, s.unit_source_line, imageId)
     setState(out)
     return true
   }

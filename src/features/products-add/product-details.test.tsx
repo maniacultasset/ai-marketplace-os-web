@@ -38,7 +38,7 @@ const product: ProductDetail = {
   status: 'active',
   category: 'kurtas',
   created_at: 'x',
-  identifier_exemption: false, brand_name_inherited: false,
+  identifier_exemption: false, brand_name_inherited: false, size_chart_read_enabled: false,
   updated_at: 'x',
   attributes: {},
   attribute_literals: {},

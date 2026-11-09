@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Schema } from '@/api/types'
 import { buildPatch, changedOnServer, editableAttrs, manufacturerSource, mapPatchErrors, rebaseDraft, toEditDraft, validateEdit, withHsnSuggestion } from './edit-model'
-import { emptySizeRow } from './intake-model'
+import { emptySizeRow, fromReadChart, UNIT_CHOOSE_MSG, UNIT_CONFIRM_MSG, withUnit } from './intake-model'
 
 const product = (over: Partial<Schema<'ProductOut'>> = {}): Schema<'ProductOut'> => ({
   id: 'p1',
@@ -10,7 +10,7 @@ const product = (over: Partial<Schema<'ProductOut'>> = {}): Schema<'ProductOut'>
   status: 'active',
   category: 'kurtas',
   created_at: '2026-11-07T10:00:00Z',
-  identifier_exemption: false, brand_name_inherited: false,
+  identifier_exemption: false, brand_name_inherited: false, size_chart_read_enabled: false,
   updated_at: '2026-11-07T10:00:00Z',
   attributes: { fabric_type: 'Cotton', fiber_composition: '60% Cotton, 40% Polyester', occasion: 'Casual' },
   fiber_composition: [{ fibre: 'cotton', percent: 60 }, { fibre: 'polyester', percent: 40 }],
@@ -264,6 +264,26 @@ describe('SI12 seller fields in the editor', () => {
       size_chart_image_id: 'img-1',
     })
     expect(buildPatch(base, { ...base, sizeChartImageId: 'img-1' }, false)).toEqual({})
+  })
+
+  it('sends a chart read from the photo only after the seller chose or confirmed its unit', () => {
+    const base = toEditDraft(product({ size_chart: null }))
+    const rows = [{ size: 'M', chest: 102 }]
+    const unknown = { ...base, sizeChart: fromReadChart({ unit: 'unknown', basis: 'garment', rows }, null), sizeChartImageId: 'img-1' }
+    expect(validateEdit(unknown, false)['size_chart.unit']).toBe(UNIT_CHOOSE_MSG)
+    expect(buildPatch(base, unknown, false)).toEqual({})
+    const chosen = { ...unknown, sizeChart: withUnit(unknown.sizeChart, 'in') }
+    expect(validateEdit(chosen, false)['size_chart.unit']).toBeUndefined()
+    expect(buildPatch(base, chosen, false)).toEqual({ size_chart: { unit: 'in', basis: 'garment', rows }, size_chart_image_id: 'img-1' })
+    const read = { ...base, sizeChart: fromReadChart({ unit: 'cm', basis: 'garment', rows }, 'Size chart (cm)'), sizeChartImageId: 'img-1' }
+    expect(validateEdit(read, false)['size_chart.unit']).toBe(UNIT_CONFIRM_MSG)
+    expect(buildPatch(base, read, false)).toEqual({})
+    expect(buildPatch(base, { ...read, sizeChart: withUnit(read.sizeChart, 'cm') }, false).size_chart).toEqual({ unit: 'cm', basis: 'garment', rows })
+  })
+
+  it('maps the server refusing a unit onto the unit picker', () => {
+    const { fields } = mapPatchErrors({ type: 'VALIDATION_FAILED', details: [{ loc: ['body', 'size_chart', 'unit'], msg: 'x' }] }, toEditDraft(product()))
+    expect(fields['size_chart.unit']).toBe(UNIT_CHOOSE_MSG)
   })
 
   it('maps package and size-chart photo errors onto their fields', () => {
