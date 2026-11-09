@@ -5394,7 +5394,9 @@
               "answer",
               "marketplace",
               "resume",
-              "regenerate"
+              "regenerate",
+              "recategorize",
+              "edit_identifier"
             ],
             "title": "Kind",
             "type": "string"
@@ -6444,6 +6446,31 @@
           "status": {
             "title": "Status",
             "type": "string"
+          },
+          "view_expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When to fetch a fresh `view_url`; null with it.",
+            "title": "View Expires At"
+          },
+          "view_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A signed GET of the photo's server-made copy (long side at most 1024 px, no metadata), valid about 10 minutes; null until the photo has been checked. A bearer link: never log or store it. Read the product again before `view_expires_at`.",
+            "title": "View Url"
           }
         },
         "required": [
@@ -6721,6 +6748,12 @@
               }
             ]
           },
+          "size_chart_read_enabled": {
+            "default": false,
+            "description": "SI12: whether `POST /products/{product_id}/size-chart-read` can read the photo; while false it answers `unavailable` (hide the button). False on lists.",
+            "title": "Size Chart Read Enabled",
+            "type": "boolean"
+          },
           "size_chart_suggestion": {
             "anyOf": [
               {
@@ -6771,6 +6804,31 @@
           "suggestions": {
             "$ref": "#/components/schemas/SuggestionsOut",
             "description": "SI12: values to suggest while the field is empty; empty on lists."
+          },
+          "thumbnail_expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When to fetch a fresh `thumbnail_url`; null with it.",
+            "title": "Thumbnail Expires At"
+          },
+          "thumbnail_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A signed GET of the main photo's server-made copy (a variant shows its style's photo of its colour), valid about 10 minutes; on lists and single reads. Null when there is no checked main photo. A bearer link: never log or store it.",
+            "title": "Thumbnail Url"
           },
           "title": {
             "maxLength": 500,
@@ -7932,6 +7990,7 @@
       },
       "SizeChart": {
         "additionalProperties": false,
+        "description": "A saved size chart. The seller always sends the unit: a read never supplies it, and a read\nwhose unit is `unknown` must be given `cm` or `in` first (else 422 `VALIDATION_FAILED` at\n`size_chart.unit`).",
         "properties": {
           "basis": {
             "enum": [
@@ -7951,6 +8010,7 @@
             "type": "array"
           },
           "unit": {
+            "description": "Required: `cm` or `in`, chosen by the seller.",
             "enum": [
               "cm",
               "in"
@@ -8131,7 +8191,7 @@
           "chart": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/SizeChart"
+                "$ref": "#/components/schemas/SuggestedSizeChart"
               },
               {
                 "type": "null"
@@ -8177,6 +8237,19 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "unit_source_line": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The printed line the read unit came from (for example `All measurements in cm`), shown so the seller can confirm the unit; null when `chart.unit` is `unknown`.",
+            "title": "Unit Source Line"
           }
         },
         "required": [
@@ -8458,6 +8531,44 @@
           "page"
         ],
         "title": "SubmissionPage",
+        "type": "object"
+      },
+      "SuggestedSizeChart": {
+        "description": "SI12: a chart as read from a size-chart photo. `unit` is `unknown` when the photo prints no\nunit, or the read unit could not be backed by a printed line: the seller picks one.",
+        "properties": {
+          "basis": {
+            "enum": [
+              "garment",
+              "body"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/SizeChartRow"
+            },
+            "maxItems": 40,
+            "minItems": 1,
+            "title": "Rows",
+            "type": "array"
+          },
+          "unit": {
+            "enum": [
+              "cm",
+              "in",
+              "unknown"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "unit",
+          "basis",
+          "rows"
+        ],
+        "title": "SuggestedSizeChart",
         "type": "object"
       },
       "SuggestionsOut": {
@@ -42666,7 +42777,7 @@
     },
     "/api/v1/products/{product_id}/size-chart-read": {
       "post": {
-        "description": "Read the product's size-chart photo (a style or standalone product) into a suggestion. 202\nnames the job (poll the product for `size_chart_suggestion`); 200 answers a photo already\nread (`read` or `unreadable`) with no new job. Nothing is saved as a fact: save the edited\nchart with `PATCH /products/{product_id}` and `size_chart_image_id`. A variant is 422\n`FACT_LEVEL_INVALID`, no size-chart photo 422, a photo still being checked 409. While AI is\npaused for every brand it is 503 with the pause's code (SI10); past the daily cap 429.",
+        "description": "Read the product's size-chart photo (a style or standalone product) into a suggestion. 202\nnames the job (poll the product for `size_chart_suggestion`); 200 answers a photo already\nread (`read` or `unreadable`) with no new job. Nothing is saved as a fact: save the edited\nchart with `PATCH /products/{product_id}` and `size_chart_image_id`. A variant is 422\n`FACT_LEVEL_INVALID`, no size-chart photo 422, a photo still being checked 409. While AI is\npaused for every brand it is 503 with the pause's code (SI10); past the daily cap 429. While\nthe read is switched off (`size_chart_read_enabled: false` on the product) it is 200\n`unavailable` with no job and nothing spent.",
         "operationId": "size_chart_read_create",
         "parameters": [
           {

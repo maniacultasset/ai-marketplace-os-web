@@ -10,6 +10,7 @@ import {
   emptySizeRow,
   formatMoney,
   fromPartyOut,
+  fromReadChart,
   fromSizeChart,
   moneyProblem,
   normalizeMoney,
@@ -18,8 +19,13 @@ import {
   priceAboveMrp,
   sizeChartProblems,
   toPartyIn,
+  sizeChartKey,
   toSizeChart,
   SIZE_CHART_REFUSED,
+  UNIT_CHOOSE_MSG,
+  UNIT_CONFIRM_MSG,
+  unitPending,
+  withUnit,
   type SizeChartDraft,
 } from './intake-model'
 
@@ -131,6 +137,44 @@ describe('size chart', () => {
     const d = fromSizeChart({ unit: 'cm', basis: 'body', rows: [{ size: 'M', chest: 96 }] })
     expect(d.unit).toBe('cm')
     expect(d.rows[0]).toEqual({ ...emptySizeRow('M'), chest: '96' })
+  })
+})
+
+describe('size chart read from a photo (SI12): the unit is never guessed', () => {
+  const rows = [{ size: 'M', chest: 102 }, { size: 'L', chest: 108 }]
+  it('leaves an unknown unit for the seller to choose, and sends nothing until then', () => {
+    const d = fromReadChart({ unit: 'unknown', basis: 'garment', rows }, 'ignored')
+    expect(d.unit).toBeNull()
+    expect(d.unitCheck).toEqual({ line: null })
+    expect(d.rows.map((r) => [r.size, r.chest])).toEqual([['M', '102'], ['L', '108']])
+    expect(unitPending(d)).toBe('choose')
+    expect(sizeChartProblems(d)['size_chart.unit']).toBe(UNIT_CHOOSE_MSG)
+    expect(toSizeChart(d)).toBeUndefined()
+    const chosen = withUnit(d, 'in')
+    expect(unitPending(chosen)).toBeNull()
+    expect(sizeChartProblems(chosen)).toEqual({})
+    expect(toSizeChart(chosen)).toEqual({ unit: 'in', basis: 'garment', rows })
+  })
+  it('pre-selects a read unit next to its printed line until the seller confirms it', () => {
+    const d = fromReadChart({ unit: 'cm', basis: 'body', rows }, '  All measurements in cm ')
+    expect(d.unit).toBe('cm')
+    expect(d.unitCheck).toEqual({ line: 'All measurements in cm' })
+    expect(unitPending(d)).toBe('confirm')
+    expect(sizeChartProblems(d)['size_chart.unit']).toBe(UNIT_CONFIRM_MSG)
+    expect(toSizeChart(d)).toBeUndefined()
+    expect(toSizeChart(withUnit(d, 'cm'))).toEqual({ unit: 'cm', basis: 'body', rows })
+    expect(fromReadChart({ unit: 'in', basis: 'garment', rows }, null).unitCheck).toEqual({ line: null })
+  })
+  it('asks nothing once every row is gone, and tells a pending chart from a chosen one', () => {
+    const d = fromReadChart({ unit: 'unknown', basis: 'garment', rows }, null)
+    expect(unitPending({ ...d, rows: [] })).toBeNull()
+    expect(toSizeChart({ ...d, rows: [] })).toBeNull()
+    expect(sizeChartKey(d)).not.toBe(sizeChartKey(withUnit(d, 'cm')))
+    expect(sizeChartKey(withUnit(d, 'cm'))).toBe(sizeChartKey(fromSizeChart({ unit: 'cm', basis: 'garment', rows })))
+  })
+  it('a chart the seller types or one that was saved needs no confirmation', () => {
+    expect(unitPending(fromSizeChart({ unit: 'cm', basis: 'garment', rows }))).toBeNull()
+    expect(unitPending({ unit: 'in', basis: 'garment', rows: [{ ...emptySizeRow('S'), chest: '36' }] })).toBeNull()
   })
 })
 

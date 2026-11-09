@@ -25,7 +25,7 @@ const product: ProductDetail = {
   updated_at: 'x',
   identifier_exemption: true,
   brand_name: 'Kora',
-  brand_name_inherited: false,
+  brand_name_inherited: false, size_chart_read_enabled: false,
   gender: 'men',
   attributes: { fabric_type: 'Linen', color: 'Coral pink' },
   attribute_literals: {},

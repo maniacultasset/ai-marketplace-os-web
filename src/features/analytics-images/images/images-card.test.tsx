@@ -258,3 +258,32 @@ describe('ProductImagesCard image fixes (SI7)', () => {
     )
   })
 })
+
+describe('ProductImagesCard saved photos (after a reload)', () => {
+  const VIEW1 = 'http://localhost:9000/marketplace-images/t/p/derived/i1/vision.jpg?X-Amz-Signature=a'
+  const withViews = {
+    ...product,
+    colourways: [],
+    image_details: [
+      { ...product.image_details[0]!, view_url: VIEW1, view_expires_at: '2099-01-01T00:00:00Z' },
+      { ...product.image_details[1]!, slot: 'secondary' as const, colourway_id: null, view_url: null },
+    ],
+  }
+
+  it('shows each saved photo in its row from the product read, and a quiet placeholder while one has no view yet', () => {
+    setup(withViews)
+    const rows = screen.getAllByTestId('image-row')
+    const first = within(rows[0]!).getByTestId('image-thumb')
+    expect(first.querySelector('img')?.getAttribute('src')).toBe(VIEW1)
+    expect(first.querySelector('img')?.getAttribute('alt')).toBe('Front image')
+    expect(within(rows[1]!).getByTestId('image-thumb').querySelector('img')).toBeNull()
+  })
+
+  it('fills the Front tile with the saved photo once there is no upload this visit', () => {
+    live = true
+    setup(withViews)
+    const front = screen.getByTestId('photo-slot-front')
+    expect(front.dataset.filled).toBe('true')
+    expect(within(front).getByTestId('photo-slot-image').querySelector('img')?.getAttribute('src')).toBe(VIEW1)
+  })
+})
