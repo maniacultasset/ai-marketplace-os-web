@@ -19,7 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { useListingHistory, useListingsList } from '@/features/listings/api'
 import { useProduct } from '@/features/products/api'
-import { historyLabel, sentence, type Listing } from '@/features/listings/model'
+import { historyLabel, reviewDetail, sentence, type Listing } from '@/features/listings/model'
 import { formatDateTime, formatRelative } from '@/features/marketplaces/format'
 import { useMe } from '@/lib/auth'
 import { listingChip } from '@/lib/listing-chip'
@@ -186,7 +186,11 @@ function HistoryPanel({ id, listingId }: { id: string; listingId: string }) {
               </time>
               <span className="font-semibold text-ink">{historyLabel(e.action)}</span>
               <span className="text-ink-2">by {auditActorLabel(e, me?.user_id)}</span>
-              {e.reason ? <span className="text-ink-2">· {e.reason}</span> : null}
+              {reviewDetail(e.review) ? (
+                <span className="text-ink-2">· {reviewDetail(e.review)}</span>
+              ) : e.reason ? (
+                <span className="text-ink-2">· {e.reason}</span>
+              ) : null}
             </li>
           ))}
           {history.hasNextPage ? (

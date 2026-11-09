@@ -451,6 +451,22 @@ export function historyLabel(action: string): string {
   return HISTORY_LABEL[action] ?? sentence(action.replace(/^listing\./, ''))
 }
 
+/**
+ * What an approve or reject event decided (the API's `review`): "Version 2 · Poor quality: the
+ * title repeats the brand". Null for other events, or an older API without it (prod QA 9 Nov:
+ * "Rejected · a person" said nothing about which version or why).
+ */
+export function reviewDetail(review: Schema<'AuditReviewOut'> | null | undefined): string | null {
+  if (!review) return null
+  const parts: string[] = []
+  if (review.version) parts.push(`Version ${review.version}`)
+  const reason = review.reason_code ? sentence(review.reason_code) : null
+  const note = review.feedback?.trim() || null
+  if (reason && note) parts.push(`${reason}: ${note}`)
+  else if (reason ?? note) parts.push((reason ?? note)!)
+  return parts.length ? parts.join(' · ') : null
+}
+
 /** The status an audit `before`/`after` snapshot names, when it is a known one. */
 export function snapshotStatus(snap: Record<string, unknown> | null | undefined): ListingStatus | null {
   const s = snap?.['status']
@@ -476,4 +492,19 @@ export const STAGE_LABEL: Record<string, string> = {
   validate_vision: 'Checking images',
   correct: 'Fixing issues',
   quality_check: 'Final quality check',
+}
+
+/**
+ * The Validation tab's blocking count: the rules run's, or the server's open blocking issues on
+ * the current version (the marketplace check and its dry run included), whichever is larger, so
+ * it agrees with Review (prod QA 9 Nov, item 14). `marketplace`: the rules passed but other
+ * checks block.
+ */
+export function validationBlocking(
+  v: { passed: boolean; blocking_count: number } | null | undefined,
+  l: { display_state?: Schema<'ListingOut'>['display_state']; needs_you_count?: number } | null | undefined,
+): { blocking: number; marketplace: boolean } {
+  const server = l?.display_state === 'needs_you' ? (l.needs_you_count ?? 0) : 0
+  const blocking = Math.max(v?.blocking_count ?? 0, server)
+  return { blocking, marketplace: !!v?.passed && (v.blocking_count ?? 0) === 0 && server > 0 }
 }

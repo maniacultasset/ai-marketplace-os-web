@@ -46,13 +46,15 @@ import { useFixCounts } from '@/features/home-inbox/api'
 import { AutoFixedChip } from '@/features/listing-flow/auto-fix'
 import { listingDetailQuery, useListingHistory } from '@/features/listings/api'
 import { recallJob } from '@/features/listings/job-memory'
-import { historyLabel, isBusy } from '@/features/listings/model'
+import { historyLabel, isBusy, reviewDetail, validationBlocking } from '@/features/listings/model'
+import { auditActorLabel } from '@/features/marketplaces-settings/model'
 import { comingSoon, comingSoonReason, draftOpen } from '@/features/marketplaces/meta'
 import { useProduct, type ProductDetail } from '@/features/products/api'
 import { RelativeTime } from '@/features/products/format'
 import { mainView, useRefreshProductViews } from '@/features/products/image-views'
 import { Can, OP_ACTION, useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
+import { useMe } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 import { AddMarketplaceDialog } from './add-marketplace-dialog'
 import { useAllListings, useAllProducts, useOpenIssues } from './catalog'
@@ -64,7 +66,6 @@ import {
   matrixKey,
   OVERALL_CHIP,
   overallStatus,
-  shortId,
   variantMatrix,
   type Listing,
   type Marketplace,
@@ -79,7 +80,7 @@ import { ProductThumb } from './products-page'
 import { marketplaceLink } from '@/features/listings/external-link'
 import { recategorizeState } from '@/features/products/recategorize'
 import { ChangeCategoryButton } from '@/features/products/recategorize-dialog'
-import { isNotBuyable, NOT_BUYABLE_NEXT } from '@/lib/listing-chip'
+import { isNotBuyable, NOT_BUYABLE_NEXT, needsYourInfo, needsYourInfoLabel } from '@/lib/listing-chip'
 
 const TAB_LABEL: Record<DetailTab, string> = {
   overview: 'Overview',
@@ -725,7 +726,7 @@ function MarketplaceCard({
       {detailed ? (
         <KV
           rows={[
-            ['Listing', <span key="l" title={l.id}>{shortId(l.id)}</span>],
+            // No raw listing id here (prod QA 9 Nov, items 7 and 18): the status says what it is.
             ...(busy ? [] : ([['Link', viewLive ?? 'Not yet']] as [string, ReactNode][])),
             ['Updated', <RelativeTime key="s" iso={l.status_changed_at} />],
             ['Issues', issuesText],
@@ -1082,7 +1083,13 @@ function useListingDetails(listings: readonly Listing[]) {
 
 function ValidationCard({ listing, q, pending }: { listing: Listing; q: ListingDetailQuery; pending: boolean }) {
   const v = q.data?.data.validation
-  const clean = !!v && v.passed && v.blocking_count === 0
+  // The rules run is one of the checks. The server's open blocking issues also count the
+  // marketplace check and its dry run, as Review does (prod QA 9 Nov: "Checks passed, 0
+  // blocking" here while Review showed 6 blockers).
+  const detail = q.data?.data
+  const { blocking, marketplace } = validationBlocking(v, detail)
+  const blockers = detail && needsYourInfo(detail) ? (detail.needs_you_count ?? 0) : 0
+  const clean = !!v && v.passed && blocking === 0
   return (
     <LaCard className={CARD_FRAME} aria-busy={pending || undefined}>
       <div className="flex items-center justify-between gap-2">
@@ -1091,7 +1098,11 @@ function ValidationCard({ listing, q, pending }: { listing: Listing; q: ListingD
           <Skeleton className="h-[22px] w-20 rounded-full" />
         ) : v ? (
           // Green only with real evidence: the checks passed and nothing blocks.
-          <StatusChip status={clean ? 'live' : v.passed ? 'draft' : 'error'}>{v.passed ? 'Checks passed' : 'Checks failed'}</StatusChip>
+          blockers > 0 && detail ? (
+            <StatusChip status="needs-you">{needsYourInfoLabel(detail)}</StatusChip>
+          ) : (
+            <StatusChip status={clean ? 'live' : v.passed ? 'draft' : 'error'}>{v.passed ? 'Checks passed' : 'Checks failed'}</StatusChip>
+          )
         ) : q.error ? null : (
           <TagChip tone="plain">Not checked</TagChip>
         )}
@@ -1114,8 +1125,8 @@ function ValidationCard({ listing, q, pending }: { listing: Listing; q: ListingD
           rows={[
             [
               'Blocking',
-              <span key="b" className="tabular-nums" title={`Stages: ${v.stages?.length ?? 0}`}>
-                {v.blocking_count}
+              <span key="b" className="tabular-nums" title={`Stages: ${v.stages?.length ?? 0}`} data-testid="validation-blocking">
+                {blocking}
               </span>,
             ],
             ['Warnings', <span key="w" className="tabular-nums">{v.warning_count}</span>],
@@ -1124,6 +1135,11 @@ function ValidationCard({ listing, q, pending }: { listing: Listing; q: ListingD
       ) : (
         <p className="mt-3 text-small text-ink-2">No checks have run on this listing yet.</p>
       )}
+      {!pending && marketplace ? (
+        <p className="mt-2 text-small text-ink-2" data-testid="validation-marketplace-note">
+          The rules passed, but the marketplace check blocks this version. See every check for what to fix.
+        </p>
+      ) : null}
       <div className={CARD_ACTIONS}>
         <Button variant="secondary" size="sm" asChild>
           <Link to="/listings/$listingId/review" params={{ listingId: listing.id }}>
@@ -1181,6 +1197,7 @@ function HistoryList({
   onSettled: (listingId: string, settled: boolean) => void
 }) {
   const h = useListingHistory(listing.id)
+  const { data: me } = useMe()
   const settled = !h.isPending
   useEffect(() => onSettled(listing.id, settled), [listing.id, settled, onSettled])
   const waiting = !ready || h.isPending
@@ -1206,10 +1223,18 @@ function HistoryList({
       ) : (
         <ol className="mt-3 flex flex-col">
           {h.rows.map((e) => (
-            <li key={e.id} className="flex items-center justify-between gap-3 border-b border-line py-2.5 text-small last:border-b-0">
-              <span className="min-w-0 truncate text-ink">
-                {historyLabel(e.action)}
-                <span className="text-ink-2"> · {e.actor_type === 'user' ? 'a person' : e.actor_type === 'system' ? 'the agent' : 'support'}</span>
+            <li key={e.id} className="flex items-start justify-between gap-3 border-b border-line py-2.5 text-small last:border-b-0" data-testid="history-row">
+              <span className="min-w-0 text-ink">
+                <span className="block truncate">
+                  {historyLabel(e.action)}
+                  <span className="text-ink-2"> · {auditActorLabel(e, me?.user_id)}</span>
+                </span>
+                {reviewDetail(e.review) ? (
+                  // The reviewer's note is plain text, shown as typed (never markup).
+                  <span className="mt-0.5 block text-caption break-words text-ink-2" data-testid="history-review">
+                    {reviewDetail(e.review)}
+                  </span>
+                ) : null}
               </span>
               <RelativeTime iso={e.occurred_at} className="shrink-0 text-caption text-ink-2" />
             </li>
