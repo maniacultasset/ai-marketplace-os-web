@@ -74,7 +74,8 @@ test.describe('team and account', () => {
   test('owner sees every member oldest first with "You" on their own row', async ({ page }) => {
     await loginAs(page, USERS.acme.owner, '/team')
     await expect(page.getByRole('heading', { name: 'Team' })).toBeVisible()
-    const emails = page.getByTestId('member-email')
+    const table = page.getByRole('table', { name: 'Team members' })
+    const emails = table.getByTestId('member-email')
     await expect(emails).toHaveCount(4)
     const api = await listMembers()
     await expect(emails).toHaveText(api.map((m) => m.email))
@@ -82,7 +83,7 @@ test.describe('team and account', () => {
     expect(new Set(api.map((m) => m.email))).toEqual(new Set(Object.keys(SEED_ROLES)))
 
     await expect(row(page, USERS.acme.owner).getByTestId('you-badge')).toBeVisible()
-    await expect(page.getByTestId('you-badge')).toHaveCount(1)
+    await expect(table.getByTestId('you-badge')).toHaveCount(1)
     await expect(page.getByTestId('members-count')).toHaveText('4 members · 4 active')
     await expect(page.getByTestId('approvals-note')).toBeVisible()
     // Invites are built: the button and the open-invites card; no load more (single page).
@@ -166,18 +167,21 @@ test.describe('team and account', () => {
     await expect(self.getByTestId('active-switch')).toBeEnabled()
 
     await row(page, USERS.acme.operator).getByTestId('role-select').click()
-    await expect(page.getByRole('option')).toHaveCount(3)
+    // Only an owner grants owner or reviewer (backend OWNER_ONLY_ROLES).
+    await expect(page.getByRole('option')).toHaveCount(2)
     await expect(page.getByRole('option', { name: /^Owner/ })).toHaveCount(0)
+    await expect(page.getByRole('option', { name: /^Reviewer/ })).toHaveCount(0)
+    await expect(page.getByTestId('role-owner-only-note')).toBeVisible()
     await page.screenshot({ path: `${SHOTS}/team-account-admin.png` })
     await page.keyboard.press('Escape')
 
     // Admin can still change a non-owner's role.
     const patch = page.waitForResponse((res) => res.url().includes('/api/v1/members/') && res.request().method() === 'PATCH')
     await row(page, USERS.acme.operator).getByTestId('role-select').click()
-    await page.getByRole('option', { name: /^Reviewer/ }).click()
+    await page.getByRole('option', { name: /^Admin/ }).click()
     expect((await patch).status()).toBe(200)
-    await expect(row(page, USERS.acme.operator).getByTestId('role-select')).toHaveText(/Reviewer/)
-    expect((await member(USERS.acme.operator)).role).toBe('reviewer')
+    await expect(row(page, USERS.acme.operator).getByTestId('role-select')).toHaveText(/Admin/)
+    expect((await member(USERS.acme.operator)).role).toBe('admin')
   })
 
   test('owner deactivates a member; their open session is bounced to /login', async ({ page, browser }) => {

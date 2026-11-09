@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -30,7 +31,7 @@ import { securityQueryOptions } from '@/features/mfa/api'
 import { cn } from '@/lib/utils'
 import { resetLinkReason } from './access-model'
 import { ResetLinkDialog } from './reset-link-dialog'
-import { initials, memberGating, ROLE_INFO, type Member } from './roles'
+import { initials, memberGating, OWNER_ONLY_REASON, ROLE_INFO, type Member } from './roles'
 import { inlineMemberError, useIsLatestMemberMutation, useMemberRowPending, useMembersList, useUpdateMember } from './use-members'
 
 function Locked({ reason, children }: { reason: string | null; children: ReactNode }) {
@@ -73,7 +74,7 @@ function MemberCell({ member }: { member: Member }) {
   const { data: me } = useMe()
   const isSelf = member.user_id === me?.user_id
   return (
-    <div className="flex min-h-8 max-w-28 min-w-0 items-center gap-3 sm:max-w-none sm:min-w-56">
+    <div className="flex min-h-8 min-w-0 items-center gap-3">
       <Avatar className="hidden size-8 border border-line shadow-raised-sm sm:flex">
         <AvatarFallback
           className={cn(
@@ -141,6 +142,7 @@ function RoleCell({ member }: { member: Member }) {
                   </div>
                 </SelectItem>
               ))}
+              {me.role !== 'owner' ? <p className="px-2 pt-1.5 pb-1 text-xs text-muted-foreground" data-testid="role-owner-only-note">{OWNER_ONLY_REASON}</p> : null}
             </SelectContent>
           </Select>
         </Locked>
@@ -174,7 +176,7 @@ function RoleCell({ member }: { member: Member }) {
   )
 }
 
-function StatusCell({ member }: { member: Member }) {
+function StatusCell({ member, showLabel = false }: { member: Member; showLabel?: boolean }) {
   const { data: me } = useMe()
   const update = useUpdateMember(member, me?.user_id)
   const rowPending = useMemberRowPending(member.user_id)
@@ -203,7 +205,7 @@ function StatusCell({ member }: { member: Member }) {
           />
         </Locked>
         <span
-          className={cn('hidden w-14 text-sm sm:inline', member.is_active ? 'text-foreground' : 'text-muted-foreground')}
+          className={cn(showLabel ? 'inline w-14 text-sm' : 'hidden w-14 text-sm sm:inline', member.is_active ? 'text-foreground' : 'text-muted-foreground')}
           data-testid="member-status"
         >
           {member.is_active ? 'Active' : 'Inactive'}
@@ -270,7 +272,7 @@ function ResetCell({ member }: { member: Member }) {
 const col = columnHelper<Member>()
 const columns = col.columns([
   col.accessor('email', { header: 'Member', meta: { className: 'align-top py-3 sm:pl-4' }, cell: (c) => <MemberCell member={c.row.original} /> }),
-  col.accessor('role', { header: 'Role', meta: { className: 'sm:w-48 align-top py-3' }, cell: (c) => <RoleCell member={c.row.original} /> }),
+  col.accessor('role', { header: 'Role', meta: { className: 'sm:w-40 align-top py-3' }, cell: (c) => <RoleCell member={c.row.original} /> }),
   col.accessor('is_active', {
     header: 'Status',
     meta: { className: 'sm:w-36 align-top py-3' },
@@ -284,6 +286,33 @@ const columns = col.columns([
   }),
 ])
 
+/** One member below xl: the table needs about 790px, more than /team has beside the two navs. */
+function MemberCard({ member }: { member: Member }) {
+  return (
+    <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-raised-md" data-testid="member-card">
+      <MemberCell member={member} />
+      <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
+        <RoleCell member={member} />
+        <StatusCell member={member} showLabel />
+        <ResetCell member={member} />
+      </div>
+    </div>
+  )
+}
+
+function MemberCardSkeleton() {
+  return (
+    <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-raised-md">
+      <Skeleton className="h-4 w-2/3" />
+      <div className="flex gap-4">
+        <Skeleton className="h-8 w-28" />
+        <Skeleton className="h-8 w-20" />
+        <Skeleton className="h-8 w-28" />
+      </div>
+    </div>
+  )
+}
+
 export function MembersTable() {
   const list = useMembersList()
   const loaded = list.rows.length
@@ -295,6 +324,9 @@ export function MembersTable() {
       columns={columns}
       getRowId={(m) => m.user_id}
       skeletonRows={4}
+      renderCard={(m) => <MemberCard member={m} />}
+      renderCardSkeleton={() => <MemberCardSkeleton />}
+      cardBreakpoint="xl"
       toolbar={
         list.data ? (
           <p className="text-right text-xs text-muted-foreground tabular-nums" data-testid="members-count">

@@ -322,10 +322,12 @@ describe('LoginPage: forgot password', () => {
     vi.unstubAllGlobals()
   })
 
-  it('gives owners the support email instead of "ask your brand owner"', () => {
+  it('says a reset link may not be possible and points everyone to support', () => {
     setup({})
     const link = screen.getByRole('link', { name: 'support@kuinn.in' })
     expect(link.getAttribute('href')).toMatch(/^mailto:support@kuinn\.in\?subject=Reset/)
-    expect(link.closest('[id]')?.textContent).toContain('Owners, email')
+    const hint = link.closest('[id]')?.textContent ?? ''
+    expect(hint).toContain('may be able to send you a reset link. If they cannot, email')
+    expect(hint).not.toContain('Owners, email')
   })
 })

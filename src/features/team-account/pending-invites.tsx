@@ -95,7 +95,7 @@ function InviteRow({ invite }: { invite: Invite }) {
       } else if (isApiError(e) && e.status === 404) {
         // Gone already (another tab or teammate): the re-read below drops the row.
       } else if (isApiError(e) && e.status === 403) {
-        setError({ message: 'Only an owner can cancel an owner invite.', ref: e.correlationId })
+        setError({ message: 'Only an owner can cancel an owner or reviewer invite.', ref: e.correlationId })
       } else if (!(isApiError(e) && e.status === 401)) {
         toastError(e, 'Couldn’t cancel the invite')
       }

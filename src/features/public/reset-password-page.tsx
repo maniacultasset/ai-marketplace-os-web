@@ -72,7 +72,6 @@ export function ResetPasswordPage() {
           submitLabel="Save new password"
           idPrefix="reset"
           testId="reset-form"
-          autoFocus
           onSubmit={async ({ new_password }) => {
             if (token.kind !== 'ok') return
             try {

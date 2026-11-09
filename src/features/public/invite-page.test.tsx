@@ -203,6 +203,14 @@ describe('ResetPasswordPage', () => {
     expect(screen.getByTestId('reset-missing')).toBeTruthy()
   })
 
+  it('opens clean: focus on the heading, no field error before the person types', async () => {
+    open(`/reset-password#token=${TOKEN}`)
+    render(<ResetPasswordPage />)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(document.activeElement?.tagName).toBe('H1')
+    expect(screen.queryByText('Enter a new password.')).toBeNull()
+  })
+
   it('saves the new password, then sends the person to sign in', async () => {
     open(`/reset-password#token=${TOKEN}`)
     api.redeemResetLink.mockResolvedValue(undefined)

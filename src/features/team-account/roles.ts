@@ -10,6 +10,17 @@ export type Member = Schema<'MemberOut'>
 /** Display order in selects and legends. */
 export const ROLE_ORDER: readonly Role[] = ['owner', 'admin', 'operator', 'reviewer']
 
+/**
+ * Roles only an owner may grant, invite or cancel an invite for (backend services/invites.py
+ * OWNER_ONLY_ROLES, services/members.py "only an owner grants reviewer").
+ */
+export const OWNER_ONLY_ROLES: readonly Role[] = ['owner', 'reviewer']
+
+export const isOwnerOnlyRole = (r: Role) => OWNER_ONLY_ROLES.includes(r)
+
+/** Why a non-owner cannot pick an owner-only role. */
+export const OWNER_ONLY_REASON = 'Only an owner can grant the owner or reviewer role.'
+
 export const ROLE_INFO: Record<Role, { label: string; summary: string }> = {
   owner: { label: 'Owner', summary: 'Everything, including granting or removing owners.' },
   admin: { label: 'Admin', summary: 'Team, marketplace connections and settings. No listing work.' },
@@ -54,7 +65,8 @@ export function memberGating(me: Pick<Me, 'user_id' | 'role'>, member: Member): 
   }
   return {
     isSelf,
-    roleOptions: ROLE_ORDER.filter((r) => r !== 'owner'),
+    // A reviewer row keeps its current value: the server allows a no-op or a downgrade.
+    roleOptions: ROLE_ORDER.filter((r) => !isOwnerOnlyRole(r) || r === member.role),
     canEditRole: !isSelf,
     canToggleActive: true,
     roleLockedReason: isSelf ? 'Only an owner can change their own role.' : null,
