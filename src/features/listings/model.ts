@@ -71,7 +71,7 @@ const REASON_LABEL: Record<string, string> = {
   marketplace_rejected: 'The marketplace rejected it',
   marketplace_action_required: 'The marketplace needs an action',
   publish_attempts_exhausted: 'All publish attempts used',
-  human_task_open: 'Waiting for your answer in Inbox',
+  human_task_open: 'Needs an answer in Inbox. Once it is answered, generate the listing again.',
 }
 
 export function statusReasonLabel(reason: string | null | undefined): string | null {

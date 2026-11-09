@@ -248,7 +248,7 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
             {fixesBlock(imageId, d.fixes ?? [])}
             {/* The background check flagged the Front and no white-background fix is offered. */}
             {(d.fixes ?? []).length === 0 && backgroundFlagged(tileReports[(product.image_details ?? []).indexOf(d)]?.data) ? (
-              <p className="mt-2 text-small text-ink-2" data-testid="no-background-fix">
+              <p className="px-5 pb-3 text-small text-ink-2" data-testid="no-background-fix">
                 Kuinn cannot make a white background for this photo right now. Upload a version on plain white.
               </p>
             ) : null}

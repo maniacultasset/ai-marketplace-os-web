@@ -637,8 +637,12 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
     return false
   }
   // Blank variant prices inherit the style's (backend CP14): shown, never copied in.
-  const styleMrp = p.mrp ? cleanMoney(p.mrp) : null
-  const stylePrice = p.selling_price ? cleanMoney(p.selling_price) : null
+  const plainMoney = (v: string | null | undefined) => {
+    const c = v ? cleanMoney(v) : null
+    return c === null ? null : String(Number(c) % 1 ? Number(c).toFixed(2) : Number(c))
+  }
+  const styleMrp = plainMoney(p.mrp)
+  const stylePrice = plainMoney(p.selling_price)
   const csv = () => buildFamilyCsv({ sku: p.sku, title: p.title, category: p.category }, s)
   const visible = showAll ? rows : rows.slice(0, PREVIEW_ROWS)
   const first = rows[0]

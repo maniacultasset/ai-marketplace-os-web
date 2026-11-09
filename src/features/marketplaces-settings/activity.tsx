@@ -201,7 +201,7 @@ function HistoryPanel({ id, listingId, marketplace }: { id: string; listingId: s
               </time>
               <span className="font-semibold text-ink">{e.label}</span>
               {e.by !== mp ? <span className="text-ink-2">by {e.by}</span> : null}
-              {e.reason ? <span className="min-w-0 text-ink-2">· {e.reason}</span> : null}
+              {e.reason ? <span className="min-w-0 basis-full text-caption text-ink-2 sm:pl-38">{e.reason}</span> : null}
             </li>
           ))}
           {history.hasNextPage ? (

@@ -271,7 +271,7 @@ function ResetCell({ member }: { member: Member }) {
 
 const col = columnHelper<Member>()
 const columns = col.columns([
-  col.accessor('email', { header: 'Member', meta: { className: 'align-top py-3 sm:pl-4' }, cell: (c) => <MemberCell member={c.row.original} /> }),
+  col.accessor('email', { header: 'Member', meta: { className: 'w-full max-w-0 align-top py-3 sm:pl-4' }, cell: (c) => <MemberCell member={c.row.original} /> }),
   col.accessor('role', { header: 'Role', meta: { className: 'sm:w-40 align-top py-3' }, cell: (c) => <RoleCell member={c.row.original} /> }),
   col.accessor('is_active', {
     header: 'Status',

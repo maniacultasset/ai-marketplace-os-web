@@ -256,6 +256,21 @@ export function addTag(list: readonly string[], raw: string): string[] {
   return [...list, v]
 }
 
+const ALPHA = ['xxxs', 'xxs', 'xs', 's', 'm', 'l', 'xl', 'xxl', '2xl', 'xxxl', '3xl', '4xl', '5xl']
+
+/** Smallest first: alpha sizes in their run, numbers by value, anything else after them as listed. */
+function sizeOrder(a: string, b: string): number {
+  const rank = (z: string) => {
+    const i = ALPHA.indexOf(z.toLowerCase())
+    if (i >= 0) return i
+    const n = Number(z)
+    return Number.isFinite(n) ? 100 + n : Number.POSITIVE_INFINITY
+  }
+  const ra = rank(a)
+  const rb = rank(b)
+  return ra === rb ? 0 : ra < rb ? -1 : 1
+}
+
 /** What a saved variant row carries that the matrix needs. */
 export interface SavedVariant {
   sku: string
@@ -290,6 +305,7 @@ export function seedFromVariants(style: { sku: string; colourways?: readonly { c
     if (size && !sizes.includes(size)) sizes.push(size)
     placed.push({ colour, size, v })
   }
+  sizes.sort(sizeOrder)
   const s: VariantsState = { ...emptyVariants(), colours, sizes, exempt: children.some((v) => v.identifier_exemption) }
   const filled = new Set<string>()
   for (const { colour, size, v } of placed) {
