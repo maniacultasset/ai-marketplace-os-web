@@ -334,6 +334,18 @@ function MarketplaceRow({ snapshot }: { snapshot: ListingsSnapshot }) {
             <p className="mt-2 text-caption text-ink-2">
               {!view ? (
                 "Couldn't load the account."
+              ) : view.problem ? (
+                <>
+                  {view.sub ? `${view.sub} · ` : null}
+                  <Link
+                    to="/products/$productId"
+                    params={{ productId: view.problem.productId }}
+                    className="inline-flex min-h-10 items-center gap-1 font-semibold text-attention-ink underline decoration-attention-line underline-offset-4 hover:decoration-attention pointer-fine:min-h-0"
+                    data-testid="mp-problem"
+                  >
+                    {view.problem.text}
+                  </Link>
+                </>
               ) : view.action ? (
                 <Link
                   to="/marketplaces"

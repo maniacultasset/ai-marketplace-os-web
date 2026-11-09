@@ -16,6 +16,8 @@ import { humanizeCode, isAutoFix, TASK_KIND_LABEL, type Issue, type Task } from 
 import { NO_TRAIL_TEXT, onVersion, versionRef } from '@/features/listing-flow/auto-fix-model'
 import { causeLabel, fixState, laneView, type FixContext, type LaneView } from '@/features/listing-flow/lanes'
 import { isBlockingTask, isPhotoQuestion } from '@/features/photo-facts/answer-spec'
+import { statusReasonLabel } from '@/features/listings/model'
+import { needsYourInfoLabel } from '@/lib/listing-chip'
 
 type Listing = Schema<'ListingOut'>
 type Marketplace = Schema<'Marketplace'>
@@ -92,6 +94,21 @@ export interface MarketplaceTotals {
   partly: number
   working: number
   problem: number
+  /** The newest listing in the problem bucket, so the card can name it and link to it. */
+  firstProblem?: ProblemRef
+}
+
+/** One listing that needs fixing: its product (the link) and what is wrong, in plain words. */
+export interface ProblemRef {
+  productId: string
+  label: string
+}
+
+/** Prod QA 9 Nov, item 22: "1 error" named nothing. The words for a problem-bucket listing. */
+export function problemLabel(l: Pick<Listing, 'status' | 'marketplace_state'> & Partial<Pick<Listing, 'display_state' | 'needs_you_count' | 'status_reason'>>): string {
+  if (l.marketplace_state === 'rejected') return 'Rejected by the marketplace'
+  if (l.display_state === 'needs_you') return needsYourInfoLabel(l)
+  return statusReasonLabel(l.status_reason) ?? (l.status === 'failed' ? 'The last step failed' : 'Needs attention')
 }
 
 export interface ListingsSnapshot {
@@ -112,7 +129,7 @@ export interface ListingsSnapshot {
 
 const emptyTotals = (): MarketplaceTotals => ({ listings: 0, live: 0, partly: 0, working: 0, problem: 0 })
 
-export function summarizeListings(listings: readonly (Pick<Listing, 'status' | 'marketplace_state' | 'marketplace' | 'product_id'> & Partial<Pick<Listing, 'display_state'>>)[], complete: boolean): ListingsSnapshot {
+export function summarizeListings(listings: readonly (Pick<Listing, 'status' | 'marketplace_state' | 'marketplace' | 'product_id'> & Partial<Pick<Listing, 'display_state' | 'needs_you_count' | 'status_reason'>>)[], complete: boolean): ListingsSnapshot {
   const s: ListingsSnapshot = {
     total: listings.length,
     complete,
@@ -154,6 +171,7 @@ export function summarizeListings(listings: readonly (Pick<Listing, 'status' | '
       case 'problem':
         s.problem++
         m.problem++
+        m.firstProblem ??= { productId: l.product_id, label: problemLabel(l) }
         break
       case 'idle':
         break
@@ -260,6 +278,8 @@ export function needsYouTile(p: NeedsYouParts, cap: number): TileView {
 export interface MarketplaceCardView {
   chip: { status: ChipStatus; label: string }
   sub: string
+  /** The one listing to fix, named and linked (prod QA 9 Nov, item 22). */
+  problem?: ProblemRef & { text: string }
   /** Where the sub line links: connect / reconnect on Marketplaces. */
   action: 'connect' | 'reconnect' | null
 }
@@ -291,12 +311,15 @@ export function marketplaceCard(
   const sub: string[] = []
   if (t.partly) sub.push(`${t.partly} partly live`)
   if (t.working) sub.push(`${t.working} processing`)
-  if (t.problem) sub.push(`${t.problem} ${plural(t.problem, 'error')}`)
+  // One listing to fix: name it (the card links it); more: the count (the Inbox lists them)
+  const one = t.problem === 1 && t.firstProblem ? t.firstProblem : null
+  if (t.problem && !one) sub.push(`${t.problem} to fix`)
   if (!t.listings) sub.push('Connected. No listings yet.')
   return {
     chip: t.live ? { status: 'live', label: `${t.live}${plus} live` } : { status: 'not-listed', label: 'None live yet' },
-    sub: sub.join(' · ') || 'Nothing else in progress',
+    sub: sub.join(' · ') || (one ? '' : 'Nothing else in progress'),
     action: null,
+    ...(one ? { problem: { ...one, text: `1 to fix: ${one.label}` } } : {}),
   }
 }
 
