@@ -119,6 +119,8 @@ export interface DataTableProps<T extends RowData> {
   renderCard?: (row: T, state: { selected: boolean; toggle: (v: boolean) => void; canSelect: boolean }) => ReactNode
   /** Loading placeholder for one phone card, shaped like renderCard's card. Default: generic bars. */
   renderCardSkeleton?: () => ReactNode
+  /** Where the cards turn into the table (default 'lg'). 'xl' for tables beside a settings sub-nav. */
+  cardBreakpoint?: 'lg' | 'xl'
   /** Sticky bulk action bar while rows are selected (hi-fi p07). Receives the selected rows. */
   bulkBar?: (selected: T[], clear: () => void) => ReactNode
 }
@@ -138,6 +140,7 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
   /** Previous filter's rows shown while the new filter loads (useCursorList keepPrevious). */
   const isStale = !!list?.isPlaceholderData
   const sticky = props.stickyHeader ?? true
+  const xl = props.cardBreakpoint === 'xl'
 
   const [innerSelection, setInnerSelection] = useState<RowSelectionState>({})
   const rowSelection = props.rowSelection ?? innerSelection
@@ -216,7 +219,7 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
   return (
     <div className={cn('flex flex-col gap-3', props.className)}>
       {props.toolbar}
-      <div className={cn('overflow-clip rounded-card border border-line bg-surface shadow-raised-md', props.renderCard && 'hidden lg:block')}>
+      <div className={cn('overflow-clip rounded-card border border-line bg-surface shadow-raised-md', props.renderCard && (xl ? 'hidden xl:block' : 'hidden lg:block'))}>
         <Table
           aria-label={props.label}
           aria-busy={isLoading || isStale || undefined}
@@ -252,7 +255,7 @@ export function DataTable<T extends RowData>(props: DataTableProps<T>) {
         </Table>
       </div>
       {props.renderCard ? (
-        <div className="flex flex-col gap-3 lg:hidden" aria-label={props.label} role="list" aria-busy={isLoading || isStale || undefined}>
+        <div className={cn('flex flex-col gap-3', xl ? 'xl:hidden' : 'lg:hidden')} aria-label={props.label} role="list" aria-busy={isLoading || isStale || undefined}>
           {isLoading ? (
             Array.from({ length: Math.min(props.skeletonRows ?? 4, 4) }, (_, i) =>
               props.renderCardSkeleton ? (

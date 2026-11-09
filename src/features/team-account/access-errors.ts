@@ -8,7 +8,8 @@ export function inviteErrorMessage(e: unknown, role: Role): { field?: 'email' | 
   if (e.status === 422 && e.details.some((d) => d.loc.includes('email')))
     return { field: 'email', message: 'This email is already on your team, or 50 invites are open. Check the team list or cancel an old invite.' }
   // The owner rule is the only 403 tied to the role chosen here; any other 403 is the generic one.
-  if (e.status === 403 && e.type === 'PERMISSION_DENIED' && role === 'owner') return { field: 'role', message: 'Only an owner can invite an owner.' }
+  if (e.status === 403 && e.type === 'PERMISSION_DENIED' && (role === 'owner' || role === 'reviewer'))
+    return { field: 'role', message: 'Only an owner can invite an owner or a reviewer.' }
   if (e.status === 429) return { message: 'Too many requests. Wait a minute, then try again.' }
   return null
 }

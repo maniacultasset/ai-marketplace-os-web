@@ -95,7 +95,7 @@ function heroCopy(p: Proof, title: string, mp: string): { title: string; line: s
       }
     case 'not-buyable':
       return {
-        title: `${title} is live on ${mp}, not buyable yet`,
+        title: `${title} is on ${mp}, not buyable yet`,
         line: mp === 'Amazon' ? NOT_BUYABLE_NEXT : `${mp} has the product page but is not selling it yet. Check its seller portal, then check status here.`,
       }
     case 'waiting':
@@ -287,7 +287,7 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
         </LaCard>
 
         <div className="flex min-w-0 flex-col gap-4">
-          <WhatKuinnDid listing={listing} />
+          <WhatKuinnDid listing={listing} marketplaceState={proof.marketplaceState} />
           <AgentDid listing={listing} />
           <LaCard data-testid="next">
             <h3 className="text-h3 text-ink">Next</h3>
@@ -347,13 +347,14 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
 }
 
 /** SI11: the resolution read, Amazon only. Nothing when the backend has no route or nothing to say. */
-function WhatKuinnDid({ listing }: { listing: ListingDetail }) {
+function WhatKuinnDid({ listing, marketplaceState }: { listing: ListingDetail; marketplaceState: ListingDetail['marketplace_state'] }) {
   const amazon = listing.marketplace === 'amazon'
   const q = useListingResolution(listing.id, { enabled: amazon })
   if (!amazon) return null
   if (q.isPending) return <ResolutionSkeleton />
   if (!q.data || !hasResolution(q.data)) return null
-  const view = resolutionView(q.data, { marketplace: listing.marketplace, marketplaceState: listing.marketplace_state })
+  // The same (fresher) state the hero uses, so the two cards never disagree after a status check.
+  const view = resolutionView(q.data, { marketplace: listing.marketplace, marketplaceState })
   return (
     <ResolutionCard
       view={view}

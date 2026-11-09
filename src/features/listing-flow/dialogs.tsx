@@ -22,7 +22,9 @@ import {
   BULLETS_MAX,
   DESCRIPTION_MAX,
   FEEDBACK_MAX,
+  MARKETPLACE_TITLE_LIMIT,
   TITLE_MAX,
+  titleLimitWarning,
   editToContent,
   sendBackItem,
   splitBullets,
@@ -203,6 +205,9 @@ export function EditDialog({
   const errors = shownErrors(validateEdit(d), touched, submits)
   const touch = (k: keyof EditDraft) => () => setTouched((t) => ({ ...t, [k]: true }))
   const bulletCount = splitBullets(d.bullets).length
+  const mp = mpName(listing.marketplace)
+  const titleLimit = MARKETPLACE_TITLE_LIMIT[listing.marketplace]
+  const titleWarning = titleLimitWarning(d.title, listing.marketplace, mp)
 
   function submit() {
     setSubmits((n) => n + 1)
@@ -240,7 +245,11 @@ export function EditDialog({
             label="Title"
             htmlFor="edit-title"
             error={errors.title}
-            hint={`${codePoints(d.title.trim()).toLocaleString()} / ${TITLE_MAX.toLocaleString()}`}
+            hint={
+              titleLimit
+                ? `${codePoints(d.title.trim()).toLocaleString()} / ${titleLimit.toLocaleString()} (${mp} limit)`
+                : `${codePoints(d.title.trim()).toLocaleString()} / ${TITLE_MAX.toLocaleString()}`
+            }
             submitCount={submits} confirmFix
           >
             <Input
@@ -254,6 +263,11 @@ export function EditDialog({
               onBlur={touch('title')}
             />
           </LaField>
+          {titleWarning && !errors.title ? (
+            <p role="status" className="-mt-2 text-small text-attention-ink" data-testid="edit-title-limit">
+              {titleWarning}
+            </p>
+          ) : null}
           <LaField
             label="Bullets"
             htmlFor="edit-bullets"

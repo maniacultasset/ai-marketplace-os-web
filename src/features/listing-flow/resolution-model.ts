@@ -34,6 +34,8 @@ export type ResolutionAction =
   | { kind: 'marketplace'; taskId: string | null }
   /** Kuinn stopped: change the listing (edit or generate again) to try again. */
   | { kind: 'change' }
+  /** The answers are saved: generate the listing again to use them. */
+  | { kind: 'regenerate' }
 
 export interface ResolutionHeadline {
   state: ResolutionState
@@ -110,6 +112,8 @@ export interface HeadlineContext {
   marketplace: string
   /** The listing's own marketplace state: "Live" needs the marketplace to say so. */
   marketplaceState?: string | null
+  /** Whether the viewer may answer questions (product:import). Reviewers may not. */
+  canAnswer?: boolean
 }
 
 export function resolutionHeadline(r: Pick<Resolution, 'state' | 'attempts' | 'cycles_used' | 'max_cycles'>, ctx: HeadlineContext): ResolutionHeadline {
@@ -129,7 +133,9 @@ export function resolutionHeadline(r: Pick<Resolution, 'state' | 'attempts' | 'c
     case 'fix_ready':
       return h('Fix ready: approve to resend', 'Kuinn changed the text. A teammate who did not make the change approves it, then it is sent again.', 'attention')
     case 'needs_you':
-      return h('Needs you', 'Kuinn needs an answer from you before it can fix the listing.', 'attention')
+      return ctx.canAnswer === false
+        ? h('Needs an answer', 'Kuinn needs an answer from an operator or owner before it can fix the listing.', 'attention')
+        : h('Needs you', 'Kuinn needs an answer from you before it can fix the listing.', 'attention')
     case 'needs_marketplace':
       return h(`Needs ${mp} approval`, `${mp} must approve this brand or category first. Follow the step in the task, then resume.`, 'attention')
     case 'stopped':
@@ -137,9 +143,9 @@ export function resolutionHeadline(r: Pick<Resolution, 'state' | 'attempts' | 'c
         ? h(`Stopped after ${max} tries`, 'Kuinn will not send it again on its own. Change the listing or answer the open question to try again.', 'danger')
         : h('Kuinn stopped', 'Kuinn could not fix this on its own. Change the listing or generate it again to try again.', 'danger')
     case 'live':
-      return ctx.marketplaceState === 'live'
-        ? h('Live', `${mp} reports the listing live.`, 'success')
-        : h(`Sent to ${mp}`, `Waiting for ${mp} to confirm. Live is shown only once ${mp} says so.`, 'neutral')
+      if (ctx.marketplaceState === 'live') return h('Live', `${mp} reports the listing live.`, 'success')
+      if (ctx.marketplaceState === 'inactive') return h(`On ${mp}, not buyable yet`, `${mp} has the product page but is not selling it yet. Kuinn's part is done.`, 'neutral')
+      return h(`Sent to ${mp}`, `Waiting for ${mp} to confirm. Live is shown only once ${mp} says so.`, 'neutral')
     case 'idle':
     default:
       return h('Nothing to do right now', 'Kuinn has nothing to fix on this listing.', 'neutral')
@@ -201,7 +207,18 @@ export function resolutionSteps(attemptsNewestFirst: readonly Attempt[], marketp
     const changed = (a.changed ?? []).map(change)
     const carried = next && next.kind === 'submission' && ACCEPTED.has(next.outcome)
     const allRepairs = changed.length > 0 && changed.every((c) => c.kind === 'repair')
-    const changedTitle = carried && allRepairs && next.actor === 'system' ? 'Fixed for you' : next ? 'What Kuinn changed' : 'What Kuinn changed, not sent yet'
+    // A seller's answer is a change the seller made, not Kuinn.
+    const byYou = changed.some((c) => c.kind === 'seller_answer')
+    const changedTitle =
+      carried && allRepairs && next.actor === 'system'
+        ? 'Fixed for you'
+        : byYou
+          ? next
+            ? 'What changed'
+            : 'What changed, not sent yet'
+          : next
+            ? 'What Kuinn changed'
+            : 'What Kuinn changed, not sent yet'
     const byKuinn = a.kind === 'submission' && a.actor === 'system'
     return {
       key: `${a.kind}:${a.number}:${a.version}:${a.at}`,
@@ -231,18 +248,21 @@ export function resolutionAction(r: Pick<Resolution, 'state' | 'next_step'>): Re
     case 'resume':
       return first ? { kind: 'answer', taskId: first } : { kind: 'change' }
     case 'regenerate':
-      return { kind: 'change' }
+      return { kind: 'regenerate' }
     default:
       return { kind: 'none' }
   }
 }
 
 export function resolutionView(r: Resolution, ctx: HeadlineContext): ResolutionView {
+  const action = resolutionAction(r)
+  // "What needs you" only while a question is still open: an answered one is not work.
+  const open = action.kind === 'answer' || r.state === 'needs_you'
   return {
     headline: resolutionHeadline(r, ctx),
     triesText: triesText(r),
-    steps: resolutionSteps(r.attempts ?? [], ctx.marketplace),
-    action: resolutionAction(r),
+    steps: resolutionSteps(r.attempts ?? [], ctx.marketplace).map((st) => (open ? st : { ...st, needsYou: [] })),
+    action,
     nextText: r.next_step?.text?.trim() || null,
   }
 }

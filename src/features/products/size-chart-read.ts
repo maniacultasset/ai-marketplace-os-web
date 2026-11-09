@@ -40,6 +40,8 @@ export type ReadState =
   | { kind: 'read'; rows: number }
   | { kind: 'unreadable' }
   | { kind: 'failed' }
+  /** Reading photos is switched off on this server: no retry can work. */
+  | { kind: 'unavailable' }
   | { kind: 'error'; message: string; paused?: boolean }
 
 /** The live size-chart photo of a product (a style or a standalone product), if any. */
@@ -63,6 +65,7 @@ export function outcomeOf(s: SizeChartSuggestion | null | undefined, imageId: st
   if (!s || s.image_id !== imageId || !isFinalRead(s.status)) return null
   if (s.status === 'read' && s.chart?.rows.length) return { kind: 'read', rows: s.chart.rows.length }
   if (s.status === 'read' || s.status === 'unreadable') return { kind: 'unreadable' }
+  if ((s.status as string) === 'unavailable') return { kind: 'unavailable' }
   return { kind: 'failed' }
 }
 
@@ -118,7 +121,16 @@ export function useSizeChartRead(productId: string, onRead: OnRead) {
           params: { path: { product_id: productId }, header: idempotencyHeader(newIdempotencyKey()) },
         }),
       )
-      await follow(out.image_id)
+      // The answer may already be final: settle on it, never poll for a read that will not come.
+      if (out.status === 'unavailable') {
+        if (alive.current) setState({ kind: 'unavailable' })
+        return
+      }
+      if (out.status === 'queued' || out.status === 'reading') return await follow(out.image_id)
+      const p = await fetchProduct(productId)
+      if (!alive.current) return
+      qc.setQueryData(productQuery(keys, productId).queryKey, (old) => (old ? { ...old, size_chart_suggestion: p.size_chart_suggestion } : p))
+      if (!settle(p, out.image_id)) setState({ kind: out.status === 'unreadable' ? 'unreadable' : 'failed' })
     } catch (err) {
       if (isAiPausedError(err)) markAiPaused()
       if (alive.current) setState({ kind: 'error', ...readErrorMessage(err) })

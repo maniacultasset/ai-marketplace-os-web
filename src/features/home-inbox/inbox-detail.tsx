@@ -14,7 +14,8 @@ import { DismissIssueButton } from '@/features/inbox/dismiss-issue'
 import { useListing } from '@/features/listings/api'
 import { useListingResolution } from '@/features/listing-flow/api'
 import { AnswerCard, AnswerResult, type AnswerOutcome } from '@/features/photo-facts/answer-card'
-import { factKey, isPhotoQuestion, taskImageId } from '@/features/photo-facts/answer-spec'
+import { factKey, isBlockingTask, isPhotoQuestion, taskImageId } from '@/features/photo-facts/answer-spec'
+import { fieldLabel } from '@/features/listing-flow/format'
 import { SavedPhoto } from '@/components/la/saved-photo'
 import { useRefreshProductViews } from '@/features/products/image-views'
 import { factLabel } from '@/features/photo-facts/model'
@@ -24,7 +25,6 @@ import {
   issueHeadline,
   MARKETPLACE_LABEL,
   RESUME_LABEL,
-  SOURCE_LABEL,
   suggestionTexts,
   TASK_KIND_LABEL,
   TASK_STATUS_LABEL,
@@ -45,6 +45,10 @@ import {
   issueTitle,
   itemKey,
   parseItemKey,
+  isIdentifierTask,
+  rawMarketplaceText,
+  sentenceCase,
+  showSuggestion,
   positionLabel,
   type InboxItem,
   type InboxSearch,
@@ -60,16 +64,25 @@ export function InboxDetail({
   selectedKey,
   items,
   pending,
+  error = false,
   search,
   products,
+  issueProducts,
+  openIssues = [],
   outcomes = {},
   onOutcome,
 }: {
   selectedKey: string | undefined
   items: readonly InboxItem[]
   pending: boolean
+  /** The list failed: the list pane says so once, and this pane stays blank (never "Nothing needs you"). */
+  error?: boolean
   search: InboxSearch
   products: ProductsById
+  /** Listing id to product id, for issues (IssueOut has listing_id only). */
+  issueProducts?: ReadonlyMap<string, string>
+  /** Open issues, to tell whether a question holds a listing back. */
+  openIssues?: readonly Issue[]
   /** Questions answered (or found closed) on this screen, by task id: kept on screen. */
   outcomes?: Readonly<Record<string, AnswerOutcome>>
   onOutcome?: (o: AnswerOutcome) => void
@@ -95,7 +108,7 @@ export function InboxDetail({
       <div className="px-4 py-5 lg:px-12 lg:py-8">
         {pending ? (
           <DetailSkeleton />
-        ) : !item ? (
+        ) : error ? null : !item ? (
           <Missing selectedKey={selectedKey} hasItems={items.length > 0} />
         ) : item.kind === 'task' ? (
           <TaskDetail
@@ -105,17 +118,31 @@ export function InboxDetail({
             product={item.task.product_id ? products.map.get(item.task.product_id) : undefined}
             productPending={!!item.task.product_id && products.pending}
             remaining={items.length - idx - 1}
+            linked={openIssues.filter((i) => i.human_task_id === item.task.id)}
             outcome={outcomes[item.task.id]}
             onOutcome={onOutcome}
             next={nextLink(items, idx, search, outcomes)}
           />
         ) : (
-          <IssuePane key={item.id} issue={item.issue} position={positionLabel(items, itemKey(item))} />
+          <IssuePane
+            key={item.id}
+            issue={item.issue}
+            position={positionLabel(items, itemKey(item))}
+            product={productFor(products, issueProducts?.get(item.issue.listing_id) ?? undefined)}
+          />
         )}
       </div>
     </div>
   )
 }
+
+function productFor(products: ProductsById, productId: string | null | undefined) {
+  if (!productId) return undefined
+  const p = products.map.get(productId)
+  return p ? { ...p, id: productId } : undefined
+}
+
+const ADAPTER_SOURCES = new Set(['amazon_adapter', 'flipkart_adapter'])
 
 /** "Next question" once a question is answered: the next item in the list that is still open. */
 function nextLink(items: readonly InboxItem[], idx: number, search: InboxSearch, done: Readonly<Record<string, AnswerOutcome>>) {
@@ -167,6 +194,7 @@ function TaskDetail({
   product,
   productPending,
   remaining,
+  linked = [],
   outcome,
   onOutcome,
   next,
@@ -177,6 +205,8 @@ function TaskDetail({
   /** The product is still on its first read: hold its line with a skeleton, never "One product". */
   productPending: boolean
   remaining: number
+  /** Open issues linked to this question (human_task_id). */
+  linked?: readonly Issue[]
   outcome?: AnswerOutcome
   onOutcome?: (o: AnswerOutcome) => void
   next?: ReactNode
@@ -186,7 +216,11 @@ function TaskDetail({
   const open = shown.status === 'open' && outcome?.kind !== 'closed'
   const fact = factKey(task)
   const photo = isPhotoQuestion(task)
+  const blocking = isBlockingTask(task, linked)
   const account = isAccountReviewTask(task)
+  const identifier = isIdentifierTask(task)
+  // An answer to a question behind a marketplace refusal goes into a new version by itself.
+  const refusal = linked.some((i) => ADAPTER_SOURCES.has(i.source))
   // The photo the question is about. Its frame is held from the first paint (the id is on the task),
   // so the picture fades in once the product read lands, with nothing moving.
   const imageId = task.product_id ? taskImageId(task) : null
@@ -228,7 +262,7 @@ function TaskDetail({
               {[
                 product ? `${product.sku} · ${product.title}` : task.product_id ? 'One product' : null,
                 // An account task's target is an internal path (account.error_review): not shown.
-                fact ? factLabel(fact) : account ? 'Your marketplace account' : task.target_path,
+                fact ? factLabel(fact) : account ? 'Your marketplace account' : fieldLabel(task.target_path),
                 TASK_KIND_LABEL[task.kind],
               ]
                 .filter(Boolean)
@@ -238,13 +272,17 @@ function TaskDetail({
         </div>
         <p className="mt-2 text-caption text-ink-2" data-testid="task-resume">
           Asked <Ago iso={task.created_at} />.{' '}
-          {photo
+          {photo && !blocking
             ? 'This doesn’t block your listing. Answer to improve it.'
             : account
               ? ''
-              : fact
-                ? 'Regenerate the listing after you answer to use it.'
-                : `The agent resumes from ${RESUME_LABEL[task.resume_from]} once this is answered.`}
+              : identifier
+                ? 'This holds your listing back. Regenerate the listing after you add it.'
+                : fact && refusal
+                  ? 'Kuinn adds your answer to a new version and checks it. A teammate then approves the resend.'
+                  : fact
+                    ? `${photo ? 'This holds your listing back. ' : ''}Regenerate the listing after you answer to use it.`
+                    : `The agent resumes from ${RESUME_LABEL[task.resume_from]} once this is answered.`}
         </p>
       </LaCard>
 
@@ -259,6 +297,8 @@ function TaskDetail({
         <ReconnectTask task={task} remaining={remaining} />
       ) : open && isAccountReviewTask(task) ? (
         <AccountTask task={task} kind={task.kind} remaining={remaining} />
+      ) : open && identifier ? (
+        <IdentifierTask task={task} remaining={remaining} />
       ) : open ? (
         <>
           <fieldset disabled className="flex flex-col gap-2" aria-describedby={`answer-soon-${task.id}`}>
@@ -276,7 +316,7 @@ function TaskDetail({
           </fieldset>
           <Banner tone="neutral" icon="clock">
             <span id={`answer-soon-${task.id}`} data-testid="answer-soon">
-              <b>{ANSWER_SOON}</b> This question stays open until the agent can resolve it.
+              <b>{ANSWER_SOON}</b> Until then, open the product to fill this in.
             </span>
           </Banner>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -302,6 +342,46 @@ function TaskDetail({
         </>
       )}
     </article>
+  )
+}
+
+/**
+ * A missing barcode (facts.identifier). The tasks API cannot take this answer: the seller adds the
+ * barcode, or marks it exempt, on the product, and the question closes once the listing is checked
+ * again (backend human_tasks.cancel_if_closed).
+ */
+function IdentifierTask({ task, remaining }: { task: Task; remaining: number }) {
+  const can = useCan()
+  const variant = (task.target_path ?? '').startsWith('variants[')
+  return (
+    <>
+      <Banner tone="attention" icon="info">
+        <span data-testid="identifier-how">
+          <b>Add the barcode (EAN, UPC or GTIN) on the product, or mark it GTIN exempt.</b> Amazon needs one to identify the
+          product. This closes on its own once the listing is checked again.
+        </span>
+      </Banner>
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        {can('product:import') ? (
+          <Button asChild size="lg" className="max-sm:h-[52px] max-sm:w-full" data-testid="task-add-barcode">
+            <Link to="/products/$productId" params={{ productId: task.product_id! }} search={variant ? { tab: 'variants' } : undefined}>
+              Add the barcode
+              <Icon name="arrow" size={16} />
+            </Link>
+          </Button>
+        ) : (
+          <UnavailableButton
+            size="lg"
+            className="max-sm:h-[52px] max-sm:w-full"
+            reason="An operator or owner adds the barcode on the product."
+            data-testid="task-add-barcode"
+          >
+            Add the barcode
+          </UnavailableButton>
+        )}
+      </div>
+      {remaining > 0 ? <p className="text-center text-small text-ink-3 lg:hidden">{remaining} more after this</p> : null}
+    </>
   )
 }
 
@@ -398,7 +478,7 @@ function TaskLinks({ task, photoFixes }: { task: Task; photoFixes: boolean }) {
   )
 }
 
-function IssuePane({ issue, position }: { issue: Issue; position: string | null }) {
+function IssuePane({ issue, position, product }: { issue: Issue; position: string | null; product?: ProductSummary & { id: string } }) {
   const can = useCan()
   // A closed Kuinn fix needs the listing's attempts to say "Fixed for you" (SI11 lanes).
   const closedFix = issue.status !== 'open' && !!issue.lane
@@ -421,14 +501,15 @@ function IssuePane({ issue, position }: { issue: Issue; position: string | null 
       </div>
       {trail ? <FixTrail trail={trail} /> : null}
       <LaCard className="flex flex-col gap-3">
-        <div>
-          <div className="text-caption text-ink-3">{fromMarketplace ? `What ${marketplace} said (unchanged)` : `What the ${SOURCE_LABEL[issue.source].toLowerCase()} said`}</div>
-          <CodeBlock>
-            {[issue.marketplace_code ? `code ${issue.marketplace_code}` : null, `field: ${issue.field_path}`, issue.raw_message ?? issue.message]
-              .filter(Boolean)
-              .join(' · ')}
-          </CodeBlock>
-        </div>
+        {/* The marketplace's own words stay verbatim; Kuinn's checks speak in plain language only. */}
+        {fromMarketplace ? (
+          <div>
+            <div className="text-caption text-ink-3">What {marketplace} said (unchanged)</div>
+            <CodeBlock>{rawMarketplaceText(issue)}</CodeBlock>
+          </div>
+        ) : !plain ? (
+          <p className="text-body text-ink">{sentenceCase(issue.message)}</p>
+        ) : null}
         {plain ? (
           <div>
             <div className="text-caption text-ink-3">{issuePlainLabel(issue)}</div>
@@ -436,7 +517,7 @@ function IssuePane({ issue, position }: { issue: Issue; position: string | null 
           </div>
         ) : null}
         {/* A suggestion is work for a person: only while the issue is open. */}
-        {issue.suggestion && issue.status === 'open' ? (
+        {showSuggestion(issue) ? (
           <div>
             <div className="text-caption text-ink-3">Suggested fix</div>
             <p className="mt-1 text-body text-ink">{issue.suggestion}</p>
@@ -444,8 +525,8 @@ function IssuePane({ issue, position }: { issue: Issue; position: string | null 
         ) : null}
         <KeyValues
           rows={[
-            ['Affects', issueAffects(issue)],
-            ['Class', issueClassLine(issue)],
+            ['Affects', issueAffects(issue, product)],
+            ['Kind', issueClassLine(issue)],
             ['Next step', issueNextStep(issue, fix)],
             ...(issueCause(issue) ? ([['Cause', issueCause(issue)]] as [string, ReactNode][]) : []),
             ['Seen', <span key="seen">{issue.occurrences > 1 ? `${issue.occurrences} times, last ` : ''}<Ago iso={issue.last_seen_at} /></span>],
@@ -457,6 +538,13 @@ function IssuePane({ issue, position }: { issue: Issue; position: string | null 
               Open issue details
             </Link>
           </Button>
+          {product ? (
+            <Button asChild variant="secondary" data-testid="issue-open-product">
+              <Link to="/products/$productId" params={{ productId: product.id }}>
+                Open product
+              </Link>
+            </Button>
+          ) : null}
           {canDismiss(issue, can('listing:approve')) ? <DismissIssueButton issue={issue} /> : null}
         </div>
       </LaCard>

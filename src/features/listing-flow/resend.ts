@@ -58,8 +58,6 @@ export type ResendOutcome =
 export interface ResendCalls {
   approve: (items: ReturnType<typeof approveItems>) => Promise<BatchResult>
   publish: (items: ReturnType<typeof publishItems>) => Promise<BatchAccepted>
-  /** Re-read the listing after the approval, so publish sends the approved version. */
-  reread?: () => Promise<unknown>
 }
 
 type Row = Pick<Listing, 'id' | 'status' | 'status_reason' | 'current_version_id' | 'approved_version_id'>
@@ -80,7 +78,8 @@ export async function approveThenPublish(listing: Row, calls: ResendCalls): Prom
     const f = a.failed[0]
     return { step: 'approve_failed', message: f?.message ?? 'The approval was not recorded.', requestId: f?.requestId ?? null, result: approved }
   }
-  await calls.reread?.().catch(() => undefined)
+  // Publish right away: nothing is re-read in between (a re-read waiting on a 429 left the
+  // listing approved and never sent). The approved version is the one just approved.
   let sent: BatchAccepted
   try {
     // The approved version is the current one: publish exactly that.

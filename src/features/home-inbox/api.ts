@@ -101,6 +101,23 @@ export function useProductsById(ids: readonly (string | null | undefined)[]): Pr
 }
 
 /**
+ * The product behind each issue's listing (IssueOut carries listing_id only). One listing detail
+ * read per distinct listing, shared with the review and product pages' cache, capped like
+ * useProductsById. A failed read leaves that issue without a product name.
+ */
+export function useListingProductIds(listingIds: readonly (string | null | undefined)[]): { map: Map<string, string>; pending: boolean } {
+  const keys = useKeys()
+  const unique = [...new Set(listingIds.filter((x): x is string => !!x))].slice(0, 25)
+  const results = useQueries({ queries: unique.map((id) => ({ ...listingDetailQuery(keys, id), meta: { toast: false }, retry: false })) })
+  const map = new Map<string, string>()
+  unique.forEach((id, i) => {
+    const d = results[i]?.data
+    if (d) map.set(id, d.data.product_id)
+  })
+  return { map, pending: results.some((r) => r.isPending) }
+}
+
+/**
  * `photoFixes`: the backend offers photo fixes on this product (SI7 image candidates). `views`: each
  * saved photo's signed link by image id, refreshed with the product read.
  */

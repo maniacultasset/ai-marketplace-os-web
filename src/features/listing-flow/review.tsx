@@ -43,6 +43,7 @@ import { NotFound } from '@/components/states/not-found'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useFixCounts, useFixTrail } from '@/features/home-inbox/api'
+import { useTasksList } from '@/features/inbox/api'
 import { invalidateListingWork, useListingHistory, usePublishListings, useRegenerateListing, useReviewListings, useValidateListing } from '@/features/listings/api'
 import { recallJob, rememberJob } from '@/features/listings/job-memory'
 import {
@@ -73,7 +74,7 @@ import { ApproverNotice } from '@/features/team-account/approver-notice'
 import { AutoFixedChip, FixedForYouCard } from './auto-fix'
 import { autoFixTrail, FIXED_FOR_YOU_HASH, siblingFixes, versionRef } from './auto-fix-model'
 import { EditDialog, SendBackDialog } from './dialogs'
-import { clock, fieldLabel, mpName, plainMessage, sellerFinding } from './format'
+import { clock, fieldLabel, findingText, mpName, plainMessage, sellerFinding, sentenceCase } from './format'
 import { claimFindings, gateCounts, plural, type ErrorItem, type GateResult } from './gates'
 import { ListOnButton } from './list-on'
 import { useListingResolution } from './api'
@@ -166,6 +167,8 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   const resolution = amazon ? (resolutionQ.data ?? null) : null
   const resolutionPending = amazon && resolutionQ.isPending
   const validate = useValidateListing(listing.id)
+  // Open questions (shared with the Inbox badge's cache): read only for a listing blocked on one.
+  const openTasks = useTasksList('open', { enabled: listing.status === 'blocked' && listing.status_reason === 'human_task_open' })
   const review = useReviewListings()
   const publish = usePublishListings()
   const approveKey = useIntentKey()
@@ -215,7 +218,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   // SI11: a resend is one click (approve, then publish) by a teammate who did not make the version.
   const resend = resendView({ resolution, listing, approve: approveShown, can, publishBuilt: BUILT['listings.publish'] })
   const resendEdit = amazon && isResend(resolution)
-  const rview = resolution && hasResolution(resolution) ? resolutionView(resolution, { marketplace: listing.marketplace, marketplaceState: listing.marketplace_state }) : null
+  const rview = resolution && hasResolution(resolution) ? resolutionView(resolution, { marketplace: listing.marketplace, marketplaceState: listing.marketplace_state, canAnswer: can('product:import') }) : null
   // "Approve all" approves the other marketplaces' fixes too: read them, and name them in the footer.
   const others = allTargets.filter((l) => l.id !== listing.id)
   const otherFixes = useFixCounts(others)
@@ -277,7 +280,6 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
       const out = await approveThenPublish(listing, {
         approve: (items) => keyed(approveKey, review.mutateAsync({ items, key: approveKey.get() })),
         publish: (items) => keyed(publishKey, publish.mutateAsync({ items, key: publishKey.get() })),
-        reread: refetchListing,
       })
       const ref = (id: string | null) => (id ? ` Reference: ${id}` : '')
       if (out.step === 'sent') {
@@ -297,8 +299,9 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
         toast.error(`Approved, but couldn’t send to ${mp}`, { description: `${out.message}${ref(out.requestId)}` })
       }
     } finally {
-      await refetchListing()
+      // Never hold the button on "Sending…" behind a slow or rate-limited re-read.
       setSettling(null)
+      void refetchListing()
     }
   }
 
@@ -332,7 +335,24 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   )
   // A brand where nobody else can approve learns it here, before the click (maker-checker).
   const alone = approver === 'alone' || listing.approve_hint === 'no_other_approver'
-  const approvalBanner = alone && can('listing:approve') ? <ApproverNotice state="alone" className="mb-4" /> : infoBanner
+  // A role that cannot approve learns why nothing here is for them (operators, admins).
+  const waitingForReviewer = !can('listing:approve') && (listing.status === 'validated' || listing.status === 'needs_review')
+  const approvalBanner = waitingForReviewer ? (
+    <Banner tone="info" icon={CONCEPT_ICON.approval} className="mb-4" data-testid="waiting-for-reviewer">
+      <b>Waiting for a reviewer to approve.</b> An owner or reviewer approves it before it goes to {mp}.
+    </Banner>
+  ) : alone && can('listing:approve') ? (
+    <ApproverNotice state="alone" className="mb-4" />
+  ) : (
+    infoBanner
+  )
+  // Blocked on a question that is no longer open: the answers are saved, and nothing moves until
+  // the listing is generated again (backend tasks.py: resuming is not automatic).
+  const answered =
+    listing.status === 'blocked' &&
+    listing.status_reason === 'human_task_open' &&
+    !!openTasks.data &&
+    !openTasks.rows.some((t) => t.product_id === listing.product_id)
   const shownBlockers = blockers && blockers.version === listing.current_version_id ? blockers.items : null
 
   return (
@@ -379,6 +399,17 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
                 ? STAGE_SUB[liveJob.stage]
                 : 'Starting…'
               : 'This page updates on its own.'}
+          </Banner>
+        ) : null}
+        {answered && !busy ? (
+          <Banner
+            tone="attention"
+            className="mb-4"
+            title="Your answers are saved."
+            data-testid="answered-regenerate"
+            action={<RegenerateButton listing={listing} state={actions.regenerate} testId="answered-regenerate-button" />}
+          >
+            Generate the listing again to use them. Until then it stays blocked.
           </Banner>
         ) : null}
         {listing.status === 'approved' ? (
@@ -452,7 +483,9 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
                           Edit the text
                         </Button>
                       ) : null
-                    ) : rview.action.kind === 'approve' ? null : (
+                    ) : rview.action.kind === 'approve' ? null : rview.action.kind === 'regenerate' ? (
+                      <RegenerateButton listing={listing} state={actions.regenerate} testId="resolution-regenerate" />
+                    ) : rview.action.kind === 'answer' && !can('product:import') ? null : (
                       <ResolutionActionLink action={rview.action} listingId={listing.id} marketplace={listing.marketplace} />
                     )
                   }
@@ -525,8 +558,10 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
                   <AutoFixedChip key={l.id} listingId={l.id} count={count} label={`${mpName(l.marketplace)}: ${count} fixed`} />
                 ))}
               </span>
-            ) : (
+            ) : actions.publish.show ? (
               `Publishing sends ${mp} only.`
+            ) : (
+              `Approving does not send it. An operator or owner publishes it to ${mp}.`
             )
           }
         >
@@ -591,7 +626,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
 }
 
 /** "Generate again" (POST /listings/{id}/regenerate) after a photo value was removed here. */
-function RegenerateButton({ listing, state: given }: { listing: ListingDetail; state: ActionState }) {
+function RegenerateButton({ listing, state: given, testId = 'photo-regenerate' }: { listing: ListingDetail; state: ActionState; testId?: string }) {
   const paused = useAiPaused()
   const state: ActionState = paused && given.show ? { show: true, enabled: false, reason: AI_PAUSED_REASON } : given
   const navigate = useNavigate()
@@ -603,7 +638,7 @@ function RegenerateButton({ listing, state: given }: { listing: ListingDetail; s
       size="sm"
       variant="secondary"
       disabled={regenerate.isPending}
-      data-testid="photo-regenerate"
+      data-testid={testId}
       onClick={() =>
         regenerate.mutate(
           { instructions: null, key: key.get() },
@@ -830,7 +865,7 @@ function ReadsAs({
           <span className="flex min-w-0 flex-1 items-start gap-2">
             <Icon name="alert" size={16} className="mt-0.5 shrink-0" aria-hidden />
             <span className="min-w-0 break-words">
-              <b>{plural(mappingErrors.length, 'mapping problem')}:</b> {plainMessage(mappingErrors[0]!.message)}
+              <b>{plural(mappingErrors.length, 'mapping problem')}:</b> {sentenceCase(plainMessage(mappingErrors[0]!.message))}
             </span>
           </span>
           <Button size="sm" variant="ghost" asChild>
@@ -1017,14 +1052,7 @@ function ApproveBlockersCard({ items, onClose }: { items: readonly ErrorItem[]; 
           {items.map((f, i) => (
             <li key={i} className="flex items-start gap-3 border-b border-attention-line py-3 last:border-b-0 last:pb-0">
               <StatusChip status={f.severity === 'error' ? 'blocked' : 'needs-you'} iconOnly label={f.severity === 'error' ? 'Blocking' : 'Warning'} />
-              <div className="min-w-0 flex-1">
-                <p className="text-body text-ink">{sellerFinding(f).message}</p>
-                <p className="text-caption text-ink-3">
-                  <span title={f.field}>{fieldLabel(f.field)}</span>
-                  {f.value_submitted ? ` · sent “${f.value_submitted}”` : ''}
-                </p>
-                {sellerFinding(f).action ? <p className="mt-0.5 text-small text-ink-2">{sellerFinding(f).action}</p> : null}
-              </div>
+              <FindingBody f={f} />
             </li>
           ))}
         </ul>
@@ -1032,6 +1060,24 @@ function ApproveBlockersCard({ items, onClose }: { items: readonly ErrorItem[]; 
         <p className="mt-3 text-body text-ink-2">Run checks to see the details.</p>
       )}
     </LaCard>
+  )
+}
+
+/** One finding in seller words: plain message, the field, the value, a suggestion meant for them. */
+function FindingBody({ f }: { f: ErrorItem }) {
+  // Seller words (labels, no agent guidance) with the value line that says "sent" only for a
+  // marketplace's answer.
+  const s = sellerFinding(f)
+  const t = findingText(f)
+  return (
+    <div className="min-w-0 flex-1">
+      <p className="text-body text-ink">{s.message}</p>
+      <p className="text-caption text-ink-3">
+        <span title={f.field}>{fieldLabel(f.field)}</span>
+        {t.value ? ` · ${t.value}` : ''}
+      </p>
+      {s.action ? <p className="mt-0.5 text-small text-ink-2">{s.action}</p> : null}
+    </div>
   )
 }
 
@@ -1048,14 +1094,7 @@ function FindingsCard({ findings }: { findings: readonly ErrorItem[] }) {
         {shown.map((f, i) => (
           <li key={i} className="flex items-start gap-3 border-b border-line py-3 last:border-b-0 last:pb-0">
             <StatusChip status={f.severity === 'error' ? 'blocked' : 'needs-you'} iconOnly label={f.severity === 'error' ? 'Blocking' : 'Warning'} />
-            <div className="min-w-0 flex-1">
-              <p className="text-body text-ink">{sellerFinding(f).message}</p>
-              <p className="text-caption text-ink-3">
-                <span title={f.field}>{fieldLabel(f.field)}</span>
-                {f.value_submitted ? ` · sent “${f.value_submitted}”` : ''}
-              </p>
-              {sellerFinding(f).action ? <p className="mt-0.5 text-small text-ink-2">{sellerFinding(f).action}</p> : null}
-            </div>
+            <FindingBody f={f} />
           </li>
         ))}
       </ul>

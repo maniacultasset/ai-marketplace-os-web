@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { failedJobRemedy, logEntries } from './agent-run'
-import { clock, fieldLabel, plainMessage, sellerFinding } from './format'
-import { applicableRules, claimFindings, currentFindings, fieldGate, findingGate, gateCounts, rollUpGates, ruleGate, type ErrorItem } from './gates'
+import { clock, fieldLabel, findingText, plainMessage, sellerFinding } from './format'
+import { applicableRules, claimFindings, dedupeFindings, currentFindings, fieldGate, findingGate, gateCounts, rollUpGates, ruleGate, type ErrorItem } from './gates'
 import { mappingRows, payloadField } from './mapping'
 import { externalIdFromUrl, liveProof, maskId } from './proof'
-import { approveAllTargets, approveBlockers, editToContent, sendBackItem, validateEdit, validateSendBack } from './review-model'
+import { approveAllTargets, approveBlockers, editToContent, sendBackItem, titleLimitWarning, validateEdit, validateSendBack } from './review-model'
 import { runIsActive, runSteps } from './run-steps'
 import { contentAuthor, listingActions, type AuditEvent, type Listing, type Submission, type ValidationSummary } from '@/features/listings/model'
 
@@ -416,8 +416,22 @@ describe('agent log', () => {
     )
     expect(out.map((e) => e.id)).toEqual(['e1', 'e2', 'j:end', 'j:start'])
     expect(out[0]!.text).toBe('Approved by you.')
-    expect(out[1]).toMatchObject({ tone: 'need', text: 'Rejected by a teammate. Reason: off brand voice.' })
+    expect(out[1]).toMatchObject({ tone: 'need', text: 'Rejected by a teammate. Reason: Off-brand voice.' })
     expect(out[2]).toMatchObject({ tone: 'bad', text: 'Generation failed. Model timed out' })
+  })
+  it('shows the reviewer note and drops internal reasons', () => {
+    const out = logEntries(
+      [
+        ev({ id: 'r', action: 'listing.rejected', reason: 'inaccurate_fact', after: { status: 'blocked', note: 'The fabric is linen, not cotton.' } }),
+        ev({ id: 'f', action: 'listing.auto_fixed', actor_type: 'system', reason: '[reformat content.title v1 a863fddbec2b1e22->89ed92f714419dba]', occurred_at: '2026-10-16T10:44:00Z' }),
+        ev({ id: 'p', action: 'listing.publish_requested', reason: 'publish', occurred_at: '2026-10-16T10:43:00Z' }),
+      ],
+      { job_id: 'j', kind: 'listing_generate', status: 'succeeded', started_at: null, finished_at: null, error: null },
+      'me',
+    )
+    expect(out[0]!.text).toBe('Rejected by you. Reason: Inaccurate fact. Note: “The fabric is linen, not cotton.”')
+    expect(out[1]!.text).toBe('Fixed automatically by the agent.')
+    expect(out[2]!.text).toBe('Asked to publish by you.')
   })
 })
 
@@ -482,6 +496,26 @@ describe('failed job remedy', () => {
     expect(failedJobRemedy('listing_publish', acts({ publish: on }))).toBe('publish')
     expect(failedJobRemedy('listing_publish', acts())).toBe('status')
     expect(failedJobRemedy('listing_status_sync', acts({ publish: on }))).toBe('status')
+  })
+})
+
+describe('title limit in the editor', () => {
+  it('warns at the marketplace limit, before the save is blocked', () => {
+    expect(titleLimitWarning('x'.repeat(231), 'amazon', 'Amazon')).toBe('Amazon allows 200 characters. Shorten the title, or this version will be blocked by the checks.')
+    expect(titleLimitWarning('x'.repeat(200), 'amazon', 'Amazon')).toBeNull()
+    expect(titleLimitWarning('x'.repeat(151), 'flipkart', 'Flipkart')).toMatch(/150 characters/)
+  })
+})
+
+describe('one problem, one finding', () => {
+  it('drops a second report of the same field and code', () => {
+    const f = (source: string) => ({ field: 'attributes.color', error_code: 'MISSING_ATTRIBUTE', source }) as never
+    expect(dedupeFindings([f('rules_engine'), f('schema')])).toHaveLength(1)
+  })
+  it('speaks to the seller: sentence case, no agent guidance, "sent" only for a marketplace answer', () => {
+    const t = findingText({ message: 'the color attribute is required for this category', suggestion: 'Set attributes.color from the product data.', source: 'rules_engine', value_submitted: 'Indigo' })
+    expect(t).toEqual({ message: 'The color attribute is required for this category.', suggestion: null, value: 'value “Indigo”' })
+    expect(findingText({ message: 'x', source: 'amazon_adapter', value_submitted: 'Indigo' }).value).toBe('sent “Indigo”')
   })
 })
 

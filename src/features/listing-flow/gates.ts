@@ -167,9 +167,22 @@ export interface GateInput {
 
 const SUBMISSION_BLOCKED = new Set(['marketplace_rejected', 'publish_failed', 'publish_partial', 'publish_attempts_exhausted', 'marketplace_action_required'])
 
+/** One finding per field and code (the first one seen wins). */
+export function dedupeFindings<F extends Pick<ErrorItem, 'field' | 'error_code'>>(items: readonly F[]): F[] {
+  const seen = new Set<string>()
+  return items.filter((f) => {
+    const k = `${f.field}|${f.error_code}`
+    if (seen.has(k)) return false
+    seen.add(k)
+    return true
+  })
+}
+
 export function rollUpGates({ listing, validation, rules, preview, imageCount, marketplaceName }: GateInput): GateResult[] {
   const { findings, checked } = currentFindings(validation, listing.current_version_id)
-  const all = [...findings, ...(preview?.errors ?? [])]
+  // The rules check and the marketplace mapping can report the same gap (both say colour is
+  // missing): one problem counts once.
+  const all = dedupeFindings([...findings, ...(preview?.errors ?? [])])
   const covered = new Set<GateId>()
   if (checked) for (const r of rules ?? []) if (!NOT_EVALUATED_RULE_TYPES.has(r.rule_type)) covered.add(ruleGate(r))
   if (preview && preview.productType) covered.add('classification')

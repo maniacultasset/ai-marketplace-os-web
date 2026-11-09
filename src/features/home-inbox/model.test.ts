@@ -36,6 +36,13 @@ import {
   setupProgress,
   setupSteps,
   splitTasks,
+  standaloneIssues,
+  issueAffects,
+  issueClassLine,
+  isIdentifierTask,
+  showSuggestion,
+  rawMarketplaceText,
+  sentenceCase,
   summarizeListings,
   taskMeta,
   visibleItems,
@@ -666,5 +673,50 @@ describe('SI11 lanes: who settles an issue', () => {
     expect(issueCause({ cause: 'seller_fact', marketplace: 'amazon' })).toBe('A product fact')
     expect(issueCause({ cause: 'mapping', marketplace: 'amazon' })).toBe('How the value is sent to Amazon')
     expect(issueCause({ cause: null })).toBeNull()
+  })
+})
+
+describe('QA 2026-11-09: one problem, one item', () => {
+  const photoTask = task(1, '2026-11-08T10:00:00Z', { product_id: U(900), target_path: 'facts.attributes.color', image_id: U(901) })
+  const linkedError = issue(2, '2026-11-08T10:01:00Z', { human_task_id: U(1), severity: 'error', source: 'rules_engine' })
+  const other = issue(3, '2026-11-08T10:02:00Z', { severity: 'warning' })
+
+  it('standaloneIssues drops an issue whose question is open', () => {
+    expect(standaloneIssues([linkedError, other], [photoTask]).map((i) => i.id)).toEqual([U(3)])
+    expect(standaloneIssues([linkedError, other], []).map((i) => i.id)).toEqual([U(2), U(3)])
+  })
+
+  it('mergeInbox lists a linked issue once, as its question, and ranks a blocked photo question first', () => {
+    const items = mergeInbox([photoTask], [linkedError, other])
+    expect(items.map(itemKey)).toEqual([`task:${U(1)}`, `issue:${U(3)}`])
+  })
+
+  it('a photo question with an open error behind it holds the listing back', () => {
+    expect(splitTasks([photoTask], false, [linkedError])).toEqual({ blocking: { n: 1, more: false }, improve: { n: 0, more: false } })
+    expect(splitTasks([photoTask], false, [])).toEqual({ blocking: { n: 0, more: false }, improve: { n: 1, more: false } })
+    expect(taskMeta(photoTask, [linkedError])).not.toBe('Answer to improve the listing')
+    expect(taskMeta(photoTask, [{ ...linkedError, status: 'resolved' }])).toBe('Answer to improve the listing')
+  })
+
+  it('issue text for sellers: product first, plain field and kind, no internal path', () => {
+    const i = issue(4, '2026-11-08T10:00:00Z', { field_path: 'images[0]', error_class: 'media_error', listing_item_id: null })
+    expect(issueAffects(i, { sku: 'RS-KS-101-M', title: 'Kurta set' })).toBe('RS-KS-101-M · Kurta set · The whole listing · Image 1')
+    expect(issueAffects({ ...i, field_path: 'facts.identifier' })).toBe('The whole listing · Barcode')
+    expect(issueClassLine(i)).toBe('Photo problem')
+    expect(rawMarketplaceText({ marketplace_code: '99300', raw_message: 'Colour not allowed', message: 'x' })).toBe('code 99300 · Colour not allowed')
+    expect(sentenceCase('title longer than 200 characters')).toBe('Title longer than 200 characters.')
+  })
+
+  it('hides a suggestion written for the agent', () => {
+    const agent = 'Set attributes.color from the product data. If the source does not state it, leave it unset and flag the row rather than guessing.'
+    expect(showSuggestion({ suggestion: agent, status: 'open' })).toBe(false)
+    expect(showSuggestion({ suggestion: 'Shorten the title.', status: 'open' })).toBe(true)
+    expect(showSuggestion({ suggestion: 'Shorten the title.', status: 'resolved' })).toBe(false)
+  })
+
+  it('a barcode question is answered on the product', () => {
+    expect(isIdentifierTask({ product_id: U(9), target_path: 'facts.identifier' })).toBe(true)
+    expect(isIdentifierTask({ product_id: U(9), target_path: 'variants[RS-1].facts.identifier' })).toBe(true)
+    expect(isIdentifierTask({ product_id: U(9), target_path: 'facts.attributes.color' })).toBe(false)
   })
 })

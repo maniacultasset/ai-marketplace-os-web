@@ -28,6 +28,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { invalidateListingWork } from '@/features/listings/api'
 import { downloadTemplate, formatBytes, MAX_FILE_BYTES, MAX_IMPORT_ROWS, REQUIRED_COLUMNS } from '@/features/imports/csv-template'
+import { plainRowError, rowProblems } from '@/features/imports/row-errors'
+import { sentenceCase } from '@/features/listing-flow/format'
 import { useImportHistory } from '@/features/imports/history'
 import { useImportReport } from '@/features/imports/import-report'
 import { markJobLive, useImportJob } from '@/features/imports/use-import-job'
@@ -83,7 +85,7 @@ function ColumnTable({ analysis }: { analysis: HeaderAnalysis }) {
               <td aria-hidden className="text-ink-3">
                 <Icon name="arrow" size={14} />
               </td>
-              <td className="px-2 text-ink-2">{c.field ?? '—'}</td>
+              <td className="px-2 text-ink-2">{c.field ?? 'Not set'}</td>
               <td className="px-4">
                 <StatusChip status={MATCH_CHIP[c.match]}>{MATCH_COPY[c.match]}</StatusChip>
               </td>
@@ -167,6 +169,8 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
   })
 
   const tooMany = (analysis?.rows ?? 0) > MAX_IMPORT_ROWS
+  // A header and no rows: nothing to import, so the upload is never offered.
+  const empty = analysis ? analysis.rows === 0 : false
   const serverErr = isApiError(upload.error) ? upload.error : null
 
   return (
@@ -191,6 +195,9 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
               </div>
               <p className="mt-3 text-small text-ink-2">
                 Required: {REQUIRED_COLUMNS.join(', ')}. Up to {MAX_IMPORT_ROWS.toLocaleString('en-IN')} rows and 10 MB.
+              </p>
+              <p className="mt-1 text-small text-ink-2" data-testid="weight-format">
+                Package weight in package_weight_g is whole grams (500). A package_weight column needs a unit (450 g or 0.45 kg).
               </p>
               <h3 className="mt-4 text-small font-bold text-ink">Category column</h3>
               <p className="mt-1 text-small text-ink-2">Use one of these codes. Rows with any other category fail.</p>
@@ -233,6 +240,11 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
               {tooMany ? (
                 <p role="alert" className="mt-3 text-small font-semibold text-danger">
                   The file has {analysis!.rows.toLocaleString('en-IN')} rows; the limit is {MAX_IMPORT_ROWS.toLocaleString('en-IN')}.
+                </p>
+              ) : null}
+              {empty && !analysis?.refused ? (
+                <p role="alert" className="mt-3 text-small font-semibold text-danger" data-testid="csv-empty">
+                  The file has no product rows. Add at least one row under the header.
                 </p>
               ) : null}
             </LaCard>
@@ -279,12 +291,16 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
 
         {serverErr ? (
           <Banner tone="danger" role="alert" className="mt-4" title="The file was refused">
-            {serverErr.type === 'IMPORT_FAILED'
-              ? (serverErr.errorReport?.errors ?? []).map((e) => e.message).join('; ') || serverErr.message
-              : serverErr.type === 'RATE_LIMITED'
-                ? 'Two imports are already running. Wait for one to finish.'
-                : describeError(serverErr)}
-            <ReferenceId id={serverErr.correlationId} className="mt-1" />
+            <p>
+              {serverErr.type === 'IMPORT_FAILED'
+                ? (serverErr.errorReport?.errors ?? []).map((e) => sentenceCase(e.message)).join(' ') || sentenceCase(serverErr.message)
+                : serverErr.type === 'RATE_LIMITED'
+                  ? 'Two imports are already running. Wait for one to finish.'
+                  : describeError(serverErr)}
+            </p>
+            <div className="mt-1">
+              <ReferenceId id={serverErr.correlationId} />
+            </div>
           </Banner>
         ) : upload.error ? (
           <Banner tone="danger" role="alert" className="mt-4">
@@ -309,12 +325,12 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
           </Button>
         ) : (
           <Button
-            disabled={!file || !analysis || analysis.refused || tooMany || upload.isPending}
+            disabled={!file || !analysis || analysis.refused || tooMany || empty || upload.isPending}
             onClick={() => file && upload.mutate(file)}
             data-testid="bulk-upload"
           >
             {upload.isPending ? <Spinner data-icon="inline-start" /> : null}
-            {analysis?.refused ? 'Fix the columns first' : analysis ? `Upload ${rowsLabel(analysis.rows)}` : 'Upload'}
+            {analysis?.refused ? 'Fix the columns first' : empty ? 'No product rows' : analysis ? `Upload ${rowsLabel(analysis.rows)}` : 'Upload'}
           </Button>
         )}
       </FooterBar>
@@ -342,7 +358,7 @@ const csvCell = (v: string) => (/[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"
 
 function downloadErrorRows(name: string, rows: readonly ImportRow[]) {
   const lines = [['row', 'seller_sku', 'field', 'problem']]
-  for (const r of rows) for (const e of r.errors ?? []) lines.push([String(r.row_number), r.sku ?? '', e.field, e.message])
+  for (const r of rows) for (const e of rowProblems(r.errors)) lines.push([String(r.row_number), r.sku ?? '', e.field, plainRowError(e)])
   const blob = new Blob([lines.map((l) => l.map(csvCell).join(',')).join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -495,7 +511,7 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="bulk-counts">
           <Tile pending={!done} value={r?.imported ?? 0} caption="rows imported, ready for the agent" tone="success" />
-          <Tile pending={!done} value={needValue} caption="need a value" tone={needValue ? 'attention' : undefined} />
+          <Tile pending={!done} value={needValue} caption="need a fix" tone={needValue ? 'attention' : undefined} />
           <Tile pending={!done} value={duplicates} caption="repeat a SKU in the file" />
           {local ? (
             <Tile pending={!done} value={local.analysis.columns.filter((c) => c.match === 'ok' || c.match === 'alias').length} caption="columns matched by name" tone="tint" />
@@ -551,8 +567,8 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
                     {failedRows.data.rows.slice(0, 50).map((row) => (
                       <tr key={row.row_number} className="h-[46px] border-t border-line align-middle">
                         <td className="px-4 tabular-nums">{row.row_number}</td>
-                        <td className="px-2">{row.sku ?? '—'}</td>
-                        <td className="px-4 text-ink">{(row.errors ?? []).map((e) => e.message).join('; ') || 'Not imported'}</td>
+                        <td className="px-2">{row.sku ?? <span className="text-ink-3">No SKU</span>}</td>
+                        <td className="px-4 text-ink">{rowProblems(row.errors).map(plainRowError).join(' ') || 'Not imported'}</td>
                       </tr>
                     ))}
                   </tbody>

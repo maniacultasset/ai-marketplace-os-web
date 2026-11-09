@@ -208,6 +208,14 @@ export function ResolutionActionLink({ action, listingId, marketplace }: { actio
           </Link>
         </Button>
       )
+    case 'regenerate':
+      return (
+        <Button size="sm" variant="secondary" asChild data-testid="resolution-change">
+          <Link to="/listings/$listingId/review" params={{ listingId }}>
+            Open the review
+          </Link>
+        </Button>
+      )
     case 'none':
       return null
   }

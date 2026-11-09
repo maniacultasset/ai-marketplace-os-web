@@ -32,6 +32,10 @@ const FIELD_NAME: Record<string, string> = {
   keywords: 'Search terms',
   images: 'Images',
   category: 'Category',
+  'facts.identifier': 'Barcode',
+  identifier: 'Barcode',
+  'facts.gender': 'Gender',
+  'facts.brand_name': 'Brand name',
 }
 
 /**
@@ -49,7 +53,36 @@ export function fieldLabel(path: string | null | undefined): string {
   const term = /^(?:keywords\.)?search_terms\[(\d+)\]$/.exec(p)
   if (term) return `Search term ${Number(term[1]) + 1}`
   if (p.startsWith('attributes.')) return attrLabel(p.slice('attributes.'.length))
+  // Fact paths: "facts.attributes.color" → "Color", "variants[SKU].facts.identifier" → "Barcode".
+  const fact = /^(?:variants\[[^\]]+\]\.)?facts\.(.+)$/.exec(p)
+  if (fact) return fieldLabel(fact[1]!)
   return attrLabel(p.replace(/\[(\d+)\]/g, ' $1'))
+}
+
+/** A message in sentence case: rule messages start lowercase ("title longer than 200 characters"). */
+export function sentenceCase(text: string | null | undefined): string {
+  const t = (text ?? '').trim()
+  if (!t) return ''
+  const s = t[0]!.toUpperCase() + t.slice(1)
+  return /[.!?]$/.test(s) ? s : `${s}.`
+}
+
+/** Text written for the agent or a developer: an internal path, or the "flag the row" guidance. */
+export function isAgentText(text: string): boolean {
+  return /\b(?:attributes|facts|content|images|variants)[.[][a-z0-9_]/i.test(text) || /flag the row/i.test(text)
+}
+
+type FindingText = { message: string; suggestion?: string | null; source: string; value_submitted?: string | null }
+
+/** A check finding for the seller: sentence case, and no suggestion written for the agent. */
+export function findingText(f: FindingText): { message: string; suggestion: string | null; value: string | null } {
+  // Only a marketplace's answer saw a value that was sent; Kuinn's own checks read the draft.
+  const sent = f.source === 'amazon_adapter' || f.source === 'flipkart_adapter'
+  return {
+    message: sentenceCase(f.message),
+    suggestion: f.suggestion && !isAgentText(f.suggestion) ? f.suggestion : null,
+    value: f.value_submitted ? `${sent ? 'sent' : 'value'} “${f.value_submitted}”` : null,
+  }
 }
 
 /** The seller fact keys in the words the product form uses ("country_of_origin" → "Country of origin"). */

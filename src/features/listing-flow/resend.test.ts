@@ -72,12 +72,12 @@ const accepted = (): BatchAccepted => ({ batch_id: 'b1', poll_url: '/x', items: 
 const report = (code: string) => ({ error_code: code, errors: [], request_id: 'req-1' }) as unknown as NonNullable<BatchResult['items'][number]['error']>
 
 describe('approveThenPublish', () => {
-  it('approves, then publishes the approved version, in that order', async () => {
+  it('approves, then publishes the approved version, in that order, with nothing in between', async () => {
     const order: string[] = []
     const approve = vi.fn(async () => (order.push('approve'), ok()))
     const publish = vi.fn(async () => (order.push('publish'), accepted()))
-    const out = await approveThenPublish(L, { approve, publish, reread: async () => order.push('reread') })
-    expect(order).toEqual(['approve', 'reread', 'publish'])
+    const out = await approveThenPublish(L, { approve, publish })
+    expect(order).toEqual(['approve', 'publish'])
     expect(approve).toHaveBeenCalledWith([{ listing_id: 'l1', listing_version_id: 'v2', decision: 'approve', regenerate: false }])
     expect(publish).toHaveBeenCalledWith([{ listing_id: 'l1', listing_version_id: 'v2' }])
     expect(out).toEqual({ step: 'sent', jobId: 'j1' })

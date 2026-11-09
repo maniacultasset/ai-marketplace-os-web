@@ -9,7 +9,7 @@
  */
 import { format } from 'date-fns'
 import type { Me, Role } from '@/api/types'
-import { ROLE_ORDER, type Member } from './roles'
+import { isOwnerOnlyRole, ROLE_ORDER, type Member } from './roles'
 
 /** Invite links work for 7 days, reset links for 24 hours (PLAN D5). */
 export const INVITE_DAYS = 7
@@ -91,16 +91,16 @@ export function takeLinkToken(stash: ReturnType<typeof linkStash>, loc: Pick<Loc
   return kept ? { kind: 'ok', token: kept } : { kind: 'missing' }
 }
 
-/** Roles the caller may invite: only an owner invites an owner. */
+/** Roles the caller may invite: only an owner invites an owner or a reviewer. */
 export function inviteRoleOptions(myRole: Role | null | undefined): readonly Role[] {
   if (myRole === 'owner') return ROLE_ORDER
-  if (myRole === 'admin') return ROLE_ORDER.filter((r) => r !== 'owner')
+  if (myRole === 'admin') return ROLE_ORDER.filter((r) => !isOwnerOnlyRole(r))
   return []
 }
 
 /** Why the caller cannot revoke this invite, or null when they can. */
 export function revokeLockedReason(myRole: Role | null | undefined, inviteRole: Role): string | null {
-  if (inviteRole === 'owner' && myRole !== 'owner') return 'Only an owner can cancel an owner invite.'
+  if (isOwnerOnlyRole(inviteRole) && myRole !== 'owner') return 'Only an owner can cancel an owner or reviewer invite.'
   return null
 }
 

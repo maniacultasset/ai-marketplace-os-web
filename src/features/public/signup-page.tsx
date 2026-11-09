@@ -43,6 +43,7 @@ import { GoogleEntry } from '@/features/google/google-button'
 import { isCoarsePointer } from '@/lib/pointer'
 import { filterInput, FORM_VALIDATION_MODE, phoneChars } from '@/lib/validation'
 import { AsideLink, AuthColumn, AuthFrame, FormAlert } from './auth-frame'
+import { RecoveryHint } from './recovery-hint'
 import { signupChip } from './model'
 import { useDocumentTitle } from './use-document-title'
 
@@ -158,7 +159,7 @@ export function SignupPage({ initialEmail }: { initialEmail?: string }) {
                   error={errors.password?.message}
                   submitCount={submitCount}
                   confirmFix
-                  hint="There is no password reset yet. Use the eye to check what you typed."
+                  hint={<RecoveryHint who="new-owner" />}
                 >
                   <PasswordInput
                     id="password"

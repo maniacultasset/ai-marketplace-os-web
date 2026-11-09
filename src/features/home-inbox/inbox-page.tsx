@@ -17,11 +17,12 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useIssuesList, useTasksList } from '@/features/inbox/api'
-import { ISSUE_STATUS_LABEL, MARKETPLACE_LABEL, TASK_STATUS_LABEL } from '@/features/inbox/model'
+import { ISSUE_STATUS_LABEL, MARKETPLACE_LABEL, TASK_STATUS_LABEL, type Issue } from '@/features/inbox/model'
 import { fieldLabel } from '@/features/listing-flow/format'
 import type { AnswerOutcome } from '@/features/photo-facts/answer-card'
+import { useMediaQuery } from '@/lib/use-media-query'
 import { cn } from '@/lib/utils'
-import { useProductsById } from './api'
+import { useListingProductIds, useProductsById } from './api'
 import { InboxDetail } from './inbox-detail'
 import {
   fmtCount,
@@ -31,6 +32,7 @@ import {
   issueTitle,
   itemKey,
   mergeInbox,
+  standaloneIssues,
   taskMeta,
   visibleItems,
   withAiRewrites,
@@ -69,16 +71,20 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
   const onOutcome = useCallback((o: AnswerOutcome) => setOutcomes((m) => ({ ...m, [o.task.id]: o })), [])
   const kept = statuses.task === 'open' ? Object.values(outcomes).filter((o) => !taskList.rows.some((t) => t.id === o.task.id)) : []
   const taskRows = [...taskList.rows, ...kept.map((o) => o.task)]
-  const items = visibleItems(view, mergeInbox(showsTasks ? taskRows : [], showsIssues ? issueRows : []))
+  const items = visibleItems(view, mergeInbox(showsTasks ? taskRows : [], showsIssues ? issueRows : [], openIssues.rows))
   const selectedKey = search.item ?? (items[0] ? itemKey(items[0]) : undefined)
 
   const tCount = { n: openTasks.rows.length, more: !!openTasks.hasNextPage }
   const iCount = { n: openIssues.rows.length, more: !!openIssues.hasNextPage }
   const countsReady = !!openTasks.data && !!openIssues.data
-  const openTotal = { n: tCount.n + iCount.n, more: tCount.more || iCount.more }
-  const products = useProductsById(items.map((i) => (i.kind === 'task' ? i.task.product_id : null)))
+  // An issue linked to an open question is the same thing to do: All counts it once.
+  const openTotal = { n: tCount.n + standaloneIssues(openIssues.rows, openTasks.rows).length, more: tCount.more || iCount.more }
+  // An issue names its product too: its listing says which (IssueOut has listing_id only).
+  const issueProducts = useListingProductIds(items.map((i) => (i.kind === 'issue' ? i.issue.listing_id : null)))
+  const productOf = (i: InboxItem) => (i.kind === 'task' ? i.task.product_id : issueProducts.map.get(i.issue.listing_id))
+  const products = useProductsById(items.map(productOf))
   // A card paints once, title and meta together: its product (SKU) is part of the meta.
-  const pending = listsPending || products.pending
+  const pending = listsPending || issueProducts.pending || products.pending
   const filteredStatus = (view === 'questions' && statuses.task !== 'open') || (view === 'issues' && statuses.issue !== 'open')
 
   return (
@@ -144,7 +150,8 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
                   item={it}
                   selected={itemKey(it) === selectedKey}
                   search={search}
-                  product={it.kind === 'task' && it.task.product_id ? products.map.get(it.task.product_id) : undefined}
+                  product={productOf(it) ? products.map.get(productOf(it)!) : undefined}
+                  linked={openIssues.rows}
                   answered={it.kind === 'task' && outcomes[it.task.id] ? outcomes[it.task.id]!.kind : undefined}
                 />
               </li>
@@ -169,8 +176,11 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
           selectedKey={selectedKey}
           items={items}
           pending={listsPending}
+          error={!!error}
           search={search}
           products={products}
+          issueProducts={issueProducts.map}
+          openIssues={openIssues.rows}
           outcomes={outcomes}
           onOutcome={onOutcome}
         />
@@ -216,32 +226,39 @@ function ItemCard({
   selected,
   search,
   product,
+  linked,
   answered,
 }: {
   item: InboxItem
   selected: boolean
   search: InboxSearch
   product?: { sku: string; title: string }
+  /** Open issues: a photo question with an open error behind it holds a listing back. */
+  linked: readonly Issue[]
   /** Answered (or found closed) on this screen. */
   answered?: AnswerOutcome['kind']
 }) {
   const title = item.kind === 'task' ? item.task.question : issueTitle(item.issue)
   const meta =
     item.kind === 'task'
-      ? [product?.sku, answered === 'answered' ? 'Answered' : answered === 'closed' ? 'Closed' : taskMeta(item.task)].filter(Boolean).join(' · ')
+      ? [product?.sku, answered === 'answered' ? 'Answered' : answered === 'closed' ? 'Closed' : taskMeta(item.task, linked)].filter(Boolean).join(' · ')
       : // A closed issue says so in words, first so the line's truncation never hides it.
         [
+          product?.sku,
           item.issue.status === 'open' ? (issueLane(item.issue)?.chip.label ?? null) : issueChip(item.issue).label,
           MARKETPLACE_LABEL[item.issue.marketplace],
           fieldLabel(item.issue.field_path),
         ]
           .filter(Boolean)
           .join(' · ')
+  // Two panes (lg+): a click only changes the selection. One pane: opening an item is a new
+  // screen, so Back returns to the list.
+  const twoPane = useMediaQuery('(min-width: 1024px)')
   return (
     <Link
       to="/inbox"
       search={{ ...search, item: itemKey(item) }}
-      replace
+      replace={twoPane}
       aria-current={selected ? 'true' : undefined}
       data-testid="inbox-item"
       data-item={itemKey(item)}

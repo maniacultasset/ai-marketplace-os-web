@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -142,5 +143,68 @@ describe('Inbox image replacement task', () => {
     showTask(photoFixes)
     expect(screen.getByTestId('task-open-product').textContent).toBe('Open product')
     expect(screen.queryByTestId('task-open-photos')).toBeNull()
+  })
+})
+
+describe('QA 2026-11-09: inbox detail tells the truth', () => {
+  const PRODUCT = '0b1c2d3e-0000-4000-8000-000000000301'
+  const TASK = '0b1c2d3e-0000-4000-8000-000000000401'
+  const mkTask = (over: Record<string, unknown>) =>
+    ({
+      id: TASK,
+      kind: 'missing_fact',
+      question: 'Q',
+      reason: 'R',
+      expected_answer: { kind: 'text', max_length: 256 },
+      suggestions: [],
+      status: 'open',
+      resume_from: 'generate',
+      product_id: PRODUCT,
+      created_at: '2026-11-07T09:00:00Z',
+      updated_at: '2026-11-07T09:00:00Z',
+      ...over,
+    }) as never
+  const showTask = (task: never, openIssues: Issue[] = []) =>
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+      <TooltipProvider>
+        <InboxDetail
+          selectedKey={`task:${TASK}`}
+          items={[{ kind: 'task', id: TASK, at: '2026-11-07T09:00:00Z', task }]}
+          pending={false}
+          search={{}}
+          products={{ map: new Map([[PRODUCT, { sku: 'RS-TS-202-L', title: 'Tee' }]]), pending: false }}
+          openIssues={openIssues}
+        />
+      </TooltipProvider>
+      </QueryClientProvider>,
+    )
+
+  it('a list error leaves the detail pane blank, never "Nothing needs you"', () => {
+    render(
+      <TooltipProvider>
+        <InboxDetail selectedKey={undefined} items={[]} pending={false} error search={{}} products={{ map: new Map(), pending: false }} />
+      </TooltipProvider>,
+    )
+    expect(screen.queryByTestId('inbox-detail-empty')).toBeNull()
+    expect(screen.queryByTestId('inbox-detail-missing')).toBeNull()
+  })
+
+  it('a barcode question sends the seller to the product, with no fake answer form', () => {
+    showTask(mkTask({ target_path: 'facts.identifier' }))
+    expect(screen.queryByTestId('answer-soon')).toBeNull()
+    expect(screen.queryByTestId('task-confirm')).toBeNull()
+    expect(screen.getByTestId('task-add-barcode').getAttribute('href')).toBe('/products/$productId')
+    expect(screen.getByTestId('identifier-how').textContent).toContain('EAN, UPC or GTIN')
+    expect(screen.getByTestId('task-detail').textContent).not.toContain('facts.identifier')
+  })
+
+  it('a photo question with an open error behind it does not say it never blocks', () => {
+    const photo = mkTask({ target_path: 'facts.attributes.color', image_id: '0b1c2d3e-0000-4000-8000-000000000501' })
+    showTask(photo, [{ ...base, id: '0b1c2d3e-0000-4000-8000-000000000601', severity: 'error', human_task_id: TASK }])
+    expect(screen.getByTestId('task-resume').textContent).toContain('This holds your listing back.')
+    cleanup()
+    showTask(photo)
+    expect(screen.getByTestId('task-resume').textContent).toContain('doesn’t block your listing')
   })
 })

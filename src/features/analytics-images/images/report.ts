@@ -108,6 +108,24 @@ export function validateImageFile(f: { size: number; type: string }): string | n
   return null
 }
 
+export const UNREADABLE_IMAGE = 'This file is not a readable image. Choose a JPEG, PNG or WebP photo.'
+
+/**
+ * Whether the browser can decode the file: a text file named .jpg passes the type check (the type
+ * comes from the extension) but is not a photo. Null when it is readable, or when this browser
+ * cannot tell (no createImageBitmap, as in tests): the server check still runs.
+ */
+export async function checkImageReadable(file: Blob): Promise<string | null> {
+  if (typeof createImageBitmap !== 'function') return null
+  try {
+    const bitmap = await createImageBitmap(file)
+    bitmap.close()
+    return null
+  } catch {
+    return UNREADABLE_IMAGE
+  }
+}
+
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`
   if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`
@@ -169,6 +187,18 @@ export function tally(rows: CheckRow[]): Record<CheckOutcome, number> {
   const t: Record<CheckOutcome, number> = { pass: 0, warn: 0, fail: 0 }
   for (const r of rows) t[r.outcome]++
   return t
+}
+
+/** A report that passed with a warning on some check (for example the background). */
+export function hasWarnings(out: ImageReportOut | undefined): boolean {
+  if (!out) return false
+  return marketplaceReports(out).some((r) => tally(checkRows(r)).warn > 0)
+}
+
+/** A report whose background check did not pass (warning or failure). */
+export function backgroundFlagged(out: ImageReportOut | undefined): boolean {
+  if (!out) return false
+  return marketplaceReports(out).some((r) => checkRows(r).some((c) => c.check === 'background' && c.outcome !== 'pass'))
 }
 
 /** The per-marketplace reports present, in enum order. */
