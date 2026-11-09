@@ -19,6 +19,8 @@ import { useCapability, useCapabilityProbe } from '@/hooks/use-capabilities'
 import { useJobPolling } from '@/hooks/use-job-polling'
 import { MARKETPLACE_META } from '@/features/marketplaces/meta'
 import { useDeleteImage } from '@/features/products/api'
+import { useRefreshProductViews } from '@/features/products/image-views'
+import { SavedPhoto } from '@/components/la/saved-photo'
 import { useKeys } from '@/lib/query-keys'
 import { OP_ACTION, useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
@@ -117,6 +119,9 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
     return () => set.forEach((u) => URL.revokeObjectURL(u))
   }, [])
 
+  // A saved photo's link lasts about 10 minutes: one that fails to load reads the product again.
+  const refreshViews = useRefreshProductViews(product.id)
+
   const patch = (localId: string, next: Partial<SessionUpload>) =>
     setUploads((list) => list.map((u) => (u.localId === localId ? { ...u, ...next } : u)))
 
@@ -181,9 +186,10 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
     }
     const held = details.find((d) => photoSlotOf(d.slot, d.role) === def.id && (def.slot === 'size_chart' || (d.colourway_id ?? null) === cw))
     if (!held) return { filled: false }
-    if (held.compliance_status === 'passed') return { filled: true, status: 'Checked', tone: 'ok' }
-    if (held.compliance_status === 'failed') return { filled: true, status: 'Needs a fix, see below', tone: 'bad' }
-    return { filled: true, status: 'Checking…', tone: 'busy' }
+    const previewUrl = held.view_url ?? undefined
+    if (held.compliance_status === 'passed') return { filled: true, previewUrl, status: 'Checked', tone: 'ok' }
+    if (held.compliance_status === 'failed') return { filled: true, previewUrl, status: 'Needs a fix, see below', tone: 'bad' }
+    return { filled: true, previewUrl, status: 'Checking…', tone: 'busy' }
   }
 
   // Image candidates (SI7). The list call says whether the backend has them: a 404 or 405 means
@@ -221,6 +227,8 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
     const d = detailById.get(imageId)
     const label = originBadge(d)
     return {
+      viewUrl: d?.view_url,
+      onViewError: refreshViews,
       // The product read is the truth for the slot: a demoted main's cached report may still say main.
       knownSlot: d?.slot,
       knownRole: d?.role ?? null,
@@ -297,7 +305,7 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
             {tiles.map((def) => (
               <Fragment key={def.id}>
                 {def.id === 'back' ? <PhotoSlotRowCaption /> : null}
-                <PhotoTile def={def} large={def.id === 'front'} state={tileState(def)} onFiles={(files) => addAs(files, def.slot, def.role)} />
+                <PhotoTile def={def} large={def.id === 'front'} state={tileState(def)} onFiles={(files) => addAs(files, def.slot, def.role)} onPreviewError={refreshViews} />
               </Fragment>
             ))}
           </PhotoSlotGrid>
@@ -545,26 +553,9 @@ function Dropzone({
 
 /* ---------------------------------------------------------------- Rows */
 
-function Thumb({ src, alt }: { src?: string; alt: string }) {
-  const [loaded, setLoaded] = useState(false)
-  return src ? (
-    <img
-      src={src}
-      alt={alt}
-      width={40}
-      height={40}
-      onLoad={() => setLoaded(true)}
-      onError={() => setLoaded(true)}
-      className={cn(
-        'size-10 shrink-0 rounded-md bg-muted object-cover ring-1 ring-border transition-opacity duration-200 motion-reduce:transition-none',
-        loaded ? 'opacity-100' : 'opacity-0',
-      )}
-    />
-  ) : (
-    <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground ring-1 ring-border">
-      <Icon name="image" size={16} />
-    </span>
-  )
+/** A row's 40 px photo: this visit's local preview, else the saved photo's signed view. */
+function Thumb({ src, alt, onError }: { src?: string | null; alt: string; onError?: () => void }) {
+  return <SavedPhoto src={src} alt={alt} onError={onError} testId="image-thumb" className="size-10 rounded-md ring-1 ring-border" />
 }
 
 function UploadRow({ upload, onRetry, onDismiss }: { upload: SessionUpload; onRetry: () => void; onDismiss: () => void }) {
@@ -609,6 +600,8 @@ function ImageRow({
   imageId,
   storageKey,
   upload,
+  viewUrl,
+  onViewError,
   live,
   productId,
   settled = true,
@@ -623,6 +616,10 @@ function ImageRow({
   imageId: string
   storageKey?: string
   upload?: SessionUpload
+  /** The saved photo's signed view from the product read (shown when this visit has no local preview). */
+  viewUrl?: string | null
+  /** The saved photo failed to load: its link may have expired. */
+  onViewError?: () => void
   live: boolean
   productId: string
   /** Every row's report has answered (the card waits, so badges land together). */
@@ -671,7 +668,11 @@ function ImageRow({
     <li data-testid="image-row" data-image-id={imageId} data-compliance={report.data?.compliance_status}>
       <Collapsible open={open} onOpenChange={setOpen}>
         <div className="flex min-h-16 items-center gap-3 px-5 py-3">
-          <Thumb src={upload?.previewUrl} alt={upload ? `${title} image ${upload.file.name}` : ''} />
+          <Thumb
+            src={upload?.previewUrl ?? viewUrl}
+            alt={upload ? `${title} image ${upload.file.name}` : `${title} image`}
+            onError={upload ? undefined : onViewError}
+          />
           <div className="min-w-0 flex-1" data-testid="image-meta">
             {report.isPending && live && !slot ? (
               <Skeleton className="my-0.5 h-4 w-24" />

@@ -3,9 +3,10 @@
  * chart. Each tile is its own drop zone and holds one photo; a new photo replaces the tile's photo.
  * Used by the guided form (before the product exists) and the Media tab.
  */
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useDropzone, type FileRejection } from 'react-dropzone'
 import { Icon } from '@/components/la/icons'
+import { SavedPhoto } from '@/components/la/saved-photo'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -16,7 +17,7 @@ export type TileTone = 'muted' | 'ok' | 'busy' | 'bad'
 export interface TileState {
   /** A photo is in the tile (uploaded, staged or chosen). */
   filled: boolean
-  /** A local preview, when this visit chose the photo. */
+  /** A local preview when this visit chose the photo, else the saved photo's signed view. */
   previewUrl?: string
   /** One short line under the label: "Ready", "Uploading…", "Checked". */
   status?: string
@@ -47,16 +48,18 @@ export function PhotoTile({
   onRemove,
   disabled,
   large,
+  onPreviewError,
 }: {
   def: PhotoSlotDef
   state: TileState
   onFiles: (files: File[]) => void
   onRemove?: () => void
   disabled?: boolean
+  /** The preview failed to load (a saved photo's link may have expired). */
+  onPreviewError?: () => void
   /** The Front tile: full width, 4:3. */
   large?: boolean
 }) {
-  const [loaded, setLoaded] = useState(false)
   const dz = useDropzone({
     onDrop: (files: File[], rejected: FileRejection[]) => {
       const all = [...files, ...rejected.map((r) => r.file)]
@@ -92,12 +95,15 @@ export function PhotoTile({
       >
         <input {...dz.getInputProps({ 'aria-label': `${def.label} photo file` })} />
         {state.filled && state.previewUrl ? (
-          <img
+          <SavedPhoto
             src={state.previewUrl}
-            alt=""
-            onLoad={() => setLoaded(true)}
-            onError={() => setLoaded(true)}
-            className={cn('absolute inset-0 size-full object-cover transition-opacity duration-200 motion-reduce:transition-none', loaded ? 'opacity-100' : 'opacity-0')}
+            alt={`${def.label} photo`}
+            onError={onPreviewError}
+            // The whole photo, never cropped: the seller checks its framing here.
+            fit="contain"
+            iconSize={large ? 22 : 18}
+            testId="photo-slot-image"
+            className="absolute inset-0 size-full bg-sunken text-ink-3"
           />
         ) : (
           <span className={cn('absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-2 text-center', !large && 'pb-7')}>
