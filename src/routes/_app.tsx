@@ -4,7 +4,8 @@ import { BrandMark } from '@/components/app/brand-mark'
 import { Page } from '@/components/app/page-header'
 import { ErrorState } from '@/components/states/error-state'
 import { Skeleton } from '@/components/ui/skeleton'
-import { networkError } from '@/api/errors'
+import { isApiError, isRateLimited, networkError } from '@/api/errors'
+import { useCallback, useEffect, useState } from 'react'
 import { getSession, restoreSession, retryRestore } from '@/api/session'
 import { meQueryOptions } from '@/lib/auth'
 import { ImportJobsWatcher } from '@/features/imports/import-jobs-watcher'
@@ -24,7 +25,11 @@ export const Route = createFileRoute('/_app')({
       throw redirect({ to: '/login', search: { redirect: location.href }, replace: true })
     }
     const { tenantId } = getSession()
-    await context.queryClient.ensureQueryData(meQueryOptions(tenantId!))
+    // A 429 is not retried here in silence behind the skeleton: ShellError counts it down at once.
+    await context.queryClient.ensureQueryData({
+      ...meQueryOptions(tenantId!),
+      retry: (count, e) => isApiError(e) && e.status !== 429 && count < 2 && (e.status === 0 || (e.status >= 500 && e.status !== 501)),
+    })
   },
   pendingComponent: ShellPending,
   errorComponent: ShellError,
@@ -99,16 +104,39 @@ function ShellPending() {
 
 function ShellError({ error }: { error: unknown }) {
   const router = useRouter()
+  const retry = useCallback(() => void retryRestore().then(() => router.invalidate()), [router])
+  if (isRateLimited(error)) return <ShellBusy wait={Math.min((error as { retryAfter?: number | null }).retryAfter ?? 20, 60)} onRetry={retry} />
   return (
     <div className="flex min-h-svh items-center justify-center p-4">
       <div className="w-full max-w-md rounded-card border border-line bg-surface shadow-raised-md">
         <ErrorState
           error={error instanceof SessionUnreachable ? networkError() : error}
           title={error instanceof SessionUnreachable ? "Can't reach the server" : "Couldn't load your workspace"}
-          onRetry={() => {
-            void retryRestore().then(() => router.invalidate())
-          }}
+          onRetry={retry}
         />
+      </div>
+    </div>
+  )
+}
+
+/** The brand hit its shared request limit: a live countdown, then Kuinn tries again on its own. */
+function ShellBusy({ wait, onRetry }: { wait: number; onRetry: () => void }) {
+  const [until] = useState(() => Date.now() + wait * 1000)
+  const [left, setLeft] = useState(wait)
+  useEffect(() => {
+    const t = setInterval(() => setLeft(Math.max(0, Math.ceil((until - Date.now()) / 1000))), 500)
+    return () => clearInterval(t)
+  }, [until])
+  useEffect(() => {
+    if (left === 0) onRetry()
+  }, [left, onRetry])
+  return (
+    <div className="flex min-h-svh items-center justify-center p-4">
+      <div role="status" className="w-full max-w-md rounded-card border border-line bg-surface p-6 text-center shadow-raised-md" data-testid="shell-busy">
+        <p className="font-display text-h3 text-ink">Kuinn is busy</p>
+        <p className="mt-1 text-body text-ink-2">
+          Your brand sent a lot of requests in the last minute. {left > 0 ? `Trying again in ${left} s.` : 'Trying again now…'}
+        </p>
       </div>
     </div>
   )
