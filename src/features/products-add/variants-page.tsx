@@ -26,6 +26,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
+import { SavedPhoto } from '@/components/la/saved-photo'
+import { useRefreshProductViews, viewsById } from '@/features/products/image-views'
 import { imageIdFromKey, marketplaceReports, SLOT_LABEL, validateImageFile, type ImageSlot } from '@/features/analytics-images/images/report'
 import { ALL_COLOURS, colourGroups, type ColourGroup, type ColourSource } from '@/features/analytics-images/images/colour-groups'
 import { uploadImage } from '@/features/analytics-images/images/upload'
@@ -300,6 +302,8 @@ function ImagesCard({ product, canUpload }: { product: ColourSource & { id: stri
   // The first photo for a colour (or the product) with no main becomes its main.
   const pickedHasMain = (product.image_details ? picked.hasMain : storedIn(picked).length > 0) || uploadsIn(picked).some((u) => u.slot === 'main' && u.state.kind !== 'invalid' && u.state.kind !== 'failed')
   const shown = byColour ? groups : groups.slice(0, 1)
+  const views = viewsById(product)
+  const refreshViews = useRefreshProductViews(product.id)
   return (
     <LaCard>
       <CardHead
@@ -347,8 +351,15 @@ function ImagesCard({ product, canUpload }: { product: ColourSource & { id: stri
             ) : null}
             <div className={cn('flex flex-wrap gap-2.5', byColour && 'mt-2')}>
               {stored.map((id, i) => (
-                <span key={id} className="relative flex size-20 items-center justify-center rounded-lg border border-line bg-field text-ink-3 shadow-inset-sm">
-                  <Icon name="image" size={24} />
+                <span key={id} className="relative size-20">
+                  <SavedPhoto
+                    src={views.get(id)}
+                    alt={`Image ${i + 1}`}
+                    onError={refreshViews}
+                    iconSize={24}
+                    testId="variants-stored-photo"
+                    className="size-full rounded-lg border border-line bg-field text-ink-3 shadow-inset-sm"
+                  />
                   <span className="absolute bottom-1 left-1 rounded border border-line bg-surface px-1 text-caption font-semibold text-ink">Image {i + 1}</span>
                 </span>
               ))}
