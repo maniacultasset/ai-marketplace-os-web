@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isPublishingPaused } from '@/features/brand/api'
+import { isAmazonPublishingPaused } from '@/features/brand/api'
 import { accessText } from './format'
 
 describe('connection access (prod QA 9 Nov, item 19)', () => {
@@ -10,11 +10,20 @@ describe('connection access (prod QA 9 Nov, item 19)', () => {
   })
 })
 
-describe('isPublishingPaused (prod QA 9 Nov, item 20)', () => {
-  it('is true only when the API says publishing_enabled: false', () => {
-    expect(isPublishingPaused({ name: 'Acme', publishing_enabled: false })).toBe(true)
-    expect(isPublishingPaused({ name: 'Acme', publishing_enabled: true })).toBe(false)
-    expect(isPublishingPaused({ name: 'Acme' })).toBe(false) // field absent: today's copy
-    expect(isPublishingPaused(undefined)).toBe(false)
+describe('isAmazonPublishingPaused (prod QA 9 Nov, item 20)', () => {
+  const caps = (amazon_publishing_enabled: boolean) => ({ capabilities: { amazon_publishing_enabled } as never })
+
+  it('reads the tenant capabilities', () => {
+    expect(isAmazonPublishingPaused(caps(false))).toBe(true)
+    expect(isAmazonPublishingPaused(caps(true))).toBe(false)
+    expect(isAmazonPublishingPaused({})).toBe(false) // field absent: not a pause
+    expect(isAmazonPublishingPaused(undefined)).toBe(false)
+  })
+
+  it('reads the Amazon account switch when the tenant read has not landed', () => {
+    expect(isAmazonPublishingPaused(undefined, { marketplace: 'amazon', publishing_enabled: false })).toBe(true)
+    expect(isAmazonPublishingPaused(undefined, { marketplace: 'amazon', publishing_enabled: true })).toBe(false)
+    expect(isAmazonPublishingPaused(undefined, { marketplace: 'flipkart', publishing_enabled: false })).toBe(false)
+    expect(isAmazonPublishingPaused(caps(false), { marketplace: 'amazon', publishing_enabled: true })).toBe(true)
   })
 })

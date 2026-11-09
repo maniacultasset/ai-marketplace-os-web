@@ -70,6 +70,7 @@ import { toast, toastError } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { STICKY_ASIDE } from '@/components/app/split-layout'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
+import { AMAZON_PUBLISHING_PAUSED_TEXT, useAmazonPublishing } from '@/features/brand/api'
 import { useApproverState } from '@/features/team-account/approver'
 import { ApproverNotice } from '@/features/team-account/approver-notice'
 import { AutoFixedChip, FixedForYouCard } from './auto-fix'
@@ -80,6 +81,7 @@ import { claimFindings, gateCounts, plural, type ErrorItem, type GateResult } fr
 import { answeredAfter } from './review-model'
 import { ListOnButton } from './list-on'
 import { useListingResolution } from './api'
+import { publishGate } from './publishing'
 import { approveThenPublish, isResend, resendView, TEAMMATE_TEXT } from './resend'
 import { hasResolution, resolutionView } from './resolution-model'
 import { ResolutionActionLink, ResolutionCard } from './resolution-timeline'
@@ -186,6 +188,8 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
 
   const mp = mpName(listing.marketplace)
   const product = checks.product.data
+  // Amazon publishing switched off for this deployment: nothing here offers or promises a send.
+  const { paused: publishingPaused, publishBuilt } = publishGate(listing.marketplace, useAmazonPublishing(), BUILT['listings.publish'])
   const actions = listingActions({
     listing,
     validation: listing.validation,
@@ -193,7 +197,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
     maker: makerHint(history.rows, me.data?.user_id),
     canApprove: listing.can_approve,
     approveHint: listing.approve_hint,
-    publishBuilt: BUILT['listings.publish'],
+    publishBuilt,
   })
   // The server is the authority on maker-checker; until the history is read, say so instead of guessing.
   // The reviewer sees what Kuinn fixed before approving: Approve waits for that read too.
@@ -219,8 +223,9 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
         ? { show: true, enabled: false, reason: 'Checking what Kuinn did…' }
         : approveState
   // SI11: a resend is one click (approve, then publish) by a teammate who did not make the version.
-  const resend = resendView({ resolution, listing, approve: approveShown, can, publishBuilt: BUILT['listings.publish'] })
-  const resendEdit = amazon && isResend(resolution)
+  const resend = resendView({ resolution, listing, approve: approveShown, can, publishBuilt })
+  // While publishing is paused an edit is saved as a plain new version: nothing is resent.
+  const resendEdit = amazon && isResend(resolution) && !publishingPaused
   const rview = resolution && hasResolution(resolution) ? resolutionView(resolution, { marketplace: listing.marketplace, marketplaceState: listing.marketplace_state, canAnswer: can('product:import') }) : null
   // "Approve all" approves the other marketplaces' fixes too: read them, and name them in the footer.
   const others = allTargets.filter((l) => l.id !== listing.id)
@@ -378,6 +383,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
               ) : null}
             </div>
             {approvalBanner}
+            {publishingPaused ? <PublishingPausedNote /> : null}
             <MarketplaceTabs siblings={siblings} currentId={listing.id} counts={counts} gatesKnown={checks.gatesReady} />
           </>
         ) : (
@@ -433,7 +439,11 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
               ) : undefined
             }
           >
-            {actions.publish.show ? 'Publishing sends this marketplace only.' : 'An operator or owner publishes it.'}
+            {publishingPaused
+              ? AMAZON_PUBLISHING_PAUSED_TEXT
+              : actions.publish.show
+                ? 'Publishing sends this marketplace only.'
+                : 'An operator or owner publishes it.'}
           </Banner>
         ) : null}
         {listing.status === 'published' ? (
@@ -554,7 +564,12 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
       {listing.content && !busy && (actions.approve.show || actions.reject.show) ? (
         <FooterBar
           status={
-            resend.kind === 'teammate' ? (
+            publishingPaused ? (
+              <span data-testid="approve-bar-paused">
+                {resend.kind === 'teammate' ? <b className="text-ink">{TEAMMATE_TEXT}. </b> : null}
+                {AMAZON_PUBLISHING_PAUSED_TEXT}
+              </span>
+            ) : resend.kind === 'teammate' ? (
               <span data-testid="resend-teammate">
                 <b className="text-ink">{TEAMMATE_TEXT}.</b> You made this version, so a teammate approves it and sends it to {mp} again.
               </span>
@@ -631,6 +646,15 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
         />
       ) : null}
     </div>
+  )
+}
+
+/** The calm line a review page shows while Amazon publishing is switched off. */
+function PublishingPausedNote() {
+  return (
+    <Banner tone="neutral" className="mb-4" data-testid="publishing-paused">
+      {AMAZON_PUBLISHING_PAUSED_TEXT}
+    </Banner>
   )
 }
 

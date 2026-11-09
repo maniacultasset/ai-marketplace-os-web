@@ -20,13 +20,31 @@ import type { TenantOut, TenantPatch } from './profile-model'
 
 export const fetchProfile = () => unwrapVersioned(api.GET('/tenants/me'))
 
+/** The one line every screen shows while Amazon publishing is switched off for this deployment. */
+export const AMAZON_PUBLISHING_PAUSED_TEXT = 'Publishing to Amazon is paused for now. Approving keeps the listing ready.'
+
 /**
- * Prod QA 9 Nov, item 20: a workspace whose publishing is switched off (`publishing_enabled:
- * false`, a read-only flag a later API adds to /tenants/me). Absent, or any other value: false,
- * so today's copy stays.
+ * Amazon publishing is switched off for this deployment (`AMAZON_PUBLISH_ENABLED=false`): the
+ * tenant read says `capabilities.amazon_publishing_enabled: false`, or an Amazon account read
+ * says `publishing_enabled: false` (the same switch). A field the API does not send is not a
+ * pause: the backend refuses a publish itself either way.
  */
-export function isPublishingPaused(tenant: object | null | undefined): boolean {
-  return !!tenant && (tenant as { publishing_enabled?: unknown }).publishing_enabled === false
+export function isAmazonPublishingPaused(
+  tenant: Pick<TenantOut, 'capabilities'> | null | undefined,
+  account?: { marketplace: string; publishing_enabled?: boolean } | null,
+): boolean {
+  if (tenant?.capabilities?.amazon_publishing_enabled === false) return true
+  return account?.marketplace === 'amazon' && account.publishing_enabled === false
+}
+
+/**
+ * Whether Amazon publishing is paused, from GET /tenants/me (shared with the brand screen's
+ * cache). `known` is false until the read lands, so a screen never offers Publish and then takes
+ * it back; a failed read counts as known and not paused (the backend still refuses a publish).
+ */
+export function useAmazonPublishing(): { paused: boolean; known: boolean } {
+  const profile = useBrandProfile()
+  return { paused: isAmazonPublishingPaused(profile.data?.data), known: !profile.isPending }
 }
 
 /** GET /tenants/me with its ETag (`Versioned<TenantOut>`). */
