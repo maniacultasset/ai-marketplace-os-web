@@ -51,6 +51,7 @@ import { auditActorLabel } from '@/features/marketplaces-settings/model'
 import { comingSoon, comingSoonReason, draftOpen } from '@/features/marketplaces/meta'
 import { useProduct, type ProductDetail } from '@/features/products/api'
 import { RelativeTime } from '@/features/products/format'
+import { ProductMoreMenu } from '@/features/products/product-more-menu'
 import { mainView, useRefreshProductViews } from '@/features/products/image-views'
 import { Can, OP_ACTION, useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
@@ -446,6 +447,12 @@ function LoadedDetail({ data, tab, tabsRef }: { data: DetailData; tab: DetailTab
             </Button>
           ) : null}
           <HeaderListOn data={data} variant={review ? 'secondary' : 'primary'} />
+          <ProductMoreMenu
+            product={p}
+            listings={Object.values(data.listings)}
+            listingsReady={!data.listingsPending && !data.listingsFailed}
+            variants={data.variants.length}
+          />
         </div>
       </header>
 
