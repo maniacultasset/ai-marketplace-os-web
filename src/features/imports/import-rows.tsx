@@ -93,7 +93,7 @@ function IssuesCell({ row }: { row: ImportRow }) {
             <SheetDescription>
               {row.sku ? (
                 <>
-                  SKU <code className="font-mono text-xs">{row.sku}</code> ·{' '}
+                  SKU <code className="font-mono text-xs break-all">{row.sku}</code> ·{' '}
                 </>
               ) : null}
               {row.status === 'failed' ? 'Not imported' : 'Imported with warnings'}

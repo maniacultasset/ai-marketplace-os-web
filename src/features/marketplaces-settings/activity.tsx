@@ -159,7 +159,10 @@ function ListingProductName({ productId }: { productId: string }) {
   return (
     <p className="text-body text-ink lg:truncate">
       <span className="font-semibold">{product.data.title}</span>
-      <span className="ml-2 text-small text-ink-3">SKU {product.data.sku}</span>
+      {/* The SKU moves to the next line whole; it never splits at a hyphen. */}
+      <span className="ml-2 inline-block max-w-full truncate align-bottom text-small text-ink-3" title={product.data.sku}>
+        SKU {product.data.sku}
+      </span>
     </p>
   )
 }

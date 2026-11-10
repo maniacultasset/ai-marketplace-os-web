@@ -922,7 +922,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
             <h1 id="g-heading" className="truncate font-display text-h1 text-ink">
               {values.title.trim() || 'New product'}
             </h1>
-            <p className="mt-1 truncate text-body text-ink-2">
+            <p className="mt-1 text-body text-pretty text-ink-2 [overflow-wrap:anywhere] md:truncate">
               {[values.styleNumber.trim(), values.sku.trim(), values.category.trim() ? categoryLabel(values.category) : values.kuinnSuggests ? 'Category from Kuinn' : null].filter(Boolean).join(' · ') ||
                 'Fill in what you know. Only the name, SKU and category are needed to save.'}
             </p>

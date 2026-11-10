@@ -619,12 +619,18 @@ export function MoreMarketplaces() {
           narrow for the name next to its chip and waitlist link. */}
       <ul className="mt-2 grid gap-x-6 xl:grid-cols-2">
         {UNSUPPORTED.map((m) => (
-          <li key={m.id} className="flex min-h-11 items-center justify-between gap-3 border-b border-line py-1.5 last:border-b-0 md:[&:nth-last-child(2):nth-child(odd)]:border-b-0">
+          <li key={m.id} className="flex min-h-11 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line py-1.5 last:border-b-0 md:[&:nth-last-child(2):nth-child(odd)]:border-b-0">
             <MarketplaceName id={m.id} size="xs" className="gap-2 text-small" />
-            {/* One wording for all four, as on the landing page (prod QA 9 Nov, item 4). */}
-            <span className="flex shrink-0 items-center gap-3" data-testid={`more-marketplaces-${m.id}`}>
+            {/* One wording for all four, as on the landing page (prod QA 9 Nov, item 4). On a phone
+                the chip and link wrap under a long name instead of running off the card. */}
+            <span className="ml-auto flex shrink-0 items-center gap-3" data-testid={`more-marketplaces-${m.id}`}>
               <RoadmapChip />
-              <WaitlistButton variant="link" size="xs" name={m.name} />
+              <WaitlistButton
+                variant="link"
+                size="xs"
+                name={m.name}
+                className="h-auto px-0 text-caption font-medium text-ink-3 no-underline aria-disabled:opacity-100"
+              />
             </span>
           </li>
         ))}
