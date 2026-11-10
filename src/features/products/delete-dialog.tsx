@@ -86,7 +86,7 @@ export function DeleteProductsDialog({
                   <p>These products{sizes ? ` and their ${plural(sizes, 'size', 'sizes')}` : ''} will leave Products, Review and the Inbox.</p>
                 </>
               )}
-              <p>Their open questions close and any drafting that hasn’t started is stopped. Photos are removed later.</p>
+              <p>{one ? 'Its' : 'Their'} open questions close and any drafting that hasn’t started is stopped. Photos are removed later.</p>
               <p className="font-semibold text-ink">This can’t be undone from the app.</p>
             </div>
           </AlertDialogDescription>

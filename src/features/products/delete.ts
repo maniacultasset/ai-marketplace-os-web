@@ -156,7 +156,10 @@ export function announce(products: readonly DeleteTarget[], out: DeleteOutcome) 
   const [only] = out.deleted
   if (only && !out.refused.size) {
     toast.success(out.deleted.length === 1 ? `${name(only)} deleted` : `${plural(out.deleted.length, 'product', 'products')} deleted`, {
-      description: 'Its open questions are closed and nothing more is drafted for it.',
+      description:
+        out.deleted.length === 1
+          ? 'Its open questions are closed and nothing more is drafted for it.'
+          : 'Their open questions are closed and nothing more is drafted for them.',
     })
     return
   }
