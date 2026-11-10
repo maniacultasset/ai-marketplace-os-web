@@ -142,6 +142,24 @@ describe('useDeleteProducts', () => {
     })
     expect(post.mock.calls.map((c) => (c[1] as { body: { product_ids: string[] } }).body.product_ids.length)).toEqual([100, 50])
   })
+
+  it('keeps the first chunk’s deletes when a later chunk fails, and names the rest as kept', async () => {
+    post
+      .mockImplementationOnce((_p: string, init: { body: { product_ids: string[] } }) =>
+        Promise.resolve(ok({ items: init.body.product_ids.map((id) => ({ product_id: id, http_status: 204, error: null })) })),
+      )
+      .mockResolvedValueOnce(failed(500, 'INTERNAL_ERROR'))
+    const { wrapper } = seeded()
+    const { result } = renderHook(() => useDeleteProducts(), { wrapper })
+    const many = Array.from({ length: 150 }, (_, i) => `p${i}`)
+    let out: Awaited<ReturnType<typeof result.current.mutateAsync>> | undefined
+    await act(async () => {
+      out = await result.current.mutateAsync(many)
+    })
+    expect(out?.deleted).toHaveLength(100)
+    expect(out?.refused.size).toBe(50)
+    expect(out?.refused.get('p149')).toMatch(/Try again/)
+  })
 })
 
 describe('DeleteProductsDialog', () => {

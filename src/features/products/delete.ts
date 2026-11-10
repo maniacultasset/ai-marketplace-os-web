@@ -71,9 +71,17 @@ async function deleteMany(ids: string[]): Promise<DeleteOutcome> {
   const out: DeleteOutcome = { deleted: [], refused: new Map() }
   for (let i = 0; i < ids.length; i += BULK_DELETE_MAX) {
     const chunk = ids.slice(i, i + BULK_DELETE_MAX)
-    const res = await unwrap(
-      api.POST('/products/bulk-delete', { params: { header: idempotencyHeader(newIdempotencyKey()) }, body: { product_ids: chunk } }),
-    )
+    let res
+    try {
+      res = await unwrap(
+        api.POST('/products/bulk-delete', { params: { header: idempotencyHeader(newIdempotencyKey()) }, body: { product_ids: chunk } }),
+      )
+    } catch (err) {
+      // An earlier chunk was deleted already: report it truthfully and keep the rest, never "nothing was deleted".
+      if (!out.deleted.length) throw err
+      for (const id of ids.slice(i)) out.refused.set(id, 'It couldn’t be deleted. Try again.')
+      return out
+    }
     for (const item of res.items) {
       if (item.http_status === 204) out.deleted.push(item.product_id)
       else out.refused.set(item.product_id, refusalText(item.error?.error_code))
