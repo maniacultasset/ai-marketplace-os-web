@@ -9,6 +9,7 @@
  */
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { api, unwrap } from '@/api/client'
+import { isApiError } from '@/api/errors'
 import { idempotencyHeader, newIdempotencyKey } from '@/api/idempotency'
 import type { Schema } from '@/api/types'
 import { toast } from '@/lib/toast'
@@ -52,8 +53,16 @@ const REFUSAL: Record<string, string> = {
 
 export const refusalText = (code: string | null | undefined) => REFUSAL[code ?? ''] ?? 'It couldn’t be deleted.'
 
+/** A one-product answer the server gives on purpose (refused, a size, already gone): said by name, like a bulk item. */
+const REFUSED_STATUS = new Set([404, 409, 422])
+
 async function deleteOne(id: string): Promise<DeleteOutcome> {
-  await unwrap(api.DELETE('/products/{product_id}', { params: { path: { product_id: id } } }))
+  try {
+    await unwrap(api.DELETE('/products/{product_id}', { params: { path: { product_id: id } } }))
+  } catch (err) {
+    if (isApiError(err) && REFUSED_STATUS.has(err.status)) return { deleted: [], refused: new Map([[id, refusalText(err.type)]]) }
+    throw err
+  }
   return { deleted: [id], refused: new Map() }
 }
 

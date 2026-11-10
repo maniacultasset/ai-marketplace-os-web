@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { MoreHorizontal, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Schema } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -30,6 +30,7 @@ export function ProductMoreMenu({
   const can = useCan()
   const navigate = useNavigate()
   const [confirming, setConfirming] = useState(false)
+  const trigger = useRef<HTMLButtonElement>(null)
   if (!can('settings:manage') || product.parent_product_id) return null
   const block = listingsReady ? deleteBlock(listings) : 'Checking this product’s listings…'
 
@@ -37,7 +38,7 @@ export function ProductMoreMenu({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label="More actions" data-testid="header-more">
+          <Button ref={trigger} variant="ghost" size="icon-sm" aria-label="More actions" data-testid="header-more">
             <MoreHorizontal />
           </Button>
         </DropdownMenuTrigger>
@@ -65,6 +66,7 @@ export function ProductMoreMenu({
         <DeleteProductsDialog
           open
           onOpenChange={setConfirming}
+          returnFocus={trigger}
           products={[{ id: product.id, sku: product.sku, title: product.title, variants }]}
           onDeleted={(out) => {
             if (out.deleted.includes(product.id)) void navigate({ to: '/products' })

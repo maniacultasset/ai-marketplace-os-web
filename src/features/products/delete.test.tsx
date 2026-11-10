@@ -83,12 +83,26 @@ describe('useDeleteProducts', () => {
   })
 
   it('puts the rows back when the call fails', async () => {
-    del.mockResolvedValueOnce(failed(409, 'INVALID_STATUS_TRANSITION'))
+    del.mockResolvedValueOnce(failed(500, 'INTERNAL_ERROR'))
     const { wrapper, ids } = seeded()
     const { result } = renderHook(() => useDeleteProducts(), { wrapper })
     await act(async () => {
       await result.current.mutateAsync(['a']).catch(() => undefined)
     })
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(ids()).toEqual(['a', 'a1', 'b', 'c'])
+  })
+
+  it('names a one-product refusal like a bulk item, and puts the rows back', async () => {
+    del.mockResolvedValueOnce(failed(409, 'INVALID_STATUS_TRANSITION'))
+    const { wrapper, ids } = seeded()
+    const { result } = renderHook(() => useDeleteProducts(), { wrapper })
+    let out: Awaited<ReturnType<typeof result.current.mutateAsync>> | undefined
+    await act(async () => {
+      out = await result.current.mutateAsync(['a'])
+    })
+    expect(out?.deleted).toEqual([])
+    expect(out?.refused.get('a')).toMatch(/sent to a marketplace/)
     expect(ids()).toEqual(['a', 'a1', 'b', 'c'])
   })
 

@@ -671,9 +671,10 @@ export function ProductsPage() {
             if (!v) setDeleting(null)
           }}
           products={deleting.rows.map((r) => ({ id: r.product.id, sku: r.product.sku, title: r.product.title, variants: r.variants.length }))}
-          onDeleted={() => {
-            // Kept rows stay selected only if the server refused them; the deleted ones are gone.
-            deleting.clear()
+          onDeleted={(out) => {
+            // The deleted rows are gone; the ones the server kept stay selected.
+            if (out.refused.size) setSelection(Object.fromEntries([...out.refused.keys()].map((id) => [id, true])))
+            else deleting.clear()
           }}
         />
       ) : null}

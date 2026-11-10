@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react'
+import type { MouseEvent, RefObject } from 'react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,11 +22,14 @@ export function DeleteProductsDialog({
   open,
   onOpenChange,
   onDeleted,
+  returnFocus,
 }: {
   products: readonly DeleteTarget[]
   open: boolean
   onOpenChange: (open: boolean) => void
   onDeleted?: (out: DeleteOutcome) => void
+  /** Where focus goes when the dialog closes, when the element that opened it is gone (a menu item). */
+  returnFocus?: RefObject<HTMLElement | null>
 }) {
   const del = useDeleteProducts()
   const one = products.length === 1 ? products[0] : null
@@ -52,7 +55,15 @@ export function DeleteProductsDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={(o) => !del.isPending && onOpenChange(o)}>
-      <AlertDialogContent data-testid="delete-products-dialog">
+      <AlertDialogContent
+        data-testid="delete-products-dialog"
+        onCloseAutoFocus={(e) => {
+          const to = returnFocus?.current
+          if (!to?.isConnected) return
+          e.preventDefault()
+          to.focus()
+        }}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle>{one ? `Delete ${one.sku}?` : `Delete ${plural(products.length, 'product', 'products')}?`}</AlertDialogTitle>
           <AlertDialogDescription asChild>
