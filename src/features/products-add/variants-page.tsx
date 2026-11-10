@@ -403,12 +403,12 @@ function ImagesCard({ product, canUpload }: { product: ColourSource & { id: stri
                 u.state.kind === 'accepted' ? (
                   <ReportChip key={u.id} imageId={u.state.imageId} label={SLOT_LABEL[u.slot]} />
                 ) : u.state.kind === 'invalid' ? (
-                  <StatusChip key={u.id} status="error">
+                  <StatusChip key={u.id} status="error" className="h-auto min-h-[22px] rounded-xl py-0.5 whitespace-normal [overflow-wrap:anywhere]">
                     {u.file.name}: {u.state.message}
                   </StatusChip>
                 ) : u.state.kind === 'failed' ? (
-                  <span key={u.id} className="inline-flex items-center gap-2">
-                    <StatusChip status="error">
+                  <span key={u.id} className="inline-flex max-w-full items-center gap-2">
+                    <StatusChip status="error" className="h-auto min-h-[22px] min-w-0 shrink rounded-xl py-0.5 whitespace-normal [overflow-wrap:anywhere]">
                       {u.file.name}: {describeError(u.state.error)}
                     </StatusChip>
                     <Button variant="ghost" size="xs" onClick={() => retry(u)}>

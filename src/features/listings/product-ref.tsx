@@ -64,7 +64,7 @@ export function ProductRef({ productId, className }: { productId: string; classN
     )
   return (
     <span className={cn('block min-w-0', className)}>
-      <code className="block truncate font-mono text-xs text-foreground" data-testid="listing-sku">
+      <code className="block truncate font-mono text-xs text-foreground" data-testid="listing-sku" title={product.sku}>
         {product.sku}
       </code>
       <span className="block truncate text-[13px] text-muted-foreground" title={product.title}>
