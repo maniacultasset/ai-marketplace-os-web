@@ -51,7 +51,7 @@ function show() {
   )
 }
 
-const product = { id: PRODUCT, sku: 'KS-1', title: 'Kurta', category: null, category_suggest_enabled: true }
+const product = { id: PRODUCT, sku: 'KS-1', title: 'Kurta', category: null, category_suggest_enabled: true, photo_reading: false }
 
 describe('Inbox category_review task (SI14)', () => {
   it('lets the seller confirm the category right in the Inbox while the switch is on', () => {
@@ -65,7 +65,7 @@ describe('Inbox category_review task (SI14)', () => {
   })
 
   it('shows no suggestion controls while the switch is off, only the way to the product', () => {
-    productRead = { isPending: false, data: { ...product, category_suggest_enabled: false } }
+    productRead = { isPending: false, data: { ...product, category_suggest_enabled: false, photo_reading: false } }
     show()
     expect(screen.queryByTestId('category-suggestion')).toBeNull()
     expect(screen.getByText('Choose the category on the product page.')).toBeTruthy()

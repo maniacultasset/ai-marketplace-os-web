@@ -31,7 +31,7 @@ const product = {
   identifier_exemption: false,
   attribute_literals: {},
   image_details: [{ image_id: IMG, slot: 'size_chart' as const, position: 0, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' as const }],
-  size_chart_read_enabled: true, category_suggest_enabled: false,
+  size_chart_read_enabled: true, category_suggest_enabled: false, photo_reading: false,
 }
 
 const answer = (body: unknown, status: number) => Promise.resolve({ data: status < 400 ? body : undefined, error: status >= 400 ? body : undefined, response: new Response(JSON.stringify(body), { status }) })
@@ -99,7 +99,7 @@ describe('Read sizes from your size chart photo (SI12)', () => {
   })
 
   it('is hidden while the read is switched off', () => {
-    setup({ ...product, size_chart_read_enabled: false, category_suggest_enabled: false })
+    setup({ ...product, size_chart_read_enabled: false, category_suggest_enabled: false, photo_reading: false })
     expect(screen.queryByTestId('size-chart-read')).toBeNull()
     expect(screen.queryByTestId('size-chart-read-none')).toBeNull()
     expect(screen.queryByRole('button', { name: /Read sizes/ })).toBeNull()

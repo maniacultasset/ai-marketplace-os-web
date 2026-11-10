@@ -22,7 +22,7 @@ const product = (over: Partial<ProductDetail> = {}): ProductDetail => ({
   status: 'active',
   category: 'kurtas',
   created_at: '2026-11-07T10:00:00Z',
-  identifier_exemption: false, brand_name_inherited: false, size_chart_read_enabled: false, category_suggest_enabled: false,
+  identifier_exemption: false, brand_name_inherited: false, size_chart_read_enabled: false, category_suggest_enabled: false, photo_reading: false,
   updated_at: '2026-11-07T10:00:00Z',
   attributes: {},
   mrp: '1299.00',

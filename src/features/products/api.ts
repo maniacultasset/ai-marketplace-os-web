@@ -11,6 +11,7 @@ import type { Schema } from '@/api/types'
 import { PAGE_SIZE, useCursorList } from '@/hooks/use-cursor-list'
 import { useKeys, type QueryKeys } from '@/lib/query-keys'
 import { viewRefreshDelay } from './image-views'
+import { photoReadDelay, soonest } from './photo-reading'
 import { toCreateBody, toCreateJson, type ProductFormValues } from './schema'
 
 export type Product = Schema<'ProductOut'>
@@ -101,7 +102,8 @@ export const productQuery = (keys: QueryKeys, productId: string) =>
     queryKey: [...keys.products.detail(productId), 'exact'] as const,
     queryFn: () => fetchProduct(productId),
     // The photo links are signed for about 10 minutes: read again just before the first expires.
-    refetchInterval: (q) => viewRefreshDelay([q.state.data]),
+    // V1.1: sooner while the photos are being read after an upload (`photo-reading`).
+    refetchInterval: (q) => soonest(viewRefreshDelay([q.state.data]), photoReadDelay(q.state.data)),
     refetchIntervalInBackground: false,
   })
 

@@ -43,7 +43,9 @@ import { editingSource, fieldSource, rawFieldSource } from '@/features/products/
 import { missingNeeds, missingSummary, needText, productFilled, useRequirements, type Filled, type Marketplace, type NeedFieldId } from '@/features/products/needs'
 import { countryName, fromPackageOut, normalizeCountry, packageHasSize, packageHasWeight, packageText, samePackage } from '@/features/products/seller-fields'
 import { CountryField, HsnField, PackageFields } from '@/features/products/seller-field-inputs'
+import { isReadingPhotos } from '@/features/products/photo-reading'
 import { SizeChartReadButton } from '@/features/products/size-chart-read-button'
+import { SizeRunAction } from '@/features/products/size-run-action'
 import { normalizeBarcode } from '@/features/products/barcode'
 import { humanizeSlug } from './catalog-model'
 import type { ProductEditSession } from './product-edit-session'
@@ -447,7 +449,14 @@ export function ProductDetailsCard({
             </table>
           </div>
         ) : null}
-        {photoRead ? (
+        {chart && !isVariant && onEdit ? <SizeRunAction product={product} /> : null}
+        {isReadingPhotos(product) && !isVariant ? (
+          <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line pt-4 text-small" data-testid="photo-reading" role="status">
+            <Spinner aria-hidden className="size-4 text-brand" />
+            <span className="font-semibold text-ink">Reading details from your photos</span>
+            <span className="text-ink-2">What Kuinn finds shows here for you to confirm.</span>
+          </div>
+        ) : photoRead ? (
           <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line pt-4 text-small" data-testid="photo-read">
             <StatusChip status={photoRead.chip}>{photoRead.label}</StatusChip>
             <span className="text-ink-2">{photoRead.detail}</span>

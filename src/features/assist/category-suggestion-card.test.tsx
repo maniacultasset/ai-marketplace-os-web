@@ -25,7 +25,7 @@ const product = (over: Partial<ProductDetail> = {}): ProductDetail => ({
   identifier_exemption: false,
   brand_name_inherited: false,
   size_chart_read_enabled: false,
-  category_suggest_enabled: true,
+  category_suggest_enabled: true, photo_reading: false,
   attribute_literals: {},
   etag: '"e1"',
   ...over,
@@ -61,7 +61,7 @@ afterEach(cleanup)
 
 describe('CategorySuggestionCard (SI14)', () => {
   it('renders nothing while the switch is off', () => {
-    const { container } = setup(product({ category_suggest_enabled: false, suggestions: suggested }))
+    const { container } = setup(product({ category_suggest_enabled: false, photo_reading: false, suggestions: suggested }))
     expect(container.innerHTML).toBe('')
   })
 

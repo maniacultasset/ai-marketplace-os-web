@@ -38,7 +38,7 @@ const product: ProductDetail = {
   status: 'active',
   category: 'kurtas',
   created_at: 'x',
-  identifier_exemption: false, brand_name_inherited: false, size_chart_read_enabled: false, category_suggest_enabled: false,
+  identifier_exemption: false, brand_name_inherited: false, size_chart_read_enabled: false, category_suggest_enabled: false, photo_reading: false,
   updated_at: 'x',
   attributes: {},
   attribute_literals: {},
@@ -134,6 +134,17 @@ describe('SI8 and SI9 rows on the card', () => {
     expect(screen.getByTestId('product-brand').textContent).toBe('Rang Store')
     expect(screen.getByTestId('product-gender').textContent).toBe('Women')
     expect(screen.getByTestId('photo-read').textContent).toContain('2 details filled.')
+  })
+
+  it('says the photos are being read while a read on upload runs, then shows the result', async () => {
+    await card({ ...product, photo_reading: true, photo_read: { status: 'read', at: '2026-11-08T10:00:00Z', written: 2, asked: 0 } })
+    expect(screen.getByTestId('photo-reading').textContent).toContain('Reading details from your photos')
+    expect(screen.queryByTestId('photo-read')).toBeNull()
+  })
+
+  it('offers no size variants without edit rights', async () => {
+    await card({ ...product, size_chart: { unit: 'cm', basis: 'garment', rows: [{ size: 'M', chest: 100 }] } })
+    expect(screen.queryByTestId('size-run')).toBeNull()
   })
 
   it('hides those rows on an older backend', async () => {
