@@ -1,5 +1,7 @@
 import { Icon } from '@/components/la/icons'
 import type { ErrorItem } from '@/api/types'
+import { MARKETPLACE_NAME } from '@/features/listing-flow/format'
+import { humanizeSlug } from '@/features/products-add/catalog-model'
 import { cn } from '@/lib/utils'
 
 /** Errors before warnings. */
@@ -9,7 +11,7 @@ export function sortErrorItems(items: readonly ErrorItem[]) {
 
 /**
  * Renders ErrorItem[] from an ErrorReport (import file errors, import rows, job errors):
- * severity, field, code, message, suggestion, source, marketplace; value_submitted truncated.
+ * severity (the code on hover), field, message, suggestion, source, marketplace; value_submitted truncated.
  */
 export function ErrorReportList({
   items,
@@ -35,24 +37,27 @@ export function ErrorReportList({
             <Icon
               name="alert"
               size={16}
-              aria-hidden={false}
-              role="img"
               className={cn('mt-0.5 shrink-0', warn ? 'text-warning' : 'text-destructive')}
-              aria-label={warn ? 'Warning' : 'Error'}
             />
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                <code
+                {/* A plain word leads; the machine code stays on hover for support. */}
+                <span
                   className={cn(
-                    'rounded px-1.5 py-0.5 font-mono text-[11px] font-medium',
+                    'rounded px-1.5 py-0.5 text-[11px] font-medium',
                     warn ? 'bg-warning/10 text-warning' : 'bg-destructive/10 text-destructive',
                   )}
+                  title={item.error_code}
                 >
-                  {item.error_code}
-                </code>
-                <span className="font-mono text-muted-foreground">{item.field}</span>
+                  {warn ? 'Warning' : 'Error'}
+                </span>
+                {item.field ? (
+                  <span className="max-w-full truncate font-mono text-muted-foreground" title={item.field}>
+                    {item.field}
+                  </span>
+                ) : null}
                 {item.marketplace ? (
-                  <span className="text-muted-foreground capitalize">· {item.marketplace}</span>
+                  <span className="text-muted-foreground">· {MARKETPLACE_NAME[item.marketplace] ?? humanizeSlug(item.marketplace)}</span>
                 ) : null}
                 {item.source ? <span className="text-muted-foreground">· {item.source.replace(/_/g, ' ')}</span> : null}
               </div>
