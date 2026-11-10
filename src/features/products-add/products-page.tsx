@@ -33,6 +33,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { SavedPhoto } from '@/components/la/saved-photo'
 import { RelativeTime } from '@/features/products/format'
+import { deleteBlock } from '@/features/products/delete'
+import { DeleteProductsDialog } from '@/features/products/delete-dialog'
 import { useRefreshListViews } from '@/features/products/image-views'
 import { Can, useCan } from '@/lib/permissions'
 import { AI_PAUSED_REASON } from '@/features/ai-credit/model'
@@ -397,6 +399,37 @@ function FilterSelect({
   )
 }
 
+/** The bulk bar's Delete: owners and admins, and never while a selected listing is with a marketplace. */
+export function BulkDelete({ rows, canDelete, onDelete }: { rows: CatalogRow[]; canDelete: boolean; onDelete: () => void }) {
+  const blocked = rows.filter((r) => deleteBlock(Object.values(r.listings)))
+  if (!canDelete)
+    return (
+      <UnavailableButton size="sm" variant="danger" reason="Only an owner or admin can delete products." data-testid="bulk-delete">
+        Delete
+      </UnavailableButton>
+    )
+  if (blocked.length)
+    return (
+      <UnavailableButton
+        size="sm"
+        variant="danger"
+        reason={
+          blocked.length === 1
+            ? `${blocked[0]?.product.sku ?? 'A product'} has a listing that was sent to a marketplace, so it can’t be deleted here. Unselect it to delete the rest.`
+            : `${blocked.length} selected products have listings that were sent to a marketplace, so they can’t be deleted here. Unselect them to delete the rest.`
+        }
+        data-testid="bulk-delete"
+      >
+        Delete
+      </UnavailableButton>
+    )
+  return (
+    <Button size="sm" variant="danger" onClick={onDelete} data-testid="bulk-delete">
+      Delete
+    </Button>
+  )
+}
+
 export function ProductsPage() {
   const catalog = useCatalog()
   const can = useCan()
@@ -406,6 +439,7 @@ export function ProductsPage() {
   const [marketplace, setMarketplace] = useState<Marketplace | null>(null)
   const [selection, setSelection] = useState<RowSelectionState>({})
   const [adding, setAdding] = useState<CatalogRow[] | null>(null)
+  const [deleting, setDeleting] = useState<{ rows: CatalogRow[]; clear: () => void } | null>(null)
 
   const listingsReady = catalog.listingsState === 'ready'
   // Every count appears at once, when the whole catalog has answered.
@@ -615,6 +649,7 @@ export function ProductsPage() {
                 Add marketplace
               </UnavailableButton>
             )}
+            <BulkDelete rows={selected} canDelete={can('settings:manage')} onDelete={() => setDeleting({ rows: selected, clear: clearSelection })} />
           </BulkBar>
         )}
       />
@@ -627,6 +662,20 @@ export function ProductsPage() {
           }}
           products={adding.map((r) => r.product)}
           listingsOf={listingsOf}
+        />
+      ) : null}
+      {deleting ? (
+        <DeleteProductsDialog
+          open
+          onOpenChange={(v) => {
+            if (!v) setDeleting(null)
+          }}
+          products={deleting.rows.map((r) => ({ id: r.product.id, sku: r.product.sku, title: r.product.title, variants: r.variants.length }))}
+          onDeleted={(out) => {
+            // The deleted rows are gone; the ones the server kept stay selected.
+            if (out.refused.size) setSelection(Object.fromEntries([...out.refused.keys()].map((id) => [id, true])))
+            else deleting.clear()
+          }}
         />
       ) : null}
     </Page>

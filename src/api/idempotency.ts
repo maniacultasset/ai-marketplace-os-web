@@ -12,6 +12,7 @@ export const idempotencyHeader = (key: string) => ({ 'Idempotency-Key': key })
  */
 export const IDEMPOTENT_OPS = [
   'POST /products/bulk',
+  'POST /products/bulk-delete',
   'POST /imports/{import_id}/rows/retry',
   'POST /brand/documents',
   'POST /images/upload',

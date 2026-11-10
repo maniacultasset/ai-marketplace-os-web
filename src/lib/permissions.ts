@@ -96,6 +96,8 @@ export const OP_ACTION = {
   'POST /products/{product_id}/recategorize': 'product:import',
   'POST /products': 'product:import',
   'POST /products/bulk': 'product:import',
+  'DELETE /products/{product_id}': 'settings:manage',
+  'POST /products/bulk-delete': 'settings:manage',
   'GET /imports/{import_id}': 'tenant:read',
   'GET /imports/{import_id}/rows': 'tenant:read',
   'POST /imports/{import_id}/rows/retry': 'product:import',
