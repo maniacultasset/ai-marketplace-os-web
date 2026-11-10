@@ -44,6 +44,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ProductImagesCard } from '@/features/analytics-images/images/images-card'
 import { useFixCounts } from '@/features/home-inbox/api'
 import { AutoFixedChip } from '@/features/listing-flow/auto-fix'
+import { currentFindings, dedupeFindings, type ErrorItem } from '@/features/listing-flow/gates'
 import { listingDetailQuery, listingPreviewQuery, useListingHistory } from '@/features/listings/api'
 import { recallJob } from '@/features/listings/job-memory'
 import { blockedReason, historyLabel, historyReason, isBusy, statusReasonLabel, validationBlocking } from '@/features/listings/model'
@@ -1151,13 +1152,13 @@ function ValidationCard({
   pending,
   openIssues,
   issuesState,
-  mapping,
+  mappingErrors,
 }: {
   listing: Listing
   q: ListingDetailQuery
   pending: boolean
-  /** Blocking mapping problems in the adapter preview of the current version (Review counts them too). */
-  mapping: number
+  /** The adapter preview's mapping problems for the current version (Review counts them too); null if it could not load. */
+  mappingErrors: readonly ErrorItem[] | null
   /** Open issues on this listing from every source (marketplace, photo and fact checks too). */
   openIssues: number
   issuesState: DetailData['issuesState']
@@ -1170,9 +1171,15 @@ function ValidationCard({
   const detail = q.data?.data
   const { blocking, marketplace } = validationBlocking(v, detail)
   const blockers = detail && needsYourInfo(detail) ? (detail.needs_you_count ?? 0) : 0
+  // A gap both the rules and the mapping report (colour missing) is one problem, as Review counts it.
+  const ruled = new Set(currentFindings(v, listing.current_version_id).findings.map((f) => `${f.field}|${f.error_code}`))
+  const mapping = dedupeFindings((mappingErrors ?? []).filter((e) => e.severity === 'error')).filter(
+    (e) => !ruled.has(`${e.field}|${e.error_code}`),
+  ).length
   const rulesPassed = !!v && v.passed && blocking === 0
-  const clean = rulesPassed && mapping === 0 && issuesState === 'ready' && openIssues === 0 && !HELD.has(listing.status)
-  const held = rulesPassed && !clean
+  const clean = rulesPassed && mappingErrors != null && mapping === 0 && issuesState === 'ready' && openIssues === 0 && !HELD.has(listing.status)
+  // An unloaded mapping is unknown, not a problem: no green, and no "Needs you" either.
+  const held = rulesPassed && !clean && mappingErrors != null
   return (
     <LaCard className={CARD_FRAME} aria-busy={pending || undefined}>
       <div className="flex items-center justify-between gap-2">
@@ -1239,6 +1246,10 @@ function ValidationCard({
           The rules passed, but {mapping === 1 ? '1 mapping problem blocks' : `${mapping} mapping problems block`} this version. See
           every check for what to fix.
         </p>
+      ) : !pending && rulesPassed && mappingErrors == null ? (
+        <p className="mt-2 text-small text-pretty text-ink-2" data-testid="validation-mapping-unknown">
+          The rules passed, but the marketplace mapping could not be loaded. See every check for the details.
+        </p>
       ) : !pending && marketplace ? (
         <p className="mt-2 text-small text-ink-2" data-testid="validation-marketplace-note">
           The rules passed, but the marketplace check blocks this version. See every check for what to fix.
@@ -1294,7 +1305,7 @@ function ValidationTab({ data }: { data: DetailData }) {
               pending={pending}
               openIssues={data.issuesByListing.get(l.id) ?? 0}
               issuesState={data.issuesState}
-              mapping={(previews[i]?.data?.report.errors ?? []).filter((e) => e.severity === 'error').length}
+              mappingErrors={previews[i]?.isError ? null : (previews[i]?.data?.report.errors ?? [])}
             />
           ))}
         </div>
