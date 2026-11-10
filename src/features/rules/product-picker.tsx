@@ -8,6 +8,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
+import { productCategoryLabel } from '@/features/products-add/catalog-model'
 import { PAGE_SIZE, useCursorList } from '@/hooks/use-cursor-list'
 import { useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
@@ -101,7 +102,7 @@ export function ProductPicker({
                       <span className="min-w-0 flex-1">
                         <span className="block truncate">{p.title}</span>
                         <span className="block truncate font-mono text-[11px] text-muted-foreground">
-                          {p.sku} · {p.category}
+                          {p.sku} · {productCategoryLabel(p.category)}
                         </span>
                       </span>
                     </CommandItem>

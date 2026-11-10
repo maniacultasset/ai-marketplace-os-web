@@ -1,3 +1,4 @@
+import { categoryLabel as productCategoryName } from '@/features/products/categories'
 import { NEED_FIELDS } from '@/features/products/needs'
 import { attrLabel } from './mapping'
 
@@ -16,11 +17,9 @@ export function clock(iso: string | null | undefined, now: Date = new Date()): s
 export const MARKETPLACE_NAME: Record<string, string> = { amazon: 'Amazon', flipkart: 'Flipkart' }
 export const mpName = (m: string) => MARKETPLACE_NAME[m] ?? m
 
-/** "womens_tshirts" → "Womens tshirts" (the slug is all the API returns). */
+/** The category in the editor's words ("tshirts" → "T-shirts"); the slug is all the API returns. */
 export function categoryLabel(slug: string | null | undefined): string {
-  if (!slug) return 'No category'
-  const s = slug.replace(/_+/g, ' ').trim()
-  return s ? s[0]!.toUpperCase() + s.slice(1) : slug
+  return slug ? productCategoryName(slug) : 'No category'
 }
 
 const FIELD_NAME: Record<string, string> = {

@@ -62,7 +62,7 @@ import { useAllListings, useAllProducts, useOpenIssues } from './catalog'
 import {
   cellChip,
   firstListable,
-  humanizeSlug,
+  productCategoryLabel,
   variantAxis,
   matrixKey,
   OVERALL_CHIP,
@@ -392,7 +392,7 @@ function LoadedDetail({ data, tab, tabsRef }: { data: DetailData; tab: DetailTab
             <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-body text-ink-2">
               <span data-testid="product-sku">{p.sku}</span>
               <span aria-hidden>·</span>
-              <span data-testid="product-category">{humanizeSlug(p.category)}</span>
+              <span data-testid="product-category">{productCategoryLabel(p.category)}</span>
               {data.isVariant ? null : data.variantsPending ? (
                 <>
                   <span aria-hidden>·</span>

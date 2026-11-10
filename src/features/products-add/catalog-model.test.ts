@@ -5,6 +5,7 @@ import {
   buildCatalog,
   filterCatalog,
   humanizeSlug,
+  productCategoryLabel,
   OVERALL_CHIP,
   overallStatus,
   shortId,
@@ -140,6 +141,10 @@ describe('filterCatalog', () => {
 describe('helpers', () => {
   it('humanizes slugs and shortens ids', () => {
     expect(humanizeSlug('ethnic_wear_kurta_sets')).toBe('Ethnic wear kurta sets')
+    expect(productCategoryLabel('ethnic_wear_kurta_sets')).toBe('Kurta sets')
+    expect(productCategoryLabel('tshirts')).toBe('T-shirts')
+    expect(productCategoryLabel('kurtas')).toBe('Kurtas')
+    expect(productCategoryLabel(null)).toBe('No category yet')
     expect(shortId('0b1c2d3e-0000-4000-8000-000000000201')).toBe('0B1C2D•')
   })
   it('builds a colour x size matrix when every variant has its own cell', () => {
