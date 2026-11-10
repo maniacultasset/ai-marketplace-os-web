@@ -43,7 +43,7 @@ describe('Needed chips', () => {
       status: 'active',
       created_at: 'x',
       updated_at: 'x',
-      brand_name_inherited: false, size_chart_read_enabled: false, category_suggest_enabled: false,
+      brand_name_inherited: false, size_chart_read_enabled: false, category_suggest_enabled: false, photo_reading: false,
       identifier_exemption: false,
       attributes: { fabric_type: 'Cotton' },
       mrp: '999.00',
