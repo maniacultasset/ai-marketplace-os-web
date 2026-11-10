@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   bucketCount,
   countTicks,
+  formatCount,
   formatRange,
   formatRate,
   isEmptySummary,
@@ -76,9 +77,15 @@ describe('ranges', () => {
   })
 
   it('formatRange', () => {
-    expect(formatRange({ from: '2026-09-13', to: '2026-10-12' })).toBe('Sep 13 – Oct 12, 2026')
-    expect(formatRange({ from: '2025-10-13', to: '2026-10-12' })).toBe('Oct 13, 2025 – Oct 12, 2026')
-    expect(formatRange({ from: '2026-10-12', to: '2026-10-12' })).toBe('Oct 12, 2026')
+    // en-IN, as elsewhere: day before month, no comma.
+    expect(formatRange({ from: '2026-10-13', to: '2026-11-12' })).toBe('13 Oct – 12 Nov 2026')
+    expect(formatRange({ from: '2025-10-13', to: '2026-10-12' })).toBe('13 Oct 2025 – 12 Oct 2026')
+    expect(formatRange({ from: '2026-10-12', to: '2026-10-12' })).toBe('12 Oct 2026')
+  })
+
+  it('formatCount groups the Indian way and shortens to K, L and Cr', () => {
+    expect(formatCount(9999)).toBe('9,999')
+    expect(formatCount(123456)).toBe('1.2L')
   })
 })
 

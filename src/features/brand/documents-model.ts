@@ -96,7 +96,7 @@ export function documentStatusMeta(doc: Pick<BrandDocument, 'status' | 'chunk_co
         label: 'Ready',
         variant: 'success',
         live: false,
-        hint: `${doc.chunk_count.toLocaleString()} passage${doc.chunk_count === 1 ? '' : 's'} in use`,
+        hint: `${doc.chunk_count.toLocaleString('en-IN')} passage${doc.chunk_count === 1 ? '' : 's'} in use`,
       }
     case 'failed':
       return { label: 'Failed', variant: 'danger', live: false, hint: 'Upload the same file again to retry' }

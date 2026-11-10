@@ -28,7 +28,7 @@ export function validateGenerate(v: GenerateInput): GenerateErrors {
   const cat = v.category.trim()
   if (cat && !CATEGORY_RE.test(cat)) e.category = 'Lowercase letters, digits and underscores, 2 to 64 characters.'
   if (charCount(v.instructions) > INSTRUCTIONS_MAX)
-    e.instructions = `At most ${INSTRUCTIONS_MAX.toLocaleString()} characters.`
+    e.instructions = `At most ${INSTRUCTIONS_MAX.toLocaleString('en-IN')} characters.`
   return e
 }
 

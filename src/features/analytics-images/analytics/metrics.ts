@@ -180,7 +180,7 @@ export function metricDelta(kind: MetricDef['kind'], current: number | null, pre
     return {
       value: pct,
       direction: rounded > 0 ? 'up' : rounded < 0 ? 'down' : 'flat',
-      label: `${rounded > 0 ? '+' : rounded < 0 ? '−' : ''}${Math.abs(rounded).toLocaleString('en-US')}%`,
+      label: `${rounded > 0 ? '+' : rounded < 0 ? '−' : ''}${Math.abs(rounded).toLocaleString('en-IN')}%`,
     }
   }
   const pts = (current - previous) * 100
@@ -192,8 +192,8 @@ export function metricDelta(kind: MetricDef['kind'], current: number | null, pre
   }
 }
 
-const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 })
-const whole = new Intl.NumberFormat('en-US')
+const compact = new Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 })
+const whole = new Intl.NumberFormat('en-IN')
 
 export function formatCount(n: number): string {
   return n >= 10_000 ? compact.format(n) : whole.format(n)
@@ -212,14 +212,14 @@ export function formatMetric(kind: MetricDef['kind'], v: number | null): string 
   return kind === 'count' ? formatCount(v) : formatRate(v)
 }
 
-const dayFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
-const dayYearFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+const dayFmt = new Intl.DateTimeFormat('en-IN', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+const dayYearFmt = new Intl.DateTimeFormat('en-IN', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 
 export function formatDay(iso: string, withYear = false): string {
   return (withYear ? dayYearFmt : dayFmt).format(new Date(parseDay(iso)))
 }
 
-/** "Mar 3 – Apr 1, 2026" (one day: "Apr 1, 2026"). */
+/** "3 Mar – 1 Apr 2026" (one day: "1 Apr 2026"). */
 export function formatRange(r: DayRange): string {
   if (r.from === r.to) return formatDay(r.to, true)
   const sameYear = r.from.slice(0, 4) === r.to.slice(0, 4)

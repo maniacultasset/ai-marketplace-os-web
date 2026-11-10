@@ -34,6 +34,7 @@ import { uploadImage } from '@/features/analytics-images/images/upload'
 import { useImportHistory } from '@/features/imports/history'
 import { markJobLive } from '@/features/imports/use-import-job'
 import { useProduct } from '@/features/products/api'
+import { formatMoney } from '@/features/products/intake-model'
 import { SKU_MAX } from '@/features/products/schema'
 import { useCapability } from '@/hooks/use-capabilities'
 import { useKeys } from '@/lib/query-keys'
@@ -845,7 +846,7 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
             </div>
             <p className="border-t border-line px-4 py-3 text-caption text-ink-3" data-testid="variants-price-hint">
               {styleMrp || stylePrice
-                ? `Leave MRP or price blank to use the style’s (${[styleMrp ? `₹${styleMrp} MRP` : null, stylePrice ? `₹${stylePrice} price` : null].filter(Boolean).join(', ')}). Fill a cell only when that variant costs differently.`
+                ? `Leave MRP or price blank to use the style’s (${[styleMrp ? `${formatMoney(styleMrp)} MRP` : null, stylePrice ? `${formatMoney(stylePrice)} price` : null].filter(Boolean).join(', ')}). Fill a cell only when that variant costs differently.`
                 : 'This style has no price yet. Add one in its details, or fill each variant.'}
             </p>
             <div className="flex flex-col gap-1 border-t border-line px-4 py-3">

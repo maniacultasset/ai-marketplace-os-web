@@ -43,7 +43,7 @@ export function ImportsHistory() {
         </p>
         {entries.length > 0 ? (
           <p className="tabular-nums">
-            {entries.length.toLocaleString()} {entries.length === 1 ? 'import' : 'imports'}
+            {entries.length.toLocaleString('en-IN')} {entries.length === 1 ? 'import' : 'imports'}
           </p>
         ) : null}
       </div>
@@ -123,7 +123,7 @@ function HistoryRow({ entry }: { entry: ImportHistoryEntry }) {
     ) : v === undefined ? (
       <Skeleton className="ml-auto h-4 w-8" />
     ) : (
-      <span className={cn('font-semibold tabular-nums', v > 0 ? tone : 'text-ink-3')}>{v.toLocaleString()}</span>
+      <span className={cn('font-semibold tabular-nums', v > 0 ? tone : 'text-ink-3')}>{v.toLocaleString('en-IN')}</span>
     )
 
   return (
