@@ -5,8 +5,9 @@
  * ADR-0019 (sign-up reviewed by a person), core/passwords.py (argon2id), core/observability.py
  * (Sentry with send_default_pii=False and scrubbing), routers/auth.py (IP and user agent on
  * sign-in and refresh, IP only on sign-out), ADR-0024 and core/config.py (LLM_GATEWAY=openrouter in
- * production: drafting, photo reading, embeddings and image edits all go through OpenRouter with
- * data collection denied), LISTING-AGENT-ANALYSIS §2.8 (no credentials in prompts),
+ * production: drafting, category suggestions, column matching, photo reading and checks,
+ * embeddings and image edits all go through OpenRouter with data collection denied),
+ * LISTING-AGENT-ANALYSIS §2.8 (no credentials in prompts),
  * ADR-0026, services/public_images.py and images-edge-worker.js (approved listing images copied to a
  * public bucket and served at images.kuinn.in; a 1-day edge cache; removed on delete or replace, a
  * daily sweep retries), vercel.json (site hosting, /api forwarded to api.kuinn.in), prod.env and
@@ -34,7 +35,7 @@ export function Ph({ children }: { children: ReactNode }) {
   )
 }
 
-export const POLICY_UPDATED = '8 November 2026'
+export const POLICY_UPDATED = '10 November 2026'
 /** Named by the company: its director, who is also the legal and support contact in the Terms. */
 export const GRIEVANCE_OFFICER = 'Mukul Jasoria, Director'
 
@@ -168,18 +169,22 @@ export const POLICY_SECTIONS: PolicySection[] = [
     body: (
       <>
         <p>
-          Kuinn uses AI to draft listings, read details from your product photos, and make white-background versions of
-          your main photo. Every AI request goes through OpenRouter (OpenRouter, Inc., United States), which acts as our
-          processor and forwards it to the model provider for that task. We send every request with data collection turned
-          off, so it is only routed to providers that do not store it for training or reuse.
+          Kuinn uses AI to draft listings, suggest a category, match the column names of a sheet you import, read and
+          check your product photos, and make white-background versions of your main photo. Every AI request goes
+          through OpenRouter (OpenRouter, Inc., United States), which acts as our processor and forwards it to the model
+          provider for that task. We send every request with data collection turned off, so it is only routed to
+          providers that do not store it for training or reuse.
         </p>
         <ul>
           <li>
-            Listing drafts (titles, bullets, descriptions, attributes and keywords): DeepSeek models. They receive the
-            product facts needed for the listing and your brand profile.
+            Listing drafts (titles, bullets, descriptions, attributes and keywords) and category suggestions: DeepSeek
+            models. For a draft they receive the product facts needed for the listing and your brand profile; for a
+            category suggestion, the product’s text. When you import a sheet, they also receive the column names our
+            rules could not match.
           </li>
           <li>
-            Reading details from your photos: OpenAI models. They receive downscaled copies of your product photos.
+            Reading details from your photos, including a size chart, and checking photos for problems: OpenAI models.
+            They receive downscaled copies of your product photos.
           </li>
           <li>
             White-background main images: Google Gemini models, served by Google. They receive a downscaled copy of the
@@ -244,12 +249,12 @@ export const POLICY_SECTIONS: PolicySection[] = [
               </tr>
               <tr>
                 <td className="px-4 py-2.5 font-semibold">DeepSeek models, via OpenRouter</td>
-                <td data-label="What for" className="px-4 py-2.5">Drafting listing titles, bullets, descriptions, attributes and keywords</td>
+                <td data-label="What for" className="px-4 py-2.5">Drafting listing titles, bullets, descriptions, attributes and keywords; suggesting a category; matching imported column names</td>
                 <td data-label="Where" className="px-4 py-2.5">Outside India</td>
               </tr>
               <tr>
                 <td className="px-4 py-2.5 font-semibold">OpenAI models (OpenAI, L.L.C.), via OpenRouter</td>
-                <td data-label="What for" className="px-4 py-2.5">Reading details from product photos; text embeddings of your brand profile and brand documents</td>
+                <td data-label="What for" className="px-4 py-2.5">Reading details from product photos and size charts; checking photos; text embeddings of your brand profile and brand documents</td>
                 <td data-label="Where" className="px-4 py-2.5">United States</td>
               </tr>
               <tr>
