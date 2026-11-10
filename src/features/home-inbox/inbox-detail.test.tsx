@@ -200,6 +200,16 @@ describe('QA 2026-11-09: inbox detail tells the truth', () => {
     expect(screen.queryByTestId('inbox-detail-missing')).toBeNull()
   })
 
+  it('an empty Inbox is said once, in the list pane: the detail pane stays quiet', () => {
+    render(
+      <TooltipProvider>
+        <InboxDetail selectedKey={undefined} items={[]} pending={false} search={{}} products={{ map: new Map(), pending: false }} />
+      </TooltipProvider>,
+    )
+    expect(screen.queryByTestId('inbox-detail-empty')).toBeNull()
+    expect(screen.queryByText('Nothing needs you')).toBeNull()
+  })
+
   it('a barcode question sends the seller to the product, with no fake answer form', () => {
     showTask(mkTask({ target_path: 'facts.identifier' }))
     expect(screen.queryByTestId('answer-soon')).toBeNull()

@@ -44,7 +44,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ProductImagesCard } from '@/features/analytics-images/images/images-card'
 import { useFixCounts } from '@/features/home-inbox/api'
 import { AutoFixedChip } from '@/features/listing-flow/auto-fix'
-import { listingDetailQuery, useListingHistory } from '@/features/listings/api'
+import { currentFindings, dedupeFindings, type ErrorItem } from '@/features/listing-flow/gates'
+import { listingDetailQuery, listingPreviewQuery, useListingHistory } from '@/features/listings/api'
 import { recallJob } from '@/features/listings/job-memory'
 import { blockedReason, historyLabel, historyReason, isBusy, statusReasonLabel, validationBlocking } from '@/features/listings/model'
 import { auditActorLabel } from '@/features/marketplaces-settings/model'
@@ -1130,6 +1131,21 @@ function useListingDetails(listings: readonly Listing[]) {
   return useQueries({ queries: listings.map((l) => listingDetailQuery(keys, l.id)) })
 }
 
+/**
+ * Every listing's adapter preview (what would be sent, no marketplace call), on the same cache key
+ * as Review, so the tab counts the mapping problems Review's gates count. Only a listing with a
+ * drafted version has one.
+ */
+function useListingPreviews(listings: readonly Listing[]) {
+  const keys = useKeys()
+  return useQueries({
+    queries: listings.map((l) => ({
+      ...listingPreviewQuery(keys, l.id),
+      enabled: !!l.current_version_id && l.status !== 'created' && l.status !== 'generating',
+    })),
+  })
+}
+
 /** Listing states the rules run alone does not explain: a "Checks passed" there would mislead. */
 const HELD = new Set<Listing['status']>(['blocked', 'failed'])
 
@@ -1139,10 +1155,13 @@ function ValidationCard({
   pending,
   openIssues,
   issuesState,
+  mappingErrors,
 }: {
   listing: Listing
   q: ListingDetailQuery
   pending: boolean
+  /** The adapter preview's mapping problems for the current version (Review counts them too); null if it could not load. */
+  mappingErrors: readonly ErrorItem[] | null
   /** Open issues on this listing from every source (marketplace, photo and fact checks too). */
   openIssues: number
   issuesState: DetailData['issuesState']
@@ -1155,9 +1174,15 @@ function ValidationCard({
   const detail = q.data?.data
   const { blocking, marketplace } = validationBlocking(v, detail)
   const blockers = detail && needsYourInfo(detail) ? (detail.needs_you_count ?? 0) : 0
+  // A gap both the rules and the mapping report (colour missing) is one problem, as Review counts it.
+  const ruled = new Set(currentFindings(v, listing.current_version_id).findings.map((f) => `${f.field}|${f.error_code}`))
+  const mapping = dedupeFindings((mappingErrors ?? []).filter((e) => e.severity === 'error')).filter(
+    (e) => !ruled.has(`${e.field}|${e.error_code}`),
+  ).length
   const rulesPassed = !!v && v.passed && blocking === 0
-  const clean = rulesPassed && issuesState === 'ready' && openIssues === 0 && !HELD.has(listing.status)
-  const held = rulesPassed && !clean
+  const clean = rulesPassed && mappingErrors != null && mapping === 0 && issuesState === 'ready' && openIssues === 0 && !HELD.has(listing.status)
+  // An unloaded mapping is unknown, not a problem: no green, and no "Needs you" either.
+  const held = rulesPassed && !clean && mappingErrors != null
   return (
     <LaCard className={CARD_FRAME} aria-busy={pending || undefined}>
       <div className="flex items-center justify-between gap-2">
@@ -1198,7 +1223,7 @@ function ValidationCard({
             [
               'Blocking',
               <span key="b" className="tabular-nums" title={`Stages: ${v.stages?.length ?? 0}`} data-testid="validation-blocking">
-                {blocking}
+                {blocking + mapping}
               </span>,
             ],
             ['Warnings', <span key="w" className="tabular-nums">{v.warning_count}</span>],
@@ -1219,7 +1244,16 @@ function ValidationCard({
       ) : (
         <p className="mt-3 text-small text-ink-2">No checks have run on this listing yet.</p>
       )}
-      {!pending && marketplace ? (
+      {!pending && rulesPassed && mapping > 0 ? (
+        <p className="mt-2 text-small text-pretty text-ink-2" data-testid="validation-mapping-note">
+          The rules passed, but {mapping === 1 ? '1 mapping problem blocks' : `${mapping} mapping problems block`} this version. See
+          every check for what to fix.
+        </p>
+      ) : !pending && rulesPassed && mappingErrors == null ? (
+        <p className="mt-2 text-small text-pretty text-ink-2" data-testid="validation-mapping-unknown">
+          The rules passed, but the marketplace mapping could not be loaded. See every check for the details.
+        </p>
+      ) : !pending && marketplace ? (
         <p className="mt-2 text-small text-ink-2" data-testid="validation-marketplace-note">
           The rules passed, but the marketplace check blocks this version. See every check for what to fix.
         </p>
@@ -1244,8 +1278,10 @@ function ValidationCard({
 function ValidationTab({ data }: { data: DetailData }) {
   const ls = data.listingsPending ? [] : listingsIn(data)
   const details = useListingDetails(ls)
+  const previews = useListingPreviews(ls)
   // Cards swap from placeholders to results together, never one by one.
-  const pending = details.some((d) => d.isPending) || data.issuesState === 'pending'
+  const pending =
+    details.some((d) => d.isPending) || previews.some((p) => p.isPending && p.fetchStatus !== 'idle') || data.issuesState === 'pending'
   return (
     <div className="flex flex-col gap-4">
       <Can action="listing:edit">
@@ -1272,6 +1308,7 @@ function ValidationTab({ data }: { data: DetailData }) {
               pending={pending}
               openIssues={data.issuesByListing.get(l.id) ?? 0}
               issuesState={data.issuesState}
+              mappingErrors={previews[i]?.isError ? null : (previews[i]?.data?.report.errors ?? [])}
             />
           ))}
         </div>
