@@ -213,7 +213,7 @@ export function ImportRowsTable({
             {SEGMENTS.map((s) => (
               <TabsTrigger key={s.value} value={s.value} className={SEGMENT}>
                 {s.label}
-                {counts ? <span className={SEGMENT_COUNT}>{counts[s.count].toLocaleString()}</span> : null}
+                {counts ? <span className={SEGMENT_COUNT}>{counts[s.count].toLocaleString('en-IN')}</span> : null}
               </TabsTrigger>
             ))}
           </TabsList>

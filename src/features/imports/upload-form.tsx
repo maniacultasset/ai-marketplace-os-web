@@ -214,7 +214,7 @@ export function UploadForm() {
                       )}
                     </p>
                     <p className="text-xs text-balance text-muted-foreground tabular-nums">
-                      One UTF-8 .csv file, up to 10 MiB and {MAX_IMPORT_ROWS.toLocaleString()} rows.
+                      One UTF-8 .csv file, up to 10 MiB and {MAX_IMPORT_ROWS.toLocaleString('en-IN')} rows.
                     </p>
                   </div>
                 </>

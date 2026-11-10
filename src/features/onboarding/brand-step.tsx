@@ -281,7 +281,7 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
               <LaField
                 label="Brand voice"
                 htmlFor="brand-voice"
-                hint={`How listings should sound, for example “warm and plain, no hype”. The agent writes in this voice. ${fieldLength(draft.tone).toLocaleString()} of ${TONE_MAX.toLocaleString()} characters.`}
+                hint={`How listings should sound, for example “warm and plain, no hype”. The agent writes in this voice. ${fieldLength(draft.tone).toLocaleString('en-IN')} of ${TONE_MAX.toLocaleString('en-IN')} characters.`}
                 error={err('tone')}
                 submitCount={attempts}
                 confirmFix

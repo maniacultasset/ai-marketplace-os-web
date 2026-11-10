@@ -48,7 +48,7 @@ export function validateSendBack(v: SendBackInput): { reason?: string; note?: st
   const note = v.note.trim()
   if (!note) e.note = 'Write what should change.'
   else if (hasStrayControlChars(note)) e.note = CONTROL_MSG
-  else if (codePoints(note) > FEEDBACK_MAX) e.note = `Shorten the note to ${FEEDBACK_MAX.toLocaleString()} characters or fewer.`
+  else if (codePoints(note) > FEEDBACK_MAX) e.note = `Shorten the note to ${FEEDBACK_MAX.toLocaleString('en-IN')} characters or fewer.`
   return e
 }
 
@@ -87,13 +87,13 @@ export function validateEdit(d: EditDraft): Partial<Record<keyof EditDraft, stri
   else if (bullets.some((b) => hasStrayControlChars(b))) e.bullets = CONTROL_MSG
   else {
     const long = bullets.findIndex((b) => codePoints(b) > BULLET_MAX)
-    if (long >= 0) e.bullets = `Shorten bullet ${long + 1} to ${BULLET_MAX.toLocaleString()} characters or fewer.`
+    if (long >= 0) e.bullets = `Shorten bullet ${long + 1} to ${BULLET_MAX.toLocaleString('en-IN')} characters or fewer.`
   }
   const description = d.description.trim()
   if (!description) e.description = 'Write a description.'
   else if (hasStrayControlChars(description)) e.description = CONTROL_MSG
   else if (codePoints(description) > DESCRIPTION_MAX)
-    e.description = `Shorten the description to ${DESCRIPTION_MAX.toLocaleString()} characters or fewer.`
+    e.description = `Shorten the description to ${DESCRIPTION_MAX.toLocaleString('en-IN')} characters or fewer.`
   return e
 }
 

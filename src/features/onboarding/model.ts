@@ -22,7 +22,7 @@ export function activeAccounts(accounts: readonly (Account | null | undefined)[]
 
 /** "10:32" in the viewer's locale, for "Saved automatically · 10:32". */
 export function savedClock(d: Date): string {
-  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
 }
 
 /**

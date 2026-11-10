@@ -66,7 +66,7 @@ function Counter({ value, max }: { value: number; max: number }) {
   const over = value > max
   return (
     <span className={cn('text-xs tabular-nums', over ? 'font-medium text-destructive' : 'text-muted-foreground')}>
-      {value.toLocaleString()} / {max.toLocaleString()}
+      {value.toLocaleString('en-IN')} / {max.toLocaleString('en-IN')}
     </span>
   )
 }

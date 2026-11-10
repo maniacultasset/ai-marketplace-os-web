@@ -404,7 +404,7 @@ function FieldBlock({
         </div>
         {counter ? (
           <span className={cn('text-xs tabular-nums', counter.value > counter.max ? 'text-destructive' : 'text-muted-foreground')}>
-            {counter.value.toLocaleString()} / {counter.max.toLocaleString()}
+            {counter.value.toLocaleString('en-IN')} / {counter.max.toLocaleString('en-IN')}
           </span>
         ) : null}
       </div>

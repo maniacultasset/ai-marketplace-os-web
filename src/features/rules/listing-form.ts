@@ -50,7 +50,7 @@ const nonBlank = (max: number, label: string, what = `the ${label.toLowerCase()}
     const fail = (message: string) => ctx.addIssue({ code: 'custom', message })
     if (!s.trim()) return fail(`${label} can't be blank.`)
     if (hasStrayControlChars(s)) return fail(CONTROL_MSG)
-    if (charCount(s) > max) fail(`Shorten ${what} to ${max.toLocaleString()} characters or fewer.`)
+    if (charCount(s) > max) fail(`Shorten ${what} to ${max.toLocaleString('en-IN')} characters or fewer.`)
   })
 
 /**

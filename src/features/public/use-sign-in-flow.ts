@@ -15,7 +15,7 @@ import { toast } from '@/lib/toast'
 /** "20 Nov 2026" for the grace notice. */
 function graceDate(iso: string): string {
   const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 export interface SignInFlow {

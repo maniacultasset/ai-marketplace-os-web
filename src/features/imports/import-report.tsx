@@ -324,7 +324,7 @@ function Stat({
           )}
           data-testid={testId}
         >
-          {value.toLocaleString()}
+          {value.toLocaleString('en-IN')}
         </p>
       )}
     </div>

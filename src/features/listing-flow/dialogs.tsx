@@ -132,7 +132,7 @@ export function SendBackDialog({
             label="Note"
             htmlFor="sendback-note"
             error={errors.note}
-            hint={`${codePoints(v.note.trim()).toLocaleString()} / ${FEEDBACK_MAX.toLocaleString()}`}
+            hint={`${codePoints(v.note.trim()).toLocaleString('en-IN')} / ${FEEDBACK_MAX.toLocaleString('en-IN')}`}
             submitCount={submits} confirmFix
           >
             <Textarea
@@ -247,8 +247,8 @@ export function EditDialog({
             error={errors.title}
             hint={
               titleLimit
-                ? `${codePoints(d.title.trim()).toLocaleString()} / ${titleLimit.toLocaleString()} (${mp} limit)`
-                : `${codePoints(d.title.trim()).toLocaleString()} / ${TITLE_MAX.toLocaleString()}`
+                ? `${codePoints(d.title.trim()).toLocaleString('en-IN')} / ${titleLimit.toLocaleString('en-IN')} (${mp} limit)`
+                : `${codePoints(d.title.trim()).toLocaleString('en-IN')} / ${TITLE_MAX.toLocaleString('en-IN')}`
             }
             submitCount={submits} confirmFix
           >
@@ -291,7 +291,7 @@ export function EditDialog({
             label="Description"
             htmlFor="edit-description"
             error={errors.description}
-            hint={`${codePoints(d.description.trim()).toLocaleString()} / ${DESCRIPTION_MAX.toLocaleString()}`}
+            hint={`${codePoints(d.description.trim()).toLocaleString('en-IN')} / ${DESCRIPTION_MAX.toLocaleString('en-IN')}`}
             submitCount={submits} confirmFix
           >
             <Textarea

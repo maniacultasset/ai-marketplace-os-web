@@ -79,7 +79,7 @@ export function RulesTable({
   const meta =
     list.isPending || (list.isError && !list.data)
       ? null
-      : `${n.toLocaleString()}${list.hasNextPage ? '+' : ''} rule${n === 1 && !list.hasNextPage ? '' : 's'}`
+      : `${n.toLocaleString('en-IN')}${list.hasNextPage ? '+' : ''} rule${n === 1 && !list.hasNextPage ? '' : 's'}`
   return (
     <DataTable
       label="Rules"
