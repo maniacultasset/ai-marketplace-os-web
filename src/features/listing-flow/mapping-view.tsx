@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { recallJob } from '@/features/listings/job-memory'
 import type { ListingDetail } from '@/features/listings/model'
 import { listingChip } from '@/lib/listing-chip'
+import { useChipContext } from './publishing'
 import { cn } from '@/lib/utils'
 import { STICKY_ASIDE } from '@/components/app/split-layout'
 import { categoryLabel, clock, fieldLabel, findingText, mpName, sentenceCase } from './format'
@@ -74,7 +75,7 @@ function MappingBody({ checks, listing }: { checks: ReturnType<typeof useListing
   const needs = findings.filter(needsYou)
   const previewNeeds = previewErrors.filter(needsYou)
   const fieldName = (f: (typeof all)[number]) => fieldLabel(f.field)
-  const chip = listingChip(listing)
+  const chip = listingChip(listing, useChipContext())
   const busy = listing.status === 'generating' || listing.status === 'publishing'
   const runJob = busy ? recallJob(listing.id) : null
 

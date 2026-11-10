@@ -36,6 +36,7 @@ import { useListingResolution } from '@/features/listing-flow/api'
 import type { FixContext } from '@/features/listing-flow/lanes'
 import { ScreenHead } from '@/features/listing-flow/ui'
 import { useProduct } from '@/features/products/api'
+import { useChipContext } from '@/features/listing-flow/publishing'
 import { listingChip } from '@/lib/listing-chip'
 import { useCan } from '@/lib/permissions'
 import { supportMailto } from '@/lib/support'
@@ -86,6 +87,7 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
   const submissions = useListingSubmissions(listingId)
   const resolution = useListingResolution(listingId, { enabled: listing.data?.data.marketplace === 'amazon' })
   const can = useCan()
+  const chipCtx = useChipContext()
 
   if (issues.isPending) return <DetailSkeleton />
   if (issues.isError)
@@ -110,7 +112,7 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
   // Only once the attempts have loaded: the banner lands with them, in the same paint.
   const stopped = submissions.isPending ? null : retriesStopped(submissions.rows, issue)
   const marketplace = MARKETPLACE_LABEL[issue.marketplace]
-  const chip = l ? listingChip(l) : null
+  const chip = l ? listingChip(l, chipCtx) : null
   // The head paints once: title, SKU line and chip together. Until the listing (and then its
   // product) has answered, each slot holds a skeleton of its own size. "<Marketplace> listing"
   // is only the fallback when one of those reads failed.

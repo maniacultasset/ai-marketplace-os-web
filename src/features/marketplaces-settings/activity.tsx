@@ -25,6 +25,7 @@ import { historyLabel, historyReason, type Listing } from '@/features/listings/m
 import { mpName } from '@/features/listing-flow/format'
 import { formatDateTime, formatRelative } from '@/features/marketplaces/format'
 import { useMe } from '@/lib/auth'
+import { useChipContext } from '@/features/listing-flow/publishing'
 import { listingChip } from '@/lib/listing-chip'
 import { auditActorLabel, mergeActivity, submissionEvents, type ActivityEvent } from './model'
 
@@ -105,11 +106,11 @@ export function ActivityView() {
  * narrow for four columns) it wraps, product first.
  */
 const ROW =
-  'flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5 lg:grid lg:grid-cols-[8rem_minmax(0,1fr)_9rem_auto] lg:items-center'
+  'flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5 lg:grid lg:grid-cols-[8rem_minmax(0,1fr)_13rem_auto] lg:items-center'
 
 function ListingActivityRow({ listing }: { listing: Listing }) {
   const [open, setOpen] = useState(false)
-  const chip = listingChip(listing)
+  const chip = listingChip(listing, useChipContext())
   const panelId = `history-${listing.id}`
   return (
     <li className="border-b border-line last:border-b-0" data-testid="activity-listing">

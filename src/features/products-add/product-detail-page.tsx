@@ -81,6 +81,7 @@ import { ProductThumb } from './products-page'
 import { marketplaceLink } from '@/features/listings/external-link'
 import { recategorizeState } from '@/features/products/recategorize'
 import { ChangeCategoryButton } from '@/features/products/recategorize-dialog'
+import { useChipContext } from '@/features/listing-flow/publishing'
 import { isNotBuyable, NOT_BUYABLE_NEXT, needsYourInfo, needsYourInfoLabel } from '@/lib/listing-chip'
 
 const TAB_LABEL: Record<DetailTab, string> = {
@@ -351,7 +352,7 @@ function LoadedDetail({ data, tab, tabsRef }: { data: DetailData; tab: DetailTab
   const editing = session.editing
   const p = data.product
   const refreshViews = useRefreshProductViews(productId)
-  const overall = OVERALL_CHIP[overallStatus(Object.values(data.listings))]
+  const overall = OVERALL_CHIP[overallStatus(Object.values(data.listings), useChipContext())]
   // The header's one primary action: the first listing a person has to look at, if any.
   const review = data.listingsPending || data.listingsFailed ? undefined : listingsIn(data).find(needsReview)
   const setTab = (t: string) =>
@@ -669,6 +670,7 @@ function MarketplaceCard({
   /** Connected marketplaces; null while loading. Flipkart drafts wait for a connection. */
   connected: readonly Marketplace[] | null
 }) {
+  const chipCtx = useChipContext()
   const id = m.id as Marketplace
   // Chip, issues and actions land together.
   if (data.listingsPending || data.issuesState === 'pending' || data.autoFixPending) return <PendingMarketplaceCard m={m} detailed={detailed} />
@@ -714,7 +716,7 @@ function MarketplaceCard({
       </DashedCard>
     )
   }
-  const chip = cellChip(l)
+  const chip = cellChip(l, chipCtx)
   // The blockers: the open issues, or the server's count when it is higher (its issues of the
   // current version). A block with none still says why (prod QA 9 Nov, item 23: "Blocked · 0 open
   // issues").
@@ -1085,6 +1087,7 @@ function NoListings({ data }: { data: DetailData }) {
 }
 
 function ContentTab({ data }: { data: DetailData }) {
+  const chipCtx = useChipContext()
   const ls = listingsIn(data)
   if (data.listingsPending) return <TabCardsSkeleton />
   if (data.listingsFailed) return <ListingsFailed data={data} />
@@ -1094,7 +1097,7 @@ function ContentTab({ data }: { data: DetailData }) {
       <p className="text-small text-ink-2">Title, bullets and description are written per marketplace and reviewed before anything is sent.</p>
       <div className="grid gap-4 md:grid-cols-2">
         {ls.map((l) => {
-          const chip = cellChip(l)
+          const chip = cellChip(l, chipCtx)
           return (
             <LaCard key={l.id} className={CARD_FRAME}>
               <div className="flex items-center justify-between gap-2">

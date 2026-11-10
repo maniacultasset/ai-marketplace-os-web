@@ -33,6 +33,7 @@ import { clock, mpName } from './format'
 import { plural } from './gates'
 import { ListOnButton } from './list-on'
 import { liveProof, maskId, type Proof } from './proof'
+import { notSentHero, usePublishGate } from './publishing'
 import { hasResolution, resolutionView } from './resolution-model'
 import { ResolutionActionLink, ResolutionCard, ResolutionSkeleton } from './resolution-timeline'
 import { CardSkeleton, KeyValues, Timeline, TimelineItem, type DotTone } from './ui'
@@ -79,7 +80,8 @@ const HERO: Record<Proof['state'], { tone: 'success' | 'danger' | 'neutral' }> =
   'not-sent': { tone: 'neutral' },
 }
 
-function heroCopy(p: Proof, title: string, mp: string): { title: string; line: string } {
+/** `pause`: Amazon publishing is switched off (usePublishGate); see notSentHero. */
+function heroCopy(p: Proof, title: string, mp: string, pause?: { paused: boolean; approved: boolean }): { title: string; line: string } {
   switch (p.state) {
     case 'live':
       return {
@@ -103,7 +105,7 @@ function heroCopy(p: Proof, title: string, mp: string): { title: string; line: s
     case 'problem':
       return { title: `${title} is not live on ${mp}`, line: `${mp} reports: ${MARKETPLACE_STATE_META[p.marketplaceState].label.toLowerCase()}. Open the checks to see why.` }
     case 'not-sent':
-      return { title: `${title} has not been sent to ${mp}`, line: 'It goes out after a person approves it and it is published.' }
+      return notSentHero(title, mp, pause)
   }
 }
 
@@ -125,7 +127,11 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
 
   const proof = liveProof(listing, status.data, subs.rows)
   const title = product.data?.title ?? 'This product'
-  const hero = heroCopy(proof, title, mp)
+  // Amazon publishing switched off: nothing here says the listing goes out or offers to send it.
+  const { paused } = usePublishGate(listing.marketplace)
+  const approvedPaused = paused && listing.status === 'approved'
+  const hero = heroCopy(proof, title, mp, { paused, approved: listing.status === 'approved' })
+  // Only "Check status now" is read here: it asks the marketplace, it sends nothing.
   const actions = listingActions({ listing, validation: listing.validation, can, publishBuilt: BUILT['listings.publish'] })
 
   // The design's toast: once, when this page watches the listing turn live with proof.
@@ -191,8 +197,8 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
           ) : null}
           {proof.state === 'not-sent' ? (
             <Button variant="secondary" asChild>
-              <Link to="/listings/$listingId/review" params={{ listingId: listing.id }}>
-                Review and approve
+              <Link to="/listings/$listingId/review" params={{ listingId: listing.id }} data-testid="live-open-review">
+                {approvedPaused ? 'Open the listing' : 'Review and approve'}
               </Link>
             </Button>
           ) : null}
@@ -277,7 +283,7 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
               ]}
             />
           )}
-          {proof.state !== 'live' && runJob && (listing.status === 'publishing' || listing.status === 'approved') ? (
+          {proof.state !== 'live' && runJob && (listing.status === 'publishing' || (listing.status === 'approved' && !paused)) ? (
             <Button variant="link" size="sm" className="mt-3" asChild>
               <Link to="/runs/$runId" params={{ runId: runJob }}>
                 Watch the publish run
@@ -350,11 +356,12 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
 function WhatKuinnDid({ listing, marketplaceState }: { listing: ListingDetail; marketplaceState: ListingDetail['marketplace_state'] }) {
   const amazon = listing.marketplace === 'amazon'
   const q = useListingResolution(listing.id, { enabled: amazon })
+  const { paused } = usePublishGate(listing.marketplace)
   if (!amazon) return null
   if (q.isPending) return <ResolutionSkeleton />
   if (!q.data || !hasResolution(q.data)) return null
   // The same (fresher) state the hero uses, so the two cards never disagree after a status check.
-  const view = resolutionView(q.data, { marketplace: listing.marketplace, marketplaceState })
+  const view = resolutionView(q.data, { marketplace: listing.marketplace, marketplaceState, publishingPaused: paused })
   return (
     <ResolutionCard
       view={view}

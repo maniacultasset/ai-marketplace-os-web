@@ -20,6 +20,7 @@ import { useListingResolution } from '@/features/listing-flow/api'
 import { AnswerCard, AnswerResult, type AnswerOutcome } from '@/features/photo-facts/answer-card'
 import { factKey, isBlockingTask, isPhotoQuestion, taskImageId } from '@/features/photo-facts/answer-spec'
 import { fieldLabel } from '@/features/listing-flow/format'
+import { usePublishGate } from '@/features/listing-flow/publishing'
 import { SavedPhoto } from '@/components/la/saved-photo'
 import { useRefreshProductViews } from '@/features/products/image-views'
 import { factLabel } from '@/features/photo-facts/model'
@@ -225,7 +226,9 @@ function TaskDetail({
   const account = isAccountReviewTask(task)
   const identifier = isIdentifierTask(task)
   // An answer to a question behind a marketplace refusal goes into a new version by itself.
-  const refusal = linked.some((i) => ADAPTER_SOURCES.has(i.source))
+  const refusal = linked.find((i) => ADAPTER_SOURCES.has(i.source))
+  // Amazon publishing switched off: the new version is approved, never resent.
+  const { paused: publishingPaused } = usePublishGate(refusal?.marketplace ?? '')
   // The photo the question is about. Its frame is held from the first paint (the id is on the task),
   // so the picture fades in once the product read lands, with nothing moving.
   const imageId = task.product_id ? taskImageId(task) : null
@@ -290,7 +293,9 @@ function TaskDetail({
                 : identifier
                 ? 'This holds your listing back. Regenerate the listing after you add it.'
                 : fact && refusal
-                  ? 'Kuinn adds your answer to a new version and checks it. A teammate then approves the resend.'
+                  ? publishingPaused
+                    ? 'Kuinn adds your answer to a new version and checks it. A teammate then approves it. Publishing to Amazon is paused for now.'
+                    : 'Kuinn adds your answer to a new version and checks it. A teammate then approves the resend.'
                   : fact
                     ? `${photo ? 'This holds your listing back. ' : ''}Regenerate the listing after you answer to use it.`
                     : `The agent resumes from ${RESUME_LABEL[task.resume_from]} once this is answered.`}
@@ -301,7 +306,7 @@ function TaskDetail({
         <AnswerResult
           outcome={outcome}
           next={next}
-          auto={!!fact && refusal}
+          auto={!!fact && !!refusal}
           regenerate={task.product_id ? <RegenerateListings productId={task.product_id} /> : undefined}
         />
       ) : open && fact && onOutcome ? (

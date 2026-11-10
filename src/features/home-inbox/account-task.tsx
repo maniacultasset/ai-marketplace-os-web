@@ -22,6 +22,7 @@ import { Icon } from '@/components/la/icons'
 import { ErrorState } from '@/components/states/error-state'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { usePublishGate } from '@/features/listing-flow/publishing'
 import { accountTaskHelp, issueHeadline, issuesByListing, MARKETPLACE_LABEL, type AccountReviewKind, type Issue, type Task } from '@/features/inbox/model'
 import { listingDetailQuery } from '@/features/listings/api'
 import { RegenerateAction } from '@/features/listings/regenerate-action'
@@ -40,6 +41,7 @@ export function AccountTask({ task, kind, remaining }: { task: Task; kind: Accou
   // Every listing is read before the pane paints, so the blocks land together.
   const listings = useQueries({ queries: groups.map((g) => listingDetailQuery(keys, g.listingId)) })
   const marketplace = groups[0]?.issues[0]?.marketplace ?? null
+  const { paused } = usePublishGate(marketplace ?? '')
 
   if (issues.isPending || listings.some((l) => l.isPending))
     return (
@@ -53,7 +55,7 @@ export function AccountTask({ task, kind, remaining }: { task: Task; kind: Accou
   return (
     <div className="flex flex-col gap-4" data-testid="account-task">
       <Banner tone="attention" icon={kind === 'permission_decision' ? 'lock' : 'alert'}>
-        <span data-testid="account-task-help">{accountTaskHelp(kind, marketplace)}</span>
+        <span data-testid="account-task-help">{accountTaskHelp(kind, marketplace, paused)}</span>
       </Banner>
 
       {groups.length ? (
