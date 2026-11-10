@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  COUNTRIES,
   countryName,
   countryProblem,
   emptyPackage,
@@ -70,5 +71,16 @@ describe('country', () => {
     expect(countryProblem('IND')).toMatch(/Choose a country/)
     expect(countryName('in')).toBe('India')
     expect(countryName('ZZ')).toBe('ZZ')
+  })
+
+  it('offers every assigned ISO 3166 code once, India first, and refuses an unassigned one', () => {
+    expect(COUNTRIES).toHaveLength(249)
+    expect(new Set(COUNTRIES.map((c) => c.code)).size).toBe(249)
+    expect(COUNTRIES[0]).toEqual({ code: 'IN', name: 'India' })
+    const rest = COUNTRIES.slice(1).map((c) => c.name)
+    expect(rest).toEqual([...rest].sort((a, b) => a.localeCompare(b, 'en')))
+    expect(countryName('fr')).toBe('France')
+    expect(countryProblem('fr')).toBeNull()
+    for (const bad of ['XX', 'UK', 'EU']) expect(countryProblem(bad)).toMatch(/Choose a country/)
   })
 })

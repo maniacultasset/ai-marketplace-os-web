@@ -7,9 +7,13 @@
  * - HSN: 4, 6 or 8 digits.
  * - Package: length, breadth and height in cm are sent together (all set or all empty), each above 0,
  *   at most 99999.99 and at most 2 decimals; the weight is whole grams, 1 to 2,000,000.
- * - Country: a two-letter ISO code, upper-cased.
+ * - Country: an assigned ISO 3166-1 alpha-2 code (`./countries`), upper-cased.
  */
 import type { Schema } from '@/api/types'
+
+import { COUNTRIES, COUNTRY_CODES } from './countries'
+
+export { COUNTRIES }
 
 export type PackageIn = Schema<'PackageIn'>
 export type PackageOut = Schema<'PackageOut'>
@@ -140,25 +144,6 @@ export function packageText(p: PackageOut | null | undefined): string {
 
 /* ------------------------------------------------------------------------------------- Country */
 
-/** The countries garments sold in India most often come from, India first. */
-export const COUNTRIES: readonly { code: string; name: string }[] = [
-  { code: 'IN', name: 'India' },
-  { code: 'BD', name: 'Bangladesh' },
-  { code: 'CN', name: 'China' },
-  { code: 'LK', name: 'Sri Lanka' },
-  { code: 'NP', name: 'Nepal' },
-  { code: 'VN', name: 'Vietnam' },
-  { code: 'TR', name: 'Turkey' },
-  { code: 'ID', name: 'Indonesia' },
-  { code: 'TH', name: 'Thailand' },
-  { code: 'KH', name: 'Cambodia' },
-  { code: 'PK', name: 'Pakistan' },
-  { code: 'IT', name: 'Italy' },
-  { code: 'PT', name: 'Portugal' },
-  { code: 'US', name: 'United States' },
-  { code: 'GB', name: 'United Kingdom' },
-]
-
 export const countryName = (code: string | null | undefined): string => {
   if (!code) return ''
   const up = code.toUpperCase()
@@ -168,7 +153,7 @@ export const countryName = (code: string | null | undefined): string => {
 export function countryProblem(raw: string): string | null {
   const v = raw.trim()
   if (!v) return null
-  return /^[A-Za-z]{2}$/.test(v) ? null : 'Choose a country from the list.'
+  return /^[A-Za-z]{2}$/.test(v) && COUNTRY_CODES.has(v.toUpperCase()) ? null : 'Choose a country from the list.'
 }
 
 export const normalizeCountry = (raw: string) => raw.trim().toUpperCase()
