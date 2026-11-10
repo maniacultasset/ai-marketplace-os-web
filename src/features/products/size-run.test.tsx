@@ -66,6 +66,9 @@ describe('size run rules (V1.1)', () => {
     expect(sizeRunErrorMessage(err('LISTING_BUSY'))).toMatch(/being written/)
     expect(sizeRunErrorMessage(err('VARIATION_INVALID', 'product_identifier'))).toMatch(/barcode/)
     expect(sizeRunErrorMessage(err('VALIDATION_FAILED', 'size_chart'))).toMatch(/Save the size chart/)
+    const bad = (loc: (string | number)[]) => new ApiError({ type: 'VALIDATION_FAILED', status: 422, message: 'm', details: [{ loc, msg: 'x' } as never] })
+    expect(sizeRunErrorMessage(bad(['body', 'sizes']))).toMatch(/at most 40 sizes/)
+    expect(sizeRunErrorMessage(bad(['body', 'sizes', 1]))).toMatch(/not on the saved size chart/)
   })
 })
 

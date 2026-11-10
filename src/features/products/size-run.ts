@@ -76,6 +76,8 @@ export function sizeRunPlan(p: PlanInput): SizeRunPlan | null {
 
 const locOf = (err: { details: readonly { loc?: unknown }[] }) => JSON.stringify(err.details.map((d) => d.loc ?? ''))
 
+const lastLoc = (loc: unknown): unknown => (Array.isArray(loc) ? loc[loc.length - 1] : loc)
+
 /** The words for a refused size run. */
 export function sizeRunErrorMessage(err: unknown): string {
   if (isApiError(err)) {
@@ -91,6 +93,10 @@ export function sizeRunErrorMessage(err: unknown): string {
     }
     if (err.type === 'VALIDATION_FAILED' && loc.includes('size_chart')) return 'Save the size chart first, then make the size variants.'
     if (err.type === 'VALIDATION_FAILED' && loc.includes('category')) return 'Choose a category first, then make the size variants.'
+    if (err.type === 'VALIDATION_FAILED' && err.details.some((d) => lastLoc(d.loc) === 'sizes'))
+      return 'A style can have at most 40 sizes. Untick some sizes and try again.'
+    if (err.type === 'VALIDATION_FAILED' && err.details.some((d) => typeof lastLoc(d.loc) === 'number'))
+      return 'One of these sizes is not on the saved size chart. Save the chart again, then try.'
   }
   return describeError(err)
 }
