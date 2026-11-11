@@ -42,7 +42,7 @@ import { cn } from '@/lib/utils'
 import { decimal, digitsOnly, filterInput, focusFirstInvalid } from '@/lib/validation'
 import { useAllProducts } from './catalog'
 import type { Marketplace } from './catalog-model'
-import { serializeListOn } from './list-on'
+import { serializeListOn, useConnectedMarketplaces } from './list-on'
 import {
   addTag,
   buildFamilyCsv,
@@ -553,6 +553,10 @@ export function VariantsPage({ productId, listOn = [] }: { productId: string | n
 
 function VariantsEditor({ productId, listOn }: { productId: string; listOn: Marketplace[] }) {
   const on = serializeListOn(listOn)
+  const { connected } = useConnectedMarketplaces()
+  // Amazon is a target when the add flow chose it; opened from the product page (no `?on=`),
+  // when the tenant's Amazon account is connected, as the product page's "Sell on" works it out.
+  const amazon = listOn.length ? listOn.includes('amazon') : !!connected?.includes('amazon')
   const navigate = useNavigate()
   const q = useProduct(productId)
   const all = useAllProducts()
@@ -852,21 +856,26 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
             <div className="flex flex-col gap-2 border-t border-line px-4 py-3" data-testid="variants-barcodes">
               <p className="text-small font-bold text-ink">
                 Barcodes
-                {listOn.includes('amazon') ? <RequiredMark text="Needed for Amazon" /> : null}
+                {amazon ? <RequiredMark text="Needed for Amazon" /> : null}
               </p>
               <BarcodeChoice
                 id="v-barcode"
                 testId="variants"
                 level="style"
                 label="Barcodes"
+                amazon={amazon}
                 exempt={s.exempt}
                 onChange={(exempt) => change({ exempt })}
                 describedBy="v-exempt-hint"
               />
               <p id="v-exempt-hint" className="text-caption text-ink-3">
                 {s.exempt
-                  ? `Variants left blank are marked exempt. ${EXEMPT_EXPLAINER}`
-                  : `${BARCODE_FORMATS} Amazon needs one for each variant unless your brand has a GTIN exemption.`}
+                  ? amazon
+                    ? `Variants left blank are marked exempt. ${EXEMPT_EXPLAINER}`
+                    : 'Variants left blank are saved without a barcode.'
+                  : amazon
+                    ? `${BARCODE_FORMATS} Amazon needs one for each variant unless your brand has a GTIN exemption.`
+                    : BARCODE_FORMATS}
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-2.5">

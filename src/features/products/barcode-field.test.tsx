@@ -34,7 +34,7 @@ describe('BarcodeField', () => {
     expect(screen.getByLabelText('Barcode type').textContent).toContain('EAN')
     fireEvent.change(input, { target: { value: '4006381333931' } })
     expect(last).toEqual({ type: 'ean', value: '4006381333931', exempt: false })
-    expect(screen.getByText(/GTIN-8, 12, 13 or 14.*Amazon needs one unless your brand has a GTIN exemption/)).toBeTruthy()
+    expect(screen.getByText('GTIN-8, 12, 13 or 14: an EAN, UPC or GTIN from the pack.')).toBeTruthy()
   })
 
   it('offers "Has a barcode" or the exemption as two explicit options', () => {

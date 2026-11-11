@@ -58,7 +58,7 @@ describe('identifierMissing', () => {
 
 describe('IdentifierFix (review screen, Identity gate)', () => {
   it('says the plain reason and opens the product at the barcode choice', () => {
-    render(<IdentifierFix gate={identity([missing('facts.identifier')])} productId="p1" marketplace="amazon" canEdit />)
+    render(<IdentifierFix gate={identity([missing('facts.identifier')])} productId="p1" marketplace="amazon" canEdit canEditVariants />)
     expect(screen.getByTestId('identity-fix').textContent).toContain(
       'Amazon needs a barcode (EAN, UPC or GTIN) to create this listing, or a GTIN exemption if Amazon approved one for your brand.',
     )
@@ -68,18 +68,30 @@ describe('IdentifierFix (review screen, Identity gate)', () => {
 
   it('names up to three variant SKUs and counts the rest', () => {
     const skus = ['A-S', 'A-M', 'A-L', 'A-XL', 'A-XXL']
-    render(<IdentifierFix gate={identity(skus.map((s) => missing(`variants[${s}].facts.identifier`, s)))} productId="p1" marketplace="amazon" canEdit />)
+    render(<IdentifierFix gate={identity(skus.map((s) => missing(`variants[${s}].facts.identifier`, s)))} productId="p1" marketplace="amazon" canEdit canEditVariants />)
     expect(screen.getByTestId('identity-fix').textContent).toContain('Missing on A-S, A-M, A-L and 2 more.')
   })
 
+  it('for variants opens the variants step, where each variant has its barcode cell', () => {
+    render(<IdentifierFix gate={identity([missing('variants[KS-1-M].facts.identifier', 'KS-1-M')])} productId="p1" marketplace="amazon" canEdit canEditVariants />)
+    const action = screen.getByRole('link', { name: 'Add barcodes or exemption' })
+    expect(action.getAttribute('href')).toBe('/add/variants?product=p1&on=amazon')
+  })
+
+  it('for variants offers no action to someone who cannot change variants', () => {
+    render(<IdentifierFix gate={identity([missing('variants[KS-1-M].facts.identifier', 'KS-1-M')])} productId="p1" marketplace="amazon" canEdit canEditVariants={false} />)
+    expect(screen.getByTestId('identity-fix').textContent).toContain('Missing on KS-1-M.')
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
   it('keeps the reason but offers no action to someone who cannot edit products', () => {
-    render(<IdentifierFix gate={identity([missing('facts.identifier')])} productId="p1" marketplace="amazon" canEdit={false} />)
+    render(<IdentifierFix gate={identity([missing('facts.identifier')])} productId="p1" marketplace="amazon" canEdit={false} canEditVariants={false} />)
     expect(screen.getByTestId('identity-fix')).toBeTruthy()
     expect(screen.queryByRole('link')).toBeNull()
   })
 
   it('renders nothing when the Identity gate is not blocked by a missing barcode', () => {
-    const { container } = render(<IdentifierFix gate={identity([])} productId="p1" marketplace="amazon" canEdit />)
+    const { container } = render(<IdentifierFix gate={identity([])} productId="p1" marketplace="amazon" canEdit canEditVariants />)
     expect(container.innerHTML).toBe('')
   })
 })

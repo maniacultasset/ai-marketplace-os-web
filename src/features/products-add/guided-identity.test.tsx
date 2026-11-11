@@ -86,9 +86,13 @@ describe('Guided form identity: required marks and the barcode', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('has no Amazon mark when only Flipkart is chosen', () => {
+  it('has no Amazon mark or Amazon wording when only Flipkart is chosen', async () => {
     setup(['flipkart'])
     expect(labelOf('g-barcode-value').querySelector('[data-slot="field-required"]')).toBeNull()
+    expect(document.getElementById('g-barcode-value-hint')!.textContent).not.toMatch(/Amazon/)
+    await userEvent.click(screen.getByRole('radio', { name: 'No barcode' }))
+    expect(document.getElementById('g-barcode-choice-hint')!.textContent).toBe('Saved without a barcode.')
+    expect(screen.getByTestId('g-barcode-field').textContent).not.toMatch(/Amazon/)
   })
 
   it('offers the exemption as an explicit choice next to the barcode', async () => {

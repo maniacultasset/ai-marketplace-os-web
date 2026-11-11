@@ -1,7 +1,10 @@
 /**
- * The Identity gate's fix for a missing barcode: the plain reason and one action that opens the
- * product's editor at the barcode choice (`/products/$productId?edit=barcode`). Amazon's rule
- * stays: a create needs a barcode or a GTIN exemption the brand was approved for.
+ * The Identity gate's fix for a missing barcode: the plain reason and one action. For the product
+ * itself it opens the product's editor at the barcode choice (`/products/$productId?edit=barcode`).
+ * When the gate names variants, it opens the variants step for the style (`/add/variants`), where
+ * each variant's barcode cell and the style's exemption choice both are: the style editor has
+ * only the exemption choice. Amazon's rule stays: a create needs a barcode or a GTIN exemption
+ * the brand was approved for.
  */
 import { Link } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
@@ -15,12 +18,15 @@ export function IdentifierFix({
   productId,
   marketplace,
   canEdit,
+  canEditVariants,
 }: {
   gate: Pick<GateResult, 'state' | 'findings'> | undefined
   productId: string
   marketplace: string
   /** The person may edit products: the action shows only then (the reason always shows). */
   canEdit: boolean
+  /** The person may change variants (the variants step): the variant action shows only then. */
+  canEditVariants: boolean
 }) {
   const missing = identifierMissing(gate)
   if (!missing) return null
@@ -41,7 +47,15 @@ export function IdentifierFix({
           </>
         ) : null}
       </span>
-      {canEdit ? (
+      {skus.length ? (
+        canEditVariants ? (
+          <Button size="sm" variant="secondary" asChild>
+            <Link to="/add/variants" search={{ product: productId, on: marketplace }} data-testid="identity-fix-action">
+              Add barcodes or exemption
+            </Link>
+          </Button>
+        ) : null
+      ) : canEdit ? (
         <Button size="sm" variant="secondary" asChild>
           <Link to="/products/$productId" params={{ productId }} search={{ edit: 'barcode' }} data-testid="identity-fix-action">
             Add barcode or exemption

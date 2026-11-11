@@ -1024,7 +1024,7 @@ function GatesCard({
                         </>
                       ) : null}
                       {g.id === 'identity' ? (
-                        <IdentifierFix gate={g} productId={listing.product_id} marketplace={listing.marketplace} canEdit={can(OP_ACTION['PATCH /products/{product_id}'])} />
+                        <IdentifierFix gate={g} productId={listing.product_id} marketplace={listing.marketplace} canEdit={can(OP_ACTION['PATCH /products/{product_id}'])} canEditVariants={can('product:import')} />
                       ) : null}
                     </span>
                   </li>

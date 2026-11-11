@@ -1,7 +1,7 @@
 /**
  * The barcode field, shared by the guided form and the product editor: an explicit choice between
  * "Has a barcode" (a type, EAN, UPC or GTIN, and the digits) and "No barcode: my brand has an
- * Amazon GTIN exemption". On a style only the exemption choice shows, since each variant carries
+ * Amazon GTIN exemption" (just "No barcode" when Amazon is not chosen). On a style only the exemption choice shows, since each variant carries
  * its own barcode and the style's exemption reaches every variant without one.
  *
  * `amazon`: Amazon is one of the marketplaces chosen for this product. Amazon refuses to create a
@@ -24,13 +24,25 @@ export const BARCODE_FORMATS = 'GTIN-8, 12, 13 or 14: an EAN, UPC or GTIN from t
 /** One line on how exemptions work (Amazon's Brand Registry exemption, per brand and category). */
 export const EXEMPT_EXPLAINER = 'Amazon approves GTIN exemptions per brand and category. Choose this only if yours is approved.'
 
-const ITEM_HINT = `${BARCODE_FORMATS} Amazon needs one unless your brand has a GTIN exemption.`
+const ITEM_HINT = BARCODE_FORMATS
 const ITEM_HINT_AMAZON = `${BARCODE_FORMATS} Amazon needs one to create the listing.`
 const STYLE_HINT = 'Each variant has its own barcode. Add them on each variant, or choose the exemption for every variant without one.'
+const STYLE_HINT_PLAIN = 'Each variant has its own barcode. Add them on each variant, or choose no barcodes for every variant without one.'
 const STYLE_EXEMPT_HINT = `Every variant without a barcode is marked exempt. ${EXEMPT_EXPLAINER}`
+/** Without Amazon the exemption is just "no barcode": no marketplace rule to explain. */
+const ITEM_EXEMPT_PLAIN = 'Saved without a barcode.'
+const STYLE_EXEMPT_PLAIN = 'Every variant without a barcode is saved without one.'
 
 const HAS_BARCODE = { item: 'Has a barcode', style: 'Variants have barcodes' } as const
 const NO_BARCODE = { item: 'No barcode: my brand has an Amazon GTIN exemption', style: 'No barcodes: my brand has an Amazon GTIN exemption' } as const
+const NO_BARCODE_PLAIN = { item: 'No barcode', style: 'No barcodes' } as const
+
+/** The field's hint: Amazon's rule only when Amazon is a chosen marketplace. */
+export function barcodeHint({ exempt, style, amazon }: { exempt: boolean; style: boolean; amazon: boolean }): string {
+  if (exempt) return style ? (amazon ? STYLE_EXEMPT_HINT : STYLE_EXEMPT_PLAIN) : amazon ? EXEMPT_EXPLAINER : ITEM_EXEMPT_PLAIN
+  if (style) return amazon ? STYLE_HINT : STYLE_HINT_PLAIN
+  return amazon ? ITEM_HINT_AMAZON : ITEM_HINT
+}
 
 /**
  * The two-way choice, also used on the variants page: a native radio pair (arrow keys and one
@@ -45,6 +57,7 @@ export function BarcodeChoice({
   describedBy,
   className,
   testId,
+  amazon = true,
 }: {
   id: string
   exempt: boolean
@@ -55,6 +68,8 @@ export function BarcodeChoice({
   describedBy?: string
   className?: string
   testId?: string
+  /** Amazon is a chosen marketplace: the second option names its GTIN exemption. */
+  amazon?: boolean
 }) {
   const name = useId()
   const option = (value: boolean, text: ReactNode, inputId: string) => {
@@ -88,7 +103,7 @@ export function BarcodeChoice({
   return (
     <div id={`${id}-choice`} role="radiogroup" aria-label={label} className={cn('flex flex-col gap-2 sm:flex-row sm:flex-wrap', className)} data-testid={`${testId ?? id}-choice`}>
       {option(false, HAS_BARCODE[level], `${id}-has`)}
-      {option(true, NO_BARCODE[level], `${id}-exempt`)}
+      {option(true, (amazon ? NO_BARCODE : NO_BARCODE_PLAIN)[level], `${id}-exempt`)}
     </div>
   )
 }
@@ -123,7 +138,7 @@ export function BarcodeField({
   const style = level === 'style'
   const showDigits = !style && !value.exempt
   const filled = value.exempt || (!style && normalizeBarcode(value.value) !== '')
-  const hint = value.exempt ? (style ? STYLE_EXEMPT_HINT : EXEMPT_EXPLAINER) : style ? STYLE_HINT : amazon ? ITEM_HINT_AMAZON : ITEM_HINT
+  const hint = barcodeHint({ exempt: value.exempt, style, amazon })
   const labelFor = showDigits ? valueId : choiceId
   // The mark already says who needs it: the "Amazon needs this" chip would say it twice.
   const chip = chipFor(filled, { source, needed: amazon ? undefined : needed }, false, error)
@@ -143,6 +158,7 @@ export function BarcodeField({
         <BarcodeChoice
           id={id}
           level={level}
+          amazon={amazon}
           exempt={value.exempt}
           describedBy={showDigits ? undefined : fieldHintId(choiceId)}
           onChange={(exempt) => {

@@ -79,6 +79,7 @@ import { useProductEditSession, type ProductEditSession } from './product-edit-s
 import { manufacturerSource } from '@/features/products/edit-model'
 import { CategorySuggestionCard } from '@/features/assist/category-suggestion-card'
 import { DETAIL_TABS, type DetailTab, type EditTarget } from './detail-tabs'
+import { useEditAt } from './edit-at'
 import { ProductThumb } from './products-page'
 import { marketplaceLink } from '@/features/listings/external-link'
 import { recategorizeState } from '@/features/products/recategorize'
@@ -371,35 +372,7 @@ function LoadedDetail({
   const setTab = (t: string) =>
     void navigate({ to: '/products/$productId', params: { productId }, search: t === 'overview' ? {} : { tab: t as DetailTab }, replace: true })
 
-  // `?edit=barcode` (the review screen's "Add the barcode"): open the editor on Overview and move
-  // to the barcode choice once. It waits for the variants, so a style opens with its exemption
-  // choice, not an item barcode. Without edit rights the page just opens on Overview.
-  /** The link's target until the editor opens; then the field to focus once it renders. */
-  const openAt = useRef<EditTarget | null>(edit ?? null)
-  const focusAt = useRef<EditTarget | null>(null)
-  const variantsReady = !data.variantsPending
-  useEffect(() => {
-    if (!openAt.current || !variantsReady) return
-    openAt.current = null
-    // Back to plain Overview: this also drops `?edit=` from the address.
-    setTab('overview')
-    if (!canEdit) return
-    focusAt.current = 'barcode'
-    if (!session.editing) session.start()
-  }, [variantsReady, canEdit]) // eslint-disable-line react-hooks/exhaustive-deps -- once per link
-  useEffect(() => {
-    if (!focusAt.current || !editing || tab !== 'overview') return
-    const t = window.setTimeout(() => {
-      const field = document.querySelector<HTMLElement>('[data-barcode-field]')
-      if (!field) return
-      focusAt.current = null
-      // The digits when "Has a barcode" is chosen, else the chosen option of the choice.
-      const target = field.querySelector<HTMLElement>('input:not([type="radio"])') ?? field.querySelector<HTMLElement>('input[type="radio"]:checked')
-      field.scrollIntoView?.({ block: 'center' })
-      target?.focus({ preventScroll: true })
-    }, 0)
-    return () => window.clearTimeout(t)
-  }, [editing, tab])
+  useEditAt({ edit, ready: !data.variantsPending, canEdit, editing, tab, start: session.start, clear: () => setTab('overview') })
 
   return (
     <Page>
