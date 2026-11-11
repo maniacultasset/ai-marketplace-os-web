@@ -221,11 +221,13 @@ export function useRegenerateListing(listingId: string) {
       unwrap(
         api.POST('/listings/{listing_id}/regenerate', {
           params: { path: { listing_id: listingId }, header: idempotencyHeader(key) },
+          // Only the keys in use are sent, so a whole regenerate's body stays `{}` or
+          // `{instructions}` (an older backend's strict body takes it); the generated type marks
+          // the defaulted `for_answers` as required, so the partial body is cast.
           body: {
             ...(instructions ? { instructions } : {}),
-            ...(sections?.length ? { sections: [...sections] } : {}),
-            for_answers: !!(forAnswers && sections?.length),
-          },
+            ...(sections?.length ? { sections: [...sections], ...(forAnswers ? { for_answers: true } : {}) } : {}),
+          } as Schema<'RegenerateRequest'>,
         }),
       ),
     onSuccess: () => invalidateListingWork(qc, keys, [listingId]),
