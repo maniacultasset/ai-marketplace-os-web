@@ -147,6 +147,7 @@ export const OP_ACTION = {
   'GET /analytics': 'analytics:read',
   'GET /analytics/summary': 'analytics:read',
   'GET /analytics/quality': 'analytics:read',
+  'GET /home/summary': 'tenant:read',
   'GET /admin/quality': PLATFORM_ADMIN,
   'GET /admin/signup-requests': PLATFORM_ADMIN,
   'POST /admin/signup-requests/{request_id}/approve': PLATFORM_ADMIN,
