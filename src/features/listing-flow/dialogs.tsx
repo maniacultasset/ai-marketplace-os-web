@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { useReviewListings, useSaveContent } from '@/features/listings/api'
 import { REJECT_REASONS, summarizeBatch, type BatchItemResult, type ListingDetail, type RejectReason } from '@/features/listings/model'
+import { OWN_EDIT_COPY, useOwnerMayApproveOwn } from '@/features/team-account/approver'
 import { codePoints, focusFirstInvalid } from '@/lib/validation'
 import { mpName } from './format'
 import {
@@ -196,6 +197,7 @@ export function EditDialog({
   resend?: boolean
 }) {
   const save = useSaveContent(listing.id)
+  const ownApproval = useOwnerMayApproveOwn()
   const c = listing.content?.content
   const [d, setD] = useState<EditDraft>({ title: c?.title ?? '', bullets: (c?.bullets ?? []).join('\n'), description: c?.description ?? '' })
   const [touched, setTouched] = useState<Touched<keyof EditDraft>>({})
@@ -234,10 +236,14 @@ export function EditDialog({
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Edit the listing text</DialogTitle>
-          <DialogDescription>
-            {resend
-              ? `Saving creates a new version and runs the checks on it again. Because you edited it, a teammate approves it and sends it to ${mpName(listing.marketplace)} again.`
-              : 'Saving creates a new version and runs the checks on it again. Because you edited it, someone else must approve it.'}
+          <DialogDescription data-testid="edit-dialog-rule">
+            {ownApproval
+              ? resend
+                ? OWN_EDIT_COPY.dialogResend(mpName(listing.marketplace))
+                : OWN_EDIT_COPY.dialog
+              : resend
+                ? `Saving creates a new version and runs the checks on it again. Because you edited it, a teammate approves it and sends it to ${mpName(listing.marketplace)} again.`
+                : 'Saving creates a new version and runs the checks on it again. Because you edited it, someone else must approve it.'}
           </DialogDescription>
         </DialogHeader>
         <div ref={bodyRef} className="flex flex-col gap-4">

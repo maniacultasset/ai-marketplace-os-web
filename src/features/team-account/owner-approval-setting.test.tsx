@@ -107,6 +107,19 @@ describe('OwnerApprovalSetting', () => {
     }
   })
 
+  it('never states on or off to a non-owner while the brand is still loading', async () => {
+    s.role = 'reviewer'
+    get.mockReturnValue(new Promise(() => {}))
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <OwnerApprovalSetting />
+      </QueryClientProvider>,
+    )
+    expect((await screen.findByTestId('owner-approval-readonly')).textContent).toBe('Only an owner can change this.')
+    expect(screen.getByLabelText('Loading')).toBeTruthy()
+  })
+
   it('changes nothing when the login code is not given (step-up dismissed)', async () => {
     setup()
     patch.mockRejectedValue(apiError(403, 'MFA_STEP_UP_REQUIRED'))

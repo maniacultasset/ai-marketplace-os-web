@@ -84,6 +84,26 @@ export function soloState(role: Role | null | undefined, ownerSelfApproval: bool
   return ownerSelfApproval ? 'ok' : 'owner_alone'
 }
 
+/**
+ * Whether this viewer may approve their own edits: an owner while the brand's owner approval is on
+ * (ADR-0031). Copy written before the server answers for a version (the edit dialog, its toast)
+ * uses it so it never says a teammate must approve when the owner can. The server still decides.
+ */
+export function useOwnerMayApproveOwn(): boolean {
+  const me = useMe()
+  const profile = useBrandProfile()
+  return me.data?.role === 'owner' && profile.data?.data.owner_self_approval === true
+}
+
+/** The edit dialog's line and the save toast for an owner who may approve their own edit. */
+export const OWN_EDIT_COPY = {
+  dialog: 'Saving creates a new version and runs the checks on it again. Owner approval is on, so you can approve it yourself. This is recorded.',
+  dialogResend: (mp: string) =>
+    `Saving creates a new version and runs the checks on it again. Owner approval is on, so you can approve it yourself and send it to ${mp} again. This is recorded.`,
+  toast: 'The checks ran again. You can approve it yourself.',
+  toastResend: (mp: string) => `The checks ran again. You can approve it yourself and send it to ${mp} again.`,
+} as const
+
 /** Whether this brand has a second person who can approve, or lets its owner approve alone. */
 export function useApproverState(): ApproverState {
   const can = useCan()

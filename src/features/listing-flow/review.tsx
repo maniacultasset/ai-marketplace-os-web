@@ -72,7 +72,7 @@ import { cn } from '@/lib/utils'
 import { STICKY_ASIDE } from '@/components/app/split-layout'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { AMAZON_PUBLISHING_PAUSED_TEXT } from '@/features/brand/api'
-import { approverNoticeFor, useApproverState } from '@/features/team-account/approver'
+import { approverNoticeFor, OWN_EDIT_COPY, useApproverState, useOwnerMayApproveOwn } from '@/features/team-account/approver'
 import { ApproverNotice, SelfApprovalNote } from '@/features/team-account/approver-notice'
 import { AutoFixedChip, FixedForYouCard } from './auto-fix'
 import { autoFixTrail, FIXED_FOR_YOU_HASH, siblingFixes, versionRef } from './auto-fix-model'
@@ -227,6 +227,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   const resend = resendView({ resolution, listing, approve: approveShown, can, publishBuilt })
   // While publishing is paused an edit is saved as a plain new version: nothing is resent.
   const resendEdit = amazon && isResend(resolution) && !publishingPaused
+  const ownApproval = useOwnerMayApproveOwn()
   const rview = resolution && hasResolution(resolution) ? resolutionView(resolution, { marketplace: listing.marketplace, marketplaceState: listing.marketplace_state, canAnswer: can('product:import'), publishingPaused }) : null
   // "Approve all" approves the other marketplaces' fixes too: read them, and name them in the footer.
   const others = allTargets.filter((l) => l.id !== listing.id)
@@ -650,7 +651,9 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
           resend={resendEdit}
           onSaved={() => {
             setEdit(false)
-            if (resendEdit) toast.success(TEAMMATE_TEXT, { description: `Saved as a new version. A teammate approves it and sends it to ${mp} again.` })
+            if (ownApproval)
+              toast.success('Saved as a new version', { description: resendEdit ? OWN_EDIT_COPY.toastResend(mp) : OWN_EDIT_COPY.toast })
+            else if (resendEdit) toast.success(TEAMMATE_TEXT, { description: `Saved as a new version. A teammate approves it and sends it to ${mp} again.` })
             else toast.success('Saved as a new version', { description: 'The checks ran again. Someone else approves your edit.' })
           }}
         />

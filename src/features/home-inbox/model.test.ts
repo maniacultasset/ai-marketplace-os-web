@@ -597,13 +597,13 @@ describe('SI11 lanes: who settles an issue', () => {
   })
 
   it('the next step says who acts, in plain words', () => {
-    expect(issueNextStep(open('ai_field'))).toBe('Kuinn is rewriting this field. A teammate approves the new text before it is sent.')
+    expect(issueNextStep(open('ai_field'))).toBe('Kuinn is rewriting this field. A person approves the new text before it is sent.')
     expect(issueNextStep(open('seller'))).toMatch(/^Needs your answer/)
     expect(issueNextStep(open('marketplace'))).toBe('Only Amazon can approve this. Follow the step in the task, then resume.')
     expect(issueNextStep(open('staff'))).toBe('Our team is checking this. Nothing is needed from you yet.')
     // Only a value-format repair goes out again on its own; a text change waits for a teammate.
     expect(issueNextStep(open('auto_repair'))).toMatch(/only how this value is sent to Amazon/)
-    expect(issueNextStep(open('auto_content'))).toMatch(/A teammate approves the change before it is sent/)
+    expect(issueNextStep(open('auto_content'))).toMatch(/A person approves the change before it is sent/)
   })
 
   describe('a closed fix is "Fixed for you" only with proof', () => {

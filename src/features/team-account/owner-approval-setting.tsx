@@ -76,7 +76,7 @@ export function OwnerApprovalSetting() {
             {me.data && !isOwner ? (
               <p className="mt-2 flex items-center gap-1.5 text-caption text-ink-3" data-testid="owner-approval-readonly">
                 <Icon name="lock" size={14} />
-                Only an owner can change this. It is {value ? 'on' : 'off'}.
+                {value === undefined ? 'Only an owner can change this.' : `Only an owner can change this. It is ${value ? 'on' : 'off'}.`}
               </p>
             ) : null}
           </div>
