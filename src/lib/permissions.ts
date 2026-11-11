@@ -128,6 +128,7 @@ export const OP_ACTION = {
   'GET /listings/{listing_id}/history': 'tenant:read',
   'GET /listings/{listing_id}/submissions': 'tenant:read',
   'GET /listings/{listing_id}/resolution': 'tenant:read',
+  'GET /listings/{listing_id}/issue-history': 'tenant:read',
   'POST /listings/generate': 'listing:generate',
   'POST /listings/validate': 'listing:edit',
   'PATCH /listings/{listing_id}/content': 'listing:edit',
