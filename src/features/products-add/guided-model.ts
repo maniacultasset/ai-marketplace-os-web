@@ -247,6 +247,8 @@ export interface GuidedContext {
   hasMain: boolean
   /** Images picked, any slot. */
   imageCount: number
+  /** The categories the backend offers (`GET /catalog/categories`); absent: the built-in list. */
+  listable?: readonly string[] | null
 }
 
 export const noContext: GuidedContext = { brandManufacturer: null, hasMain: false, imageCount: 0 }
@@ -266,7 +268,7 @@ const SELLING_ABOVE_MRP = 'Keep the selling price at or below the MRP.'
  * selling_price, attr.<key>, composition.rows.<i>.fibre|percent, attr.fiber_composition (the
  * composition as a whole), size_chart[.rows.<i>.<field>], manufacturer.<field>, extra.<i>.key|value.
  */
-export function validateGuided(v: GuidedValues): GuidedErrors {
+export function validateGuided(v: GuidedValues, listable?: readonly string[] | null): GuidedErrors {
   const e: GuidedErrors = {}
   const sku = skuProblem(v.sku)
   if (sku) e.sku = sku
@@ -275,7 +277,7 @@ export function validateGuided(v: GuidedValues): GuidedErrors {
   // A dropdown of mapped categories: any other value (an old draft) would save but never list.
   if (!v.category.trim()) {
     if (!v.kuinnSuggests) e.category = 'Choose a category.'
-  } else if (!isMappedCategory(v.category)) e.category = 'Choose a category from the list. The agent can’t list this one.'
+  } else if (!(listable ? listable.includes(v.category.trim()) : isMappedCategory(v.category))) e.category = 'Choose a category from the list. The agent can’t list this one.'
   const style = v.styleNumber.trim()
   if (style) {
     if (hasStrayControlChars(style)) e.style_number = CONTROL_MSG
@@ -462,7 +464,7 @@ export function missingCritical(v: GuidedValues, ctx: GuidedContext = noContext)
  * - else a dash (empty, or not finished).
  */
 export function sectionStates(v: GuidedValues, ctx: GuidedContext = noContext, shown: GuidedErrors = {}): Record<SectionId, SectionState> {
-  const errs = validateGuided(v)
+  const errs = validateGuided(v, ctx.listable)
   const missing = missingCriticalBy(v, ctx)
   const content: Record<SectionId, boolean> = {
     identity: !!(v.sku.trim() || v.title.trim() || v.styleNumber.trim() || normalizeBarcode(v.barcode.value) || v.barcode.exempt),

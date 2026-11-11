@@ -9,7 +9,10 @@
  *
  * The side panel ("Before you save") shows the critical facts still missing, the marketplaces
  * chosen and the category. Readiness is checked only once the agent drafts the listing. The
- * category is a dropdown of the categories the agent can list (features/products/category-options.ts).
+ * category is a dropdown of the categories the agent can list, read from the backend
+ * (features/products/catalog-categories.ts), with what each marketplace is sent for it and a
+ * "Suggest" button (./category-suggest.tsx). The SKU is checked while it is typed and once more
+ * before the save, and Kuinn can make one (./sku-field.tsx).
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
@@ -56,10 +59,11 @@ import {
   type PartyField,
   type PartyOut,
 } from '@/features/products/intake-model'
-import { ATTRIBUTE_KEY_SUGGESTIONS, ATTRIBUTE_TEXT_MAX, SKU_MAX, TITLE_MAX } from '@/features/products/schema'
+import { ATTRIBUTE_KEY_SUGGESTIONS, ATTRIBUTE_TEXT_MAX, SKU_PATTERN, TITLE_MAX } from '@/features/products/schema'
 import { categoryLabel } from '@/features/products/categories'
 import { useCategorySuggestEnabled, useLampsEnabled } from '@/features/assist/flags'
 import { CategorySelect } from '@/features/products/category-select'
+import { mappingText, useCatalogCategories } from '@/features/products/catalog-categories'
 import { invalidateListingWork } from '@/features/listings/api'
 import { tenantName, useMe, useSession } from '@/lib/auth'
 import { AudienceSelect, BrandField } from '@/features/products/audience-fields'
@@ -94,6 +98,10 @@ import {
   type SectionState,
 } from './guided-model'
 import { serializeListOn } from './list-on'
+import { CategorySuggest } from './category-suggest'
+import { draftBody } from './category-draft'
+import { SkuField } from './sku-field'
+import { takenMessage, type SkuAvailability } from './sku-check'
 import { NewProductImages } from './new-images'
 import { newPendingImage, placePending, type PendingImage } from './new-images-model'
 import { CountryField, HsnField, PackageFields } from '@/features/products/seller-field-inputs'
@@ -160,6 +168,26 @@ function SectionMark({ state }: { state: SectionState }) {
   )
 }
 
+/** How long the save waits for the last SKU check before it goes ahead (the create still refuses a taken SKU). */
+const SKU_CHECK_WAIT_MS = 2500
+
+/** The check of `sku` when it is taken in this brand; null when it is free, or the check is slow or failed. */
+async function skuTaken(sku: string): Promise<SkuAvailability | null> {
+  if (!SKU_PATTERN.test(sku)) return null
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), SKU_CHECK_WAIT_MS)
+  })
+  try {
+    const found = await Promise.race([unwrap(api.GET('/skus/availability', { params: { query: { sku } } })), late])
+    return found && !found.available ? found : null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketplace[]; startAt?: SectionId }) {
   const navigate = useNavigate()
   const keys = useKeys()
@@ -170,8 +198,13 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
   const draftKey = `${DRAFT_PREFIX}${tenantId ?? 'none'}`
   const [initial] = useState(() => readDraft(draftKey))
   const [rawValues, setValues] = useState<GuidedValues>(() => initial?.values ?? emptyGuided())
+  // The categories and the classifier switch from the backend (client feedback 11 Nov); the
+  // product-detail read stays as the fallback for the switch (SI14).
+  const catalog = useCatalogCategories()
+  const catalogItems = catalog.data?.items ?? null
   // SI14: "Let Kuinn suggest" counts only while the backend's classifier is on.
-  const suggestOn = useCategorySuggestEnabled()
+  const suggestOnFromProduct = useCategorySuggestEnabled()
+  const suggestOn = suggestOnFromProduct || catalog.data?.suggest_enabled === true
   const lamps = useLampsEnabled()
   const values = useMemo(() => (suggestOn || !rawValues.kuinnSuggests ? rawValues : { ...rawValues, kuinnSuggests: false }), [rawValues, suggestOn])
   const [savedAt, setSavedAt] = useState<string | null>(initial?.savedAt ?? null)
@@ -316,7 +349,13 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
   }
 
   const hasMain = images.some((i) => i.slot === 'main' && i.stage.kind !== 'invalid')
-  const ctx: GuidedContext = { brandManufacturer: brand.data ? brandParty !== null : null, hasMain, imageCount: images.filter((i) => i.stage.kind !== 'invalid').length }
+  const listable = useMemo(() => (catalogItems ? catalogItems.filter((c) => c.enabled).map((c) => c.category) : null), [catalogItems])
+  const ctx: GuidedContext = {
+    brandManufacturer: brand.data ? brandParty !== null : null,
+    hasMain,
+    imageCount: images.filter((i) => i.stage.kind !== 'invalid').length,
+    listable,
+  }
 
   /* ------------------------------------------------------------------------------ Draft */
 
@@ -329,7 +368,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
 
   // Client errors are re-checked on every change; one shows once its field was left or a save was
   // tried (react-hook-form's onTouched + reValidateMode onChange). Server errors win until edited.
-  const clientErrors = useMemo(() => validateGuided(values), [values])
+  const clientErrors = useMemo(() => validateGuided(values, listable), [values, listable])
   const errors = useMemo<GuidedErrors>(() => {
     const out: GuidedErrors = {}
     for (const [k, msg] of Object.entries(clientErrors)) {
@@ -358,6 +397,9 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
     conflict.title === values.title.trim() &&
     conflict.category === values.category &&
     Date.parse(conflict.created_at) >= lostCreateAt - 5_000
+
+  // Client feedback 11 Nov: what each ticked marketplace is sent for the chosen category.
+  const categoryMapping = values.category.trim() ? mappingText(catalogItems?.find((c) => c.category === values.category.trim()), listOn) : null
 
   // SI12: what the ticked marketplaces need for this category, while it is empty.
   const requirements = useRequirements(values.category)
@@ -458,7 +500,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
     if (created) return created
     setFormError(null)
     setSubmitCount((n) => n + 1)
-    const first = errorOrder(Object.keys(validateGuided(values)))[0]
+    const first = errorOrder(Object.keys(validateGuided(values, listable)))[0]
     if (first) {
       setSection(sectionOfError(first))
       pendingFocus.current = true
@@ -466,6 +508,17 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
       return null
     }
     setPhase({ kind: 'saving' })
+    // Client feedback 11 Nov: a SKU already in the brand is caught here, before the create
+    // answers 409. A slow or failed check never blocks the save (the create still refuses it).
+    const taken = await skuTaken(values.sku.trim())
+    if (taken) {
+      setPhase(null)
+      setServerErrors((e) => ({ ...e, sku: takenMessage(values.sku.trim(), taken) }))
+      setSection(sectionOfError('sku'))
+      pendingFocus.current = true
+      setFocusTick((n) => n + 1)
+      return null
+    }
     // The main photo may still be going to the store: wait for it, then attach it to the create.
     await Promise.allSettled([...staging.current.values()])
     const stagedMain = imagesRef.current.find((i) => i.slot === 'main' && i.stage.kind === 'staged')
@@ -670,17 +723,15 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               maxLength={64 + 8}
               code
             />
-            <TextField
+            <SkuField
               id="g-sku"
-              label="SKU"
               value={values.sku}
               onChange={(sku) => set({ sku })}
               onBlur={() => touch('sku')}
               error={errors.sku}
-              hint="Unique in this brand, no spaces. Sizes and colours get their own SKUs on the variants step."
               submitCount={submitCount}
-              maxLength={SKU_MAX + 8}
-              code
+              category={values.category}
+              brandName={values.ownBrand ? values.brandName : storeName}
             />
             <BarcodeField
               id="g-barcode"
@@ -704,12 +755,28 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
                 onChange={(category) => set({ category, kuinnSuggests: false })}
                 onBlur={() => touch('category')}
                 lampsEnabled={lamps.enabled}
+                catalog={catalogItems}
                 error={errors.category}
                 submitCount={submitCount}
                 required={!values.kuinnSuggests}
                 disabled={values.kuinnSuggests}
                 hint={values.kuinnSuggests ? 'Kuinn suggests a category after you save. You choose the one to use.' : undefined}
               />
+              {categoryMapping ? (
+                <p className="text-caption text-ink-2" data-testid="g-category-mapping">
+                  {categoryMapping}
+                </p>
+              ) : null}
+              {suggestOn && !values.kuinnSuggests ? (
+                <CategorySuggest
+                  draft={draftBody(values.title, values.ownBrand ? values.brandName : storeName, values.attrs)}
+                  value={values.category}
+                  onPick={(category) => {
+                    set({ category, kuinnSuggests: false })
+                    touch('category')
+                  }}
+                />
+              ) : null}
               {suggestOn ? (
                 <label className="flex cursor-pointer items-center gap-2.5 text-small text-ink" data-testid="g-kuinn-suggests">
                   <Switch

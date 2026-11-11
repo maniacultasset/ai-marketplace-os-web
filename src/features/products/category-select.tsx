@@ -1,6 +1,8 @@
 /**
- * Category picker: a dropdown of the categories the agent can list (./category-options.ts), in plain
- * names. The slug is what is saved. A current value with no template stays visible and says so.
+ * Category picker: a dropdown of the categories the agent can list, in plain names. The slug is
+ * what is saved. A current value with no template stays visible and says so. The list comes from
+ * the backend (`catalog`, ./catalog-categories.ts) once it is read; until then, or when the read
+ * failed, the built-in list (./category-options.ts) stands in.
  */
 import type { ReactNode } from 'react'
 import { fieldHintId, LaField } from '@/components/la'
@@ -8,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { brandCategoryChoices, isMappedCategory, UNMAPPED_CATEGORY_HINT } from './category-options'
+import { catalogChoices, type CatalogCategory } from './catalog-categories'
 
 export function CategorySelect({
   id,
@@ -20,6 +23,7 @@ export function CategorySelect({
   submitCount,
   required = true,
   disabled,
+  catalog,
 }: {
   id: string
   value: string
@@ -33,10 +37,12 @@ export function CategorySelect({
   /** False while the seller lets Kuinn suggest the category (SI14). */
   required?: boolean
   disabled?: boolean
+  /** The backend's categories (`GET /catalog/categories`); null or absent: the built-in list. */
+  catalog?: readonly CatalogCategory[] | null
 }) {
   const current = value.trim()
-  const choices = brandCategoryChoices(lampsEnabled, current)
-  const unmapped = current !== '' && !isMappedCategory(current)
+  const choices = catalog ? catalogChoices(catalog, current) : brandCategoryChoices(lampsEnabled, current)
+  const unmapped = current !== '' && (catalog ? !catalog.some((c) => c.category === current) : !isMappedCategory(current))
   return (
     <LaField
       label="Category"

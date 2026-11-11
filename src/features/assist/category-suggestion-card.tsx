@@ -16,6 +16,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { AI_PAUSED_TEXT, isAiPausedError, markAiPaused } from '@/features/ai-credit/model'
 import { categoryLabel } from '@/features/products/categories'
 import { CategorySelect } from '@/features/products/category-select'
+import { useCatalogCategories } from '@/features/products/catalog-categories'
 import { productQuery, useUpdateProduct, type ProductDetail } from '@/features/products/api'
 import { OP_ACTION, useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
@@ -47,6 +48,7 @@ export function CategorySuggestionCard({ product, className }: { product: Produc
   const intent = useIntentKey()
   const update = useUpdateProduct(product.id)
   const lamps = useLampsEnabled()
+  const catalog = useCatalogCategories()
   /** The suggestion's `at` when the seller asked (undefined: not asking). A new `at` means it landed. */
   const [askedFrom, setAskedFrom] = useState<string | null | undefined>(undefined)
   const currentAt = product.suggestions?.category?.at ?? null
@@ -193,6 +195,7 @@ export function CategorySuggestionCard({ product, className }: { product: Produc
             value={other}
             onChange={(slug) => setOther(slug)}
             lampsEnabled={lamps.enabled}
+            catalog={catalog.data?.items ?? null}
             required={false}
             disabled={busy}
             hint={view.kind === 'candidates' ? 'Or pick another category.' : 'Decides which marketplace template the agent fills.'}
