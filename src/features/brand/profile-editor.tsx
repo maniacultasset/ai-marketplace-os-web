@@ -62,7 +62,16 @@ interface StaleState {
   correlationId: string | null
 }
 
-export function ProfileEditor({ profile, canEdit }: { profile: Versioned<TenantOut>; canEdit: boolean }) {
+export function ProfileEditor({
+  profile,
+  canEdit,
+  brandVoice,
+}: {
+  profile: Versioned<TenantOut>
+  canEdit: boolean
+  /** Item 19: "Tell Kuinn about your brand", shown first in the Voice card (saved on its own). */
+  brandVoice?: ReactNode
+}) {
   const keys = useKeys()
   const qc = useQueryClient()
   const save = useSaveProfile()
@@ -270,8 +279,10 @@ export function ProfileEditor({ profile, canEdit }: { profile: Versioned<TenantO
       <Card className="gap-0 py-0">
         <div className="space-y-1 px-5 pt-5">
           <h2 className="text-[0.9375rem] font-semibold tracking-tight">Voice</h2>
-          <p className="text-sm text-muted-foreground">Every generated listing follows this tone, these guidelines and this glossary.</p>
+          <p className="text-sm text-muted-foreground">How every listing sounds: your answers, tone, guidelines and glossary.</p>
         </div>
+
+        {brandVoice ? <div className="border-b px-5 pt-4 pb-5">{brandVoice}</div> : null}
 
         <section className="px-5 pt-4 pb-5">
           <FieldBlock
