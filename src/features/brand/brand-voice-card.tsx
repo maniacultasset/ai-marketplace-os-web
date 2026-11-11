@@ -61,7 +61,7 @@ export function BrandVoiceCard({ canEdit, variant = 'section' }: { canEdit: bool
       setOpen(false)
       setStale(false)
       setLater(false)
-      toast.success('Brand answers saved', { description: 'New listings use them. Product facts always win.' })
+      toast.success('Brand answers saved', { description: 'Product facts always win.' })
     } catch (err) {
       if (isStaleVersion(err)) {
         const fresh = await q.refetch()
