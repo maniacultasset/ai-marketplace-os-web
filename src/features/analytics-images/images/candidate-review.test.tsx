@@ -188,6 +188,74 @@ describe('fix buttons', () => {
     expect(document.body.textContent).not.toContain('Already in use')
   })
 
+  it('shows the processed photo at once on a stale page, and reads the product again', async () => {
+    post.mockReturnValueOnce(
+      ok({
+        candidate_id: C1,
+        status: 'accepted',
+        job_id: null,
+        poll_url: null,
+        accepted_image_id: NEW_MAIN,
+        applied_preview_url: 'https://storage.test/applied.jpg?X-Amz-Signature=s',
+      }),
+    )
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    const spy = vi.spyOn(qc, 'invalidateQueries')
+    // This page's product read does not hold the new main yet.
+    setup({ kinds: ['white_background'], imageUrlOf: () => null }, qc)
+    fireEvent.click(screen.getByTestId('make-white_background'))
+    const note = await screen.findByTestId('candidate-applied')
+    const img = note.querySelector('img')
+    expect(img?.getAttribute('src')).toBe('https://storage.test/applied.jpg?X-Amz-Signature=s')
+    expect(img?.getAttribute('alt')).toBeTruthy()
+    await waitFor(() => {
+      const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey))
+      expect(keys).toContain(JSON.stringify(['t', 't1', 'products', 'detail', P]))
+    })
+  })
+
+  it("prefers the product read's view of the applied image once it has one", async () => {
+    post.mockReturnValueOnce(
+      ok({
+        candidate_id: C1,
+        status: 'accepted',
+        job_id: null,
+        poll_url: null,
+        accepted_image_id: NEW_MAIN,
+        applied_preview_url: 'https://storage.test/applied.jpg',
+      }),
+    )
+    setup({ kinds: ['white_background'], imageUrlOf: (id) => (id === NEW_MAIN ? 'https://storage.test/new-main.jpg' : null) })
+    fireEvent.click(screen.getByTestId('make-white_background'))
+    const note = await screen.findByTestId('candidate-applied')
+    expect(note.querySelector('img')?.getAttribute('src')).toBe('https://storage.test/new-main.jpg')
+  })
+
+  it('falls back to the check when the applied view no longer opens', async () => {
+    post.mockReturnValueOnce(
+      ok({
+        candidate_id: C1,
+        status: 'accepted',
+        job_id: null,
+        poll_url: null,
+        accepted_image_id: NEW_MAIN,
+        applied_preview_url: 'https://storage.test/expired.jpg',
+      }),
+    )
+    setup({ kinds: ['white_background'] })
+    fireEvent.click(screen.getByTestId('make-white_background'))
+    const note = await screen.findByTestId('candidate-applied')
+    fireEvent.error(note.querySelector('img') as HTMLImageElement)
+    expect(note.querySelector('img')).toBeNull()
+    expect(note.textContent).toBe(APPLIED_COPY.white_background)
+  })
+
+  it("shows the used candidate's own preview when the list knows it is applied", () => {
+    const used = cand({ status: 'accepted', accepted_image_id: NEW_MAIN, preview_url: 'https://storage.test/used.png' })
+    setup({ kinds: ['white_background'], candidates: [used], isLiveMain: (id) => id === NEW_MAIN, imageUrlOf: () => null })
+    expect(screen.getByTestId('candidate-applied').querySelector('img')?.getAttribute('src')).toBe('https://storage.test/used.png')
+  })
+
   it('offers no fix on the old photo while its result is still the main', () => {
     const used = cand({ status: 'accepted', accepted_image_id: NEW_MAIN })
     setup({ kinds: ['white_background', 'fix'], candidates: [used], isLiveMain: (id) => id === NEW_MAIN })
