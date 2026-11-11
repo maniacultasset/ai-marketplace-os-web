@@ -80,15 +80,18 @@ export async function logout() {
   clearSession('logout', { broadcast: true })
 }
 
-/** Switch tenant: new pair, clear cache, tell other tabs, close the old family, reload me. */
-export async function switchTenant(targetTenantId: string) {
+/**
+ * Switch tenant: new pair, clear cache, tell other tabs, close the old family, reload me. A 404
+ * toasts "no longer have access" unless `quiet` (a caller that says it itself).
+ */
+export async function switchTenant(targetTenantId: string, { quiet = false }: { quiet?: boolean } = {}) {
   const oldRt = currentRefreshToken()
   let tokens
   try {
     tokens = await unwrap(api.POST('/auth/switch-tenant', { body: { target_tenant_id: targetTenantId } }))
   } catch (e) {
     if (isApiError(e) && e.status === 404) {
-      toast.error('You no longer have access to that brand.')
+      if (!quiet) toast.error('You no longer have access to that brand.')
       const { tenantId } = getSession()
       if (tenantId) void queryClient.invalidateQueries({ queryKey: ['t', tenantId, 'me'] })
     }

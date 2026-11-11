@@ -44,7 +44,7 @@ describe('AddBrandDialog', () => {
     const [body, key] = m.createBrand.mock.calls[0]!
     expect(body).toEqual({ name: 'Kalakar Home', website: 'https://kalakar.in' })
     expect(typeof key).toBe('string')
-    expect(m.switchTenant).toHaveBeenCalledWith(NEW.id)
+    expect(m.switchTenant).toHaveBeenCalledWith(NEW.id, { quiet: true })
     expect(onClose).toHaveBeenCalled()
   })
 
@@ -85,13 +85,22 @@ describe('AddBrandDialog', () => {
     expect(screen.queryByTestId('add-brand-error')).toBeNull()
   })
 
-  it('says the brand exists when the switch fails, and stays put', async () => {
+  it('says the brand exists when the switch fails, and retries only the switch', async () => {
     m.createBrand.mockResolvedValue(NEW)
-    m.switchTenant.mockRejectedValue(new ApiError({ type: 'NOT_FOUND', status: 404, message: 'x' }))
+    m.switchTenant.mockRejectedValueOnce(new ApiError({ type: 'NOT_FOUND', status: 404, message: 'x' }))
     const onClose = open()
     fill('Kalakar Home')
     expect((await screen.findByTestId('add-brand-error')).textContent).toContain('Kalakar Home is added')
     expect(m.navigate).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
+    // the form is gone, so nothing can change the body under the same key
+    expect(screen.queryByTestId('add-brand-name')).toBeNull()
+    expect(screen.getByTestId('add-brand-submit').textContent).toBe('Open brand')
+    m.switchTenant.mockResolvedValueOnce({})
+    fireEvent.click(screen.getByTestId('add-brand-submit'))
+    await waitFor(() => expect(m.navigate).toHaveBeenCalledWith({ to: '/setup/brand' }))
+    expect(m.createBrand).toHaveBeenCalledTimes(1)
+    expect(m.switchTenant).toHaveBeenCalledTimes(2)
+    expect(m.switchTenant.mock.calls[1]).toEqual([NEW.id, { quiet: true }])
   })
 })
