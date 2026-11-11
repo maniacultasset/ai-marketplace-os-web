@@ -12,8 +12,11 @@
  *   GET /products/{id}                     products.py                 (via features/products/api)
  *   POST /issues/{id}/dismiss              issues.py issues_dismiss    (via features/inbox/api; Idempotency-Key)
  *
- * The API has no totals, no dashboard summary and no GET /issues/{id}; this file walks pages with
- * a hard cap and reports whether the walk was complete, so the UI can say "+" honestly.
+ *   GET /home/summary                      home.py home_summary        (tenant:read; exact counts,
+ *                                          the caller's work, agent activity, marketplace next steps)
+ *
+ * Home reads GET /home/summary. The API has no GET /issues/{id}; the issue reads here walk pages
+ * with a hard cap.
  */
 import { queryOptions, useQueries, useQuery } from '@tanstack/react-query'
 import { useCallback } from 'react'
@@ -27,15 +30,11 @@ import { productQuery } from '@/features/products/api'
 import { viewsById } from '@/features/products/image-views'
 import { supportsCandidates } from '@/features/analytics-images/images/candidates-model'
 import { useKeys, type QueryKeys } from '@/lib/query-keys'
-import { summarizeListings, type ListingsSnapshot } from './model'
 
 type Listing = Schema<'ListingOut'>
 
-/** Largest page GET /listings allows. */
-const LISTINGS_PAGE = 200
-/** Pages walked for Home: the newest 1,000 listings. Beyond that every count shows "+". */
+/** Pages a listings walk reads at most. */
 const LISTINGS_PAGES = 5
-export const LISTINGS_CAP = LISTINGS_PAGE * LISTINGS_PAGES
 const HOME_REFRESH_MS = 60_000
 
 export async function walkListings(
@@ -53,18 +52,16 @@ export async function walkListings(
   return { rows, complete: false }
 }
 
-/** Every listing state Home needs, from GET /listings (all statuses) walked up to the cap. */
-export function useListingsSnapshot() {
+/**
+ * Home's one read (client feedback 11 Nov, item 6): exact counts, what needs the caller, the
+ * agent's recent work and each marketplace's next step. Under `listings.lists()`, so every
+ * listing mutation that invalidates lists refreshes Home.
+ */
+export function useHomeSummary() {
   const keys = useKeys()
   return useQuery({
-    // Under `listings.lists()`, so every listing mutation that invalidates lists refreshes Home.
-    queryKey: [...keys.listings.lists(), 'home-snapshot'] as const,
-    queryFn: async (): Promise<ListingsSnapshot> => {
-      const { rows, complete } = await walkListings((cursor) =>
-        unwrap(api.GET('/listings', { params: { query: { limit: LISTINGS_PAGE, cursor } } })),
-      )
-      return summarizeListings(rows, complete)
-    },
+    queryKey: [...keys.listings.lists(), 'home-summary'] as const,
+    queryFn: () => unwrap(api.GET('/home/summary')),
     refetchInterval: HOME_REFRESH_MS,
     refetchIntervalInBackground: false,
   })

@@ -44,6 +44,7 @@ import { APPROVED_PAUSED_LABEL, needsYourInfo } from '@/lib/listing-chip'
 import { cn } from '@/lib/utils'
 import { AddMarketplaceDialog } from './add-marketplace-dialog'
 import { useCatalog, type LoadState } from './catalog'
+import { cleanProductsSearch, type ProductsSearch } from './products-search'
 import {
   BUCKETS,
   bucketCounts,
@@ -430,13 +431,24 @@ export function BulkDelete({ rows, canDelete, onDelete }: { rows: CatalogRow[]; 
   )
 }
 
-export function ProductsPage() {
+/**
+ * `search` holds the filters (the route's URL search, `./products-search`); `onSearch` changes
+ * them. Without a router (tests) the page keeps them itself.
+ */
+export function ProductsPage({ search, onSearch }: { search?: ProductsSearch; onSearch?: (patch: Partial<ProductsSearch>) => void } = {}) {
   const catalog = useCatalog()
   const can = useCan()
-  const [q, setQ] = useState('')
-  const [bucket, setBucket] = useState<Bucket | 'all'>('all')
-  const [category, setCategory] = useState<string | null>(null)
-  const [marketplace, setMarketplace] = useState<Marketplace | null>(null)
+  const [local, setLocal] = useState<ProductsSearch>({})
+  const filters = search ?? local
+  const setFilters = (patch: Partial<ProductsSearch>) => (onSearch ? onSearch(patch) : setLocal((s) => cleanProductsSearch({ ...s, ...patch })))
+  const q = filters.q ?? ''
+  const bucket: Bucket | 'all' = filters.status ?? 'all'
+  const category = filters.category ?? null
+  const marketplace: Marketplace | null = filters.marketplace ?? null
+  const setQ = (v: string) => setFilters({ q: v })
+  const setBucket = (v: Bucket | 'all') => setFilters({ status: v === 'all' ? undefined : v })
+  const setCategory = (v: string | null) => setFilters({ category: v ?? undefined })
+  const setMarketplace = (v: Marketplace | null) => setFilters({ marketplace: v ?? undefined })
   const [selection, setSelection] = useState<RowSelectionState>({})
   const [adding, setAdding] = useState<CatalogRow[] | null>(null)
   const [deleting, setDeleting] = useState<{ rows: CatalogRow[]; clear: () => void } | null>(null)
@@ -462,12 +474,7 @@ export function ProductsPage() {
   const listingsOf = useCallback((id: string) => byId.get(id)?.listings ?? {}, [byId])
 
   const filtered = q.trim() !== '' || bucket !== 'all' || !!category || !!marketplace
-  const clear = () => {
-    setQ('')
-    setBucket('all')
-    setCategory(null)
-    setMarketplace(null)
-  }
+  const clear = () => setFilters({ q: undefined, status: undefined, category: undefined, marketplace: undefined })
   const n = catalog.rows.length
 
   const sub = catalog.isPending

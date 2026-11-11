@@ -1,11 +1,12 @@
 /**
- * /home (hi-fi 06 Home, 05 Home first run). Everything on it comes from the API:
- *   tiles + marketplace cards  GET /listings (walked, capped), GET /tasks, GET /issues,
- *                              GET /marketplaces/accounts
- *   first run                  GET /tenants/me, GET /marketplaces/accounts, GET /products?limit=1
- * "What the agent did" links to /activity, where each listing's real history opens.
+ * /home (hi-fi 06 Home, 05 Home first run). One read, GET /home/summary (client feedback 11 Nov,
+ * item 6): exact counts with a definition each, every tile linked to its filtered list, the
+ * things that wait on the caller (product, issue, action), the agent's recent work with its
+ * failures and pending jobs, and each marketplace's next step. Everything lands together, after
+ * skeletons shaped like the page.
+ *   first run  GET /tenants/me, GET /marketplaces/accounts, GET /products?limit=1 (./first-run)
  */
-import { Link } from '@tanstack/react-router'
+import { Link, type LinkProps } from '@tanstack/react-router'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Page, PageHeader } from '@/components/app/page-header'
 import { LaCard, CardHead, DashedCard, MetricTile, TaskRow } from '@/components/la/cards'
@@ -19,102 +20,67 @@ import { ErrorState } from '@/components/states'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useAmazonPublishing, useBrandName } from '@/features/brand/api'
-import { useIssuesList, useTasksList } from '@/features/inbox/api'
+import { useBrandName } from '@/features/brand/api'
 import { MARKETPLACE_LABEL } from '@/features/inbox/model'
-import { useCurrentMarketplaceAccounts } from '@/features/marketplaces/api'
 import { comingSoon, comingSoonReason } from '@/features/marketplaces/meta'
 import { useMe } from '@/lib/auth'
-import { fieldLabel } from '@/features/listing-flow/format'
 import { useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
-import { LISTINGS_CAP, useListingsSnapshot, useProductsById } from './api'
+import { useHomeSummary } from './api'
 import { FirstRun } from './first-run'
+import { API_MARKETPLACES, greeting, marketplaceCard } from './model'
+import { Ago } from './parts'
 import {
-  API_MARKETPLACES,
-  fmtCount,
-  greeting,
-  inProgressTile,
-  issueTitle,
-  itemKey,
+  cardInputs,
+  cardNext,
+  feedRows,
+  feedSummary,
   liveTile,
-  marketplaceCard,
-  mergeInbox,
-  standaloneIssues,
   needsYouTile,
-  pausedText,
-  publishCounts,
-  splitTasks,
-  taskMeta,
-  type ListingsSnapshot,
-  type TileView,
-} from './model'
-import { Ago, ItemTile } from './parts'
+  progressTile,
+  STATE_WORD,
+  waitingEmpty,
+  waitingRow,
+  type HomeSummary,
+  type SummaryTile,
+  type Target,
+} from './summary-model'
+
+/** A summary link target as router Link props (the targets are this app's own routes). */
+const linkTo = (t: Target) => t as unknown as LinkProps
 
 export function HomePage() {
   const { data: me } = useMe()
   const brand = useBrandName(me)
-  const snapshot = useListingsSnapshot()
+  const summary = useHomeSummary()
 
   // p05 "Checklist and routes are shown until the first listing exists" (no listings at all).
   // FirstRun mounts its own Page; every other state swaps inside one shared Page so the page-in
   // rise plays once (skeleton → dashboard does not rise twice).
-  if (snapshot.isSuccess && snapshot.data.total === 0) return <FirstRun brand={brand} />
+  if (summary.isSuccess && summary.data.listings.total === 0) return <FirstRun brand={brand} />
   return (
     <Page>
-      {snapshot.isPending ? (
+      {summary.isPending ? (
         <HomeSkeletonBody />
-      ) : snapshot.isError ? (
+      ) : summary.isError ? (
         <>
           <PageHeader title={greeting(me?.display_name ?? null)} description={brand || undefined} />
           <LaCard className="mx-auto w-full max-w-xl py-10">
-            <ErrorState error={snapshot.error} title="Couldn't load your listings" onRetry={() => void snapshot.refetch()} />
+            <ErrorState error={summary.error} title="Couldn't load Home" onRetry={() => void summary.refetch()} />
           </LaCard>
         </>
       ) : (
-        <DashboardBody brand={brand} name={me?.display_name ?? null} snapshot={snapshot.data} updatedAt={snapshot.dataUpdatedAt} />
+        <DashboardBody brand={brand} name={me?.display_name ?? null} summary={summary.data} updatedAt={summary.dataUpdatedAt} />
       )}
     </Page>
   )
 }
 
-function DashboardBody({
-  brand,
-  name,
-  snapshot,
-  updatedAt,
-}: {
-  brand: string
-  name: string | null
-  snapshot: ListingsSnapshot
-  updatedAt: number
-}) {
+export function DashboardBody({ brand, name, summary, updatedAt }: { brand: string; name: string | null; summary: HomeSummary; updatedAt: number }) {
   const can = useCan()
-  const tasks = useTasksList('open')
-  const issues = useIssuesList({})
-  const inboxReady = !!tasks.data && !!issues.data
-  const tasksCount = { n: tasks.rows.length, more: !!tasks.hasNextPage }
-  // An issue linked to an open question is the same thing to do: counted once, as the question.
-  const issuesCount = { n: standaloneIssues(issues.rows, tasks.rows).length, more: !!issues.hasNextPage }
-  // Photo questions improve a listing and hold none back, unless an open error is linked to one.
-  const split = splitTasks(tasks.rows, tasksCount.more, issues.rows)
-  // Listings to approve or publish are work only for a role that can do it (admins do no listing
-  // work, operators do not approve, reviewers do not publish).
-  const approve = can('listing:approve') ? snapshot.approve : 0
-  // While Amazon publishing is switched off, approved Amazon listings are said, not counted as work.
-  const counts = publishCounts(snapshot, useAmazonPublishing(), can('listing:publish'))
-  const publish = counts.publish
-  const paused = can('listing:approve') || can('listing:publish') ? counts.paused : 0
-
-  const live = liveTile(snapshot, LISTINGS_CAP)
-  const working = inProgressTile(snapshot, LISTINGS_CAP)
-  const needs = needsYouTile(
-    { tasks: split.blocking, improve: split.improve, issues: issuesCount, approve, publish, paused, snapshotComplete: snapshot.complete },
-    LISTINGS_CAP,
-  )
-  const inboxError = tasks.error ?? issues.error
-  // DashboardBody only mounts once the snapshot has loaded, so this is the whole S10 gate.
-  const tilesReady = inboxReady || !!inboxError
+  const live = liveTile(summary)
+  const working = progressTile(summary)
+  const needs = needsYouTile(summary)
 
   return (
     <>
@@ -148,106 +114,51 @@ function DashboardBody({
         }
       />
 
-      {/* The three tiles land together: skeletons until Home's listings and the Inbox have both
-          answered (or the Inbox failed), then one row that rises once and counts up once. */}
-      {!tilesReady ? (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4" aria-busy="true" data-testid="home-tiles-loading">
-          <TileSkeleton />
-          <TileSkeleton />
-          <TileSkeleton attention className="col-span-2 md:col-span-1" />
-        </div>
-      ) : (
-        <div className="stagger-children grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4" data-testid="home-tiles">
-          <Tile testId="tile-live" chip={<StatusChip status="live" />} view={live} />
-          <Tile
-            testId="tile-working"
-            chip={<StatusChip status="working">In progress</StatusChip>}
-            view={working}
-            action={
-              snapshot.working > 0 ? (
-                <Button asChild size="sm" variant="secondary">
-                  <Link to="/products">See in Products</Link>
+      {/* One read answers every tile, so the row rises once and counts up once. */}
+      <div className="stagger-children grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4" data-testid="home-tiles">
+        <Tile testId="tile-live" chip={<StatusChip status="live" />} view={live} />
+        <Tile testId="tile-working" chip={<StatusChip status="working">In progress</StatusChip>} view={working} />
+        <MetricTile
+          emphasis="attention"
+          className="col-span-2 md:col-span-1"
+          chip={<TileChip chip={<StatusChip status="needs-you" />} definition={needs.definition} testId="tile-needs" />}
+          value={
+            <span data-testid="tile-needs-value">
+              <CountUp value={needs.value} />
+            </span>
+          }
+          caption={
+            <>
+              <span data-testid="tile-needs-caption">{needs.caption}</span>
+              {needs.aside ? (
+                <span className="mt-0.5 block text-caption text-ink-3" data-testid="tile-needs-aside">
+                  {needs.aside}
+                </span>
+              ) : null}
+            </>
+          }
+          action={
+            <div className="flex flex-wrap gap-2">
+              <Button asChild size="sm" variant="warn" data-testid="tile-needs-link">
+                <Link {...linkTo(needs.link.target)}>{needs.link.label}</Link>
+              </Button>
+              {needs.listings ? (
+                <Button asChild size="sm" variant="secondary" className="min-w-0 max-w-full" data-testid="tile-needs-listings">
+                  <Link {...linkTo(needs.listings.target)}>
+                    <span className="min-w-0 truncate">{needs.listings.label}</span>
+                  </Link>
                 </Button>
-              ) : undefined
-            }
-          />
-          {inboxError ? (
-            <MetricTile
-              emphasis="attention"
-              className="col-span-2 md:col-span-1"
-              chip={<StatusChip status="needs-you" />}
-              value={<Unknown reason="Open questions and issues could not be loaded, so this number is unknown." />}
-              caption="Couldn't load your Inbox."
-              action={
-                <Button size="sm" variant="secondary" onClick={() => void Promise.all([tasks.refetch(), issues.refetch()])}>
-                  Retry
-                </Button>
-              }
-            />
-          ) : (
-            <MetricTile
-              emphasis="attention"
-              className="col-span-2 md:col-span-1"
-              chip={<StatusChip status="needs-you" />}
-              value={<span data-testid="tile-needs-value"><Value view={needs} /></span>}
-              caption={
-                <>
-                  <span data-testid="tile-needs-caption">{needs.caption}</span>
-                  {needs.aside ? (
-                    <span className="mt-0.5 block text-caption text-ink-3" data-testid="tile-needs-aside">
-                      {needs.aside}
-                    </span>
-                  ) : null}
-                </>
-              }
-              action={
-                // The tile counts two places: questions and issues live in the Inbox, listings to
-                // approve or publish live on their product (Products). Link to each part shown.
-                // The main button goes where the work is: the Inbox only when it holds something that blocks
-                // a listing (photo questions are reached from Waiting for you).
-                <div className="flex flex-wrap gap-2">
-                  {split.blocking.n + issuesCount.n > 0 || approve + publish === 0 ? (
-                    <Button asChild size="sm" variant="warn" data-testid="tile-needs-inbox">
-                      <Link to="/inbox">Open Inbox</Link>
-                    </Button>
-                  ) : null}
-                  {approve + publish > 0 ? (
-                    <Button
-                      asChild
-                      size="sm"
-                      variant={split.blocking.n + issuesCount.n > 0 ? 'secondary' : 'warn'}
-                      className="min-w-0 max-w-full"
-                      data-testid="tile-needs-listings"
-                    >
-                      <Link to="/products">
-                        {/* One text item: the button is a flex row with a gap, and the label must not split. */}
-                        <span className="min-w-0 truncate">
-                          {approve ? 'Approve' : 'Publish'}
-                          <span className="max-lg:sr-only"> in Products</span>
-                        </span>
-                      </Link>
-                    </Button>
-                  ) : null}
-                </div>
-              }
-            />
-          )}
-        </div>
-      )}
+              ) : null}
+            </div>
+          }
+        />
+      </div>
 
-      <MarketplaceRow snapshot={snapshot} />
+      <MarketplaceRow summary={summary} />
 
       <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <WaitingCard tasks={tasks} issues={issues} total={fmtCount({ n: tasksCount.n + issuesCount.n, more: tasksCount.more || issuesCount.more })} approve={approve} publish={publish} paused={paused} />
-        <LaCard data-testid="agent-feed">
-          <CardHead title="What the agent did" icon="activity" iconTone="neutral" />
-          <p className="mt-3 max-w-[52ch] text-small text-ink-2">
-            Each listing keeps its own history: what the agent did, who approved it and what the marketplace said.
-          </p>
-          <Button asChild variant="secondary" size="sm" className="mt-4">
-            <Link to="/activity">Open Activity</Link>
-          </Button>
-        </LaCard>
+        <WaitingCard summary={summary} />
+        <AgentFeed summary={summary} />
       </div>
     </>
   )
@@ -269,41 +180,43 @@ function useNow(everyMs: number) {
   return now
 }
 
-function Value({ view }: { view: TileView }) {
-  if (!view.note) return <CountUp value={view.value} />
+/** The tile's chip with an info mark: what the number counts, in plain words. */
+function TileChip({ chip, definition, testId }: { chip: ReactNode; definition: string; testId: string }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span tabIndex={0} className="cursor-help rounded-sm underline decoration-line-strong decoration-dotted underline-offset-[6px]">
-          <CountUp value={view.value} />
-        </span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-72">{view.note}</TooltipContent>
-    </Tooltip>
+    <span className="flex items-center gap-1.5">
+      {chip}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={`What this counts: ${definition}`}
+            className="inline-flex size-6 items-center justify-center rounded-full text-ink-3 hover:text-ink-2 focus-visible:text-ink-2"
+            data-testid={`${testId}-definition`}
+          >
+            <Icon name="info" size={14} aria-hidden />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-72">{definition}</TooltipContent>
+      </Tooltip>
+    </span>
   )
 }
 
-/** "—" with the reason: a number we cannot compute honestly is never guessed. */
-function Unknown({ reason }: { reason: string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span tabIndex={0} aria-label={`Unknown. ${reason}`} className="cursor-help rounded-sm">
-          —
-        </span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-72">{reason}</TooltipContent>
-    </Tooltip>
-  )
-}
-
-function Tile({ chip, view, testId, action }: { chip: ReactNode; view: TileView; testId: string; action?: ReactNode }) {
+function Tile({ chip, view, testId }: { chip: ReactNode; view: SummaryTile; testId: string }) {
   return (
     <MetricTile
-      chip={chip}
-      action={action}
-      value={<span data-testid={`${testId}-value`}><Value view={view} /></span>}
+      chip={<TileChip chip={chip} definition={view.definition} testId={testId} />}
+      value={
+        <span data-testid={`${testId}-value`}>
+          <CountUp value={view.value} />
+        </span>
+      }
       caption={<span data-testid={`${testId}-caption`}>{view.caption}</span>}
+      action={
+        <Button asChild size="sm" variant="secondary" data-testid={`${testId}-link`}>
+          <Link {...linkTo(view.link.target)}>{view.link.label}</Link>
+        </Button>
+      }
     />
   )
 }
@@ -313,67 +226,61 @@ const SUPPORTED_CARDS = MARKETPLACE_CARDS.filter((id): id is (typeof API_MARKETP
 const UNSUPPORTED_CARDS = MARKETPLACE_CARDS.filter((id) => !(API_MARKETPLACES as readonly string[]).includes(id))
 const MARKETPLACE_ROW = 'mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3'
 
-function MarketplaceRow({ snapshot }: { snapshot: ListingsSnapshot }) {
-  const accounts = useCurrentMarketplaceAccounts()
+const LINK_ATTENTION =
+  'inline-flex min-h-10 items-center gap-1 font-semibold text-attention-ink underline decoration-attention-line underline-offset-4 hover:decoration-attention pointer-fine:min-h-0'
+const LINK_QUIET = 'inline-flex min-h-10 items-center gap-1 font-semibold text-brand underline-offset-4 hover:underline pointer-fine:min-h-0'
+
+function MarketplaceRow({ summary }: { summary: HomeSummary }) {
   // Connecting is an owner or admin's job: other roles get the reason, not a dead-end link.
   const canConnect = useCan()('marketplace:connect')
+  const connected = summary.marketplaces.filter((m) => m.account !== 'not_connected').map((m) => m.marketplace)
   return (
     <div className={cn('stagger-children [--stagger-base:80ms]', MARKETPLACE_ROW)} data-testid="home-marketplaces">
       {SUPPORTED_CARDS.map((m) => {
-        if (accounts.isPending) return <MarketplaceCardSkeleton key={m} />
-        const account = accounts.data?.live[m] ?? null
-        const soon = comingSoon(m, account ? [m] : []) ? { reason: comingSoonReason(m) } : null
-        const view = accounts.isError ? null : marketplaceCard(account, snapshot.byMarketplace[m], snapshot.complete, soon)
+        const { account, totals, status } = cardInputs(summary, m)
+        const soon = comingSoon(m, connected) ? { reason: comingSoonReason(m) } : null
+        const view = marketplaceCard(account, totals, true, soon)
+        const next = view.action || view.problem || soon ? null : cardNext(m, status, totals)
         return (
           // Solid once anything is live on it; dashed only while nothing is listed and nothing to fix.
-          <LaCard
-            key={m}
-            pad="sm"
-            emphasis={view && view.chip.status === 'not-listed' && !view.action ? 'dashed' : 'default'}
-            data-testid={`home-mp-${m}`}
-          >
+          <LaCard key={m} pad="sm" emphasis={view.chip.status === 'not-listed' && !view.action && !next ? 'dashed' : 'default'} data-testid={`home-mp-${m}`}>
             <div className="flex items-center gap-3 font-semibold text-ink">
               <MarketplaceTile id={m} />
               {MARKETPLACE_LABEL[m]}
             </div>
             <div className="mt-3">
-              {view ? (
-                <StatusChip status={view.chip.status} className="tabular-nums">
-                  <span data-testid="mp-chip">{view.chip.label}</span>
-                </StatusChip>
-              ) : (
-                <StatusChip status="not-listed">Unknown</StatusChip>
-              )}
+              <StatusChip status={view.chip.status} className="tabular-nums">
+                <span data-testid="mp-chip">{view.chip.label}</span>
+              </StatusChip>
             </div>
             <p className="mt-2 text-caption text-ink-2">
-              {!view ? (
-                "Couldn't load the account."
-              ) : view.action && !canConnect ? (
+              {view.action && !canConnect ? (
                 <span data-testid="mp-connect-who">
                   {view.action === 'reconnect' ? 'Access expired. An owner or admin can reconnect it.' : 'Not connected. An owner or admin can connect it.'}
                 </span>
               ) : view.problem ? (
                 <>
                   {view.sub ? `${view.sub} · ` : null}
-                  <Link
-                    to="/products/$productId"
-                    params={{ productId: view.problem.productId }}
-                    className="inline-flex min-h-10 items-center gap-1 font-semibold text-attention-ink underline decoration-attention-line underline-offset-4 hover:decoration-attention pointer-fine:min-h-0"
-                    data-testid="mp-problem"
-                  >
+                  <Link to="/products/$productId" params={{ productId: view.problem.productId }} className={LINK_ATTENTION} data-testid="mp-problem">
                     {view.problem.text}
                   </Link>
                 </>
               ) : view.action ? (
-                <Link
-                  to="/marketplaces"
-                  search={{ mp: m }}
-                  className="inline-flex min-h-10 items-center gap-1 font-semibold text-attention-ink underline decoration-attention-line underline-offset-4 hover:decoration-attention pointer-fine:min-h-0"
-                >
+                <Link to="/marketplaces" search={{ mp: m }} className={LINK_ATTENTION} data-testid="mp-connect">
                   {view.sub}
                 </Link>
               ) : (
-                view.sub
+                <>
+                  {view.sub && !(next && totals.listings === 0) ? <span>{view.sub}</span> : null}
+                  {next ? (
+                    <>
+                      {view.sub && totals.listings > 0 ? ' · ' : null}
+                      <Link {...linkTo(next.target)} className={LINK_QUIET} data-testid="mp-next">
+                        {next.label}
+                      </Link>
+                    </>
+                  ) : null}
+                </>
               )}
             </p>
           </LaCard>
@@ -429,42 +336,23 @@ function UnsupportedMarketplaces() {
   )
 }
 
-const WAITING_ROWS = 3
-
-function WaitingCard({
-  tasks,
-  issues,
-  total,
-  approve,
-  publish,
-  paused,
-}: {
-  tasks: ReturnType<typeof useTasksList>
-  issues: ReturnType<typeof useIssuesList>
-  total: string
-  /** Listings waiting for a person on their product page (not in the Inbox). */
-  approve: number
-  publish: number
-  /** Approved Amazon listings waiting while Amazon publishing is paused (nothing to do). */
-  paused: number
-}) {
-  const items = mergeInbox(tasks.rows, issues.rows).slice(0, WAITING_ROWS)
-  const products = useProductsById(items.map((i) => (i.kind === 'task' ? i.task.product_id : null)))
-  const error = tasks.error ?? issues.error
-  // A row paints once, title and meta together: wait for its product (SKU) too.
-  const pending = tasks.isPending || issues.isPending || products.pending
+function WaitingCard({ summary }: { summary: HomeSummary }) {
+  const can = useCan()
+  const rows = summary.needs_you_items.map(waitingRow)
+  const inbox = summary.needs_you.blocked + summary.needs_you.questions
+  const empty = waitingEmpty(summary)
   return (
     <LaCard data-testid="waiting-card">
       <CardHead
         title="Waiting for you"
         action={
-          items.length ? (
+          inbox > 0 ? (
             <Link
               to="/inbox"
               className="group -mx-1 -my-2 inline-flex min-h-10 items-center gap-1 rounded-sm px-1 text-small font-bold text-brand underline-offset-4 hover:underline"
               data-testid="waiting-view-all"
             >
-              View all {total}
+              Open Inbox
               {/* chev points down in the set: turned to point right; the nudge animates `translate`. */}
               <Icon
                 name="chev"
@@ -477,77 +365,115 @@ function WaitingCard({
         }
       />
       <div className="mt-2">
-        {error ? (
-          <ErrorState compact error={error} title="Couldn't load your Inbox" onRetry={() => void Promise.all([tasks.refetch(), issues.refetch()])} />
-        ) : pending ? (
-          Array.from({ length: 3 }, (_, i) => (
-            <div key={i} className="flex items-center gap-3 border-b border-line py-3.5 last:border-b-0">
-              <Skeleton className="size-9 rounded-tile" />
-              <div className="flex-1 space-y-1.5">
-                <Skeleton className="h-4 w-40 max-w-full" />
-                <Skeleton className="h-3 w-56 max-w-full" />
-              </div>
+        {rows.length === 0 ? (
+          <div className="flex items-start gap-3 py-3 text-small text-ink-2" data-testid="waiting-empty">
+            <IconTile icon={empty === 'clear' ? 'check' : 'spark'} tone={empty === 'clear' ? 'ok' : 'brand'} size="lg" />
+            <div className="min-w-0">
+              {empty === 'add-product' ? (
+                <>
+                  <p>Nothing to do yet. Add your first product and Kuinn writes its listing.</p>
+                  {can('product:import') ? (
+                    <Button asChild size="sm" className="mt-2" data-testid="waiting-add">
+                      <Link to="/add">Add a product</Link>
+                    </Button>
+                  ) : null}
+                </>
+              ) : empty === 'connect' ? (
+                <>
+                  <p>Nothing needs you right now. Connect a marketplace so approved listings can go live.</p>
+                  {can('marketplace:connect') ? (
+                    <Button asChild size="sm" variant="secondary" className="mt-2" data-testid="waiting-connect">
+                      <Link to="/marketplaces">Connect a marketplace</Link>
+                    </Button>
+                  ) : (
+                    <p className="mt-1 text-caption text-ink-3">An owner or admin can connect one.</p>
+                  )}
+                </>
+              ) : summary.needs_you.publishing_paused > 0 ? (
+                <p>
+                  Nothing needs you right now. {summary.needs_you.publishing_paused} approved{' '}
+                  {summary.needs_you.publishing_paused === 1 ? 'listing waits' : 'listings wait'} while publishing is paused.
+                </p>
+              ) : (
+                <p>Nothing needs you right now. New questions from the agent appear here.</p>
+              )}
             </div>
-          ))
-        ) : items.length === 0 ? (
-          <div className="flex items-center gap-3 py-3 text-small text-ink-2" data-testid="waiting-empty">
-            <IconTile icon="check" tone="ok" size="lg" />
-            {approve + publish > 0 ? (
-              <span>
-                No questions or issues.{' '}
-                <Link to="/products" className="font-bold text-brand underline-offset-4 hover:underline" data-testid="waiting-listings">
-                  {approve > 0
-                    ? `${approve} ${approve === 1 ? 'listing is' : 'listings are'} ready to approve`
-                    : `${publish} ${publish === 1 ? 'listing is' : 'listings are'} ready to publish`}
-                </Link>
-                .
-              </span>
-            ) : paused > 0 ? (
-              <span>
-                Nothing needs you right now.{' '}
-                <Link to="/products" className="font-bold text-brand underline-offset-4 hover:underline" data-testid="waiting-paused">
-                  {pausedText(paused)}
-                </Link>
-                .
-              </span>
-            ) : (
-              'Nothing needs you right now. New questions from the agent appear here.'
-            )}
           </div>
         ) : (
-          items.map((it) => {
-            const product = it.kind === 'task' && it.task.product_id ? products.map.get(it.task.product_id) : undefined
-            const title = it.kind === 'task' ? it.task.question : issueTitle(it.issue)
-            const meta =
-              it.kind === 'task'
-                ? [product?.sku, taskMeta(it.task, issues.rows)].filter(Boolean).join(' · ')
-                : `${MARKETPLACE_LABEL[it.issue.marketplace]} · ${it.issue.severity === 'error' ? 'Error' : 'Warning'} on ${fieldLabel(it.issue.field_path)}`
-            return (
-              <TaskRow
-                key={itemKey(it)}
-                className="py-3.5"
-                interactive
-                leading={<ItemTile item={it} />}
-                title={<span data-testid="waiting-title">{title}</span>}
-                meta={meta}
-                action={
-                  <Button asChild size="sm" variant="secondary">
-                    {/* The ::after stretches the link over the whole row, so a press anywhere opens it. */}
-                    <Link
-                      to="/inbox"
-                      search={{ item: itemKey(it) }}
-                      aria-label={`Open ${title}`}
-                      className="after:absolute after:inset-0 after:content-['']"
-                    >
-                      Open
-                    </Link>
-                  </Button>
-                }
-              />
-            )
-          })
+          rows.map((r) => (
+            <TaskRow
+              key={r.key}
+              className="py-3.5"
+              interactive
+              leading={<IconTile icon={r.icon.icon} tone={r.icon.tone} />}
+              title={<span data-testid="waiting-title">{r.title}</span>}
+              meta={
+                <span data-testid="waiting-issue">
+                  {r.issue}
+                  {r.meta ? <span className="text-ink-3"> · {r.meta}</span> : null}
+                </span>
+              }
+              action={
+                <Button asChild size="sm" variant="secondary">
+                  {/* The ::after stretches the link over the whole row, so a press anywhere opens it. */}
+                  <Link {...linkTo(r.target)} aria-label={`${r.action}: ${r.title}`} className="after:absolute after:inset-0 after:content-['']" data-testid="waiting-action">
+                    {r.action}
+                  </Link>
+                </Button>
+              }
+            />
+          ))
         )}
       </div>
+    </LaCard>
+  )
+}
+
+const FEED_ROWS = 6
+
+function AgentFeed({ summary }: { summary: HomeSummary }) {
+  const rows = feedRows(summary.activity).slice(0, FEED_ROWS)
+  const sub = feedSummary(summary.activity)
+  return (
+    <LaCard data-testid="agent-feed">
+      <CardHead
+        title="What the agent did"
+        icon="activity"
+        iconTone="neutral"
+        sub={sub ? <span data-testid="agent-feed-sub">{sub}</span> : undefined}
+        action={
+          <Button asChild variant="ghost" size="sm" data-testid="agent-feed-activity">
+            <Link to="/activity">Open Activity</Link>
+          </Button>
+        }
+      />
+      {rows.length === 0 ? (
+        <p className="mt-3 max-w-[52ch] text-small text-ink-2" data-testid="agent-feed-empty">
+          Nothing yet. When you add a product, the agent writes its listing, checks its photos and fixes what it can. Each step shows here.
+        </p>
+      ) : (
+        <ol className="mt-2" aria-label="Recent agent actions">
+          {rows.map((r) => (
+            <li key={r.key} className="flex items-start gap-3 border-b border-line py-2.5 last:border-b-0" data-testid="agent-feed-row" data-state={r.state}>
+              <IconTile icon={r.icon.icon} tone={r.icon.tone} size="sm" className="mt-0.5" />
+              <div className="min-w-0 flex-1 text-small">
+                <span className="sr-only">{STATE_WORD[r.state]}: </span>
+                {r.target ? (
+                  <Link {...linkTo(r.target)} className="font-semibold text-ink underline-offset-4 hover:underline">
+                    {r.text}
+                  </Link>
+                ) : (
+                  <span className="font-semibold text-ink">{r.text}</span>
+                )}
+                <span className="block text-caption text-ink-3">
+                  {r.state === 'failed' ? 'Failed · ' : r.state === 'pending' ? 'In progress · ' : null}
+                  <Ago iso={r.at} />
+                </span>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
     </LaCard>
   )
 }
