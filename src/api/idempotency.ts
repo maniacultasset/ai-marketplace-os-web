@@ -16,6 +16,7 @@ export const IDEMPOTENT_OPS = [
   'POST /imports/{import_id}/rows/retry',
   'POST /brand/documents',
   'POST /images/upload',
+  'POST /images/{image_id}/photo-match/keep',
   'POST /products/{product_id}/image-candidates',
   'POST /image-candidates/{candidate_id}/accept',
   'POST /image-candidates/{candidate_id}/reject',

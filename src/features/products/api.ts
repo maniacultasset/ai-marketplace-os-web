@@ -6,12 +6,13 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, unwrap } from '@/api/client'
 import { isApiError } from '@/api/errors'
+import { idempotencyHeader } from '@/api/idempotency'
 import { ifMatchHeader, unwrapVersioned, type Versioned } from '@/api/etag'
 import type { Schema } from '@/api/types'
 import { PAGE_SIZE, useCursorList } from '@/hooks/use-cursor-list'
 import { useKeys, type QueryKeys } from '@/lib/query-keys'
 import { viewRefreshDelay } from './image-views'
-import { photoReadDelay, soonest } from './photo-reading'
+import { photoMatchDelay, photoReadDelay, soonest } from './photo-reading'
 import { toCreateBody, toCreateJson, type ProductFormValues } from './schema'
 
 export type Product = Schema<'ProductOut'>
@@ -102,8 +103,10 @@ export const productQuery = (keys: QueryKeys, productId: string) =>
     queryKey: [...keys.products.detail(productId), 'exact'] as const,
     queryFn: () => fetchProduct(productId),
     // The photo links are signed for about 10 minutes: read again just before the first expires.
-    // V1.1: sooner while the photos are being read after an upload (`photo-reading`).
-    refetchInterval: (q) => soonest(viewRefreshDelay([q.state.data]), photoReadDelay(q.state.data)),
+    // V1.1: sooner while the photos are being read after an upload (`photo-reading`), and while a
+    // photo's colour check runs (`photo-match`).
+    refetchInterval: (q) =>
+      soonest(soonest(viewRefreshDelay([q.state.data]), photoReadDelay(q.state.data)), photoMatchDelay(q.state.data)),
     refetchIntervalInBackground: false,
   })
 
@@ -184,6 +187,18 @@ export function useDeleteImage(productId: string) {
   return useMutation({
     meta: { toast: false },
     mutationFn: (imageId: string) => unwrap(api.DELETE('/images/{image_id}', { params: { path: { image_id: imageId } } })),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.products.detail(productId) }),
+  })
+}
+
+/** POST /images/{id}/photo-match/keep (product:import): the seller keeps a photo the colour check questioned. */
+export function useKeepPhoto(productId: string) {
+  const keys = useKeys()
+  const qc = useQueryClient()
+  return useMutation({
+    meta: { toast: false },
+    mutationFn: ({ imageId, key }: { imageId: string; key: string }) =>
+      unwrap(api.POST('/images/{image_id}/photo-match/keep', { params: { path: { image_id: imageId }, header: idempotencyHeader(key) } })),
     onSettled: () => qc.invalidateQueries({ queryKey: keys.products.detail(productId) }),
   })
 }

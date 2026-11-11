@@ -137,24 +137,47 @@ describe('ProductImagesCard photo tiles (SI12)', () => {
     expect(screen.getByLabelText('Add close-up photo')).toBeTruthy()
   })
 
-  it('files the tiles under the colour picked', async () => {
+  it('gives each colour its own upload tiles, filed under that colour', async () => {
     const user = userEvent.setup()
     setup()
-    await user.click(screen.getByTestId('image-colour'))
-    await user.click(await screen.findByRole('option', { name: 'White' }))
-    await user.upload(screen.getByLabelText('Back photo file'), file())
+    const groups = screen.getAllByTestId('colour-group')
+    expect(groups.map((g) => within(g).queryAllByTestId('photo-slot-front').length)).toEqual([1, 1, 1])
+    await user.upload(within(groups[2]!).getByLabelText('Back photo file'), file())
     await waitFor(() => expect(uploadImage).toHaveBeenCalled())
     expect(uploadImage.mock.calls[0]![0]).toMatchObject({ productId: P, slot: 'secondary', role: 'back', colourwayId: WHITE })
+    await user.upload(within(groups[0]!).getByLabelText('Front photo file'), file())
+    await waitFor(() => expect(uploadImage).toHaveBeenCalledTimes(2))
+    expect(uploadImage.mock.calls[1]![0]).toMatchObject({ slot: 'main', colourwayId: null })
   })
 
-  it('never files a size chart under a colour', async () => {
+  it('shows each colour its own Front photo and an empty Front where it has none', () => {
+    live = true
+    setup()
+    const [all, black, white] = screen.getAllByTestId('colour-group')
+    expect(within(all!).getByTestId('photo-slot-front').dataset.filled).toBe('true')
+    expect(within(black!).getByTestId('photo-slot-front').dataset.filled).toBe('true')
+    expect(within(white!).getByTestId('photo-slot-front').dataset.filled).not.toBe('true')
+  })
+
+  it('keeps the size chart with all colours, never under a colour', async () => {
     const user = userEvent.setup()
     setup()
-    await user.click(screen.getByTestId('image-colour'))
-    await user.click(await screen.findByRole('option', { name: 'Black' }))
-    await user.upload(screen.getByLabelText('Size chart photo file'), file())
+    const groups = screen.getAllByTestId('colour-group')
+    expect(groups.map((g) => within(g).queryAllByTestId('photo-slot-size_chart').length)).toEqual([1, 0, 0])
+    await user.upload(within(groups[0]!).getByLabelText('Size chart photo file'), file())
     await waitFor(() => expect(uploadImage).toHaveBeenCalled())
     expect(uploadImage.mock.calls[0]![0]).toMatchObject({ slot: 'size_chart', colourwayId: null })
+  })
+
+  it('files More photos under the colour picked there', async () => {
+    const user = userEvent.setup()
+    setup()
+    await user.click(screen.getByTestId('more-photos-toggle'))
+    await user.click(screen.getByTestId('image-colour'))
+    await user.click(await screen.findByRole('option', { name: 'White' }))
+    await user.upload(screen.getByLabelText('Image files'), [file()])
+    await waitFor(() => expect(uploadImage).toHaveBeenCalled())
+    expect(uploadImage.mock.calls[0]![0]).toMatchObject({ slot: 'secondary', role: null, colourwayId: WHITE })
   })
 
   it('marks an empty Front tile Required on the tile itself', () => {
@@ -183,8 +206,9 @@ describe('ProductImagesCard photo tiles (SI12)', () => {
     expect(uploadImage.mock.calls[0]![0]).toMatchObject({ slot: 'lifestyle', role: null })
   })
 
-  it('names the colour select by its visible word', () => {
+  it('names the colour select by its visible word', async () => {
     setup()
+    await userEvent.click(screen.getByTestId('more-photos-toggle'))
     expect(screen.getByRole('combobox', { name: 'Colour' })).toBeTruthy()
   })
 })
@@ -395,5 +419,89 @@ describe('ProductImagesCard photo checklist (feedback 7)', () => {
     expect(within(screen.getByTestId('photo-slot-size_chart')).queryByTestId('photo-slot-required')).toBeNull()
     expect(within(screen.getByTestId('photo-slot-size_chart')).getByText('Chart saved')).toBeTruthy()
     expect(screen.getByTestId('photo-needed').textContent).toContain('Needed before approval: Front.')
+  })
+})
+
+describe('ProductImagesCard colour check (client feedback item 9)', () => {
+  const KEEP = '/images/{image_id}/photo-match/keep'
+  const match = (status: 'checking' | 'match' | 'mismatch' | 'unsure' | 'failed', extra: Record<string, unknown> = {}) => ({
+    status,
+    colour: 'Black',
+    product_match: 0.93,
+    colour_match: status === 'mismatch' ? 0.05 : 0.9,
+    seen_colour: status === 'mismatch' ? 'red' : 'black',
+    reason: status === 'mismatch' ? 'The photo shows a red kurta.' : null,
+    question: status === 'mismatch' || status === 'unsure' ? 'Is this photo the Black Cotton Kurta?' : null,
+    checked_at: '2026-11-11T10:00:00Z',
+    kept: false,
+    kept_at: null,
+    kept_by_user_id: null,
+    ...extra,
+  })
+  const withMatch = (m: ReturnType<typeof match> | null) => ({
+    ...product,
+    image_details: [product.image_details[0]!, { ...product.image_details[1]!, photo_match: m }],
+  })
+  const blackRow = () => within(screen.getAllByTestId('colour-group')[1]!).getByTestId('image-row')
+
+  beforeEach(() => {
+    live = true
+  })
+
+  it('says a matched photo shows its colour, quietly', () => {
+    setup(withMatch(match('match')))
+    const note = within(blackRow()).getByTestId('photo-match')
+    expect(note.textContent).toBe('Shows Black')
+    expect(within(note).queryByRole('button')).toBeNull()
+    expect(screen.queryByTestId('colour-questions')).toBeNull()
+  })
+
+  it('says the check is running while it runs', () => {
+    setup(withMatch(match('checking')))
+    expect(within(blackRow()).getByRole('status').textContent).toContain('Checking it shows Black')
+    const front = within(screen.getAllByTestId('colour-group')[1]!).getByTestId('photo-slot-front')
+    expect(within(front).getByText('Checking colour…')).toBeTruthy()
+  })
+
+  it('asks about a mismatch on the row, the tile and the colour heading, and keeps it on request', async () => {
+    post.mockReturnValue(ok({ image_id: I2, photo_match: match('mismatch', { kept: true, kept_at: '2026-11-11T10:01:00Z' }) }))
+    setup(withMatch(match('mismatch')))
+    const black = screen.getAllByTestId('colour-group')[1]!
+    expect(within(black).getByTestId('colour-questions').textContent).toBe('1 to check')
+    expect(within(within(black).getByTestId('photo-slot-front')).getByText('Check this photo below')).toBeTruthy()
+    const note = within(blackRow()).getByTestId('photo-match')
+    expect(within(note).getByTestId('photo-match-question').textContent).toBe('Is this photo the Black Cotton Kurta?')
+    expect(note.textContent).toContain('It looks red.')
+    expect(note.textContent).toContain('Approval waits until you keep or remove it.')
+    await userEvent.click(within(note).getByTestId('photo-match-keep'))
+    await waitFor(() => expect(post).toHaveBeenCalled())
+    const [path, init] = post.mock.calls[0] as [string, { params: { path: { image_id: string }; header: Record<string, string> } }]
+    expect(path).toBe(KEEP)
+    expect(init.params.path.image_id).toBe(I2)
+    expect(init.params.header['Idempotency-Key']).toBeTruthy()
+  })
+
+  it('says an unsure photo does not stop approval', () => {
+    setup(withMatch(match('unsure')))
+    expect(within(blackRow()).getByTestId('photo-match').textContent).toContain('You can still approve.')
+  })
+
+  it('offers Remove, which asks before deleting', async () => {
+    setup(withMatch(match('mismatch')))
+    await userEvent.click(within(blackRow()).getByTestId('photo-match-remove'))
+    expect(within(blackRow()).getByTestId('image-delete-confirm')).toBeTruthy()
+  })
+
+  it('says a kept photo was kept, and a photo it could not read was not checked', () => {
+    setup(withMatch(match('mismatch', { kept: true, kept_at: '2026-11-11T10:01:00Z' })))
+    expect(within(blackRow()).getByTestId('photo-match').textContent).toBe('You kept this photo')
+    cleanup()
+    setup(withMatch(match('failed')))
+    expect(within(blackRow()).getByTestId('photo-match').textContent).toBe('Not checked for colour')
+  })
+
+  it('shows nothing while the check is off', () => {
+    setup(withMatch(null))
+    expect(screen.queryByTestId('photo-match')).toBeNull()
   })
 })
