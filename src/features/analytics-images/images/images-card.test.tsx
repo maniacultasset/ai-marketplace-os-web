@@ -375,7 +375,7 @@ describe('ProductImagesCard photo checklist (feedback 7)', () => {
     expect(screen.queryByTestId('photo-slots-recommended')).toBeNull()
     expect(screen.getByTestId('photo-recommended').textContent).toBe('Recommended: Close-up, Lifestyle.')
     expect(screen.queryByTestId('photo-needed')).toBeNull()
-    expect(screen.getByText('Lifestyle recommended. Other photos optional.')).toBeTruthy()
+    expect(screen.getByText('Lifestyle recommended (not added yet). Other photos optional.')).toBeTruthy()
   })
 
   it('says what approval needs, and a saved chart meets the size chart', () => {
