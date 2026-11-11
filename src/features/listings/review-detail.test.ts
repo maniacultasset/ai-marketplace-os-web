@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { blockedReason, historyReason, REJECT_REASONS, reviewDetail, validationBlocking } from './model'
+import { blockedReason, foldSelfApprovals, historyLabel, historyReason, REJECT_REASONS, reviewDetail, validationBlocking } from './model'
 
 describe('reviewDetail (prod QA 9 Nov, item 15)', () => {
   it('names the version and the reason of a decision', () => {
@@ -36,5 +36,37 @@ describe('blockedReason (prod QA 9 Nov, item 23)', () => {
     expect(blockedReason({ status: 'blocked', status_reason: null }, 0)).toBe('Blocked: open the listing to see why')
     expect(blockedReason({ status: 'blocked', status_reason: 'validation_errors' }, 6)).toBeNull()
     expect(blockedReason({ status: 'validated' }, 0)).toBeNull()
+  })
+})
+
+describe('self-approval in the history (ADR-0031)', () => {
+  const at = (s: number) => `2026-11-11T10:00:${String(s).padStart(2, '0')}Z`
+  const approved = (over: Record<string, unknown> = {}) => ({ id: 'a', action: 'listing.approved', occurred_at: at(0), request_id: 'req-1', review: { version: 2, self_approval: true }, ...over })
+  const self = (over: Record<string, unknown> = {}) => ({ id: 's', action: 'listing.self_approved', occurred_at: at(0), request_id: 'req-1', review: null, ...over })
+
+  it('labels an owner’s approval of its own work, and only that one', () => {
+    expect(historyLabel('listing.approved', { version: 2, self_approval: true })).toBe('Approved by the owner (own work)')
+    expect(historyLabel('listing.approved', { version: 2, self_approval: false })).toBe('Approved')
+    expect(historyLabel('listing.approved', { version: 2 })).toBe('Approved')
+    expect(historyLabel('listing.approved')).toBe('Approved')
+    expect(historyLabel('listing.self_approved')).toBe('Self-approved by the owner')
+  })
+
+  it('folds the extra self-approval event into its approval row', () => {
+    expect(foldSelfApprovals([self(), approved()]).map((e) => e.id)).toEqual(['a'])
+    // No request ids: written together means the same approval.
+    expect(foldSelfApprovals([self({ request_id: null, occurred_at: at(1) }), approved({ request_id: null })]).map((e) => e.id)).toEqual(['a'])
+  })
+
+  it('keeps a self-approval event whose approval is not on this page or is another request', () => {
+    expect(foldSelfApprovals([self()]).map((e) => e.id)).toEqual(['s'])
+    expect(foldSelfApprovals([self({ request_id: 'req-2' }), approved()]).map((e) => e.id)).toEqual(['s', 'a'])
+    // A plain approval (by someone else) never hides it.
+    expect(foldSelfApprovals([self(), approved({ review: { version: 2, self_approval: false } })]).map((e) => e.id)).toEqual(['s', 'a'])
+  })
+
+  it('returns the same list when there is nothing to fold', () => {
+    const rows = [approved()]
+    expect(foldSelfApprovals(rows)).toBe(rows)
   })
 })

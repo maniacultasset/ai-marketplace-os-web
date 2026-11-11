@@ -16,8 +16,14 @@ import { useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { STICKY_ASIDE_2XL } from '@/components/app/split-layout'
 
-/** `?invite=1` opens "Invite a teammate" (the approver notice and Home link here). */
-const searchSchema = z.object({ invite: z.coerce.number().int().optional().catch(undefined) })
+/**
+ * `?invite=1` opens "Invite a teammate" (the approver notice and Home link here); `&role=reviewer`
+ * picks that role first ("Invite a reviewer").
+ */
+const searchSchema = z.object({
+  invite: z.coerce.number().int().optional().catch(undefined),
+  role: z.enum(['reviewer']).optional().catch(undefined),
+})
 
 export const Route = createFileRoute('/_app/_settings/team')({
   staticData: { title: 'Settings' },
@@ -28,7 +34,7 @@ export const Route = createFileRoute('/_app/_settings/team')({
 function TeamPage() {
   const { data: me } = useMe()
   const can = useCan()
-  const { invite } = Route.useSearch()
+  const { invite, role } = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
   const manages = can('team:manage')
   const members = useMembersList({ enabled: manages })
@@ -58,7 +64,7 @@ function TeamPage() {
             <RolesLegend />
           </div>
         </div>
-        <InviteDialog open={open} onClose={() => setOpen(false)} members={members.rows} pending={invites.rows} />
+        <InviteDialog open={open} onClose={() => setOpen(false)} members={members.rows} pending={invites.rows} role={role} />
       </RequireAction>
     </Page>
   )

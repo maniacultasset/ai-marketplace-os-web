@@ -8,7 +8,9 @@
  *   task notifications are planned, each with its reason;
  * - the real rule for each supported marketplace is one caption line inside the Approval mode tile;
  * - the planned cards sit together under one "Planned for a later version" heading;
- * - there is nothing to save, so the "Save changes" footer is not rendered.
+ * - "Owners may approve their own listings" (ADR-0031, `#owner-approval`) is the one real setting:
+ *   it saves on its own (team-account/owner-approval-setting), so there is still no "Save changes"
+ *   footer.
  */
 import { PageHeader } from '@/components/app/page-header'
 import { Banner } from '@/components/la/banner'
@@ -17,6 +19,7 @@ import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { MARKETPLACES } from '@/components/la/marketplace'
 import { StatusChip, TagChip, type ChipStatus } from '@/components/la/status-chip'
 import { ComingSoon, UnavailableHint } from '@/components/la/unavailable'
+import { OwnerApprovalSetting } from '@/features/team-account/owner-approval-setting'
 import { cn } from '@/lib/utils'
 import { AUTO_FIX_SCOPE, AUTO_FIX_TRIES, AUTONOMY_REASON, NEVER_GUESSED, SUPPORTED, type AutoFixMode } from './model'
 
@@ -64,6 +67,8 @@ export function AutonomySettings() {
           </div>
         </div>
       </div>
+
+      <OwnerApprovalSetting />
 
       {/* What runs today (SI11, live): data fixes resend on their own, content waits for a
           person, three automatic tries at most. Prod QA 9 Nov: this read "Coming soon". */}

@@ -351,6 +351,15 @@ describe('approve gate (SI9, SI10)', () => {
     expect(listingActions({ ...base, canApprove: false, approveHint: 'no_other_approver' }).approve.reason).toMatch(/Invite one in Team/)
   })
 
+  it('tells an owner alone how to unblock: owner approval or a reviewer (ADR-0031)', () => {
+    expect(listingActions({ ...base, canApprove: false, approveHint: 'owner_can_enable' }).approve).toMatchObject({
+      enabled: false,
+      reason: 'You made this version. Turn on owner approval in Settings, or invite a reviewer.',
+    })
+    // With owner approval on, the server answers can_approve: true, even over the history guess.
+    expect(listingActions({ ...base, maker: 'edited', canApprove: true }).approve.enabled).toBe(true)
+  })
+
   it('falls back to the history when the backend sends no can_approve', () => {
     expect(listingActions({ ...base, maker: 'edited', canApprove: null }).approve.enabled).toBe(false)
     expect(listingActions({ ...base, maker: null }).approve.enabled).toBe(true)

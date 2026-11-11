@@ -12,6 +12,8 @@
  * brand-authorisation upload have no API: shown disabled, or left out where showing a value would
  * mislead (listing permissions).
  * "Finish setup" needs one `active` account (hi-fi behaviour), then goes to Home.
+ * Under the list, the approval rule in one line (two-person approval, and owner approval for an
+ * owner who works alone, ADR-0031), or the approver notice when the rule blocks this brand.
  */
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useState, type ReactNode } from 'react'
@@ -35,7 +37,7 @@ import {
 } from '@/features/marketplaces/api'
 import { formatDateTime } from '@/features/marketplaces/format'
 import { comingSoon, comingSoonReason } from '@/features/marketplaces/meta'
-import { ApproverNotice } from '@/features/team-account/approver-notice'
+import { ApprovalRule } from '@/features/team-account/approver-notice'
 import { rememberConnectOrigin } from '@/features/marketplaces-settings/use-start-connect'
 import { useCan } from '@/lib/permissions'
 import { toastError } from '@/lib/toast'
@@ -86,7 +88,7 @@ export function MarketplacesStep() {
                 ))}
               </ul>
             )}
-            <ApproverNotice className="mt-2" />
+            <ApprovalRule className="mt-2" />
           </div>
           <MarketplaceDetail
             key={shown}

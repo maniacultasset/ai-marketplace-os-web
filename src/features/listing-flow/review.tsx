@@ -13,7 +13,9 @@
  *   - "Fixed for you": what Kuinn fixed on this version (GET /issues?status=auto_fixed&listing_id=),
  *     next to the gates; it lands with them, and Approve waits for it, so it is seen first;
  *   - Approve / Approve all: POST /listings/approve (Idempotency-Key, `listing_version_id`),
- *     maker-checker explained before the click (makerHint over the history) and per item after;
+ *     maker-checker explained before the click (the server's approve_hint, else makerHint over the
+ *     history) and per item after; an owner alone is offered owner approval (ADR-0031), and a
+ *     self-approval says it is recorded (ListingDetail.self_approval);
  *   - Send back with a note: POST /listings/approve `decision: reject` (+ `regenerate`);
  *   - once approved: Publish (POST /listings/publish) opens the publish run.
  *   - SI11 "What Kuinn did" (GET /listings/{id}/resolution, Amazon only): the resolution card
@@ -70,8 +72,8 @@ import { cn } from '@/lib/utils'
 import { STICKY_ASIDE } from '@/components/app/split-layout'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { AMAZON_PUBLISHING_PAUSED_TEXT } from '@/features/brand/api'
-import { useApproverState } from '@/features/team-account/approver'
-import { ApproverNotice } from '@/features/team-account/approver-notice'
+import { approverNoticeFor, useApproverState } from '@/features/team-account/approver'
+import { ApproverNotice, SelfApprovalNote } from '@/features/team-account/approver-notice'
 import { AutoFixedChip, FixedForYouCard } from './auto-fix'
 import { autoFixTrail, FIXED_FOR_YOU_HASH, siblingFixes, versionRef } from './auto-fix-model'
 import { EditDialog, SendBackDialog } from './dialogs'
@@ -340,16 +342,17 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
       <b>Approval is always on.</b> Nothing is sent to a marketplace until a person approves it.
     </Banner>
   )
-  // A brand where nobody else can approve learns it here, before the click (maker-checker).
-  const alone = approver === 'alone' || listing.approve_hint === 'no_other_approver'
+  // A brand where nobody else can approve learns it here, before the click (maker-checker). The
+  // server's answer for this listing wins over the team read; an owner can turn on owner approval.
+  const notice = approverNoticeFor(listing, approver)
   // A role that cannot approve learns why nothing here is for them (operators, admins).
   const waitingForReviewer = !can('listing:approve') && (listing.status === 'validated' || listing.status === 'needs_review')
   const approvalBanner = waitingForReviewer ? (
     <Banner tone="info" icon={CONCEPT_ICON.approval} className="mb-4" data-testid="waiting-for-reviewer">
       <b>Waiting for a reviewer to approve.</b> An owner or reviewer approves it before it goes to {mp}.
     </Banner>
-  ) : alone && can('listing:approve') ? (
-    <ApproverNotice state="alone" className="mb-4" />
+  ) : notice && can('listing:approve') ? (
+    <ApproverNotice state={notice} className="mb-4" />
   ) : (
     infoBanner
   )
@@ -564,29 +567,36 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
       {listing.content && !busy && (actions.approve.show || actions.reject.show) ? (
         <FooterBar
           status={
-            publishingPaused ? (
-              <span data-testid="approve-bar-paused">
-                {resend.kind === 'teammate' ? <b className="text-ink">{TEAMMATE_TEXT}. </b> : null}
-                {AMAZON_PUBLISHING_PAUSED_TEXT}
-              </span>
-            ) : resend.kind === 'teammate' ? (
-              <span data-testid="resend-teammate">
-                <b className="text-ink">{TEAMMATE_TEXT}.</b> You made this version, so a teammate approves it and sends it to {mp} again.
-              </span>
-            ) : resend.kind === 'approve_and_resend' ? (
-              `Approving sends this version to ${mp} again.`
-            ) : allTargets.length > 1 ? (
-              <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span>Each marketplace is approved as its own listing.</span>
-                {batchFixes.map(({ listing: l, count }) => (
-                  <AutoFixedChip key={l.id} listingId={l.id} count={count} label={`${mpName(l.marketplace)}: ${count} fixed`} />
-                ))}
-              </span>
-            ) : actions.publish.show ? (
-              `Publishing sends ${mp} only.`
-            ) : (
-              `Approving does not send it. An operator or owner publishes it to ${mp}.`
-            )
+            <>
+              <SelfApprovalNote
+                selfApproval={listing.self_approval}
+                enabled={resend.kind === 'approve_and_resend' ? resend.state.enabled : approveShown.enabled}
+                className="mb-0.5"
+              />
+              {publishingPaused ? (
+                <span data-testid="approve-bar-paused">
+                  {resend.kind === 'teammate' ? <b className="text-ink">{TEAMMATE_TEXT}. </b> : null}
+                  {AMAZON_PUBLISHING_PAUSED_TEXT}
+                </span>
+              ) : resend.kind === 'teammate' ? (
+                <span data-testid="resend-teammate">
+                  <b className="text-ink">{TEAMMATE_TEXT}.</b> You made this version, so a teammate approves it and sends it to {mp} again.
+                </span>
+              ) : resend.kind === 'approve_and_resend' ? (
+                `Approving sends this version to ${mp} again.`
+              ) : allTargets.length > 1 ? (
+                <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>Each marketplace is approved as its own listing.</span>
+                  {batchFixes.map(({ listing: l, count }) => (
+                    <AutoFixedChip key={l.id} listingId={l.id} count={count} label={`${mpName(l.marketplace)}: ${count} fixed`} />
+                  ))}
+                </span>
+              ) : actions.publish.show ? (
+                `Publishing sends ${mp} only.`
+              ) : (
+                `Approving does not send it. An operator or owner publishes it to ${mp}.`
+              )}
+            </>
           }
         >
           <ActionButton state={actions.reject} variant="ghost" onClick={() => setSendBack(true)} data-testid="send-back">

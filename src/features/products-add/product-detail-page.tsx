@@ -1380,7 +1380,7 @@ function HistoryList({
               <li key={e.id} className="flex items-start justify-between gap-3 border-b border-line py-2.5 text-small last:border-b-0" data-testid="history-row">
                 <span className="min-w-0 text-ink">
                   <span className="block truncate">
-                    {historyLabel(e.action)}
+                    {historyLabel(e.action, e.review)}
                     <span className="text-ink-2"> · {auditActorLabel(e, me?.user_id)}</span>
                   </span>
                   {reason ? (

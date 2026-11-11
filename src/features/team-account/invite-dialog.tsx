@@ -37,6 +37,7 @@ export function InviteDialog({
   onClose,
   members,
   pending,
+  role,
 }: {
   open: boolean
   onClose: () => void
@@ -44,13 +45,15 @@ export function InviteDialog({
   members: readonly Member[]
   /** Loaded open invites, to say a new one replaces the old link. */
   pending: readonly Invite[]
+  /** The role picked when the dialog opens (`/team?invite=1&role=reviewer`), if the viewer may invite it. */
+  role?: Role
 }) {
   const [busy, setBusy] = useState(false)
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !busy && onClose()}>
       <DialogContent className="sm:max-w-lg" data-testid="invite-dialog" showCloseButton={!busy}>
         {/* Radix unmounts the content when closed: each opening is a fresh form, and the link leaves memory. */}
-        <InviteBody onClose={onClose} members={members} pending={pending} onBusy={setBusy} />
+        <InviteBody onClose={onClose} members={members} pending={pending} onBusy={setBusy} role={role} />
       </DialogContent>
     </Dialog>
   )
@@ -61,11 +64,13 @@ function InviteBody({
   members,
   pending,
   onBusy,
+  role,
 }: {
   onClose: () => void
   members: readonly Member[]
   pending: readonly Invite[]
   onBusy: (busy: boolean) => void
+  role?: Role
 }) {
   const { data: me } = useMe()
   const qc = useQueryClient()
@@ -76,7 +81,7 @@ function InviteBody({
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { email: '', role: 'operator' },
+    defaultValues: { email: '', role: role && roles.includes(role) ? role : 'operator' },
     ...FORM_VALIDATION_MODE,
   })
   const { errors, isSubmitting, submitCount } = form.formState
