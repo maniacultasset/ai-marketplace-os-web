@@ -10,11 +10,14 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSignupQueue } from './api'
 import { ApproveDialog } from './approve-dialog'
+import { AskDialog } from './ask-dialog'
 import {
   displayWebsite,
   initials,
   QUEUE_TAB_LABEL,
   QUEUE_TABS,
+  REVIEW_STATE_LABEL,
+  reviewState,
   SIGNUP_STATUS_META,
   type QueueTab,
   type SignupRequest,
@@ -22,7 +25,8 @@ import {
 import { RejectDialog } from './reject-dialog'
 import { TimeAgo } from './time'
 
-type Decide = (row: SignupRequest, kind: 'approve' | 'reject') => void
+type DecisionKind = 'approve' | 'reject' | 'ask'
+type Decide = (row: SignupRequest, kind: DecisionKind) => void
 const DecideContext = createContext<Decide>(() => undefined)
 
 const col = columnHelper<SignupRequest>()
@@ -136,8 +140,50 @@ const outcomeColumn = col.display({
           <TooltipContent className="max-w-80 whitespace-pre-wrap">{r.reason}</TooltipContent>
         </Tooltip>
       )
-    return <span className="text-muted-foreground">Awaiting review</span>
+    return <ReviewCell row={r} />
   },
+})
+
+/** A long text, two lines in the cell, the whole of it on hover or focus. */
+function Clamped({ label, text, testId }: { label: string; text: string; testId: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          tabIndex={0}
+          className="line-clamp-2 max-w-72 rounded-sm text-sm whitespace-normal text-ink focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+          data-testid={testId}
+        >
+          <span className="text-muted-foreground">{label}: </span>
+          {text}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-80 whitespace-pre-wrap">{text}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+/** A pending request: awaiting review, or the one question and, once sent, the reply. */
+function ReviewCell({ row }: { row: SignupRequest }) {
+  const state = reviewState(row)
+  if (!state || state === 'review' || !row.question) return <span className="text-muted-foreground">{REVIEW_STATE_LABEL.review}</span>
+  return (
+    <div className="flex min-w-0 flex-col items-start gap-1">
+      <Badge variant={state === 'replied' ? 'brand' : 'muted'} data-testid="signup-row-review">
+        <span className="size-1.5 rounded-full bg-current" aria-hidden />
+        {REVIEW_STATE_LABEL[state]}
+      </Badge>
+      <Clamped label="You asked" text={row.question} testId="signup-row-question" />
+      {row.reply ? <Clamped label="They replied" text={row.reply} testId="signup-row-reply" /> : null}
+    </div>
+  )
+}
+
+const reviewColumn = col.display({
+  id: 'review',
+  header: 'Review',
+  meta: { className: 'min-w-56' },
+  cell: (c) => <ReviewCell row={c.row.original} />,
 })
 
 function DecisionButtons({ row }: { row: SignupRequest }) {
@@ -145,6 +191,12 @@ function DecisionButtons({ row }: { row: SignupRequest }) {
   if (row.status !== 'pending') return null
   return (
     <div className="flex justify-end gap-1.5">
+      {row.question ? null : (
+        <Button size="sm" variant="ghost" onClick={() => decide(row, 'ask')} data-testid="signup-ask" aria-label={`Ask ${row.brand_name} a question`}>
+          <Icon name="info" size={16} data-icon="inline-start" />
+          Ask
+        </Button>
+      )}
       <Button size="sm" variant="outline" onClick={() => decide(row, 'reject')} data-testid="signup-reject" aria-label={`Reject ${row.brand_name}`}>
         <Icon name="x" size={16} data-icon="inline-start" />
         Reject
@@ -160,18 +212,21 @@ function DecisionButtons({ row }: { row: SignupRequest }) {
 const actionsColumn = col.display({
   id: 'actions',
   header: () => <span className="sr-only">Actions</span>,
-  meta: { className: 'w-48 text-right' },
+  meta: { className: 'w-64 text-right' },
   cell: (c) => <DecisionButtons row={c.row.original} />,
 })
 
 /** The review queue: who is waiting, oldest first, and the two decisions. */
-const PENDING_COLUMNS = col.columns([brandColumn, ownerColumn, requestedColumn, actionsColumn])
+const PENDING_COLUMNS = col.columns([brandColumn, ownerColumn, requestedColumn, reviewColumn, actionsColumn])
 /** Decided (or every) request: what was decided and when. */
 const HISTORY_COLUMNS = col.columns([brandColumn, ownerColumn, requestedColumn, statusColumn, outcomeColumn, actionsColumn])
 const DECIDED_COLUMNS = col.columns([brandColumn, ownerColumn, requestedColumn, statusColumn, outcomeColumn])
 
 const EMPTY: Record<QueueTab, { title: string; description: string }> = {
-  pending: { title: 'No requests waiting', description: 'New brand sign-ups appear here, oldest first, for you to approve or reject.' },
+  pending: {
+    title: 'No requests waiting',
+    description: 'New brand sign-ups appear here, oldest first, for you to approve, reject or ask one question.',
+  },
   approved: { title: 'No approved requests yet', description: 'Brands you approve appear here with the workspace created for them.' },
   rejected: { title: 'No rejected requests', description: 'Requests you reject appear here with the reason the brand sees.' },
   all: { title: 'No sign-up requests yet', description: 'Brands request access from the public sign-up page.' },
@@ -179,7 +234,7 @@ const EMPTY: Record<QueueTab, { title: string; description: string }> = {
 
 export function SignupQueue({ tab, onTabChange }: { tab: QueueTab; onTabChange: (tab: QueueTab) => void }) {
   const list = useSignupQueue(tab)
-  const [target, setTarget] = useState<{ row: SignupRequest; kind: 'approve' | 'reject' } | null>(null)
+  const [target, setTarget] = useState<{ row: SignupRequest; kind: DecisionKind } | null>(null)
   const [open, setOpen] = useState(false)
   const decide: Decide = (row, kind) => {
     setTarget({ row, kind })
@@ -232,6 +287,7 @@ export function SignupQueue({ tab, onTabChange }: { tab: QueueTab; onTabChange: 
       />
       <ApproveDialog request={target?.kind === 'approve' ? target.row : null} open={open && target?.kind === 'approve'} onClose={close} />
       <RejectDialog request={target?.kind === 'reject' ? target.row : null} open={open && target?.kind === 'reject'} onClose={close} />
+      <AskDialog request={target?.kind === 'ask' ? target.row : null} open={open && target?.kind === 'ask'} onClose={close} />
     </DecideContext.Provider>
   )
 }

@@ -3,7 +3,7 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { envelope, installFetch, json } from '@/test/fake-api'
 import { readStatusHandle, saveStatusHandle } from '@/features/signup-admin/status-handle'
-import { useWaitingStatus, waitingCopy } from './waiting'
+import { questionState, useWaitingStatus, viewChip, viewCopy, waitingCopy, waitingTitle, type StatusView } from './waiting'
 
 vi.hoisted(() => {
   vi.stubEnv('VITE_API_ORIGIN', 'http://localhost:3000')
@@ -124,12 +124,37 @@ describe('waiting copy', () => {
     expect(waitingCopy('pending', 'password', false, false)).not.toMatch(/updates by itself/)
   })
 
-  it('approved: continue to the workspace the way the person signs in', () => {
-    expect(waitingCopy('approved', 'google', true)).toBe('Continue to your workspace with the same Google account.')
-    expect(waitingCopy('approved', 'password', true)).toMatch(/^Continue to your workspace with the email and password/)
+  it('approved: says plainly why one sign-in is needed, the way the person signs in', () => {
+    expect(waitingCopy('approved', 'google', true)).toBe(
+      'Your workspace is ready. This page can only show your status, so sign in once with the same Google account to open it.',
+    )
+    expect(waitingCopy('approved', 'password', true)).toMatch(/can only show your status, so sign in once with the email and password/)
   })
 
   it('rejected: the next step is support', () => {
     expect(waitingCopy('rejected', 'password', true)).toBe('If you have a question about the reason, write to us at mukul@kuinn.in.')
+  })
+})
+
+describe('the reviewer’s one question', () => {
+  const base: StatusView = { status: 'pending', brand_name: 'Acme Naturals', created_at: '2026-11-11T09:00:00Z' }
+  const asked: StatusView = { ...base, question: 'Which marketplaces?', asked_at: '2026-11-11T10:00:00Z' }
+  const replied: StatusView = { ...asked, reply: 'Amazon India.', replied_at: '2026-11-11T11:00:00Z' }
+
+  it('is none, asked or replied, and only while pending', () => {
+    expect(questionState(base)).toBe('none')
+    expect(questionState(asked)).toBe('asked')
+    expect(questionState(replied)).toBe('replied')
+    expect(questionState({ ...replied, status: 'approved' })).toBe('none')
+  })
+
+  it('an open question gets its own title, copy and chip; a reply goes back to waiting', () => {
+    expect(waitingTitle(asked)).toBe('One question for you')
+    expect(viewCopy(asked, 'password', true)).toMatch(/one more detail before approving/)
+    expect(viewChip(asked)).toEqual({ status: 'needs-you', label: 'Needs your reply' })
+    expect(waitingTitle(replied)).toBe('Waiting for approval')
+    expect(viewCopy(replied, 'google', true)).toMatch(/Your reply is with our team/)
+    expect(viewChip(replied).label).toBe('Waiting for review')
+    expect(viewCopy(base, 'password', true)).toBe(waitingCopy('pending', 'password', true))
   })
 })

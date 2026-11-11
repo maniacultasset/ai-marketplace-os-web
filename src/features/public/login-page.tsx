@@ -66,7 +66,19 @@ const LOCKOUT = 'Too many wrong tries locks the account for 15 minutes.'
 
 const restartError = (reason: RestartReason): FormError => ({ message: RESTART_MESSAGES[reason], ref: null, ...RESTART_TONE[reason] })
 
-export function LoginPage({ target, notice }: { target: string; notice?: LoginNotice }) {
+export function LoginPage({
+  target,
+  notice,
+  approved = false,
+  initialEmail,
+}: {
+  target: string
+  notice?: LoginNotice
+  /** Opened from the approved sign-up card: say why one sign-in is needed. */
+  approved?: boolean
+  /** The email the person applied with, from the approved card (never from the URL). */
+  initialEmail?: string
+}) {
   useDocumentTitle('Sign in')
   const router = useRouter()
   const session = useSession()
@@ -83,7 +95,7 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { email: initialEmail ?? '', password: '' },
     ...FORM_VALIDATION_MODE,
   })
 
@@ -169,6 +181,11 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
             Google sign-in isn’t available right now. Sign in with your email and password.
           </Banner>
         ) : null}
+        {approved && !formError ? (
+          <Banner tone="success" role="status" data-testid="login-approved">
+            Your brand is approved. Sign in once to open your workspace.
+          </Banner>
+        ) : null}
         {session.endReason === 'expired' && !formError ? (
           <Banner tone="info" role="status">
             Your session ended. Sign in again.
@@ -206,7 +223,7 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
               inputMode="email"
               autoComplete="username"
               autoCapitalize="none"
-              autoFocus={!googleShown && !isCoarsePointer()}
+              autoFocus={!googleShown && !initialEmail && !isCoarsePointer()}
               spellCheck={false}
               className={TOUCH_TEXT}
               maxLength={LOGIN_EMAIL_MAX}
@@ -226,6 +243,7 @@ export function LoginPage({ target, notice }: { target: string; notice?: LoginNo
             <PasswordInput
               id="password"
               autoComplete="current-password"
+              autoFocus={!!initialEmail && !isCoarsePointer()}
               className={TOUCH_TEXT}
               aria-invalid={!!errors.password}
               aria-describedby={fieldHintId('password')}

@@ -46,10 +46,11 @@ import { isCoarsePointer } from '@/lib/pointer'
 import { filterInput, FORM_VALIDATION_MODE, phoneChars } from '@/lib/validation'
 import { AsideLink, AuthColumn, AuthFrame, FormAlert } from './auth-frame'
 import { RecoveryHint } from './recovery-hint'
-import { signupChip } from './model'
 import { COMPANY } from './company'
 import { useDocumentTitle } from './use-document-title'
-import { pollErrorMessage, pollErrorRef, useWaitingStatus, waitingCopy } from './waiting'
+import { approvedSignIn } from '@/lib/sign-in-state'
+import { pollErrorMessage, pollErrorRef, questionState, useWaitingStatus, viewChip, viewCopy } from './waiting'
+import { QuestionBlock } from './waiting-status'
 
 const FIELDS = ['brand_name', 'owner_name', 'email', 'phone', 'website', 'password'] as const
 
@@ -389,8 +390,8 @@ function LiveStatus({ creds, handle: sentHandle, remembered }: { creds: SignupSt
           </div>
         </div>
         {result ? (
-          <StatusChip status={signupChip(result.status).status} className="mt-0.5">
-            <span data-testid="signup-live-chip">{signupChip(result.status).label}</span>
+          <StatusChip status={viewChip(result).status} className="mt-0.5">
+            <span data-testid="signup-live-chip">{viewChip(result).label}</span>
           </StatusChip>
         ) : null}
       </div>
@@ -409,7 +410,7 @@ function LiveStatus({ creds, handle: sentHandle, remembered }: { creds: SignupSt
             <p>
               {result.status === 'pending' && manual
                 ? 'Waiting for a person to review it. Nothing else is needed from you yet.'
-                : waitingCopy(result.status, 'password', kept)}
+                : viewCopy(result, 'password', kept)}
             </p>
             {result.status === 'rejected' && result.reason ? (
               <p className="rounded-control border border-danger-line bg-danger-bg px-3 py-2 break-words whitespace-pre-wrap text-danger-ink">
@@ -419,13 +420,18 @@ function LiveStatus({ creds, handle: sentHandle, remembered }: { creds: SignupSt
             <p className="text-caption">
               Sent <TimeAgo iso={result.created_at} />
             </p>
+            {!manual && questionState(result) !== 'none' ? (
+              <div className="mt-2">
+                <QuestionBlock view={result} handle={handle} />
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
       <div className="mt-4 flex gap-2">
         {result?.status === 'approved' ? (
           <Button asChild size="sm">
-            <Link to="/login" onClick={clearStatusHandle} data-testid="signup-live-continue">
+            <Link to="/login" state={approvedSignIn(creds.email)} onClick={clearStatusHandle} data-testid="signup-live-continue">
               Continue to your workspace
             </Link>
           </Button>

@@ -1,9 +1,10 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, redirect, useRouterState } from '@tanstack/react-router'
 import { z } from 'zod'
 import { restoreSession } from '@/api/session'
 import { prefetchGoogleConfig } from '@/features/google/api'
 import { LoginPage, type LoginNotice } from '@/features/public/login-page'
 import { safeRedirect } from '@/lib/redirect'
+import { readApprovedSignIn } from '@/lib/sign-in-state'
 
 const NOTICES = ['google_unavailable', 'expired', 'attempts', 'mfa-off', 'invalid'] as const
 
@@ -32,6 +33,15 @@ export const Route = createFileRoute('/login')({
   loader: () => prefetchGoogleConfig(),
   component: function Login() {
     const search = Route.useSearch()
-    return <LoginPage target={safeRedirect(search.redirect) ?? '/home'} notice={noticeFrom(search)} />
+    // From the approved card: history state only (never the URL), read once per location.
+    const approved = useRouterState({ select: (s) => readApprovedSignIn(s.location.state) })
+    return (
+      <LoginPage
+        target={safeRedirect(search.redirect) ?? '/home'}
+        notice={noticeFrom(search)}
+        approved={approved !== null}
+        initialEmail={approved?.email ?? undefined}
+      />
+    )
   },
 })

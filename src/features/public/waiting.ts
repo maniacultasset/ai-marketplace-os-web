@@ -8,6 +8,7 @@ import { describeError, isApiError } from '@/api/errors'
 import { isHandleGone, useSignupPoll, type SignupPollOut } from '@/features/signup-admin/poll'
 import { clearStatusHandle, type SignInVia } from '@/features/signup-admin/status-handle'
 import { COMPANY } from './company'
+import { signupChip } from './model'
 
 /** What a status card shows; a full SignupStatusOut and a poll answer both fit. */
 export interface StatusView {
@@ -16,6 +17,12 @@ export interface StatusView {
   created_at: string
   decided_at?: string | null
   reason?: string | null
+  /** The one question a reviewer asked while the request is pending (poll only). */
+  question?: string | null
+  asked_at?: string | null
+  /** The applicant's own reply to `question`, once sent. */
+  reply?: string | null
+  replied_at?: string | null
 }
 
 export const fromPoll = (p: SignupPollOut): StatusView => ({
@@ -24,7 +31,39 @@ export const fromPoll = (p: SignupPollOut): StatusView => ({
   created_at: p.requested_at,
   decided_at: p.decided_at ?? null,
   reason: p.reason ?? null,
+  question: p.question ?? null,
+  asked_at: p.asked_at ?? null,
+  reply: p.reply ?? null,
+  replied_at: p.replied_at ?? null,
 })
+
+/**
+ * Where a pending request's one question stands: none asked, asked and waiting for this person's
+ * reply, or replied (back with the reviewer). The status stays `pending` throughout.
+ */
+export type QuestionState = 'none' | 'asked' | 'replied'
+export function questionState(view: StatusView): QuestionState {
+  if (view.status !== 'pending' || !view.question) return 'none'
+  return view.reply ? 'replied' : 'asked'
+}
+
+/** The status chip: an open question needs this person, so it says so. */
+export function viewChip(view: StatusView): ReturnType<typeof signupChip> {
+  return questionState(view) === 'asked' ? { status: 'needs-you', label: 'Needs your reply' } : signupChip(view.status)
+}
+
+/** The card's title: an open question gets its own, so the person sees there is something to do. */
+export function waitingTitle(view: StatusView): string {
+  return questionState(view) === 'asked' ? 'One question for you' : WAITING_TITLE[view.status]
+}
+
+/** The sentence under the title, with the question's state taken into account. */
+export function viewCopy(view: StatusView, via: SignInVia, remembered: boolean, live = true): string {
+  const q = questionState(view)
+  if (q === 'asked') return 'Our team needs one more detail before approving. Reply below. You can send one reply.'
+  if (q === 'replied') return 'Thanks. Your reply is with our team. This page updates by itself when there is a decision.'
+  return waitingCopy(view.status, via, remembered, live)
+}
 
 export const WAITING_TITLE: Record<StatusView['status'], string> = {
   pending: 'Waiting for approval',
@@ -40,8 +79,8 @@ export const WAITING_TITLE: Record<StatusView['status'], string> = {
 export function waitingCopy(status: StatusView['status'], via: SignInVia, remembered: boolean, live = true): string {
   if (status === 'approved')
     return via === 'google'
-      ? 'Continue to your workspace with the same Google account.'
-      : 'Continue to your workspace with the email and password you applied with.'
+      ? 'Your workspace is ready. This page can only show your status, so sign in once with the same Google account to open it.'
+      : 'Your workspace is ready. This page can only show your status, so sign in once with the email and password you applied with to open it.'
   if (status === 'rejected') return `If you have a question about the reason, write to us at ${COMPANY.email}.`
   if (!live)
     return via === 'google'

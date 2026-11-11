@@ -32,6 +32,7 @@ export type SignupCreateBody = Schema<'SignupCreate'>
 export type SignupStatusBody = Schema<'SignupStatusRequest'>
 export type SignupRejectBody = Schema<'SignupReject'>
 export type SignupApproveBody = Schema<'SignupApprove'>
+export type SignupAskBody = Schema<'SignupAsk'>
 
 // The shared primitives live in src/lib/validation.ts; re-exported for existing importers.
 export {
@@ -135,6 +136,20 @@ export const rejectFormSchema = z.object({
 export type RejectFormValues = z.infer<typeof rejectFormSchema>
 
 export const toRejectBody = (v: RejectFormValues): SignupRejectBody => ({ reason: v.reason.trim() })
+
+/** `SignupAsk.question`: the reviewer's one question, non-blank, at most 1000 characters. */
+export const askFormSchema = z.object({
+  question: freeText('the question', REASON_MAX).refine((v) => v.trim().length > 0, 'Write the one thing you need to know.'),
+})
+export type AskFormValues = z.infer<typeof askFormSchema>
+
+export const toAskBody = (v: AskFormValues): SignupAskBody => ({ question: v.question.trim() })
+
+/** `SignupReplyRequest.reply`: the applicant's one reply, non-blank, at most 1000 characters. */
+export const replyFormSchema = z.object({
+  reply: freeText('your reply', REASON_MAX).refine((v) => v.trim().length > 0, 'Write your reply.'),
+})
+export type ReplyFormValues = z.infer<typeof replyFormSchema>
 
 /** `SignupApprove.trial_days`: an integer 1..365, or null for the backend default (not sent). */
 export function parseTrialDays(input: string): number | null | 'invalid' {
