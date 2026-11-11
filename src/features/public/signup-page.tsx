@@ -49,7 +49,7 @@ import { RecoveryHint } from './recovery-hint'
 import { signupChip } from './model'
 import { COMPANY } from './company'
 import { useDocumentTitle } from './use-document-title'
-import { useWaitingStatus, waitingCopy } from './waiting'
+import { pollErrorMessage, pollErrorRef, useWaitingStatus, waitingCopy } from './waiting'
 
 const FIELDS = ['brand_name', 'owner_name', 'email', 'phone', 'website', 'password'] as const
 
@@ -402,6 +402,8 @@ function LiveStatus({ creds, handle: sentHandle, remembered }: { creds: SignupSt
           </div>
         ) : error ? (
           <FormAlert message={error.message} reference={error.ref} />
+        ) : !manual && !result && waiting.error ? (
+          <FormAlert testId="signup-live-error" message={pollErrorMessage(waiting.error)} reference={pollErrorRef(waiting.error)} />
         ) : result ? (
           <div className="flex flex-col gap-1 text-small text-ink-2">
             <p>
@@ -431,7 +433,14 @@ function LiveStatus({ creds, handle: sentHandle, remembered }: { creds: SignupSt
           <Button asChild size="sm" variant="secondary">
             <a href={`mailto:${COMPANY.email}`}>Contact support</a>
           </Button>
-        ) : !manual ? null : (
+        ) : !manual ? (
+          waiting.error && !result ? (
+            <Button size="sm" variant="secondary" onClick={waiting.refetch} disabled={waiting.retrying} data-testid="signup-live-refresh">
+              {waiting.retrying ? <Spinner data-icon="inline-start" /> : <Icon name="refresh" size={14} />}
+              {waiting.retrying ? 'Checking…' : 'Check again'}
+            </Button>
+          ) : null
+        ) : (
           <Button size="sm" variant="secondary" onClick={() => void run()} disabled={check.isPending} data-testid="signup-live-refresh">
             {check.isPending ? <Spinner data-icon="inline-start" /> : <Icon name="refresh" size={14} />}
             {check.isPending ? 'Checking…' : 'Check again'}

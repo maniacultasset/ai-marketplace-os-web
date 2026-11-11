@@ -4,6 +4,7 @@
  * The buttons are in waiting-status.tsx.
  */
 import { useEffect } from 'react'
+import { describeError, isApiError } from '@/api/errors'
 import { isHandleGone, useSignupPoll, type SignupPollOut } from '@/features/signup-admin/poll'
 import { clearStatusHandle, type SignInVia } from '@/features/signup-admin/status-handle'
 import { COMPANY } from './company'
@@ -31,17 +32,33 @@ export const WAITING_TITLE: Record<StatusView['status'], string> = {
   rejected: 'Your request was not approved',
 }
 
-/** The sentence under the title. `remembered`: the handle is kept on this device. */
-export function waitingCopy(status: StatusView['status'], via: SignInVia, remembered: boolean): string {
+/**
+ * The sentence under the title. `remembered`: the handle is kept on this device. `live`: a poll
+ * is really running (a handle that still names the request); without one, pending says how to
+ * check again instead of promising updates.
+ */
+export function waitingCopy(status: StatusView['status'], via: SignInVia, remembered: boolean, live = true): string {
   if (status === 'approved')
     return via === 'google'
       ? 'Continue to your workspace with the same Google account.'
       : 'Continue to your workspace with the email and password you applied with.'
   if (status === 'rejected') return `If you have a question about the reason, write to us at ${COMPANY.email}.`
+  if (!live)
+    return via === 'google'
+      ? 'A person on our team reviews every request. To check on it later, use Continue with Google again.'
+      : 'A person on our team reviews every request. To check on it later, use Check your request on the sign-in page.'
   return remembered
-    ? 'A person on our team reviews every request. This page updates by itself, so you can close it and come back to it later on this device.'
+    ? 'A person on our team reviews every request. This page updates by itself, so you can close it and check again later on this device from Check your request on the sign-in page.'
     : 'A person on our team reviews every request. This page updates by itself while it stays open.'
 }
+
+/** A failed poll read (not a 404) before any answer; the poll retries by itself. */
+export function pollErrorMessage(e: unknown): string {
+  if (isApiError(e) && e.status === 429) return 'Too many checks from this network. Trying again shortly.'
+  return `Couldn’t check your request just now. ${describeError(e)} Trying again by itself.`
+}
+
+export const pollErrorRef = (e: unknown) => (isApiError(e) ? e.correlationId : null)
 
 /**
  * The polled status: the poll's answer once it has one, else `initial` (the sign-up answer).
@@ -53,5 +70,14 @@ export function useWaitingStatus(handle: string | null, initial: StatusView | nu
   useEffect(() => {
     if (gone) clearStatusHandle()
   }, [gone])
-  return { view: poll.data ? fromPoll(poll.data) : initial, gone, loading: !!handle && poll.isPending }
+  // Any other failure (429, 5xx, network) while there is no answer yet; the poll keeps retrying.
+  const failed = !!handle && !gone && !poll.data && poll.isError
+  return {
+    view: poll.data ? fromPoll(poll.data) : initial,
+    gone,
+    loading: !!handle && poll.isPending,
+    error: failed ? poll.error : null,
+    retrying: poll.isFetching,
+    refetch: () => void poll.refetch(),
+  }
 }

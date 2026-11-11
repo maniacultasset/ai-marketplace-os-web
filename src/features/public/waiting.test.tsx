@@ -114,9 +114,14 @@ describe('the waiting status poll', () => {
 
 describe('waiting copy', () => {
   it('pending: updates by itself; promises a later visit only when the handle is kept', () => {
-    expect(waitingCopy('pending', 'google', true)).toMatch(/updates by itself, so you can close it and come back to it later on this device/)
+    expect(waitingCopy('pending', 'google', true)).toMatch(/updates by itself, so you can close it and check again later on this device from Check your request/)
     expect(waitingCopy('pending', 'password', false)).toMatch(/updates by itself while it stays open\.$/)
     expect(waitingCopy('pending', 'google', true)).not.toMatch(/Continue with Google again/)
+  })
+
+  it('pending with nothing polling: says how to check again, promises no updates', () => {
+    expect(waitingCopy('pending', 'google', false, false)).toMatch(/To check on it later, use Continue with Google again\.$/)
+    expect(waitingCopy('pending', 'password', false, false)).not.toMatch(/updates by itself/)
   })
 
   it('approved: continue to the workspace the way the person signs in', () => {

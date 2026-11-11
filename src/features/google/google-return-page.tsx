@@ -716,7 +716,10 @@ function GoogleStatus({
 }) {
   const waiting = useWaitingStatus(handle, status)
   const view = waiting.view ?? status
-  const copy = waitingCopy(view.status, 'google', remembered && !waiting.gone)
+  // Only a handle that still names the request is polled; otherwise checking again is another
+  // Google sign-in, so pending offers that button.
+  const live = !!handle && !waiting.gone
+  const copy = waitingCopy(view.status, 'google', remembered && live, live)
   return (
     <AuthFrame>
       <div className="mx-auto flex w-full max-w-[448px] flex-1 flex-col gap-4 px-4 pt-8 pb-6 sm:pt-12" data-testid={sent ? 'google-sent' : 'google-pending'}>
@@ -731,9 +734,16 @@ function GoogleStatus({
               via="google"
               returnTo={returnTo}
               secondary={
-                <Button asChild size="lg" variant="ghost" className="w-full">
-                  <Link to="/">Back to Kuinn</Link>
-                </Button>
+                <>
+                  {view.status === 'pending' && !live ? (
+                    <div data-testid="google-recheck">
+                      <GoogleButton intent="login" returnTo={returnTo} />
+                    </div>
+                  ) : null}
+                  <Button asChild size="lg" variant="ghost" className="w-full">
+                    <Link to="/">Back to Kuinn</Link>
+                  </Button>
+                </>
               }
             />
           }

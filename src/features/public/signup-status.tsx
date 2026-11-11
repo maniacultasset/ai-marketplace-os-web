@@ -34,7 +34,7 @@ import { FORM_VALIDATION_MODE } from '@/lib/validation'
 import { AsideLink, AuthFootnote, AuthFrame, FormAlert } from './auth-frame'
 import { signupChip } from './model'
 import { useDocumentTitle } from './use-document-title'
-import { useWaitingStatus, WAITING_TITLE, waitingCopy, type StatusView } from './waiting'
+import { pollErrorMessage, pollErrorRef, useWaitingStatus, WAITING_TITLE, waitingCopy, type StatusView } from './waiting'
 import { WaitingActions } from './waiting-status'
 
 export function SignupStatusPage({ initialEmail }: { initialEmail?: string }) {
@@ -107,6 +107,15 @@ function SignupStatusCheck({ initialEmail }: { initialEmail?: string }) {
   }
 
   if (entry && !waiting.gone) {
+    if (!waiting.view && waiting.error)
+      return (
+        <PollFailed
+          error={waiting.error}
+          retrying={waiting.retrying}
+          onRetry={waiting.refetch}
+          onReset={() => reset(creds?.email ?? initialEmail ?? '')}
+        />
+      )
     if (!waiting.view) return <StatusLoading />
     return (
       <PolledResult
@@ -193,6 +202,35 @@ function StatusLoading() {
       <Skeleton className="h-8 w-2/3" />
       <Skeleton className="h-4 w-full" />
       <Skeleton className="h-32 w-full" />
+    </div>
+  )
+}
+
+/** The first poll failed (429, 5xx, network): say so, offer a retry and another email. */
+function PollFailed({
+  error,
+  retrying,
+  onRetry,
+  onReset,
+}: {
+  error: unknown
+  retrying: boolean
+  onRetry: () => void
+  onReset: () => void
+}) {
+  return (
+    <div className="flex flex-col gap-4" data-testid="signup-status-poll-error">
+      <h1 className="text-h1 text-ink">Check your request</h1>
+      <FormAlert testId="signup-status-error" message={pollErrorMessage(error)} reference={pollErrorRef(error)} />
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button size="lg" className="flex-1" onClick={onRetry} disabled={retrying} data-testid="signup-status-retry">
+          {retrying ? <Spinner data-icon="inline-start" /> : <Icon name="refresh" size={16} />}
+          {retrying ? 'Checking…' : 'Check again'}
+        </Button>
+        <Button size="lg" variant="secondary" className="flex-1" onClick={onReset} data-testid="signup-status-another">
+          Use another email
+        </Button>
+      </div>
     </div>
   )
 }

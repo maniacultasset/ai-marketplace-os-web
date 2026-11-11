@@ -69,7 +69,7 @@ describe('the password waiting screens', () => {
     expect(screen.getByText(/Your status is on the right and updates by itself\./)).toBeTruthy()
     expect(readStatusHandle()).toEqual({ handle: HANDLE, via: 'password', returnTo: null })
     await waitFor(() => expect(screen.getByTestId('signup-live-chip').textContent).toBe('Waiting for review'))
-    expect(screen.getByText(/close it and come back to it later on this device/)).toBeTruthy()
+    expect(screen.getByText(/close it and check again later on this device from Check your request on the sign-in page/)).toBeTruthy()
     expect(polled(calls)[0]).toMatchObject({ body: { status_handle: HANDLE }, auth: null })
     await queryClient.refetchQueries({ queryKey: ['signup', 'status-poll'] })
     expect(await screen.findByTestId('signup-live-continue')).toBeTruthy()
@@ -77,6 +77,19 @@ describe('the password waiting screens', () => {
     expect(calls.some((c) => c.path === '/signup/status')).toBe(false)
     await user.click(screen.getByTestId('signup-live-continue'))
     expect(readStatusHandle()).toBeNull()
+  })
+
+  it('after sending, the first poll fails (500): the card says so and offers a check, then shows the status', async () => {
+    const { calls, user } = mount(<SignupPage />, {
+      'POST /signup': () => json(202, { request_id: 'r1', status: 'pending', status_handle: HANDLE }),
+      'POST /signup/status/poll': [() => envelope(500, 'INTERNAL'), poll('pending')],
+    })
+    await fillSignup(user)
+    expect((await screen.findByTestId('signup-live-error')).textContent).toMatch(/Couldn’t check your request/)
+    await user.click(screen.getByTestId('signup-live-refresh'))
+    await waitFor(() => expect(screen.getByTestId('signup-live-chip').textContent).toBe('Waiting for review'))
+    expect(screen.queryByTestId('signup-live-error')).toBeNull()
+    expect(calls.some((c) => c.path === '/signup/status')).toBe(false)
   })
 
   it('a handle that names nothing (an email that had an account): one status read with the typed credentials', async () => {
@@ -127,6 +140,29 @@ describe('the password waiting screens', () => {
   it('a kept handle that names nothing: dropped, and the email and password form', async () => {
     saveStatusHandle({ handle: HANDLE, via: 'password', returnTo: null })
     mount(<SignupStatusPage />, { 'POST /signup/status/poll': () => envelope(404, 'NOT_FOUND') })
+    expect(await screen.findByTestId('signup-status-card')).toBeTruthy()
+    expect(readStatusHandle()).toBeNull()
+  })
+
+  it.each([
+    ['500', () => envelope(500, 'INTERNAL')],
+    ['429', () => envelope(429, 'RATE_LIMITED')],
+  ])('/signup/status with a kept handle, first poll %s: an error with a retry and another email, never an endless skeleton', async (code, fail) => {
+    saveStatusHandle({ handle: HANDLE, via: 'password', returnTo: null })
+    const { calls, user } = mount(<SignupStatusPage initialEmail={EMAIL} />, { 'POST /signup/status/poll': [fail, poll('pending')] })
+    expect(await screen.findByTestId('signup-status-poll-error')).toBeTruthy()
+    expect(screen.queryByTestId('signup-status-loading')).toBeNull()
+    expect(screen.getByTestId('signup-status-error').textContent).toMatch(code === '429' ? /Too many checks/ : /Couldn’t check your request/)
+    expect(readStatusHandle()?.handle).toBe(HANDLE)
+    await user.click(screen.getByTestId('signup-status-retry'))
+    expect(await screen.findByTestId('signup-status-result')).toBeTruthy()
+    expect(polled(calls)).toHaveLength(2)
+  })
+
+  it('/signup/status first poll fails: "Use another email" drops the handle and shows the form', async () => {
+    saveStatusHandle({ handle: HANDLE, via: 'password', returnTo: null })
+    const { user } = mount(<SignupStatusPage initialEmail={EMAIL} />, { 'POST /signup/status/poll': () => envelope(500, 'INTERNAL') })
+    await user.click(await screen.findByTestId('signup-status-another'))
     expect(await screen.findByTestId('signup-status-card')).toBeTruthy()
     expect(readStatusHandle()).toBeNull()
   })

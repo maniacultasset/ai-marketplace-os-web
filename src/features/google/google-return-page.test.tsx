@@ -203,16 +203,18 @@ describe('/auth/google', () => {
     expect(await screen.findByRole('heading', { name: 'Couldn’t sign you in with Google' })).toBeTruthy()
   })
 
-  it('pending without a status handle: the status card; no "sign in again to check" instruction', async () => {
-    ticket()
-    setup({ 'POST /auth/google/complete': out({ outcome: 'pending', signup: PENDING }) })
+  it('pending without a status handle: the status card, nothing polls, so Continue with Google checks again', async () => {
+    ticket('login', '/products')
+    const { calls, user } = setup({ 'POST /auth/google/complete': out({ outcome: 'pending', signup: PENDING }) })
     expect(await screen.findByTestId('google-pending')).toBeTruthy()
     expect(screen.getByTestId('signup-status-badge').textContent).toBe('Waiting for review')
     expect(screen.getByText('Acme Naturals')).toBeTruthy()
     expect(screen.getByText(EMAIL)).toBeTruthy()
-    expect(screen.getByText(/This page updates by itself while it stays open\./)).toBeTruthy()
-    expect(screen.queryByText(/Continue with Google again/)).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Continue with Google' })).toBeNull()
+    expect(screen.getByText(/To check on it later, use Continue with Google again\./)).toBeTruthy()
+    expect(screen.queryByText(/updates by itself/)).toBeNull()
+    expect(calls.some((c) => c.path === '/signup/status/poll')).toBe(false)
+    await user.click(screen.getByRole('button', { name: 'Continue with Google' }))
+    expect(start.startGoogle).toHaveBeenCalledWith({ intent: 'login', returnTo: '/products' })
     expect(readStatusHandle()).toBeNull()
   })
 
@@ -224,7 +226,8 @@ describe('/auth/google', () => {
     })
     expect(await screen.findByTestId('google-pending')).toBeTruthy()
     expect(readStatusHandle()).toEqual({ handle: STATUS_HANDLE, via: 'google', returnTo: '/products' })
-    expect(screen.getByText(/you can close it and come back to it later on this device/)).toBeTruthy()
+    expect(screen.getByText(/you can close it and check again later on this device/)).toBeTruthy()
+    expect(screen.queryByTestId('google-recheck')).toBeNull()
     await waitFor(() => expect(calls.some((c) => c.path === '/signup/status/poll')).toBe(true))
     expect(calls.find((c) => c.path === '/signup/status/poll')).toMatchObject({ body: { status_handle: STATUS_HANDLE }, auth: null })
     expect(calls.every((c) => !c.path.includes(STATUS_HANDLE))).toBe(true)
@@ -252,7 +255,7 @@ describe('/auth/google', () => {
     expect(screen.queryByRole('button', { name: 'Continue with Google' })).toBeNull()
   })
 
-  it('a status handle that names nothing (404): the handle is dropped and the card stays as it was', async () => {
+  it('a status handle that names nothing (404): the handle is dropped, the card stays and Continue with Google checks again', async () => {
     ticket()
     setup({
       'POST /auth/google/complete': out({ outcome: 'pending', signup: { ...PENDING, status_handle: STATUS_HANDLE } }),
@@ -261,7 +264,9 @@ describe('/auth/google', () => {
     expect(await screen.findByTestId('google-pending')).toBeTruthy()
     await waitFor(() => expect(readStatusHandle()).toBeNull())
     expect(screen.getByTestId('signup-status-badge').textContent).toBe('Waiting for review')
-    expect(screen.getByText(/updates by itself while it stays open/)).toBeTruthy()
+    expect(await screen.findByText(/To check on it later, use Continue with Google again\./)).toBeTruthy()
+    expect(screen.queryByText(/updates by itself/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeTruthy()
   })
 
   it('storage blocked: the page still polls while it stays open and promises nothing more', async () => {
