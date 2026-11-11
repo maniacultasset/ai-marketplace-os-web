@@ -21,7 +21,7 @@ import { useMemo } from 'react'
 import { api, unwrap } from '@/api/client'
 import { ifMatchHeader, unwrapVersioned, type Versioned } from '@/api/etag'
 import { idempotencyHeader } from '@/api/idempotency'
-import type { JobEnvelope } from '@/api/types'
+import type { JobEnvelope, Schema } from '@/api/types'
 import { PAGE_SIZE, useCursorList } from '@/hooks/use-cursor-list'
 import { useKeys, type ListingsFilters, type QueryKeys } from '@/lib/query-keys'
 import {
@@ -45,6 +45,8 @@ import {
 /* ---------------------------------------------------------------------------------------------- */
 /* Reads                                                                                           */
 /* ---------------------------------------------------------------------------------------------- */
+
+type RegenerateSection = NonNullable<Schema<'RegenerateRequest'>['sections']>[number]
 
 export function fetchListingsPage(f: ListingsFilters, cursor: string | undefined, limit = PAGE_SIZE) {
   return unwrap(
@@ -204,11 +206,26 @@ export function useRegenerateListing(listingId: string) {
   const qc = useQueryClient()
   return useMutation({
     meta: { toast: false },
-    mutationFn: ({ instructions, key }: { instructions: string | null; key: string }): Promise<JobAccepted> =>
+    /** `sections`: rewrite only those (client feedback 14); `forAnswers`: "Update these sections". */
+    mutationFn: ({
+      instructions,
+      key,
+      sections,
+      forAnswers,
+    }: {
+      instructions: string | null
+      key: string
+      sections?: readonly RegenerateSection[]
+      forAnswers?: boolean
+    }): Promise<JobAccepted> =>
       unwrap(
         api.POST('/listings/{listing_id}/regenerate', {
           params: { path: { listing_id: listingId }, header: idempotencyHeader(key) },
-          body: instructions ? { instructions } : {},
+          body: {
+            ...(instructions ? { instructions } : {}),
+            ...(sections?.length ? { sections: [...sections] } : {}),
+            for_answers: !!(forAnswers && sections?.length),
+          },
         }),
       ),
     onSuccess: () => invalidateListingWork(qc, keys, [listingId]),

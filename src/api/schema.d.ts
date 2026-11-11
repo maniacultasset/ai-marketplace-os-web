@@ -1617,7 +1617,8 @@ export interface paths {
         put?: never;
         /**
          * Regenerate an existing listing
-         * @description Regenerate an existing listing; a reviewer may do this, but may not generate fresh.
+         * @description Regenerate an existing listing, or only some `sections` of it; a reviewer may do this,
+         *     but may not generate fresh. The seller's locked edits are never rewritten.
          */
         post: operations["listings_regenerate"];
         delete?: never;
@@ -4007,9 +4008,19 @@ export interface components {
             } | null;
             content: components["schemas"]["ListingContent"];
             keywords?: components["schemas"]["ListingKeywords"] | null;
+            /**
+             * Unlock
+             * @description Locked paths to release, so a regenerate may rewrite them again. Every path this edit changes is locked (an edited path stays locked). Content sent unchanged with only `unlock` makes no new version.
+             */
+            unlock?: string[];
         };
         /** ListingDetail */
         ListingDetail: {
+            /**
+             * Affected Sections
+             * @description The sections that use facts the seller answered after the current version was written, in card order (a fully locked section is left out). Regenerate with these `sections` and `for_answers: true` to use the answers. Empty on the content PATCH response (the edit is newer than any answer).
+             */
+            affected_sections?: ("title" | "bullets" | "description" | "keywords" | "attributes")[];
             /**
              * Approve Hint
              * @description Why `can_approve` is false: `own_work` (you made or edited this version), `no_other_approver` (and nobody else in the brand can approve it yet), `owner_can_enable` (the same, and you are an owner: turning on the brand's `owner_self_approval` lets you approve your own work, ADR-0031) or `not_approver` (your role does not approve).
@@ -4051,6 +4062,11 @@ export interface components {
             id: string;
             /** Live Url */
             live_url?: string | null;
+            /**
+             * Locked Paths
+             * @description The paths the seller edited (`content.title`, `content.bullets`, `content.description`, `keywords.search_terms`, `keywords.hidden_terms`, `attributes.<key>`). No regenerate changes them; `unlock` on the content PATCH releases one. Sorted.
+             */
+            locked_paths?: string[];
             marketplace: components["schemas"]["Marketplace"];
             marketplace_state: components["schemas"]["MarketplaceState"];
             /**
@@ -5244,8 +5260,19 @@ export interface components {
         };
         /** RegenerateRequest */
         RegenerateRequest: {
+            /**
+             * For Answers
+             * @description The seller's answers asked for it (`affected_sections`); recorded as the run's reason. Needs `sections`.
+             * @default false
+             */
+            for_answers: boolean;
             /** Instructions */
             instructions?: string | null;
+            /**
+             * Sections
+             * @description Rewrite only these sections; every other part of the listing stays as it is. Locked paths are never rewritten (422 VALIDATION_FAILED on `sections` when every path asked for is locked). Omitted: the whole listing, locked paths kept.
+             */
+            sections?: ("title" | "bullets" | "description" | "keywords" | "attributes")[] | null;
         };
         /**
          * RemoteCheckOut

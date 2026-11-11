@@ -5,7 +5,8 @@
  *     agent to rewrite it with the note (review.py `reject_regenerate`), otherwise it is blocked.
  *   - Edit: PATCH /listings/{id}/content, ListingContent (mkos_schemas/listing.py): title ≤ 500,
  *     1..10 bullets ≤ 1000 each, description ≤ 5000, none blank. Keywords and attributes are not
- *     sent, so the backend keeps them (listing_edit.py).
+ *     sent, so the backend keeps them (listing_edit.py); their own section cards edit them
+ *     (sections-model.ts). Every path an edit changes is locked against a regenerate.
  *   - Approve all: the product's other listings that a multi-item approve accepts (`validated`).
  */
 import type { Schema } from '@/api/types'
