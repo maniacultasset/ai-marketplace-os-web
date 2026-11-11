@@ -63,7 +63,7 @@ import { SavedPhoto } from '@/components/la/saved-photo'
 import { useJobPolling } from '@/hooks/use-job-polling'
 import { useMe } from '@/lib/auth'
 import { listingChip } from '@/lib/listing-chip'
-import { useCan } from '@/lib/permissions'
+import { OP_ACTION, useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
 import { toast, toastError } from '@/lib/toast'
 import { cn } from '@/lib/utils'
@@ -77,6 +77,7 @@ import { autoFixTrail, FIXED_FOR_YOU_HASH, siblingFixes, versionRef } from './au
 import { EditDialog, SendBackDialog } from './dialogs'
 import { clock, fieldLabel, findingText, mpName, plainMessage, sellerFinding, sentenceCase } from './format'
 import { claimFindings, gateCounts, plural, type ErrorItem, type GateResult } from './gates'
+import { IdentifierFix } from './identifier-fix'
 import { answeredAfter } from './review-model'
 import { ListOnButton } from './list-on'
 import { useListingResolution } from './api'
@@ -973,6 +974,7 @@ function GatesCard({
   onValidate: () => void
 }) {
   const [open, setOpen] = useState(neverChecked)
+  const can = useCan()
   const panelId = useId()
   const v = listing.validation
   const onCurrent = !!v && v.listing_version_id === listing.current_version_id
@@ -1020,6 +1022,9 @@ function GatesCard({
                             See {plural(n, 'finding')}
                           </a>
                         </>
+                      ) : null}
+                      {g.id === 'identity' ? (
+                        <IdentifierFix gate={g} productId={listing.product_id} marketplace={listing.marketplace} canEdit={can(OP_ACTION['PATCH /products/{product_id}'])} />
                       ) : null}
                     </span>
                   </li>

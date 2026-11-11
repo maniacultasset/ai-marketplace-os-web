@@ -55,6 +55,7 @@ export function TextField({
   className,
   source,
   needed,
+  required,
 }: ChipProps & {
   id: string
   label: ReactNode
@@ -63,6 +64,8 @@ export function TextField({
   error?: string
   hint?: ReactNode
   critical?: boolean
+  /** A quiet "Required" mark beside the label (LaField `required`). */
+  required?: boolean
   placeholder?: string
   list?: string
   autoFocus?: boolean
@@ -84,6 +87,7 @@ export function TextField({
       error={error}
       hint={hint}
       critical={critical}
+      required={required}
       {...chipFor(filled, { source, needed }, critical, error)}
       submitCount={submitCount}
       confirmFix

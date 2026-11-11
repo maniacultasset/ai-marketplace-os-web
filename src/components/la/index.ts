@@ -3,7 +3,7 @@ export { Banner, type BannerTone } from './banner'
 export { BeingBuilt } from './being-built'
 export { BulkBar } from './bulk-bar'
 export { AttentionCard, CardHead, DashedCard, LaCard, MetricTile, TaskRow, type CardEmphasis } from './cards'
-export { fieldHintId, LaField } from './field'
+export { fieldHintId, LaField, RequiredMark } from './field'
 export { FooterBar } from './footer-bar'
 export {
   Icon,

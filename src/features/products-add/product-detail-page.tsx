@@ -78,7 +78,7 @@ import { ProductDetailsCard, ProductDetailsEditor } from './product-details'
 import { useProductEditSession, type ProductEditSession } from './product-edit-session'
 import { manufacturerSource } from '@/features/products/edit-model'
 import { CategorySuggestionCard } from '@/features/assist/category-suggestion-card'
-import { DETAIL_TABS, type DetailTab } from './detail-tabs'
+import { DETAIL_TABS, type DetailTab, type EditTarget } from './detail-tabs'
 import { ProductThumb } from './products-page'
 import { marketplaceLink } from '@/features/listings/external-link'
 import { recategorizeState } from '@/features/products/recategorize'
@@ -271,7 +271,7 @@ interface DetailData {
 
 const NO_LISTINGS: Listing[] = []
 
-export function ProductDetailPage({ productId, tab }: { productId: string; tab: DetailTab }) {
+export function ProductDetailPage({ productId, tab, edit }: { productId: string; tab: DetailTab; edit?: EditTarget }) {
   const q = useProduct(productId)
   const all = useAllProducts()
   const listingsQ = useAllListings({ productId })
@@ -335,14 +335,25 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
     )
   }
 
-  return <LoadedDetail key={data.product.id} data={data} tab={tab} tabsRef={tabsRef} />
+  return <LoadedDetail key={data.product.id} data={data} tab={tab} edit={edit} tabsRef={tabsRef} />
 }
 
 /**
  * The page once the product is loaded. The product editor's draft lives here, above the tabs,
  * so switching tabs while editing keeps it.
  */
-function LoadedDetail({ data, tab, tabsRef }: { data: DetailData; tab: DetailTab; tabsRef: React.RefObject<HTMLDivElement | null> }) {
+function LoadedDetail({
+  data,
+  tab,
+  edit,
+  tabsRef,
+}: {
+  data: DetailData
+  tab: DetailTab
+  /** Open the editor at this field (`?edit=barcode`), then drop it from the address. */
+  edit?: EditTarget
+  tabsRef: React.RefObject<HTMLDivElement | null>
+}) {
   const navigate = useNavigate()
   const can = useCan()
   const canEdit = can(OP_ACTION['PATCH /products/{product_id}'])
@@ -359,6 +370,36 @@ function LoadedDetail({ data, tab, tabsRef }: { data: DetailData; tab: DetailTab
   const review = data.listingsPending || data.listingsFailed ? undefined : listingsIn(data).find(needsReview)
   const setTab = (t: string) =>
     void navigate({ to: '/products/$productId', params: { productId }, search: t === 'overview' ? {} : { tab: t as DetailTab }, replace: true })
+
+  // `?edit=barcode` (the review screen's "Add the barcode"): open the editor on Overview and move
+  // to the barcode choice once. It waits for the variants, so a style opens with its exemption
+  // choice, not an item barcode. Without edit rights the page just opens on Overview.
+  /** The link's target until the editor opens; then the field to focus once it renders. */
+  const openAt = useRef<EditTarget | null>(edit ?? null)
+  const focusAt = useRef<EditTarget | null>(null)
+  const variantsReady = !data.variantsPending
+  useEffect(() => {
+    if (!openAt.current || !variantsReady) return
+    openAt.current = null
+    // Back to plain Overview: this also drops `?edit=` from the address.
+    setTab('overview')
+    if (!canEdit) return
+    focusAt.current = 'barcode'
+    if (!session.editing) session.start()
+  }, [variantsReady, canEdit]) // eslint-disable-line react-hooks/exhaustive-deps -- once per link
+  useEffect(() => {
+    if (!focusAt.current || !editing || tab !== 'overview') return
+    const t = window.setTimeout(() => {
+      const field = document.querySelector<HTMLElement>('[data-barcode-field]')
+      if (!field) return
+      focusAt.current = null
+      // The digits when "Has a barcode" is chosen, else the chosen option of the choice.
+      const target = field.querySelector<HTMLElement>('input:not([type="radio"])') ?? field.querySelector<HTMLElement>('input[type="radio"]:checked')
+      field.scrollIntoView?.({ block: 'center' })
+      target?.focus({ preventScroll: true })
+    }, 0)
+    return () => window.clearTimeout(t)
+  }, [editing, tab])
 
   return (
     <Page>
