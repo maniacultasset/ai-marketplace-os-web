@@ -54,7 +54,7 @@ import { ALL_COLOURS, colourGroups, type ColourGroup, type ColourSource } from '
 import { uploadImage } from './upload'
 import { useImageCandidates } from './candidates-api'
 import { aiLimitHit, candidatesUnsupported, keptOriginals, openCandidates, originBadge, type CandidateKind } from './candidates-model'
-import { CandidateBlock, OriginBadges } from './candidate-review'
+import { AppliedNote, CandidateBlock, OriginBadges } from './candidate-review'
 import { useCandidateSession } from './candidate-session'
 
 interface ProductLike extends ColourSource {
@@ -239,11 +239,14 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         aiLimit={aiLimit}
         onPreviewError={onPreviewError}
         hasSizeChartImage={details.some((d) => d.slot === 'size_chart')}
+        imageUrlOf={(id) => detailById.get(id)?.view_url}
+        isLiveMain={(id) => detailById.get(id)?.slot === 'main'}
       />
     ) : null
   const rowExtras = (imageId: string) => {
     const d = detailById.get(imageId)
     const label = originBadge(d)
+    const appliedKind = session.applied.get(imageId)
     return {
       viewUrl: d?.view_url,
       onViewError: refreshViews,
@@ -255,6 +258,12 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
       extra:
         d?.slot === 'main' ? (
           <>
+            {/* A click on the old main was answered "already applied": this image is that result. */}
+            {appliedKind ? (
+              <div className="px-5 pb-3">
+                <AppliedNote kind={appliedKind} />
+              </div>
+            ) : null}
             {fixesBlock(imageId, d.fixes ?? [])}
             {/* The background check flagged the Front and no white-background fix is offered. */}
             {(d.fixes ?? []).length === 0 && backgroundFlagged(tileReports[(product.image_details ?? []).indexOf(d)]?.data) ? (

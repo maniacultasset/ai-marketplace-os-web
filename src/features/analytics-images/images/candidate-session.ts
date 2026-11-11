@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Schema } from '@/api/types'
+import type { CandidateKind } from './candidates-model'
 
 /** State shared by every candidate block on the card (one product). */
 export interface CandidateSession {
@@ -17,6 +18,10 @@ export interface CandidateSession {
   /** Images made by a use this visit, with their check job: image id to job id. */
   accepted: ReadonlyMap<string, string>
   markAccepted: (a: Schema<'ImageAccepted'>) => void
+  /** Images a create answered as already applied this visit (image id to the fix kind), so the
+   * image's own row can say so once the product read moves it into place. */
+  applied: ReadonlyMap<string, CandidateKind>
+  markApplied: (imageId: string, kind: CandidateKind) => void
 }
 
 export function useCandidateSession(): CandidateSession {
@@ -24,6 +29,7 @@ export function useCandidateSession(): CandidateSession {
   const [cacheHits, setCacheHits] = useState<ReadonlySet<string>>(new Set())
   const [aiOff, setAiOff] = useState(false)
   const [accepted, setAccepted] = useState<ReadonlyMap<string, string>>(new Map())
+  const [applied, setApplied] = useState<ReadonlyMap<string, CandidateKind>>(new Map())
   return {
     hidden,
     hide: (id) => setHidden((s) => new Set(s).add(id)),
@@ -40,5 +46,7 @@ export function useCandidateSession(): CandidateSession {
     setAiOff: () => setAiOff(true),
     accepted,
     markAccepted: (a) => setAccepted((m) => new Map(m).set(a.image_id, a.job_id)),
+    applied,
+    markApplied: (imageId, kind) => setApplied((m) => (m.get(imageId) === kind ? m : new Map(m).set(imageId, kind))),
   }
 }

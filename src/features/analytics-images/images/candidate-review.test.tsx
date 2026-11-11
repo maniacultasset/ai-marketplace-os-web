@@ -13,11 +13,12 @@ vi.mock('@/lib/auth', async (orig) => ({ ...(await orig<typeof import('@/lib/aut
 
 const { CandidateBlock, OriginBadges } = await import('./candidate-review')
 const { useCandidateSession } = await import('./candidate-session')
-const { FAILURE_COPY } = await import('./candidates-model')
+const { APPLIED_COPY, FAILURE_COPY } = await import('./candidates-model')
 
 const P = '0b1c2d3e-0000-4000-8000-000000000101'
 const MAIN = '0b1c2d3e-0000-4000-8000-000000000201'
 const C1 = '0b1c2d3e-0000-4000-8000-000000000301'
+const NEW_MAIN = '0b1c2d3e-0000-4000-8000-000000000202'
 
 const cand = (over: Partial<Candidate> = {}): Candidate => ({
   id: C1,
@@ -45,11 +46,14 @@ function Harness(props: {
   aiLimit?: boolean
   sourceId?: string | null
   listPending?: boolean
+  imageUrlOf?: (id: string) => string | null | undefined
+  isLiveMain?: (id: string) => boolean
 }) {
   const session = useCandidateSession()
   return (
     <>
     <span data-testid="accepted-jobs">{[...session.accepted].map(([image, job]) => `${image}:${job}`).join(',')}</span>
+    <span data-testid="applied-images">{[...session.applied].map(([image, kind]) => `${image}:${kind}`).join(',')}</span>
     <CandidateBlock
       productId={P}
       sourceId={props.sourceId === undefined ? MAIN : props.sourceId}
@@ -60,6 +64,8 @@ function Harness(props: {
       canAct={props.canAct ?? true}
       aiLimit={props.aiLimit ?? false}
       onPreviewError={() => {}}
+      imageUrlOf={props.imageUrlOf}
+      isLiveMain={props.isLiveMain}
     />
     </>
   )
@@ -166,11 +172,84 @@ describe('fix buttons', () => {
     expect(screen.queryByTestId('make-fix')).toBeNull()
   })
 
-  it('says the photo is already in use when the cache answers an accepted one', async () => {
-    post.mockReturnValueOnce(ok({ candidate_id: C1, status: 'accepted', job_id: null, poll_url: null }))
-    setup({ kinds: ['fix'] })
-    fireEvent.click(screen.getByTestId('make-fix'))
-    expect((await screen.findByTestId('candidate-create-note')).textContent).toBe('Already in use.')
+  it('says plainly the photo is already on a white background, with its image, when the API answers applied', async () => {
+    post.mockReturnValueOnce(
+      ok({ candidate_id: C1, status: 'accepted', job_id: null, poll_url: null, accepted_image_id: NEW_MAIN }),
+    )
+    setup({ kinds: ['white_background'], imageUrlOf: (id) => (id === NEW_MAIN ? 'https://storage.test/new-main.jpg' : null) })
+    fireEvent.click(screen.getByTestId('make-white_background'))
+    const note = await screen.findByTestId('candidate-applied')
+    expect(note.textContent).toBe("This photo is already on a white background. It's your main photo now.")
+    expect(note.getAttribute('role')).toBe('status')
+    expect(note.querySelector('img')?.getAttribute('src')).toBe('https://storage.test/new-main.jpg')
+    // No dead end: the old photo offers nothing more, and the new main row is told.
+    expect(screen.queryByTestId('make-white_background')).toBeNull()
+    expect(screen.getByTestId('applied-images').textContent).toBe(`${NEW_MAIN}:white_background`)
+    expect(document.body.textContent).not.toContain('Already in use')
+  })
+
+  it('offers no fix on the old photo while its result is still the main', () => {
+    const used = cand({ status: 'accepted', accepted_image_id: NEW_MAIN })
+    setup({ kinds: ['white_background', 'fix'], candidates: [used], isLiveMain: (id) => id === NEW_MAIN })
+    expect(screen.queryByTestId('make-white_background')).toBeNull()
+    expect(screen.queryByTestId('make-fix')).toBeNull()
+    expect(screen.getByTestId('candidate-applied').textContent).toBe(APPLIED_COPY.white_background)
+  })
+
+  it('offers the fix again once the result is no longer the main (deleted, or the old photo is main again)', () => {
+    const used = cand({ status: 'accepted', accepted_image_id: NEW_MAIN })
+    setup({ kinds: ['white_background'], candidates: [used], isLiveMain: () => false })
+    const btn = screen.getByTestId('make-white_background') as HTMLButtonElement
+    expect(btn.dataset.state).toBe('available')
+    expect(btn.disabled).toBe(false)
+    expect(screen.queryByTestId('candidate-applied')).toBeNull()
+  })
+
+  it('keeps offering the fix when the used candidate came from another photo', () => {
+    const elsewhere = cand({ status: 'accepted', source_image_id: NEW_MAIN, accepted_image_id: C1 })
+    setup({ kinds: ['white_background'], candidates: [elsewhere] })
+    expect((screen.getByTestId('make-white_background') as HTMLButtonElement).disabled).toBe(false)
+    expect(screen.queryByTestId('candidate-applied')).toBeNull()
+  })
+
+  it('a new job after a stale accept is queued and shows progress, not "applied"', async () => {
+    post.mockReturnValueOnce(ok({ candidate_id: C1, status: 'queued', job_id: 'j1', poll_url: '/api/v1/jobs/j1', accepted_image_id: null }))
+    const used = cand({ id: 'c0', status: 'accepted', accepted_image_id: NEW_MAIN })
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    const view = setup({ kinds: ['white_background'], candidates: [used], isLiveMain: () => false }, qc)
+    fireEvent.click(screen.getByTestId('make-white_background'))
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.getByTestId('make-white_background').dataset.state).not.toBe('starting'))
+    // The list read after the create has the new job queued.
+    view.rerender(
+      <QueryClientProvider client={qc}>
+        <TooltipProvider>
+          <Harness kinds={['white_background']} candidates={[cand({ status: 'queued', preview_url: null }), used]} isLiveMain={() => false} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    )
+    const btn = screen.getByTestId('make-white_background') as HTMLButtonElement
+    expect(btn.dataset.state).toBe('working')
+    expect(btn.disabled).toBe(true)
+    expect(screen.getByTestId('candidate-review')).toBeTruthy()
+    expect(screen.queryByTestId('candidate-applied')).toBeNull()
+  })
+
+  it('offers Retry on a failed try and keeps the reason in view', () => {
+    setup({ kinds: ['white_background'], candidates: [cand({ status: 'failed', failure_reason: 'model_failed', preview_url: null })] })
+    const btn = screen.getByTestId('make-white_background') as HTMLButtonElement
+    expect(btn.dataset.state).toBe('failed')
+    expect(btn.disabled).toBe(false)
+    expect(screen.getByTestId('candidate-review').textContent).toContain(FAILURE_COPY.model_failed)
+    expect(screen.getByTestId('candidate-retry')).toBeTruthy()
+  })
+
+  it('says a size chart is already the size chart image and keeps its button', async () => {
+    post.mockReturnValueOnce(ok({ candidate_id: C1, status: 'accepted', job_id: null, poll_url: null, accepted_image_id: NEW_MAIN }))
+    setup({ kinds: ['size_chart'], sourceId: null })
+    fireEvent.click(screen.getByTestId('make-size_chart'))
+    expect((await screen.findByTestId('candidate-applied')).textContent).toBe(APPLIED_COPY.size_chart)
+    expect(screen.getByTestId('make-size_chart')).toBeTruthy()
   })
 
   it('shows a cached failure again even after it was closed', async () => {
