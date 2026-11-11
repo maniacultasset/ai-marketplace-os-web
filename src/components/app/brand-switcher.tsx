@@ -1,8 +1,10 @@
 /**
  * Brand switcher (hi-fi sidebar "bs"): square brand initial, brand name, chevron. Memberships come
- * from GET /auth/me; switching calls POST /auth/switch-tenant (lib/auth `switchTenant`). With a
- * single membership it is a static box (nothing to switch to, so no chevron). Collapsed: the
- * initial only, the name in a tooltip.
+ * from GET /auth/me; switching calls POST /auth/switch-tenant (lib/auth `switchTenant`). It is the
+ * brand filter for an agency: each brand's data stays in that brand. An owner of the current brand
+ * can "Add another brand" here while the deployment has it on (ADR-0032). With one membership and
+ * nothing to add it is a static box (no chevron). Collapsed: the initial only, the name in a
+ * tooltip.
  */
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
@@ -17,7 +19,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useBrandName } from '@/features/brand/api'
+import { AddBrandDialog } from '@/features/brand/add-brand-dialog'
+import { canAddBrand, ownsAnotherBrand } from '@/features/brand/add-brand'
+import { useBrandName, useBrandProfile } from '@/features/brand/api'
 import { switchTenant, useMe } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
@@ -37,7 +41,10 @@ export function BrandSwitcher({ collapsed }: { collapsed?: boolean }) {
   const { data: me } = useMe()
   const navigate = useNavigate()
   const [pending, setPending] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
   const name = useBrandName(me)
+  const profile = useBrandProfile()
+  const canAdd = canAddBrand(me, profile.data?.data)
   if (!me) return <div className="mb-3.5 h-[46px] rounded-[12px] border border-line shadow-inset-sm" aria-hidden />
 
   const body = (
@@ -58,7 +65,7 @@ export function BrandSwitcher({ collapsed }: { collapsed?: boolean }) {
     collapsed && 'justify-center px-0',
   )
 
-  if (me.memberships.length <= 1) {
+  if (me.memberships.length <= 1 && !canAdd) {
     return collapsed ? (
       <Tooltip>
         <TooltipTrigger asChild>
@@ -73,40 +80,61 @@ export function BrandSwitcher({ collapsed }: { collapsed?: boolean }) {
     )
   }
 
+  const brandCount = me.memberships.length
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button type="button" className={cn(box, 'focus-ring tactile cursor-pointer hover:bg-white active:shadow-pressed aria-expanded:shadow-pressed')} aria-label="Switch brand">
-          {body}
-          {pending ? <Spinner className="size-4" /> : <Icon name="chev" size={16} className={cn('text-ink-2', collapsed && 'hidden')} />}
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side={collapsed ? 'right' : 'bottom'} className="w-64">
-        <DropdownMenuLabel className="text-caption text-ink-3">Brands</DropdownMenuLabel>
-        {me.memberships.map((m) => {
-          const current = m.tenant_id === me.tenant_id
-          return (
-            <DropdownMenuItem
-              key={m.tenant_id}
-              disabled={current || !!pending}
-              onSelect={() => {
-                setPending(m.tenant_id)
-                switchTenant(m.tenant_id)
-                  .then(() => navigate({ to: '/home' }))
-                  .catch(() => undefined)
-                  .finally(() => setPending(null))
-              }}
-            >
-              <BrandInitial name={m.tenant_name} />
-              <span className="flex-1 truncate">{m.tenant_name}</span>
-              <span className="text-caption text-ink-3 capitalize">{m.role}</span>
-              {current ? <Icon name="check" size={14} className="text-brand" /> : null}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button type="button" className={cn(box, 'focus-ring tactile cursor-pointer hover:bg-white active:shadow-pressed aria-expanded:shadow-pressed')} aria-label="Switch brand">
+            {body}
+            {pending ? <Spinner className="size-4" /> : <Icon name="chev" size={16} className={cn('text-ink-2', collapsed && 'hidden')} />}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" side={collapsed ? 'right' : 'bottom'} className="w-64">
+          <DropdownMenuLabel className="flex items-center justify-between text-caption text-ink-3">
+            <span>Brands</span>
+            {brandCount > 1 ? <span className="tabular-nums" data-testid="brand-count">{brandCount}</span> : null}
+          </DropdownMenuLabel>
+          <div className="max-h-72 overflow-y-auto">
+            {me.memberships.map((m) => {
+              const current = m.tenant_id === me.tenant_id
+              return (
+                <DropdownMenuItem
+                  key={m.tenant_id}
+                  disabled={current || !!pending}
+                  onSelect={() => {
+                    setPending(m.tenant_id)
+                    switchTenant(m.tenant_id)
+                      .then(() => navigate({ to: '/home' }))
+                      .catch(() => undefined)
+                      .finally(() => setPending(null))
+                  }}
+                >
+                  <BrandInitial name={m.tenant_name} />
+                  <span className="flex-1 truncate">{m.tenant_name}</span>
+                  <span className="text-caption text-ink-3 capitalize">{m.role}</span>
+                  {current ? <Icon name="check" size={14} className="text-brand" /> : null}
+                </DropdownMenuItem>
+              )
+            })}
+          </div>
+          <DropdownMenuSeparator />
+          {canAdd ? (
+            <DropdownMenuItem disabled={!!pending} onSelect={() => setAdding(true)} data-testid="add-brand">
+              <span aria-hidden className="inline-flex size-6 shrink-0 items-center justify-center rounded-[7px] border border-dashed border-line text-ink-2">
+                <Icon name="plus" size={14} />
+              </span>
+              <span className="flex-1">Add another brand</span>
             </DropdownMenuItem>
-          )
-        })}
-        <DropdownMenuSeparator />
-        <p className="px-2 py-1.5 text-caption text-ink-3">Each brand keeps its own profile and marketplace accounts.</p>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          ) : ownsAnotherBrand(me) && profile.data?.data.capabilities?.tenant_create_enabled ? (
+            <p className="px-2 py-1.5 text-caption text-ink-3" data-testid="add-brand-hint">
+              To add a brand, switch to one you own.
+            </p>
+          ) : null}
+          <p className="px-2 py-1.5 text-caption text-ink-3">Each brand keeps its own products, team and marketplace accounts.</p>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {canAdd ? <AddBrandDialog open={adding} onClose={() => setAdding(false)} /> : null}
+    </>
   )
 }
