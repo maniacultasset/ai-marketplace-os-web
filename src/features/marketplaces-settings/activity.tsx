@@ -175,7 +175,7 @@ function HistoryPanel({ id, listingId, marketplace }: { id: string; listingId: s
   const people: ActivityEvent[] = history.rows.map((e) => ({
     id: e.id,
     at: e.occurred_at,
-    label: historyLabel(e.action),
+    label: historyLabel(e.action, e.review),
     by: auditActorLabel(e, me?.user_id),
     reason: historyReason(e),
   }))

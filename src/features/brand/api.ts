@@ -3,7 +3,8 @@
  * routers/brand.py (surface.py ops tenants_me, tenants_me_update, brand_documents_*).
  *
  * Invalidation:
- *   PATCH /tenants/me          -> setQueryData(brand.profile()) (new ETag rides along); me() when the name changed
+ *   PATCH /tenants/me          -> setQueryData(brand.profile()) (new ETag rides along); me() when the name changed;
+ *                                 listings.all() when owner_self_approval changed (approve_hint, self_approval)
  *   POST/DELETE /brand/documents -> brand.documents()
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -67,6 +68,7 @@ export function useSaveProfile() {
     onSuccess: (next: Versioned<TenantOut>, { body }) => {
       qc.setQueryData(keys.brand.profile(), next)
       if (body.name !== undefined) void qc.invalidateQueries({ queryKey: keys.me() })
+      if (body.owner_self_approval !== undefined) void qc.invalidateQueries({ queryKey: keys.listings.all() })
     },
   })
 }

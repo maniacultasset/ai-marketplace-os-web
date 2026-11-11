@@ -101,9 +101,9 @@ export function laneView(
     case 'auto_repair':
       return v('working', 'Kuinn is fixing', `Kuinn changes only how this value is sent to ${mp}, then sends it again. Your product facts stay the same.`)
     case 'auto_content':
-      return v('working', 'Kuinn is fixing', 'Kuinn is fixing the text. A teammate approves the change before it is sent.')
+      return v('working', 'Kuinn is fixing', 'Kuinn is fixing the text. A person approves the change before it is sent.')
     case 'ai_field':
-      return v('working', 'Kuinn is rewriting', 'Kuinn is rewriting this field. A teammate approves the new text before it is sent.')
+      return v('working', 'Kuinn is rewriting', 'Kuinn is rewriting this field. A person approves the new text before it is sent.')
     case 'retry':
       return v('working', 'Trying again', `A temporary problem at ${mp}. Kuinn sends the same listing again.`)
     case 'seller':

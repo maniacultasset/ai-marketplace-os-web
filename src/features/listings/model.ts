@@ -222,12 +222,13 @@ export interface ListingActionInput {
   publishBuilt: boolean
 }
 
-export type ApproveHint = 'own_work' | 'no_other_approver' | 'not_approver'
+export type ApproveHint = 'own_work' | 'no_other_approver' | 'not_approver' | 'owner_can_enable'
 
 /** Why the server says this caller can't approve (SI10 `approve_hint`). */
 export const APPROVE_HINT_COPY: Record<ApproveHint, string> = {
   own_work: 'You made this version, so a teammate approves it.',
   no_other_approver: 'A teammate must approve this. Invite one in Team.',
+  owner_can_enable: 'You made this version. Turn on owner approval in Settings, or invite a reviewer.',
   not_approver: 'Your role doesn’t approve listings.',
 }
 
@@ -438,9 +439,14 @@ export function summarizeBatch(result: Pick<BatchResult, 'items'>): BatchOutcome
 /* History                                                                                         */
 /* ---------------------------------------------------------------------------------------------- */
 
+/** An event's `review`. Read as partial: `self_approval` (ADR-0031) is absent on older backends. */
+export type AuditReview = Partial<Schema<'AuditReviewOut'>>
+
 const HISTORY_LABEL: Record<string, string> = {
   'listing.edited': 'Edited the content',
   'listing.approved': 'Approved',
+  // ADR-0031: written beside its `listing.approved`, which useListingHistory folds it into.
+  'listing.self_approved': 'Self-approved by the owner',
   'listing.approve_denied': 'Approval refused (maker-checker)',
   'listing.rejected': 'Rejected',
   'listing.regenerate_requested': 'Asked for a regeneration',
@@ -450,8 +456,30 @@ const HISTORY_LABEL: Record<string, string> = {
   'listing.fact_answered': 'Added your answer to the listing',
 }
 
-export function historyLabel(action: string): string {
+/** The row's label. An owner's approval of its own work says so (`review.self_approval`, ADR-0031). */
+export function historyLabel(action: string, review?: AuditReview | null): string {
+  if (action === 'listing.approved' && review?.self_approval) return 'Approved by the owner (own work)'
   return HISTORY_LABEL[action] ?? sentence(action.replace(/^listing\./, ''))
+}
+
+/**
+ * A self-approval writes two events (ADR-0031): `listing.approved` with `review.self_approval` and a
+ * `listing.self_approved` beside it. The approval row already says "own work", so the extra event
+ * is dropped when its approval is on the same page of history (same request, or written within a
+ * minute of it); a lone one stays, labelled "Self-approved by the owner".
+ */
+export function foldSelfApprovals<E extends Pick<AuditEvent, 'action' | 'occurred_at' | 'request_id'> & { review?: AuditReview | null }>(events: readonly E[]): E[] {
+  const approvals = events.filter((e) => e.action === 'listing.approved' && e.review?.self_approval)
+  if (!events.some((e) => e.action === 'listing.self_approved')) return events as E[]
+  return events.filter(
+    (e) =>
+      e.action !== 'listing.self_approved' ||
+      !approvals.some((a) =>
+        a.request_id && e.request_id
+          ? a.request_id === e.request_id
+          : Math.abs(Date.parse(a.occurred_at) - Date.parse(e.occurred_at)) <= 60_000,
+      ),
+  )
 }
 
 /**
@@ -465,7 +493,7 @@ export function historyReason(e: {
   action: string
   reason?: string | null
   after?: Record<string, unknown> | null
-  review?: Schema<'AuditReviewOut'> | null
+  review?: AuditReview | null
 }): string | null {
   const note = typeof e.after?.['note'] === 'string' ? (e.after['note'] as string).trim() : ''
   if (e.action === 'listing.rejected' || e.review) {
@@ -489,7 +517,7 @@ export function historyReason(e: {
  * an older API without it (prod QA 9 Nov: "Rejected · a person" said nothing about which version
  * or why).
  */
-export function reviewDetail(review: Schema<'AuditReviewOut'> | null | undefined): string | null {
+export function reviewDetail(review: AuditReview | null | undefined): string | null {
   if (!review) return null
   const parts: string[] = []
   if (review.version) parts.push(`Version ${review.version}`)

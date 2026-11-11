@@ -607,7 +607,7 @@ function Lanes({
 type LogFilter = 'all' | 'changes' | 'reviews'
 
 const CHANGE_ACTIONS = new Set(['listing.edited', 'listing.regenerate_requested', 'listing.revalidated'])
-const REVIEW_ACTIONS = new Set(['listing.approved', 'listing.approve_denied', 'listing.rejected', 'listing.publish_requested'])
+const REVIEW_ACTIONS = new Set(['listing.approved', 'listing.self_approved', 'listing.approve_denied', 'listing.rejected', 'listing.publish_requested'])
 
 interface LogEntry {
   id: string
@@ -635,7 +635,7 @@ export function logEntries(events: readonly AuditEvent[], job: Pick<JobEnvelope,
     id: e.id,
     at: e.occurred_at,
     tone: eventTone(e.action),
-    text: `${historyLabel(e.action)} ${actorPhrase(e, meId)}.${reason ? ` ${e.action === 'listing.rejected' ? 'Reason: ' : ''}${/[.!?”]$/.test(reason) ? reason : `${reason}.`}` : ''}`,
+    text: `${historyLabel(e.action, e.review)} ${actorPhrase(e, meId)}.${reason ? ` ${e.action === 'listing.rejected' ? 'Reason: ' : ''}${/[.!?”]$/.test(reason) ? reason : `${reason}.`}` : ''}`,
     kind: CHANGE_ACTIONS.has(e.action) ? 'change' : REVIEW_ACTIONS.has(e.action) ? 'review' : 'change',
     }
   })
