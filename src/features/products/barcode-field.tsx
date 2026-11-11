@@ -38,7 +38,7 @@ const NO_BARCODE = { item: 'No barcode: my brand has an Amazon GTIN exemption', 
 const NO_BARCODE_PLAIN = { item: 'No barcode', style: 'No barcodes' } as const
 
 /** The field's hint: Amazon's rule only when Amazon is a chosen marketplace. */
-export function barcodeHint({ exempt, style, amazon }: { exempt: boolean; style: boolean; amazon: boolean }): string {
+function barcodeHint({ exempt, style, amazon }: { exempt: boolean; style: boolean; amazon: boolean }): string {
   if (exempt) return style ? (amazon ? STYLE_EXEMPT_HINT : STYLE_EXEMPT_PLAIN) : amazon ? EXEMPT_EXPLAINER : ITEM_EXEMPT_PLAIN
   if (style) return amazon ? STYLE_HINT : STYLE_HINT_PLAIN
   return amazon ? ITEM_HINT_AMAZON : ITEM_HINT

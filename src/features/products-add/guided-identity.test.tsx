@@ -91,7 +91,7 @@ describe('Guided form identity: required marks and the barcode', () => {
     expect(labelOf('g-barcode-value').querySelector('[data-slot="field-required"]')).toBeNull()
     expect(document.getElementById('g-barcode-value-hint')!.textContent).not.toMatch(/Amazon/)
     await userEvent.click(screen.getByRole('radio', { name: 'No barcode' }))
-    expect(document.getElementById('g-barcode-choice-hint')!.textContent).toBe('Saved without a barcode.')
+    expect(document.getElementById('g-barcode-choice-hint')!.textContent).toContain('Saved without a barcode.')
     expect(screen.getByTestId('g-barcode-field').textContent).not.toMatch(/Amazon/)
   })
 

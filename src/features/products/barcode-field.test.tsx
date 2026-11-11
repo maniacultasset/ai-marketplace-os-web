@@ -38,7 +38,7 @@ describe('BarcodeField', () => {
   })
 
   it('offers "Has a barcode" or the exemption as two explicit options', () => {
-    render(<Harness initial={{ type: 'ean', value: '4006381333931', exempt: false }} />)
+    render(<Harness amazon initial={{ type: 'ean', value: '4006381333931', exempt: false }} />)
     expect(screen.getByRole('radiogroup', { name: 'Barcode' })).toBeTruthy()
     const has = screen.getByRole('radio', { name: 'Has a barcode' }) as HTMLInputElement
     expect(has.checked).toBe(true)
@@ -70,8 +70,17 @@ describe('BarcodeField', () => {
     expect(screen.getByText('Flipkart needs this')).toBeTruthy()
   })
 
+  it('without Amazon says nothing about Amazon: plain formats and a plain "No barcode"', () => {
+    const { container } = render(<Harness />)
+    expect(container.textContent).not.toMatch(/Amazon/)
+    fireEvent.click(screen.getByRole('radio', { name: 'No barcode' }))
+    expect(last.exempt).toBe(true)
+    expect(screen.getByText('Saved without a barcode.')).toBeTruthy()
+    expect(container.textContent).not.toMatch(/Amazon/)
+  })
+
   it('on a style shows only the exemption choice, which applies to its variants', () => {
-    render(<Harness level="style" />)
+    render(<Harness level="style" amazon />)
     expect(screen.queryByRole('textbox')).toBeNull()
     expect(screen.getByRole('radio', { name: 'Variants have barcodes' })).toBeTruthy()
     expect(screen.getByText(/Each variant has its own barcode/)).toBeTruthy()
