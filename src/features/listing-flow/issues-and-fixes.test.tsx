@@ -56,7 +56,9 @@ describe('IssuesAndFixesCard', () => {
     expect(within(mp).getByText('Account approval')).toBeTruthy()
     expect(within(mp).getByTestId('issue-action').textContent).toBe('Apply in Seller Central.')
     expect(screen.queryByTestId('issues-team')).toBeNull()
-    expect(screen.getByTestId('issues-summary').textContent).toBe("1 needs you · 1 on Amazon's side · 1 fix by Kuinn.")
+    expect(within(fixed).getByRole('heading').textContent).toContain("Kuinn's fixes")
+    expect(screen.queryByTestId('issues-fixing')).toBeNull()
+    expect(screen.getByTestId('issues-summary').textContent).toBe("1 needs you · 1 on Amazon's side · 1 Kuinn fix not confirmed yet.")
   })
 
   it('keeps the marketplace code and words behind a toggle', async () => {
@@ -90,9 +92,19 @@ describe('IssuesAndFixesCard', () => {
       }),
       { marketplace: 'flipkart' },
     )
-    expect(within(screen.getByTestId('issues-fixed')).getByText('Kuinn is working on this.')).toBeTruthy()
-    expect(within(screen.getByTestId('issues-fixed')).queryAllByTestId('fix-line')).toHaveLength(0)
+    const fixing = screen.getByTestId('issues-fixing')
+    expect(within(fixing).getByRole('heading').textContent).toContain('Kuinn is fixing')
+    expect(within(fixing).getByText('Kuinn is working on this.')).toBeTruthy()
+    expect(screen.queryByTestId('issues-fixed')).toBeNull() // open work is never listed as a fix
     expect(within(screen.getByTestId('issues-team')).getByText('Not known yet')).toBeTruthy()
+  })
+
+  it('a refused fix says so on its line and in the summary', () => {
+    card(history({ issues: [issue({ id: 'c', handler: 'kuinn', lane: 'auto_repair' })], fixes: [fix({ issue_id: 'c', outcome: 'refused' })] }))
+    const fixed = screen.getByTestId('issues-fixed')
+    expect(within(fixed).getByTestId('fix-outcome').textContent).toBe('Amazon refused it again')
+    expect(screen.queryByTestId('issues-fixing')).toBeNull()
+    expect(screen.getByTestId('issues-summary').textContent).toBe('1 Kuinn fix refused.')
   })
 
   it('history is closed until asked, oldest try first', async () => {

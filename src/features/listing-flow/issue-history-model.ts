@@ -4,9 +4,10 @@
  *
  * Contract: GET /listings/{id}/issue-history (IssueHistoryOut, schemas 2.1.0). The backend decides
  * who handles each issue; this file only groups and words it. Rules the copy keeps:
- *   - "Fixed by Kuinn" lists only a fix the API returned, with its before and after values. Its
- *     outcome says what the marketplace did with it; "Accepted" only when the marketplace accepted
- *     the send that carried it.
+ *   - "Kuinn's fixes" lists only a fix the API returned, with its before and after values. Its
+ *     outcome says what the marketplace did with it; "accepted" (and "fixed" in the summary) only
+ *     when the marketplace accepted the send that carried it. A refused or unsent fix says so.
+ *   - "Kuinn is fixing" lists Kuinn's open work with no fix yet (a repair or resend under way).
  *   - "Needs you" lists open issues the seller settles in Kuinn; "On the marketplace side" lists
  *     open issues settled outside Kuinn (a marketplace approval, a Seller Hub setting, an outage).
  *   - Kuinn's own open work and its team's checks are said as such, never as fixed.
@@ -76,6 +77,8 @@ export interface FixLine {
   after: string | null
   reason: string
   outcome: { label: string; tone: Tone }
+  /** The API's outcome, for the summary's counts. */
+  result: FixOutcome
   at: string
   /** The issue that made Kuinn fix it, when the API linked one. */
   issue: IssueLine | null
@@ -139,14 +142,20 @@ function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`
 }
 
-export function summaryLine(v: Pick<IssueHistoryView, 'fixed' | 'fixing' | 'needsYou' | 'marketplace' | 'team'>, marketplace: string): string {
+export function summaryLine(v: Pick<IssueHistoryView, 'fixing' | 'needsYou' | 'marketplace' | 'team'> & { fixed: readonly Pick<FixLine, 'result'>[] }, marketplace: string): string {
   const mp = mpName(marketplace)
   const parts: string[] = []
+  const fixes = (...results: FixOutcome[]) => v.fixed.filter((f) => results.includes(f.result)).length
+  const accepted = fixes('accepted')
+  const refused = fixes('refused')
+  const unconfirmed = fixes('waiting', 'sent')
   if (v.needsYou.length) parts.push(`${plural(v.needsYou.length, 'needs', 'need')} you`)
   if (v.marketplace.length) parts.push(`${v.marketplace.length} on ${mp}'s side`)
   if (v.fixing.length) parts.push(`${v.fixing.length} Kuinn is fixing`)
   if (v.team.length) parts.push(`${v.team.length} with Kuinn's team`)
-  if (v.fixed.length) parts.push(`${plural(v.fixed.length, 'fix', 'fixes')} by Kuinn`)
+  if (accepted) parts.push(`${accepted} fixed by Kuinn`)
+  if (refused) parts.push(`${plural(refused, 'Kuinn fix', 'Kuinn fixes')} refused`)
+  if (unconfirmed) parts.push(`${plural(unconfirmed, 'Kuinn fix', 'Kuinn fixes')} not confirmed yet`)
   if (!parts.length) return `No open issues from ${mp}.`
   return `${parts.join(' · ')}.`
 }
@@ -164,6 +173,7 @@ export function issueHistoryView(h: IssueHistory, marketplace: string): IssueHis
     after: f.after ?? null,
     reason: f.reason,
     outcome: fixOutcome(f.outcome, marketplace),
+    result: f.outcome,
     at: f.at,
     issue: f.issue_id ? (lines.get(f.issue_id) ?? null) : null,
   }))
@@ -206,7 +216,7 @@ export function hasIssueHistory(h: IssueHistory | null | undefined): h is IssueH
   return !!h && ((h.issues?.length ?? 0) > 0 || (h.fixes?.length ?? 0) > 0)
 }
 
-/** "Fixed by Kuinn" wording per kind: a value repair goes out on its own, a text change waits for approval. */
+/** "Kuinn's fixes" wording per kind: a value repair goes out on its own, a text change waits for approval. */
 export function fixKindLabel(kind: Fix['kind']): string {
   switch (kind) {
     case 'repair':

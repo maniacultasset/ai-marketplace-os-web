@@ -1,7 +1,8 @@
 /**
  * "Issues and fixes" (client feedback item 20): every marketplace issue of one listing and each fix
- * Kuinn made, on the review and live screens. Three calm groups (Fixed by Kuinn, Needs you, On the
- * marketplace side), plus Kuinn's own open work and its team's checks when there are any. Each line
+ * Kuinn made, on the review and live screens. Three calm groups (Kuinn's fixes, Needs you, On the
+ * marketplace side), plus Kuinn's own open work and its team's checks when there are any. A fix's
+ * outcome sits on its line, so a refused or unsent fix never reads as done. Each line
  * shows the plain cause; the marketplace's code and words open on demand. The tries sit behind one
  * "Show history" toggle. Worded by issue-history-model.ts; shown only from the read, so a backend
  * without the route, or a listing with no marketplace issue, shows nothing.
@@ -77,13 +78,17 @@ export function IssuesAndFixesCard({
       <p className="mt-1 text-small text-ink-2" data-testid="issues-summary">
         {view.summary}
       </p>
-      {view.fixed.length || view.fixing.length ? (
-        <Group title="Fixed by Kuinn" testId="issues-fixed" count={view.fixed.length + view.fixing.length}>
-          {view.fixed.map((f) => (
-            <FixItem key={f.id} fix={f} marketplace={marketplace} />
-          ))}
+      {view.fixing.length ? (
+        <Group title="Kuinn is fixing" testId="issues-fixing" count={view.fixing.length}>
           {view.fixing.map((i) => (
             <IssueItem key={i.id} issue={i} marketplace={marketplace} note="Kuinn is working on this." />
+          ))}
+        </Group>
+      ) : null}
+      {view.fixed.length ? (
+        <Group title="Kuinn's fixes" testId="issues-fixed" count={view.fixed.length}>
+          {view.fixed.map((f) => (
+            <FixItem key={f.id} fix={f} marketplace={marketplace} />
           ))}
         </Group>
       ) : null}

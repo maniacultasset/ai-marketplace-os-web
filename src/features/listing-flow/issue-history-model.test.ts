@@ -70,12 +70,23 @@ describe('issueHistoryView', () => {
 describe('words', () => {
   it('summary names each group once, in plain words', () => {
     const one = { id: 'x' } as never
-    expect(summaryLine({ fixed: [one, one], fixing: [], needsYou: [one], marketplace: [one], team: [] }, 'amazon')).toBe(
-      "1 needs you · 1 on Amazon's side · 2 fixes by Kuinn.",
+    const ok = { result: 'accepted' } as const
+    expect(summaryLine({ fixed: [ok, ok], fixing: [], needsYou: [one], marketplace: [one], team: [] }, 'amazon')).toBe(
+      "1 needs you · 1 on Amazon's side · 2 fixed by Kuinn.",
     )
-    expect(summaryLine({ fixed: [one], fixing: [one], needsYou: [one, one], marketplace: [], team: [one] }, 'flipkart')).toBe(
-      "2 need you · 1 Kuinn is fixing · 1 with Kuinn's team · 1 fix by Kuinn.",
+    expect(summaryLine({ fixed: [ok], fixing: [one], needsYou: [one, one], marketplace: [], team: [one] }, 'flipkart')).toBe(
+      "2 need you · 1 Kuinn is fixing · 1 with Kuinn's team · 1 fixed by Kuinn.",
     )
+  })
+
+  it('summary counts only accepted fixes as fixed', () => {
+    const fixed = [{ result: 'refused' }, { result: 'waiting' }, { result: 'sent' }, { result: 'replaced' }] as const
+    expect(summaryLine({ fixed: [...fixed], fixing: [], needsYou: [], marketplace: [], team: [] }, 'amazon')).toBe(
+      '1 Kuinn fix refused · 2 Kuinn fixes not confirmed yet.',
+    )
+    const v = issueHistoryView(history({ fixes: [fix({ id: 'f1', outcome: 'refused' })] }), 'amazon')
+    expect(v.fixed[0]!.result).toBe('refused')
+    expect(v.summary).toBe('1 Kuinn fix refused.')
   })
 
   it('outcomes never claim more than the marketplace said', () => {
