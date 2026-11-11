@@ -37,6 +37,7 @@ export type NeedFieldId =
   | 'package_weight'
   | 'country_of_origin'
   | 'manufacturer'
+  | 'size_chart'
 
 /** In form order. */
 export const NEED_FIELDS: readonly NeedField[] = [
@@ -52,6 +53,8 @@ export const NEED_FIELDS: readonly NeedField[] = [
   { id: 'package_weight', label: 'Package weight', keys: ['package_weight'] },
   { id: 'country_of_origin', label: 'Country of origin', keys: ['country_of_origin'] },
   { id: 'manufacturer', label: 'Manufacturer', keys: ['manufacturer'] },
+  // Feedback 8: the backend names `size_measurements` where the category's checklist needs a chart.
+  { id: 'size_chart', label: 'Size chart', keys: ['size_measurements'] },
 ]
 
 const NAME: Record<Marketplace, string> = { amazon: 'Amazon', flipkart: 'Flipkart' }
@@ -137,5 +140,7 @@ export function productFilled(p: ProductOut, opts: { isVariant: boolean; isStyle
     package_weight: packageHasWeight(pkg),
     country_of_origin: !!p.country_of_origin,
     manufacturer: !!p.manufacturer?.legal_name,
+    // A variant's chart is its style's.
+    size_chart: opts.isVariant || (p.size_chart?.rows.length ?? 0) > 0,
   }
 }

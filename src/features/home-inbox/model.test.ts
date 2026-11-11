@@ -75,6 +75,8 @@ const listing = (
 
 const task = (n: number, at: string, over: Partial<Task> = {}): Task => ({
   id: U(n),
+  // no server flag: these cases test the client's own rule (`isBlockingTask` without `blocking`)
+  blocking: undefined as unknown as boolean,
   kind: 'missing_fact',
   question: `Q${n}`,
   reason: 'Needed',
@@ -206,6 +208,7 @@ describe('photo questions on Home (never blocking)', () => {
   const IMG = U(501)
   const q = (n: number, over: Partial<Task> = {}): Task => ({
     id: U(n),
+    blocking: undefined as unknown as boolean,
     kind: 'missing_fact',
     product_id: U(101),
     target_path: 'facts.attributes.neckline',

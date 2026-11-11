@@ -29,6 +29,7 @@ const ID = '0b1c2d3e-0000-4000-8000-000000004001'
 const PRODUCT = '0b1c2d3e-0000-4000-8000-000000000101'
 const task: Task = {
   id: ID,
+  blocking: false,
   kind: 'category_review',
   status: 'open',
   question: 'Which category is this product?',

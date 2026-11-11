@@ -1,8 +1,9 @@
 /**
  * Images for a product that is not saved yet (guided form, "Images" section).
  *
- * SI12: Front (required), Back, Close-up and Size chart are fixed tiles, each its own drop zone that
- * sends its slot and role; other photos sit under "More photos", collapsed.
+ * SI12: Front (required), Back, Close-up and Size chart are tiles, each its own drop zone that
+ * sends its slot and role; other photos sit under "More photos", collapsed. Feedback 7: with the
+ * category's checklist, the tiles and their levels (required, recommended, optional) come from it.
  *
  * The Front image goes straight to the store under a minted product id (`stageImageForNewProduct`)
  * and is attached in the same POST /products. Other images wait in the browser and upload right
@@ -20,15 +21,28 @@ import {
   IMAGE_CONTENT_TYPES,
   imageLabel,
   MAX_IMAGE_BYTES,
-  PHOTO_SLOTS,
   photoSlotOf,
   SLOT_LABEL,
   type ImageRole,
   type ImageSlot,
 } from '@/features/analytics-images/images/report'
-import { PhotoSlotGrid, PhotoSlotRowCaption, PhotoTile, type TileState } from '@/features/analytics-images/images/photo-slots'
-import type { PendingImage, PendingStage } from './new-images-model'
+import { PhotoChecklistNote, PhotoSlotGrid, PhotoSlotRowCaption, PhotoTile, type TileState } from '@/features/analytics-images/images/photo-slots'
+import {
+  extraViews,
+  fromChecklist,
+  moreSubtitle,
+  neededForApproval,
+  newProductGaps,
+  recommendedGaps,
+  requirementFor,
+  tilesFor,
+  type PhotoViewRule,
+} from '@/features/analytics-images/images/photo-views'
+import type { Schema } from '@/api/types'
+import { filledViews, type PendingImage, type PendingStage } from './new-images-model'
 import { cn } from '@/lib/utils'
+
+type Marketplace = Schema<'Marketplace'>
 
 /** "More photos" for a new product. Packaging label stays on the Media tab. */
 const MORE_NEW: readonly ImageSlot[] = ['secondary', 'lifestyle']
@@ -40,6 +54,9 @@ export function NewProductImages({
   onRetry,
   error,
   locked,
+  views,
+  sellOn,
+  hasChart = false,
 }: {
   images: readonly PendingImage[]
   onAdd: (files: File[], slot: ImageSlot, role?: ImageRole | null) => void
@@ -48,7 +65,17 @@ export function NewProductImages({
   error?: string
   /** Saving: no changes until it is done. */
   locked?: boolean
+  /** Feedback 7: the category's photo checklist (`GET /catalog/requirements`); empty keeps the four fixed tiles. */
+  views?: readonly PhotoViewRule[]
+  /** The ticked marketplaces, so a view takes their strictest level. */
+  sellOn?: readonly Marketplace[]
+  /** Feedback 8: the seller typed a size chart, which meets the size chart view. */
+  hasChart?: boolean
 }) {
+  const checklist = fromChecklist(views)
+  const tiles = tilesFor(views, { isVariant: false, sellOn })
+  const gaps = newProductGaps(views, filledViews(images), { hasChart, sellOn })
+  const extraLevels = extraViews(views, sellOn)
   const [moreSlot, setMoreSlot] = useState<ImageSlot>('secondary')
   const extras = images.filter((i) => photoSlotOf(i.slot, i.role) === null)
   const [moreOpen, setMoreOpen] = useState(extras.length > 0)
@@ -70,27 +97,32 @@ export function NewProductImages({
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
-        <p className="text-body text-ink-2">The same four photos for every product, so the agent reads each one the same way.</p>
+        <p className="text-body text-ink-2">
+          {checklist ? 'The photos this category needs, so the agent reads each one the same way.' : 'The same four photos for every product, so the agent reads each one the same way.'}
+        </p>
       </div>
       <PhotoSlotGrid>
-        {PHOTO_SLOTS.map((def) => {
+        {tiles.map((def) => {
           const img = inTile(def.id)
+          const typedChart = !img && def.id === 'size_chart' && hasChart
           return (
             <Fragment key={def.id}>
-              {def.id === 'back' ? <PhotoSlotRowCaption /> : null}
+              {def.id === 'back' && !checklist ? <PhotoSlotRowCaption /> : null}
               <PhotoTile
               def={def}
               large={def.id === 'front'}
-              state={img ? tileState(img) : { filled: false }}
+              state={img ? tileState(img) : typedChart ? { filled: false, satisfied: true, status: 'Chart entered', tone: 'ok' } : { filled: false }}
               onFiles={(files) => onAdd(files, def.slot, def.role)}
               onRemove={img && img.stage.kind !== 'uploading' ? () => onRemove(img.localId) : undefined}
               disabled={locked}
+              showLevel={checklist}
               />
             </Fragment>
           )
         })}
       </PhotoSlotGrid>
-      {PHOTO_SLOTS.map((def) => {
+      {checklist ? <PhotoChecklistNote needed={neededForApproval(gaps)} recommended={recommendedGaps(gaps)} rows={(views ?? []).map((v) => ({ ...v, requirement: requirementFor(v, sellOn) }))} /> : null}
+      {tiles.map((def) => {
         const img = inTile(def.id)
         return img?.stage.kind === 'failed' ? (
           <div key={def.id} className="-mt-2 flex flex-wrap items-center gap-2 text-caption text-danger" role="alert">
@@ -110,7 +142,7 @@ export function NewProductImages({
           <button type="button" className="focus-ring flex w-full items-center justify-between gap-3 rounded-card px-4 py-3 text-left" data-testid="more-photos-toggle">
             <span className="flex min-w-0 flex-col">
               <span className="text-small font-bold text-ink">More photos</span>
-              <span className="text-caption text-ink-3">{extras.length ? `${extras.length} added` : 'Lifestyle and other angles. Optional.'}</span>
+              <span className="text-caption text-ink-3">{extras.length ? `${extras.length} added` : moreSubtitle(extraLevels, 'Lifestyle and other angles. Optional.')}</span>
             </span>
             <Icon name="chev" size={16} className={cn('shrink-0 text-ink-2 motion-safe:transition-transform motion-safe:duration-150', moreOpen && 'rotate-180')} />
           </button>

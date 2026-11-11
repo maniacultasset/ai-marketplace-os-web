@@ -901,7 +901,8 @@ export interface paths {
          *     marketplace's required facts, the category template's required attributes and a reviewed
          *     extras table (Flipkart: HSN, package size and weight; Amazon: a barcode or the GTIN
          *     exemption, and the audience for Kurta sets and T-shirts). Shown as "Needed"; the extras are
-         *     never sent. An unknown category answers the facts and extras only.
+         *     never sent. An unknown category answers the facts and extras only. `photo_views` is the
+         *     category's photo checklist (each view required, recommended or optional, and why).
          */
         get: operations["catalog_requirements_get"];
         put?: never;
@@ -2526,7 +2527,7 @@ export interface components {
             kind: "precheck" | "submission";
             /**
              * Number
-             * @description The submission attempt (1-3); 0 for a pre-check.
+             * @description The send's order on the listing, across its versions (1 for the first send, capped at 99); 0 for a pre-check.
              */
             number: number;
             /**
@@ -3481,6 +3482,7 @@ export interface components {
              */
             check: "format" | "corruption" | "resolution" | "aspect_ratio" | "file_size" | "exif_orientation" | "background" | "fill_ratio" | "text_overlay" | "watermark" | "logo" | "product_visibility";
             code: components["schemas"]["ImageIssueCode"];
+            severity?: components["schemas"]["Severity"] | null;
             /** Suggestion */
             suggestion: string;
         };
@@ -3822,6 +3824,11 @@ export interface components {
             occurrences: number;
             /** Plain Message */
             plain_message?: string | null;
+            /**
+             * Product Id
+             * @description The listing's product, so an inbox row can name its SKU. Set on the list read.
+             */
+            product_id?: string | null;
             /** Raw Message */
             raw_message?: string | null;
             /** Recurrence Of Id */
@@ -4460,7 +4467,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "none" | "wait" | "approve" | "answer" | "marketplace" | "resume" | "regenerate" | "recategorize" | "edit_identifier";
+            kind: "none" | "wait" | "approve" | "answer" | "marketplace" | "resume" | "regenerate" | "recategorize" | "edit_identifier" | "edit_content";
             /** Task Ids */
             task_ids?: string[];
             /**
@@ -4657,6 +4664,78 @@ export interface components {
             status: "read" | "unchanged" | "failed" | "not_read";
             /** Written */
             written: number;
+        };
+        /**
+         * PhotoViewOut
+         * @description Feedback 7: one row of the product's photo checklist. `status`: `present`, `missing`, or
+         *     `invalid` (every photo in the view failed its checks; upload a new one). A size chart the
+         *     seller saved counts as present with no photo.
+         */
+        PhotoViewOut: {
+            /** Amazon */
+            amazon?: ("required" | "recommended" | "optional") | null;
+            /** Flipkart */
+            flipkart?: ("required" | "recommended" | "optional") | null;
+            /** Image Ids */
+            image_ids?: string[];
+            /** Label */
+            label: string;
+            /**
+             * Requirement
+             * @enum {string}
+             */
+            requirement: "required" | "recommended" | "optional";
+            /** Role */
+            role?: ("back" | "close_up") | null;
+            slot: components["schemas"]["ImageSlot"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "present" | "missing" | "invalid";
+            /**
+             * View
+             * @enum {string}
+             */
+            view: "front" | "back" | "close_up" | "size_chart" | "lifestyle" | "packaging_label";
+            /**
+             * Why
+             * @description One plain line on why the view helps.
+             */
+            why: string;
+        };
+        /**
+         * PhotoViewRuleOut
+         * @description One photo view of a category's checklist. `requirement` is the strictest any marketplace
+         *     gives it; `amazon` and `flipkart` are each marketplace's own (null: that marketplace's list
+         *     leaves the view out). A photo fills the view when it is uploaded with this `slot` and
+         *     `role`; the size chart also counts once the seller saved a chart.
+         */
+        PhotoViewRuleOut: {
+            /** Amazon */
+            amazon?: ("required" | "recommended" | "optional") | null;
+            /** Flipkart */
+            flipkart?: ("required" | "recommended" | "optional") | null;
+            /** Label */
+            label: string;
+            /**
+             * Requirement
+             * @enum {string}
+             */
+            requirement: "required" | "recommended" | "optional";
+            /** Role */
+            role?: ("back" | "close_up") | null;
+            slot: components["schemas"]["ImageSlot"];
+            /**
+             * View
+             * @enum {string}
+             */
+            view: "front" | "back" | "close_up" | "size_chart" | "lifestyle" | "packaging_label";
+            /**
+             * Why
+             * @description One plain line on why the view helps.
+             */
+            why: string;
         };
         /**
          * PipelineStage
@@ -4941,6 +5020,11 @@ export interface components {
              * @default false
              */
             photo_reading: boolean;
+            /**
+             * Photo Views
+             * @description Feedback 7: the photo checklist for the product's category, with what is present; single reads only. Empty on lists and while the checklist is switched off.
+             */
+            photo_views?: components["schemas"]["PhotoViewOut"][];
             /** @description SI5: the barcode (always null on a style). */
             product_identifier?: components["schemas"]["ProductIdentifierOut"] | null;
             /**
@@ -4949,6 +5033,8 @@ export interface components {
              */
             selling_price?: string | null;
             size_chart?: components["schemas"]["SizeChart"] | null;
+            /** @description Feedback 8: the size chart check of a style or standalone; single reads only. Null on lists, on a variant and while the checklist is switched off. */
+            size_chart_check?: components["schemas"]["SizeChartCheckOut"] | null;
             /**
              * Size Chart Read Enabled
              * @description SI12: whether `POST /products/{product_id}/size-chart-read` can read the photo; while false it answers `unavailable` (hide the button). False on lists.
@@ -5215,7 +5301,8 @@ export interface components {
          * RequirementsOut
          * @description Each list is the sorted dictionary keys the marketplace needs before it accepts a listing
          *     of this category: its required facts, the category template's required attributes and a
-         *     reviewed extras table. Shown to the seller; the extras are never sent.
+         *     reviewed extras table (with `PHOTO_VIEWS_ENABLED` on, `size_measurements` where the size
+         *     chart is required). Shown to the seller; the extras are never sent.
          */
         RequirementsOut: {
             /** Amazon */
@@ -5224,6 +5311,11 @@ export interface components {
             category: string;
             /** Flipkart */
             flipkart?: string[];
+            /**
+             * Photo Views
+             * @description Feedback 7: the category's photo view checklist, in display order; empty while the checklist is switched off (show the fixed Front, Back, Close-up and Size chart tiles then).
+             */
+            photo_views?: components["schemas"]["PhotoViewRuleOut"][];
         };
         /** ResetLinkOut */
         ResetLinkOut: {
@@ -5490,6 +5582,23 @@ export interface components {
              * @enum {string}
              */
             unit: "cm" | "in";
+        };
+        /**
+         * SizeChartCheckOut
+         * @description Feedback 8: the size chart of a style or standalone. `required`: a marketplace's checklist
+         *     needs it before approval (show "Needed" while `saved` is false). `missing_sizes`: variant
+         *     sizes the saved chart has no row for (they block approval); `unused_sizes`: chart sizes no
+         *     variant has (a warning). Case and spaces are ignored when sizes are matched.
+         */
+        SizeChartCheckOut: {
+            /** Missing Sizes */
+            missing_sizes?: string[];
+            /** Required */
+            required: boolean;
+            /** Saved */
+            saved: boolean;
+            /** Unused Sizes */
+            unused_sizes?: string[];
         };
         /**
          * SizeChartReadOut
@@ -5776,6 +5885,12 @@ export interface components {
             answered_by_user_id?: string | null;
             /** Applied At */
             applied_at?: string | null;
+            /**
+             * Blocking
+             * @description An open listing ERROR waits on this answer, so the question blocks that listing (a photo question can too). Set on the list read; false once closed.
+             * @default false
+             */
+            blocking: boolean;
             /** Cancelled Reason */
             cancelled_reason?: string | null;
             /** Colourway Id */
@@ -5938,6 +6053,8 @@ export interface components {
         };
         /** TenantOut */
         TenantOut: {
+            /** @description This deployment's feature switches, so screens never promise what is off. */
+            capabilities?: components["schemas"]["TenantCapabilitiesOut"];
             /** Glossary */
             glossary?: {
                 [key: string]: string;
@@ -5965,8 +6082,6 @@ export interface components {
              * @description When the trial ends, while the brand is on trial; else null.
              */
             trial_ends_at?: string | null;
-            /** @description This deployment's feature switches, so screens never promise what is off. */
-            capabilities?: components["schemas"]["TenantCapabilitiesOut"];
         };
         /**
          * TenantPatch

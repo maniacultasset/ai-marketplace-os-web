@@ -51,6 +51,7 @@ import {
   COLOURS,
   discountPercent,
   FABRIC_TYPES,
+  hasSizeRows,
   partyPlace,
   type PartyDraft,
   type PartyField,
@@ -95,6 +96,8 @@ import {
 } from './guided-model'
 import { serializeListOn } from './list-on'
 import { NewProductImages } from './new-images'
+import { filledViews } from './new-images-model'
+import { neededForApproval, newProductGaps } from '@/features/analytics-images/images/photo-views'
 import { newPendingImage, placePending, type PendingImage } from './new-images-model'
 import { CountryField, HsnField, PackageFields } from '@/features/products/seller-field-inputs'
 import { packageHasSize, packageHasWeight, suggestHsn } from '@/features/products/seller-fields'
@@ -375,8 +378,14 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
     country_of_origin: !!values.country.trim(),
     // Unknown while the brand loads: not counted until it is known.
     manufacturer: values.ownManufacturer || brand.data === undefined || brandParty !== null,
+    size_chart: hasSizeRows(values.sizeChart),
   }
   const needs = missingNeeds(requirements.data, listOn, filled)
+  // Feedback 7: the photos approval will need, said before the draft starts (it never blocks it).
+  const photoViews = requirements.data?.photo_views
+  const photosNeeded = neededForApproval(
+    newProductGaps(photoViews, filledViews(images), { hasChart: hasSizeRows(values.sizeChart), sellOn: listOn }),
+  )
   const need = (id: NeedFieldId) => needText(needs, id)
   const needSummary = missingSummary(needs)
 
@@ -765,6 +774,12 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
         return (
           <div className="flex flex-col gap-4">
             <p className="text-body text-ink-2">The measurements for each size. Marketplaces show them as the size chart.</p>
+            {need('size_chart') ? (
+              <p className="flex items-center gap-2 text-small" data-testid="size-chart-needed">
+                <SourceBadge source={{ kind: 'needed', detail: need('size_chart')! }} />
+                <span className="text-ink-2">Add at least one size before you send it.</span>
+              </p>
+            ) : null}
             <SizeChartEditor id="g-size" value={values.sizeChart} onChange={(sizeChart) => set({ sizeChart })} errors={errors} onBlur={touch} />
             <p className="text-caption text-ink-3">
               Have a size chart photo? Add it in Images as Size chart. Once the product is saved, you can read the sizes from it on the product page and check them before saving.
@@ -780,6 +795,9 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
             onRetry={retryImage}
             error={errors.images}
             locked={isPending}
+            views={photoViews}
+            sellOn={listOn}
+            hasChart={hasSizeRows(values.sizeChart)}
           />
         )
       case 'price':
@@ -1054,6 +1072,11 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
                     ))}
                   </ul>
                 </div>
+              ) : null}
+              {listOn.length && photosNeeded.length ? (
+                <p className="mt-3 border-t border-line pt-3 text-small text-attention-ink" data-testid="photos-needed-summary">
+                  Photos needed before approval: {photosNeeded.join(', ')}. The draft can still start.
+                </p>
               ) : null}
               <p className="mt-3 text-caption text-ink-3">Readiness is checked against each marketplace’s rules once the agent drafts the listing.</p>
             </LaCard>

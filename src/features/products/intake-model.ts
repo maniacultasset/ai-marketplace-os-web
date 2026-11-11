@@ -258,6 +258,9 @@ export interface SizeChartDraft {
   unitCheck?: { line: string | null } | null
 }
 
+/** Feedback 8: the chart has at least one named size (what the "Needed" mark checks). */
+export const hasSizeRows = (c: Pick<SizeChartDraft, 'rows'>): boolean => c.rows.some((r) => r.size.trim() !== '')
+
 export const emptySizeRow = (size = ''): SizeRowDraft => ({ size, chest: '', waist: '', hip: '', length: '', shoulder: '', sleeve: '', inseam: '' })
 export const emptySizeChart = (): SizeChartDraft => ({ unit: 'in', basis: 'garment', rows: [] })
 

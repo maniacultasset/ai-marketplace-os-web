@@ -28,6 +28,7 @@ import {
   COLOURS,
   discountPercent,
   FABRIC_TYPES,
+  hasSizeRows,
   formatMoney,
   MEASURE_LABEL,
   MEASURES,
@@ -45,6 +46,8 @@ import { countryName, fromPackageOut, normalizeCountry, packageHasSize, packageH
 import { CountryField, HsnField, PackageFields } from '@/features/products/seller-field-inputs'
 import { isReadingPhotos } from '@/features/products/photo-reading'
 import { SizeChartReadButton } from '@/features/products/size-chart-read-button'
+import { SizeFlags } from '@/features/products/size-flags'
+import { sizeFlags, variantSizes } from '@/features/analytics-images/images/photo-views'
 import { SizeRunAction } from '@/features/products/size-run-action'
 import { normalizeBarcode } from '@/features/products/barcode'
 import { humanizeSlug, productCategoryLabel } from './catalog-model'
@@ -412,11 +415,16 @@ export function ProductDetailsCard({
                   <Icon name="external" size={12} />
                 </a>
               ) : (
-                <Missing />
+                <Missing needed={need('size_chart')} />
               )}
             </Row>
           )}
         </dl>
+        {!isVariant && product.size_chart_check?.saved ? (
+          <div className="mt-2">
+            <SizeFlags missing={product.size_chart_check.missing_sizes ?? []} unused={product.size_chart_check.unused_sizes ?? []} />
+          </div>
+        ) : null}
         {chart && !isVariant ? (
           <div className="mt-3 max-w-full overflow-x-auto rounded-tile border border-line" data-testid="size-chart-table">
             <table className="w-full min-w-max text-caption">
@@ -596,9 +604,13 @@ export function ProductDetailsEditor({
     package_weight: packageHasWeight(d.pkg),
     country_of_origin: !!d.country.trim(),
     manufacturer: d.ownManufacturer || !!product.manufacturer?.legal_name,
+    size_chart: isVariant || hasSizeRows(d.sizeChart),
   }
   const needs = missingNeeds(requirements.data, sellOn, filled)
   const need = (id: NeedFieldId) => needText(needs, id)
+  // Feedback 8: the draft chart against the variants' sizes, live while editing.
+  const sizedStyle = !isVariant && (product.variation_theme === 'size' || product.variation_theme === 'size_color')
+  const flags = sizedStyle ? sizeFlags(d.sizeChart.rows.map((r) => r.size), variantSizes(product)) : null
 
   const attrs = editableAttrs(isVariant)
   const field = (k: (typeof attrs)[number]) => {
@@ -812,8 +824,10 @@ export function ProductDetailsEditor({
         </Group>
         {isVariant ? null : (
           <Group title="Size chart">
+            {need('size_chart') ? <SourceBadge source={{ kind: 'needed', detail: need('size_chart')! }} /> : null}
             <SizeChartReadButton product={product} onRead={session.loadSizeChart} loaded={!!d.sizeChartImageId} />
             <SizeChartEditor id="e-size" value={d.sizeChart} onChange={(sizeChart) => patch({ sizeChart }, 'size_chart')} errors={errors} onBlur={touch} />
+            {flags && hasSizeRows(d.sizeChart) ? <SizeFlags missing={flags.missing} unused={flags.unused} /> : null}
           </Group>
         )}
         <Group title="Manufacturer">
