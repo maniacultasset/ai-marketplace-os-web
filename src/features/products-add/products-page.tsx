@@ -51,6 +51,7 @@ import {
   categoriesOf,
   cellChip,
   filterCatalog,
+  LISTING_FILTERS,
   productCategoryLabel,
   OVERALL_CHIP,
   type Bucket,
@@ -445,6 +446,8 @@ export function ProductsPage({ search, onSearch }: { search?: ProductsSearch; on
   const bucket: Bucket | 'all' = filters.status ?? 'all'
   const category = filters.category ?? null
   const marketplace: Marketplace | null = filters.marketplace ?? null
+  const listing = filters.listing ?? null
+  const { amazonPublishingPaused } = useChipContext()
   const setQ = (v: string) => setFilters({ q: v })
   const setBucket = (v: Bucket | 'all') => setFilters({ status: v === 'all' ? undefined : v })
   const setCategory = (v: string | null) => setFilters({ category: v ?? undefined })
@@ -467,14 +470,16 @@ export function ProductsPage({ search, onSearch }: { search?: ProductsSearch; on
         bucket: listingsReady ? bucket : 'all',
         category,
         marketplace: listingsReady ? marketplace : null,
+        listing: listingsReady ? listing : null,
+        ctx: { amazonPublishingPaused },
       }),
-    [catalog.rows, q, bucket, category, marketplace, listingsReady],
+    [catalog.rows, q, bucket, category, marketplace, listing, listingsReady, amazonPublishingPaused],
   )
   const byId = useMemo(() => new Map(catalog.rows.map((r) => [r.product.id, r])), [catalog.rows])
   const listingsOf = useCallback((id: string) => byId.get(id)?.listings ?? {}, [byId])
 
-  const filtered = q.trim() !== '' || bucket !== 'all' || !!category || !!marketplace
-  const clear = () => setFilters({ q: undefined, status: undefined, category: undefined, marketplace: undefined })
+  const filtered = q.trim() !== '' || bucket !== 'all' || !!category || !!marketplace || !!listing
+  const clear = () => setFilters({ q: undefined, status: undefined, category: undefined, marketplace: undefined, listing: undefined })
   const n = catalog.rows.length
 
   const sub = catalog.isPending
@@ -586,6 +591,17 @@ export function ProductsPage({ search, onSearch }: { search?: ProductsSearch; on
                 )}
                 <GlyphKey />
               </div>
+              {listing && catalog.listingsState !== 'error' ? (
+                <p className="flex flex-wrap items-center gap-x-2 text-small text-ink-2" role="status" data-testid="products-listing-filter">
+                  <span>
+                    Products with a listing that is {LISTING_FILTERS[listing]}
+                    {marketplace ? ` on ${marketplace === 'amazon' ? 'Amazon' : 'Flipkart'}` : ''}.
+                  </span>
+                  <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setFilters({ listing: undefined })} data-testid="products-listing-filter-clear">
+                    Show all
+                  </Button>
+                </p>
+              ) : null}
               {NOT_YET_NAMES ? (
                 <p className="text-caption text-ink-3" title={NOT_YET.waitlist}>
                   {NOT_YET_NAMES}: not available yet.<span className="sr-only"> {NOT_YET.waitlist}</span>

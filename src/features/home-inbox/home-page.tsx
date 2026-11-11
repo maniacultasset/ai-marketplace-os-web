@@ -389,6 +389,11 @@ function WaitingCard({ summary }: { summary: HomeSummary }) {
                     <p className="mt-1 text-caption text-ink-3">An owner or admin can connect one.</p>
                   )}
                 </>
+              ) : summary.needs_you.own_work > 0 ? (
+                <p data-testid="waiting-own-work">
+                  Nothing needs you right now. {summary.needs_you.own_work} {summary.needs_you.own_work === 1 ? 'listing you made waits' : 'listings you made wait'} for
+                  someone else to approve.
+                </p>
               ) : summary.needs_you.publishing_paused > 0 ? (
                 <p>
                   Nothing needs you right now. {summary.needs_you.publishing_paused} approved{' '}

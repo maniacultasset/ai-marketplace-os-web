@@ -44,10 +44,10 @@ describe('Home from the summary', () => {
     expect(screen.getByTestId('tile-live-value').textContent).toBe('4')
     expect(screen.getByTestId('tile-working-value').textContent).toBe('1')
     expect(screen.getByTestId('tile-needs-value').textContent).toBe('4')
-    expect(href(screen.getByTestId('tile-live-link'))).toBe('/products?status=live')
-    expect(href(screen.getByTestId('tile-working-link'))).toBe('/products?status=progress')
+    expect(href(screen.getByTestId('tile-live-link'))).toBe('/products?listing=live')
+    expect(href(screen.getByTestId('tile-working-link'))).toBe('/products?listing=in_progress')
     expect(href(screen.getByTestId('tile-needs-link'))).toBe('/inbox')
-    expect(href(screen.getByTestId('tile-needs-listings'))).toBe('/products?status=needs-you')
+    expect(href(screen.getByTestId('tile-needs-listings'))).toBe('/products?listing=ready_to_approve')
     for (const id of ['tile-live', 'tile-working', 'tile-needs']) {
       expect(screen.getByTestId(`${id}-definition`).getAttribute('aria-label')).toMatch(/^What this counts: /)
     }
@@ -123,7 +123,7 @@ describe('Home empty states explain how to start', () => {
   const quiet = (over: Partial<HomeSummary>) =>
     summary({
       needs_you_items: [],
-      needs_you: { total: 0, blocked: 0, questions: 0, ready_to_approve: 0, ready_to_publish: 0, publishing_paused: 0, improve: 0 },
+      needs_you: { total: 0, blocked: 0, blocked_without_issue: 0, own_work: 0, waiting_on_account: 0, questions: 0, ready_to_approve: 0, ready_to_publish: 0, publishing_paused: 0, improve: 0 },
       activity: [],
       ...over,
     })

@@ -14,13 +14,14 @@ import {
   waitingRow,
   type NeedsYouItem,
 } from './summary-model'
+import { buildCatalog, filterCatalog, listingBucket, type Listing, type ListingFilter, type Product } from '@/features/products-add/catalog-model'
 
 describe('tiles', () => {
   it('live counts partly live listings too, with the product count, and links to live products', () => {
     const t = liveTile(summary())
     expect(t.value).toBe('4')
     expect(t.caption).toBe('listings across 2 products, 1 partly live')
-    expect(t.link.target).toEqual({ to: '/products', search: { status: 'live' } })
+    expect(t.link.target).toEqual({ to: '/products', search: { listing: 'live' } })
     expect(t.definition).toMatch(/confirmed live/)
   })
 
@@ -28,7 +29,7 @@ describe('tiles', () => {
     const t = progressTile(summary())
     expect(t.value).toBe('1')
     expect(t.caption).toMatch(/No action needed/)
-    expect(t.link.target).toEqual({ to: '/products', search: { status: 'progress' } })
+    expect(t.link.target).toEqual({ to: '/products', search: { listing: 'in_progress' } })
     const idle = progressTile(summary({ listings: { ...summary().listings, in_progress: 0 } }))
     expect(idle.caption).toMatch(/^Nothing is being written/)
   })
@@ -43,19 +44,36 @@ describe('tiles', () => {
     expect(t.value).toBe('4')
     expect(t.caption).toBe('1 blocked, 1 question, 1 to approve, 1 to publish')
     expect(t.link).toEqual({ label: 'Open Inbox', target: { to: '/inbox' } })
-    expect(t.listings).toEqual({ label: 'Approve in Products', target: { to: '/products', search: { status: 'needs-you' } } })
+    expect(t.listings).toEqual({ label: 'Approve in Products', target: { to: '/products', search: { listing: 'ready_to_approve' } } })
     expect(t.aside).toBe('2 more questions would improve a listing.')
   })
 
   it('with only listings to publish, the main link goes to Products', () => {
-    const t = needsYouTile(summary({ needs_you: { total: 1, blocked: 0, questions: 0, ready_to_approve: 0, ready_to_publish: 1, publishing_paused: 2, improve: 0 } }))
-    expect(t.link).toEqual({ label: 'Publish in Products', target: { to: '/products', search: { status: 'needs-you' } } })
+    const t = needsYouTile(summary({ needs_you: { total: 1, blocked: 0, blocked_without_issue: 0, own_work: 0, waiting_on_account: 0, questions: 0, ready_to_approve: 0, ready_to_publish: 1, publishing_paused: 2, improve: 0 } }))
+    expect(t.link).toEqual({ label: 'Publish in Products', target: { to: '/products', search: { listing: 'ready_to_publish' } } })
     expect(t.listings).toBeNull()
-    expect(t.aside).toBe('2 approved listings wait while publishing is paused.')
+    expect(t.aside).toBe('2 listings wait while publishing is paused.')
+  })
+
+  it('a stopped listing with no Inbox row opens Products, never an empty Inbox', () => {
+    const none = summary().needs_you
+    const t = needsYouTile(summary({ needs_you: { ...none, total: 1, blocked: 1, blocked_without_issue: 1, questions: 0, ready_to_approve: 0, ready_to_publish: 0 } }))
+    expect(t.inbox).toBe(false)
+    expect(t.link).toEqual({ label: 'See stopped listings', target: { to: '/products', search: { listing: 'problem' } } })
+    // with Inbox work too, the stopped ones are the second link
+    const both = needsYouTile(summary({ needs_you: { ...none, blocked: 2, blocked_without_issue: 1 } }))
+    expect(both.link.target).toEqual({ to: '/inbox' })
+    expect(both.listings?.target).toEqual({ to: '/products', search: { listing: 'problem' } })
+  })
+
+  it('says why listings wait: own work (maker-checker) and the marketplace account', () => {
+    const none = summary().needs_you
+    const t = needsYouTile(summary({ needs_you: { ...none, improve: 0, own_work: 1, waiting_on_account: 3 } }))
+    expect(t.aside).toBe('1 listing waits for someone else to approve, since you made or edited it. 3 listings wait for the marketplace to be connected.')
   })
 
   it('an empty needs you says so', () => {
-    const none = { total: 0, blocked: 0, questions: 0, ready_to_approve: 0, ready_to_publish: 0, publishing_paused: 0, improve: 0 }
+    const none = { total: 0, blocked: 0, blocked_without_issue: 0, own_work: 0, waiting_on_account: 0, questions: 0, ready_to_approve: 0, ready_to_publish: 0, publishing_paused: 0, improve: 0 }
     expect(needsYouCaption(none)).toBe('Nothing needs you right now.')
     expect(needsYouCaption({ ...none, improve: 1 })).toBe('Nothing blocks your listings.')
     expect(needsYouTile(summary({ needs_you: none })).link.target).toEqual({ to: '/inbox' })
@@ -140,5 +158,73 @@ describe('marketplace cards', () => {
       target: { to: '/products', search: { marketplace: 'amazon' } },
     })
     expect(cardNext('amazon', status('none'), empty)).toBeNull()
+  })
+})
+
+describe('a tile and the list it opens agree', () => {
+  // One fixture for both sides: the backend counts listings by `listingBucket` (a copy of
+  // app.services.home.listing_bucket), and the tile's link filters Products by the same bucket.
+  const T = '2026-11-11T09:00:00Z'
+  let k = 0
+  const uid = () => `00000000-0000-4000-8000-${String(++k).padStart(12, '0')}`
+  const product = (): Product =>
+    ({ id: uid(), sku: `S-${k}`, title: `P ${k}`, category: null, status: 'draft', created_at: T, updated_at: T, attributes: {}, images: [], parent_product_id: null }) as unknown as Product
+  const listing = (p: Product, l: Partial<Listing>): Listing =>
+    ({ id: uid(), product_id: p.id, marketplace: 'amazon', status: 'created', display_state: 'draft', needs_you_count: 0, marketplace_state: 'not_submitted', created_at: T, updated_at: T, status_changed_at: T, ...l }) as Listing
+
+  const [a, b, c, d, e, f] = [product(), product(), product(), product(), product(), product()]
+  const listings = [
+    // live on Amazon, failed on Flipkart: Live counts it, Products' overall says Error
+    listing(a, { status: 'published', marketplace_state: 'live' }),
+    listing(a, { marketplace: 'flipkart', status: 'failed' }),
+    listing(b, { status: 'published', marketplace_state: 'partially_live' }),
+    listing(b, { marketplace: 'flipkart', status: 'generating' }),
+    listing(c, { status: 'published', marketplace_state: 'processing' }),
+    listing(c, { marketplace: 'flipkart', status: 'approved' }),
+    // approved on Amazon while Amazon publishing is paused: in no "to publish" count
+    listing(d, { status: 'approved' }),
+    listing(e, { status: 'validated', display_state: 'needs_you', needs_you_count: 2 }),
+    listing(e, { marketplace: 'flipkart', status: 'needs_review' }),
+    listing(f, { status: 'published', marketplace_state: 'rejected' }),
+  ]
+  const ctx = { amazonPublishingPaused: true }
+  const rows = buildCatalog([a, b, c, d, e, f], listings, [], ctx)
+  const counts = (fn: (l: Listing) => boolean) => listings.filter(fn).length
+  const productsOf = (fn: (l: Listing) => boolean) => new Set(listings.filter(fn).map((l) => l.product_id))
+  const shown = (search: { listing?: ListingFilter }) => new Set(filterCatalog(rows, { listing: search.listing, ctx }).map((r) => r.product.id))
+  const target = (t: { target: unknown }) => (t.target as { search: { listing?: ListingFilter } }).search
+
+  const live = (l: Listing) => ['live', 'partly_live'].includes(listingBucket(l))
+  const working = (l: Listing) => listingBucket(l) === 'in_progress'
+  const s = summary({
+    listings: {
+      ...summary().listings,
+      live: counts((l) => listingBucket(l) === 'live'),
+      partly_live: counts((l) => listingBucket(l) === 'partly_live'),
+      live_products: productsOf(live).size,
+      in_progress: counts(working),
+    },
+  })
+
+  it('Live: the list shows exactly the products of the live listings, one row per product', () => {
+    const t = liveTile(s)
+    expect(t.value).toBe('2')
+    expect(shown(target(t.link))).toEqual(productsOf(live))
+    expect(shown(target(t.link)).size).toBe(s.listings.live_products)
+    expect(rows.find((r) => r.product.id === a.id)?.bucket).toBe('error') // and still listed under Live
+  })
+
+  it('In progress: the same listings, never the paused approved one', () => {
+    const t = progressTile(s)
+    expect(t.value).toBe(String(counts(working)))
+    expect(shown(target(t.link))).toEqual(productsOf(working))
+    expect(shown(target(t.link)).has(d.id)).toBe(false)
+  })
+
+  it('stopped, to approve and to publish open their own listings', () => {
+    expect(shown({ listing: 'problem' })).toEqual(new Set([a.id, e.id, f.id]))
+    expect(shown({ listing: 'ready_to_approve' })).toEqual(new Set([e.id]))
+    // Flipkart's approved listing can be sent; Amazon's waits while publishing is paused
+    expect(shown({ listing: 'ready_to_publish' })).toEqual(new Set([c.id]))
   })
 })

@@ -16,7 +16,7 @@ export function summary(over: Partial<HomeSummary> = {}): HomeSummary {
       { marketplace: 'amazon', listings: 6, live: 2, partly_live: 1, in_progress: 1, problem: 1, ready_to_approve: 1, ready_to_publish: 0 },
       { marketplace: 'flipkart', listings: 3, live: 1, partly_live: 0, in_progress: 0, problem: 1, ready_to_approve: 0, ready_to_publish: 1 },
     ],
-    needs_you: { total: 4, blocked: 1, questions: 1, ready_to_approve: 1, ready_to_publish: 1, publishing_paused: 0, improve: 2 },
+    needs_you: { total: 4, blocked: 1, blocked_without_issue: 0, own_work: 0, waiting_on_account: 0, questions: 1, ready_to_approve: 1, ready_to_publish: 1, publishing_paused: 0, improve: 2 },
     needs_you_items: [
       { kind: 'blocked', action: 'fix', product_id: P1, product_sku: 'KURTA-001', product_title: 'Block Print Kurta', marketplace: 'amazon', listing_id: L1, issue_id: ISSUE, issue: 'The title is longer than Amazon allows.', issue_count: 2, at: AT },
       { kind: 'question', action: 'answer', product_id: P1, product_sku: 'KURTA-001', product_title: 'Block Print Kurta', task_id: TASK, issue: 'What is the fabric?', issue_count: 0, at: AT },

@@ -11,6 +11,12 @@ describe('Products filters in the URL', () => {
     })
   })
 
+  it('reads the listing bucket a Home tile opens', () => {
+    expect(productsSearchSchema.parse({ listing: 'ready_to_approve' })).toEqual({ listing: 'ready_to_approve' })
+    expect(productsSearchSchema.parse({ listing: 'draft' })).toEqual({})
+    expect(cleanProductsSearch({ listing: 'live', status: undefined })).toEqual({ listing: 'live' })
+  })
+
   it('drops a bad value instead of failing the page', () => {
     expect(productsSearchSchema.parse({ status: 'nope', marketplace: 'myntra', category: 'Bad Slug!', q: 'x'.repeat(201) })).toEqual({})
   })

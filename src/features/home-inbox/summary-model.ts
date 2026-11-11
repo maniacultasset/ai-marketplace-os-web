@@ -5,9 +5,14 @@
  * exact: no page walk, no cap and no "+". This file only words the numbers, says what each one
  * means (the tile tooltips) and says where each one leads (a filtered Products list, the Inbox
  * item, the listing review or the product).
+ *
+ * A tile opens Products filtered by the same listing bucket (`?listing=`, catalog-model
+ * `listingBucket`, a copy of the backend's), so the list shows exactly the products that own the
+ * listings the tile counts.
  */
 import type { Schema } from '@/api/types'
 import type { TileTone } from '@/components/la/icons'
+import type { ListingFilter } from '@/features/products-add/catalog-model'
 import type { ProductsSearch } from '@/features/products-add/products-search'
 import type { MarketplaceTotals } from './model'
 import { plural } from './model'
@@ -19,6 +24,9 @@ type Marketplace = Schema<'Marketplace'>
 type MarketplaceStatus = Schema<'MarketplaceStatus'>
 
 const n = (x: number) => x.toLocaleString('en-IN')
+
+/** Products filtered to the ones with a listing in `bucket`: what a tile counts. */
+export const listingTarget = (bucket: ListingFilter): Target => ({ to: '/products', search: { listing: bucket } })
 
 /* ---------------------------------------------------------------------------------------------- */
 /* Tiles                                                                                           */
@@ -59,7 +67,7 @@ export function liveTile(s: HomeSummary): SummaryTile {
     value: n(l.live + l.partly_live),
     caption: parts.join(', '),
     definition: DEFINITION.live,
-    link: { label: 'See live products', target: { to: '/products', search: { status: 'live' } } },
+    link: { label: 'See live products', target: listingTarget('live') },
   }
 }
 
@@ -69,7 +77,7 @@ export function progressTile(s: HomeSummary): SummaryTile {
     value: n(v),
     caption: v ? 'Kuinn or the marketplace is working. No action needed.' : 'Nothing is being written or sent right now.',
     definition: DEFINITION.progress,
-    link: { label: 'See in Products', target: { to: '/products', search: { status: 'progress' } } },
+    link: { label: 'See in Products', target: listingTarget('in_progress') },
   }
 }
 
@@ -84,26 +92,34 @@ export function needsYouCaption(y: HomeSummary['needs_you']): string {
   return y.improve ? 'Nothing blocks your listings.' : 'Nothing needs you right now.'
 }
 
+/** "3 listings wait" / "1 listing waits". */
+const wait = (x: number) => `${n(x)} ${plural(x, 'listing')} ${x === 1 ? 'waits' : 'wait'}`
+
 export function needsYouTile(s: HomeSummary): SummaryTile & { inbox: boolean; listings: { label: string; target: Target } | null } {
   const y = s.needs_you
   const asides: string[] = []
   if (y.improve) asides.push(`${n(y.improve)} more ${plural(y.improve, 'question')} would improve a listing.`)
-  if (y.publishing_paused) asides.push(`${n(y.publishing_paused)} approved ${plural(y.publishing_paused, 'listing')} wait while publishing is paused.`)
-  // Fixes and answers are in the Inbox; listings to approve or publish are on Products.
-  const inbox = y.blocked + y.questions > 0
-  const ready = y.ready_to_approve + y.ready_to_publish
+  if (y.own_work) asides.push(`${wait(y.own_work)} for someone else to approve, since you made or edited ${y.own_work === 1 ? 'it' : 'them'}.`)
+  if (y.publishing_paused) asides.push(`${wait(y.publishing_paused)} while publishing is paused.`)
+  if (y.waiting_on_account) asides.push(`${wait(y.waiting_on_account)} for the marketplace to be connected.`)
+  // Fixes with an issue and answers are in the Inbox. A listing stopped with no issue row (a failed
+  // step, a marketplace rejection) and listings to approve or publish are on Products.
+  const inbox = y.blocked - y.blocked_without_issue + y.questions > 0
+  const products: { label: string; target: Target }[] = []
+  if (y.blocked_without_issue) products.push({ label: 'See stopped listings', target: listingTarget('problem') })
+  if (y.ready_to_approve) products.push({ label: 'Approve in Products', target: listingTarget('ready_to_approve') })
+  if (y.ready_to_publish) products.push({ label: 'Publish in Products', target: listingTarget('ready_to_publish') })
+  const inboxLink = { label: 'Open Inbox', target: { to: '/inbox' } as Target }
   return {
     value: n(y.total),
     caption: needsYouCaption(y),
     definition: DEFINITION.needsYou,
     aside: asides.join(' ') || undefined,
-    link: inbox || ready === 0 ? { label: 'Open Inbox', target: { to: '/inbox' } } : { label: y.ready_to_approve ? 'Approve in Products' : 'Publish in Products', target: NEEDS_YOU_PRODUCTS },
+    link: inbox || products.length === 0 ? inboxLink : products[0]!,
     inbox,
-    listings: inbox && ready > 0 ? { label: y.ready_to_approve ? 'Approve in Products' : 'Publish in Products', target: NEEDS_YOU_PRODUCTS } : null,
+    listings: (inbox ? products[0] : products[1]) ?? null,
   }
 }
-
-const NEEDS_YOU_PRODUCTS: Target = { to: '/products', search: { status: 'needs-you' } }
 
 /* ---------------------------------------------------------------------------------------------- */
 /* Waiting for you                                                                                 */
