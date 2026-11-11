@@ -59,6 +59,8 @@ import {
   hsnProblem,
   normalizeCountry,
   packageEmpty,
+  packageHasSize,
+  packageHasWeight,
   packageProblems,
   toPackageIn,
   type PackageDraft,
@@ -247,6 +249,8 @@ export interface GuidedContext {
   hasMain: boolean
   /** Images picked, any slot. */
   imageCount: number
+  /** Amazon is ticked under "Sell on": its packed box is then a critical input (item 15). */
+  amazon?: boolean
 }
 
 export const noContext: GuidedContext = { brandManufacturer: null, hasMain: false, imageCount: 0 }
@@ -443,6 +447,8 @@ export function missingCriticalBy(v: GuidedValues, ctx: GuidedContext = noContex
   if (empty('fabric_type')) out.push({ label: 'Fabric type', section: 'fabric' })
   if (!compositionComplete(v.composition)) out.push({ label: 'Fabric composition', section: 'fabric' })
   if (!v.mrp.trim()) out.push({ label: 'MRP', section: 'price' })
+  if (ctx.amazon && !packageHasSize(v.pkg)) out.push({ label: 'Package size', section: 'shipping' })
+  if (ctx.amazon && !packageHasWeight(v.pkg)) out.push({ label: 'Package weight', section: 'shipping' })
   if (empty('wash_care')) out.push({ label: 'Wash care', section: 'care' })
   if (empty('iron_care')) out.push({ label: 'Iron care', section: 'care' })
   if (!v.ownManufacturer && ctx.brandManufacturer === false) out.push({ label: 'Manufacturer', section: 'care' })

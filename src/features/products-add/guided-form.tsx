@@ -316,7 +316,12 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
   }
 
   const hasMain = images.some((i) => i.slot === 'main' && i.stage.kind !== 'invalid')
-  const ctx: GuidedContext = { brandManufacturer: brand.data ? brandParty !== null : null, hasMain, imageCount: images.filter((i) => i.stage.kind !== 'invalid').length }
+  const ctx: GuidedContext = {
+    brandManufacturer: brand.data ? brandParty !== null : null,
+    hasMain,
+    imageCount: images.filter((i) => i.stage.kind !== 'invalid').length,
+    amazon: listOn.includes('amazon'),
+  }
 
   /* ------------------------------------------------------------------------------ Draft */
 
@@ -851,9 +856,10 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               errors={errors}
               neededSize={need('package_size')}
               neededWeight={need('package_weight')}
+              category={values.category}
               submitCount={submitCount}
             />
-            <p className="text-caption text-ink-3">Flipkart asks for the HSN code and the package when you list there. Both marketplaces ask for the country of origin.</p>
+            <p className="text-caption text-ink-3">Amazon and Flipkart both ask for the package and the country of origin. Flipkart also asks for the HSN code.</p>
           </div>
         )
       case 'care':

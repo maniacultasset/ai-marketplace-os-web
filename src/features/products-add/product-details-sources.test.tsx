@@ -44,7 +44,8 @@ const product: ProductDetail = {
 
 const REQ = {
   category: 'tshirts',
-  amazon: ['brand_name', 'color', 'country_of_origin', 'manufacturer', 'mrp', 'selling_price'],
+  // As the backend answers since item 15: Amazon needs the packed box for every category.
+  amazon: ['brand_name', 'color', 'country_of_origin', 'identifier', 'manufacturer', 'mrp', 'package_dimensions', 'package_weight', 'selling_price'],
   flipkart: ['country_of_origin', 'hsn_code', 'manufacturer', 'mrp', 'package_dimensions', 'package_weight', 'selling_price'],
 }
 
@@ -87,8 +88,8 @@ describe('Product details sources and needs (SI12)', () => {
     expect(within(row('country_of_origin')).getByLabelText('Source: Amazon and Flipkart need this')).toBeTruthy()
     cleanup()
     setup(['amazon'])
-    expect(within(row('package')).queryByLabelText(/needs this/)).toBeNull()
-    expect(screen.getByTestId('details-needs-summary').textContent).toBe('1 missing for Amazon')
+    expect(within(row('package')).getByLabelText('Source: Amazon needs this')).toBeTruthy()
+    expect(screen.getByTestId('details-needs-summary').textContent).toBe('3 missing for Amazon')
     cleanup()
     setup([])
     expect(screen.queryByTestId('details-needs-summary')).toBeNull()

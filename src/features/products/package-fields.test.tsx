@@ -18,3 +18,19 @@ describe('PackageFields copy', () => {
     expect(screen.getByText('g')).toBeTruthy()
   })
 })
+
+describe('PackageFields plausibility (item 15)', () => {
+  it('warns under the field for a likely unit slip, without an error', () => {
+    const box = { length: '300', breadth: '250', height: '30', weight: '500000' }
+    render(<PackageFields id="p" value={box} onChange={() => {}} errors={{}} category="tshirts" />)
+    expect(screen.getByText('A 300 cm side is 3 m long. Did you mean 300 mm (30 cm)?')).toBeTruthy()
+    expect(screen.getByText('This box weighs 500 kg. Did you mean 500 g?')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByLabelText('Package weight in grams').getAttribute('aria-invalid')).toBeNull()
+  })
+  it('stays quiet for a sensible box', () => {
+    const box = { length: '30', breadth: '25', height: '3', weight: '250' }
+    const { container } = render(<PackageFields id="p" value={box} onChange={() => {}} errors={{}} category="tshirts" />)
+    expect(container.querySelector('[data-package-warning]')).toBeNull()
+  })
+})
