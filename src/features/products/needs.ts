@@ -85,6 +85,21 @@ export function neededText(ms: readonly Marketplace[]): string | null {
   return `${ms.map((m) => NAME[m]).join(' and ')} need this`
 }
 
+/**
+ * Client feedback item 10: the ticked marketplaces whose category template recommends `key`
+ * (`levels`: `recommended`). Recommended never means needed: approval does not wait for it.
+ */
+export function recommendedBy(key: string, req: Requirements | null | undefined, sellOn: readonly Marketplace[]): Marketplace[] {
+  if (!req?.levels) return []
+  return ORDER.filter((m) => sellOn.includes(m) && req.levels?.[m]?.[key] === 'recommended')
+}
+
+/** "Recommended for Amazon", "Recommended for Amazon and Flipkart"; null when none recommends it. */
+export function recommendedText(ms: readonly Marketplace[]): string | null {
+  if (!ms.length) return null
+  return `Recommended for ${ms.map((m) => NAME[m]).join(' and ')}.`
+}
+
 export type Filled = Partial<Record<NeedFieldId, boolean>>
 
 export interface Need {
