@@ -49,6 +49,7 @@ export function CandidateBlock({
   onPreviewError,
   hasSizeChartImage = false,
   imageUrlOf,
+  isLiveMain,
 }: {
   productId: string
   sourceId: string | null
@@ -66,6 +67,8 @@ export function CandidateBlock({
   hasSizeChartImage?: boolean
   /** A product image's view URL, when the product read has it (to show an applied result). */
   imageUrlOf?: (imageId: string) => string | null | undefined
+  /** The product read shows this image as a main (an applied result still holds its place). */
+  isLiveMain?: (imageId: string) => boolean
 }) {
   const create = useCreateCandidate(productId)
   const [createError, setCreateError] = useState<{ kind: CandidateKind; error: unknown } | null>(null)
@@ -75,8 +78,8 @@ export function CandidateBlock({
   const creating = useRef(false)
   const open = openCandidates(candidates, sourceId, session.hidden)
   const busy = open.some((c) => c.status === 'queued')
-  // A used photo is never the main again: the list knows before the product read catches up.
-  const used = appliedFrom(candidates, sourceId)
+  // A used photo offers no fix while its result is still the main; the backend answers the same.
+  const used = appliedFrom(candidates, sourceId, isLiveMain ?? (() => false))
   const applied = answered ?? (used ? { kind: used.kind, imageId: used.accepted_image_id ?? null } : null)
   // A photo that was replaced offers no fix; a size chart keeps its button (its chart may change).
   const replaced = applied !== null && applied.kind !== 'size_chart'
@@ -129,7 +132,6 @@ export function CandidateBlock({
             const blocked = ai ? (session.aiOff ? AI_OFF_COPY : aiLimit ? AI_LIMIT_COPY : null) : null
             const state = fixState(kind, {
               open,
-              applied: false,
               starting: create.isPending ? (create.variables?.kind ?? null) : null,
               blocked: blocked !== null,
             })

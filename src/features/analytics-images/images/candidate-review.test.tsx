@@ -47,6 +47,7 @@ function Harness(props: {
   sourceId?: string | null
   listPending?: boolean
   imageUrlOf?: (id: string) => string | null | undefined
+  isLiveMain?: (id: string) => boolean
 }) {
   const session = useCandidateSession()
   return (
@@ -64,6 +65,7 @@ function Harness(props: {
       aiLimit={props.aiLimit ?? false}
       onPreviewError={() => {}}
       imageUrlOf={props.imageUrlOf}
+      isLiveMain={props.isLiveMain}
     />
     </>
   )
@@ -186,13 +188,21 @@ describe('fix buttons', () => {
     expect(document.body.textContent).not.toContain('Already in use')
   })
 
-  it('never offers the fix again on a stale read once the list says the photo was used', () => {
-    // The product read still shows MAIN as the main; the list already has the accepted candidate.
+  it('offers no fix on the old photo while its result is still the main', () => {
     const used = cand({ status: 'accepted', accepted_image_id: NEW_MAIN })
-    setup({ kinds: ['white_background', 'fix'], candidates: [used] })
+    setup({ kinds: ['white_background', 'fix'], candidates: [used], isLiveMain: (id) => id === NEW_MAIN })
     expect(screen.queryByTestId('make-white_background')).toBeNull()
     expect(screen.queryByTestId('make-fix')).toBeNull()
     expect(screen.getByTestId('candidate-applied').textContent).toBe(APPLIED_COPY.white_background)
+  })
+
+  it('offers the fix again once the result is no longer the main (deleted, or the old photo is main again)', () => {
+    const used = cand({ status: 'accepted', accepted_image_id: NEW_MAIN })
+    setup({ kinds: ['white_background'], candidates: [used], isLiveMain: () => false })
+    const btn = screen.getByTestId('make-white_background') as HTMLButtonElement
+    expect(btn.dataset.state).toBe('available')
+    expect(btn.disabled).toBe(false)
+    expect(screen.queryByTestId('candidate-applied')).toBeNull()
   })
 
   it('keeps offering the fix when the used candidate came from another photo', () => {
@@ -204,10 +214,24 @@ describe('fix buttons', () => {
 
   it('a new job after a stale accept is queued and shows progress, not "applied"', async () => {
     post.mockReturnValueOnce(ok({ candidate_id: C1, status: 'queued', job_id: 'j1', poll_url: '/api/v1/jobs/j1', accepted_image_id: null }))
-    setup({ kinds: ['white_background'] })
+    const used = cand({ id: 'c0', status: 'accepted', accepted_image_id: NEW_MAIN })
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    const view = setup({ kinds: ['white_background'], candidates: [used], isLiveMain: () => false }, qc)
     fireEvent.click(screen.getByTestId('make-white_background'))
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(screen.getByTestId('make-white_background').dataset.state).not.toBe('starting'))
+    // The list read after the create has the new job queued.
+    view.rerender(
+      <QueryClientProvider client={qc}>
+        <TooltipProvider>
+          <Harness kinds={['white_background']} candidates={[cand({ status: 'queued', preview_url: null }), used]} isLiveMain={() => false} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    )
+    const btn = screen.getByTestId('make-white_background') as HTMLButtonElement
+    expect(btn.dataset.state).toBe('working')
+    expect(btn.disabled).toBe(true)
+    expect(screen.getByTestId('candidate-review')).toBeTruthy()
     expect(screen.queryByTestId('candidate-applied')).toBeNull()
   })
 

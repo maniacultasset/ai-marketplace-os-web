@@ -135,7 +135,7 @@ describe('create answers and errors', () => {
 })
 
 describe('fix state', () => {
-  const base = { open: [] as Candidate[], applied: false, starting: null, blocked: false }
+  const base = { open: [] as Candidate[], starting: null, blocked: false }
 
   it('maps each case to one plain state', () => {
     expect(fixState('white_background', base)).toBe('available')
@@ -147,23 +147,29 @@ describe('fix state', () => {
     expect(fixState('fix', { ...base, open: [cand({ status: 'ready' })] })).toBe('available')
     expect(fixState('white_background', { ...base, open: [cand({ status: 'failed', failure_reason: 'model_failed' })] })).toBe('failed')
     expect(fixState('white_background', { ...base, blocked: true })).toBe('blocked')
-    expect(fixState('white_background', { ...base, applied: true, open: [cand({ status: 'queued' })] })).toBe('applied')
   })
 
   it('lets the button start only when nothing is open, or to retry a failure', () => {
     expect(canStart('available')).toBe(true)
     expect(canStart('failed')).toBe(true)
-    for (const s of ['blocked', 'starting', 'working', 'ready', 'applied'] as const) expect(canStart(s)).toBe(false)
+    for (const s of ['blocked', 'starting', 'working', 'ready'] as const) expect(canStart(s)).toBe(false)
   })
 })
 
 describe('applied', () => {
   it('finds the newest used candidate made from this photo, never another photo or a size chart', () => {
     const used = cand({ status: 'accepted', accepted_image_id: OTHER })
-    expect(appliedFrom([cand({ status: 'ready' }), used], MAIN)).toBe(used)
-    expect(appliedFrom([used], OTHER)).toBeUndefined()
-    expect(appliedFrom([cand({ kind: 'size_chart', source_image_id: null, status: 'accepted' })], null)).toBeUndefined()
-    expect(appliedFrom([cand({ status: 'rejected' })], MAIN)).toBeUndefined()
+    const live = (id: string) => id === OTHER
+    expect(appliedFrom([cand({ status: 'ready' }), used], MAIN, live)).toBe(used)
+    expect(appliedFrom([used], OTHER, live)).toBeUndefined()
+    expect(appliedFrom([cand({ kind: 'size_chart', source_image_id: null, status: 'accepted' })], null, live)).toBeUndefined()
+    expect(appliedFrom([cand({ status: 'rejected' })], MAIN, live)).toBeUndefined()
+  })
+
+  it('is history only once the result is no longer a live main (deleted, or the old photo is main again)', () => {
+    const used = cand({ status: 'accepted', accepted_image_id: OTHER })
+    expect(appliedFrom([used], MAIN, () => false)).toBeUndefined()
+    expect(appliedFrom([cand({ status: 'accepted', accepted_image_id: null })], MAIN, () => true)).toBeUndefined()
   })
 
   it('says it is done in short calm words, with no "already in use"', () => {

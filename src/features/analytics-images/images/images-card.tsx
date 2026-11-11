@@ -240,6 +240,7 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         onPreviewError={onPreviewError}
         hasSizeChartImage={details.some((d) => d.slot === 'size_chart')}
         imageUrlOf={(id) => detailById.get(id)?.view_url}
+        isLiveMain={(id) => detailById.get(id)?.slot === 'main'}
       />
     ) : null
   const rowExtras = (imageId: string) => {

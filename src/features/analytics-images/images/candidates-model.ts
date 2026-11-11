@@ -156,34 +156,44 @@ export const APPLIED_COPY: Record<CandidateKind, string> = {
 }
 
 /**
- * The newest candidate made from this photo that the seller used. A used photo is never the main
- * again (the backend keeps it as an extra image), so if the product read still shows it as the main,
- * that read is stale: say it is done instead of offering the fix again.
+ * The newest candidate made from this photo that the seller used, while its image is still a live
+ * main in the product read (the backend's rule for "already applied"). If the seller deleted that
+ * image or made the old photo the main again, the candidate is history only and the fix is offered
+ * again. Until the product read shows the new main, a click is answered "already applied".
  */
-export function appliedFrom(list: readonly Candidate[] | undefined, sourceId: string | null): Candidate | undefined {
+export function appliedFrom(
+  list: readonly Candidate[] | undefined,
+  sourceId: string | null,
+  isLiveMain: (imageId: string) => boolean,
+): Candidate | undefined {
   if (sourceId === null) return undefined
-  return (list ?? []).find((c) => c.kind !== 'size_chart' && c.source_image_id === sourceId && c.status === 'accepted')
+  return (list ?? []).find(
+    (c) =>
+      c.kind !== 'size_chart' &&
+      c.source_image_id === sourceId &&
+      c.status === 'accepted' &&
+      !!c.accepted_image_id &&
+      isLiveMain(c.accepted_image_id),
+  )
 }
 
 /** What one fix control shows. */
-export type FixState = 'available' | 'blocked' | 'starting' | 'working' | 'ready' | 'failed' | 'applied'
+export type FixState = 'available' | 'blocked' | 'starting' | 'working' | 'ready' | 'failed'
 
 /**
- * One kind's control, in order of truth: already applied; this kind's create on its way; its open
- * candidate (queued, ready for review, failed); another kind working; held by the AI switch or limit;
- * else available.
+ * One kind's control, in order of truth: this kind's create on its way; its open candidate (queued,
+ * ready for review, failed); another kind working; held by the AI switch or limit; else available.
+ * An applied result hides the controls instead (`CandidateBlock`), so it has no state here.
  */
 export function fixState(
   kind: CandidateKind,
   s: {
     open: readonly Candidate[]
-    applied: boolean
     /** The kind whose create is in flight, if any. */
     starting: CandidateKind | null
     blocked: boolean
   },
 ): FixState {
-  if (s.applied) return 'applied'
   if (s.starting === kind) return 'starting'
   const mine = s.open.find((c) => c.kind === kind)
   if (mine?.status === 'queued') return 'working'
