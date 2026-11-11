@@ -4018,7 +4018,7 @@ export interface components {
         ListingDetail: {
             /**
              * Affected Sections
-             * @description The sections that use facts the seller answered after the current version was written, in card order (a fully locked section is left out). Regenerate with these `sections` and `for_answers: true` to use the answers. Empty on the content PATCH response (the edit is newer than any answer).
+             * @description The sections that use a fact the seller answered after the last AI run that wrote that section (a generation, a whole regenerate, or a section regenerate or AI fix that covered it), in card order. A seller's edit or a fact-only version is not an AI run, so it never hides them; a fully locked section is left out. Regenerate with these `sections` and `for_answers: true` to use the answers.
              */
             affected_sections?: ("title" | "bullets" | "description" | "keywords" | "attributes")[];
             /**

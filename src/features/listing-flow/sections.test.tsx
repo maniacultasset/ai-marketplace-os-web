@@ -164,6 +164,17 @@ describe('Section cards', () => {
     expect(lastBody().attributes).toEqual({ pattern: 'solid', color: 'Blue', sleeve_count: 3 })
   })
 
+  it('sends an untouched attribute value exactly as stored', async () => {
+    const blend = ['Cotton, polyester blend', ' Viscose ']
+    show(listing({}, { attributes: { material_mix: blend, pattern: ' solid ', sleeve_count: 2 }, attribute_sources: {} }))
+    await userEvent.click(screen.getByTestId('section-attributes-edit'))
+    const count = screen.getByTestId('section-attributes-input-sleeve_count')
+    await userEvent.clear(count)
+    await userEvent.type(count, '3')
+    await userEvent.click(screen.getByTestId('section-attributes-save'))
+    expect(lastBody().attributes).toEqual({ material_mix: blend, pattern: ' solid ', sleeve_count: 3 })
+  })
+
   it('names the attribute the server refused as a product value', async () => {
     const { ApiError } = await import('@/api/errors')
     show(listing())

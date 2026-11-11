@@ -636,8 +636,11 @@ function AttributesCard(props: Shared) {
   const base = useId()
   const locked = new Set(sectionLocks('attributes', listing.locked_paths))
   const editable = keys.filter((k) => !fromProduct.has(k))
-  const parsed = draft
-    ? Object.fromEntries(editable.map((k) => [k, parseAttribute(attributeKind(attributes[k] as AttributeValue), draft[k] ?? '')]))
+  // Only the values the seller changed are parsed and sent: an untouched value stays exactly as
+  // stored (a list item with a comma, edge spaces), so it is never re-typed or locked.
+  const touched = draft ? editable.filter((k) => (draft[k] ?? '') !== attributeText(attributes[k] as AttributeValue)) : []
+  const parsed: Record<string, ReturnType<typeof parseAttribute>> = draft
+    ? Object.fromEntries(touched.map((k) => [k, parseAttribute(attributeKind(attributes[k] as AttributeValue), draft[k] ?? '')]))
     : {}
   const hasError = Object.values(parsed).some((p) => p.error)
   const close = () => {
@@ -659,7 +662,7 @@ function AttributesCard(props: Shared) {
         setTried(true)
         if (hasError) return
         const next: Record<string, AttributeValue> = { ...attributes }
-        for (const k of editable) next[k] = parsed[k]!.value as AttributeValue
+        for (const k of touched) next[k] = parsed[k]!.value as AttributeValue
         actions.save(sectionPatch(canonical, { section: 'attributes', attributes: next }), close)
       }}
       editor={

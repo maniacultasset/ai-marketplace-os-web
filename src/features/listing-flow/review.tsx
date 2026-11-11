@@ -49,7 +49,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useFixCounts, useFixTrail } from '@/features/home-inbox/api'
 import { useTasksList } from '@/features/inbox/api'
-import { invalidateListingWork, useListingHistory, usePublishListings, useRegenerateListing, useReviewListings, useValidateListing } from '@/features/listings/api'
+import { invalidateListingWork, useListingHistory, usePublishListings, useReviewListings, useValidateListing } from '@/features/listings/api'
 import { recallJob, rememberJob } from '@/features/listings/job-memory'
 import {
   approveItems,
@@ -86,7 +86,8 @@ import { claimFindings, gateCounts, plural, type ErrorItem, type GateResult } fr
 import { IdentifierFix } from './identifier-fix'
 import { answeredAfter } from './review-model'
 import { SectionCards } from './sections'
-import { SECTION_LABEL, sectionList, type Section } from './sections-model'
+import { SECTION_LABEL, type Section } from './sections-model'
+import { AnswersBanner, RegenerateButton } from './answers-banner'
 import { ListOnButton } from './list-on'
 import { useListingResolution } from './api'
 import { useChipContext, usePublishGate } from './publishing'
@@ -94,8 +95,6 @@ import { approveThenPublish, isResend, resendView, TEAMMATE_TEXT } from './resen
 import { hasResolution, resolutionView } from './resolution-model'
 import { ResolutionActionLink, ResolutionCard } from './resolution-timeline'
 import { approveAllTargets, approveBlockers } from './review-model'
-import { AI_PAUSED_REASON, isAiPausedError } from '@/features/ai-credit/model'
-import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
 import { STAGE_SUB } from './run-steps'
 import { ActionButton, CardSkeleton, GATE_CHIP, GateLegend, GateList, GateListSkeleton, ReadsAsSkeleton, ReviewTopSkeleton } from './ui'
 import { useListingChecks } from './use-listing-checks'
@@ -426,35 +425,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
               : 'This page updates on its own.'}
           </Banner>
         ) : null}
-        {(answered || affected.length > 0) && !busy ? (
-          <Banner
-            tone="attention"
-            className="mb-4"
-            title="Your answers are saved."
-            data-testid="answered-regenerate"
-            action={
-              <span className="flex flex-wrap gap-2">
-                {affected.length ? (
-                  <RegenerateButton
-                    listing={listing}
-                    state={actions.regenerate}
-                    sections={affected}
-                    testId="answered-update-sections"
-                    label="Update these sections"
-                    variant="primary"
-                  />
-                ) : null}
-                <RegenerateButton listing={listing} state={actions.regenerate} testId="answered-regenerate-button" />
-              </span>
-            }
-          >
-            {affected.length
-              ? `They affect: ${sectionList(affected)}. Only these sections are rewritten, and the new version waits for approval.`
-              : listing.status === 'blocked'
-                ? 'Generate the listing again to use them. Until then it stays blocked.'
-                : 'Generate the listing again to use them. The new version stays a draft until it is approved.'}
-          </Banner>
-        ) : null}
+        {(answered || affected.length > 0) && !busy ? <AnswersBanner listing={listing} affected={affected} state={actions.regenerate} /> : null}
         {listing.status === 'approved' ? (
           <Banner
             tone="success"
@@ -706,60 +677,6 @@ function PublishingPausedNote() {
     <Banner tone="neutral" className="mb-4" data-testid="publishing-paused">
       {AMAZON_PUBLISHING_PAUSED_TEXT}
     </Banner>
-  )
-}
-
-/** "Generate again" (POST /listings/{id}/regenerate) after a photo value was removed here. */
-function RegenerateButton({
-  listing,
-  state: given,
-  testId = 'photo-regenerate',
-  sections,
-  label = 'Generate again',
-  variant = 'secondary',
-}: {
-  listing: ListingDetail
-  state: ActionState
-  testId?: string
-  /** Client feedback 14: rewrite only these (the answers' sections, `for_answers`). */
-  sections?: readonly Section[]
-  label?: string
-  variant?: 'primary' | 'secondary'
-}) {
-  const paused = useAiPaused()
-  const state: ActionState = paused && given.show ? { show: true, enabled: false, reason: AI_PAUSED_REASON } : given
-  const navigate = useNavigate()
-  const regenerate = useRegenerateListing(listing.id)
-  const key = useIntentKey()
-  return (
-    <ActionButton
-      state={state}
-      size="sm"
-      variant={variant}
-      disabled={regenerate.isPending}
-      data-testid={testId}
-      onClick={() =>
-        regenerate.mutate(
-          { instructions: null, key: key.get(), ...(sections?.length ? { sections, forAnswers: true } : {}) },
-          {
-            onSuccess: (a) => {
-              key.reset()
-              rememberJob(listing.id, a.job_id)
-              void navigate({ to: '/runs/$runId', params: { runId: a.job_id } })
-            },
-            onError: (e) => {
-              if (isApiError(e) && !e.isNetwork) key.reset()
-              // A pause shows in the app-wide banner instead.
-              if (isAiPausedError(e)) return
-              toastError(e, 'Couldn’t start a new generation')
-            },
-          },
-        )
-      }
-    >
-      <Icon name="refresh" size={14} />
-      {regenerate.isPending ? 'Starting…' : label}
-    </ActionButton>
   )
 }
 
