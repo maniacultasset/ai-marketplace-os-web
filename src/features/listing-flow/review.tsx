@@ -18,6 +18,10 @@
  *     self-approval says it is recorded (ListingDetail.self_approval);
  *   - Send back with a note: POST /listings/approve `decision: reject` (+ `regenerate`);
  *   - once approved: Publish (POST /listings/publish) opens the publish run.
+ *   - client feedback 14 and 16: one card per section (sections.tsx: Title, Key features,
+ *     Description, Search terms, Attributes), each with its own limit, errors, Save (no AI; the
+ *     edit is locked) and "Regenerate this section"; "How it will read" is the full preview,
+ *     folded by default; answered facts name the sections they affect ("Update these sections");
  *   - SI11 "What Kuinn did" (GET /listings/{id}/resolution, Amazon only): the resolution card
  *     lands with the gates. On a resend (a fix Kuinn prepared, or a change after a send) the
  *     approve button is "Approve and resend" (approve, then publish; resend.ts) for a teammate who
@@ -47,7 +51,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useFixCounts, useFixTrail } from '@/features/home-inbox/api'
 import { useTasksList } from '@/features/inbox/api'
-import { invalidateListingWork, useListingHistory, usePublishListings, useRegenerateListing, useReviewListings, useValidateListing } from '@/features/listings/api'
+import { invalidateListingWork, useListingHistory, usePublishListings, useReviewListings, useValidateListing } from '@/features/listings/api'
 import { recallJob, rememberJob } from '@/features/listings/job-memory'
 import {
   approveItems,
@@ -84,6 +88,9 @@ import { FindingBody, FindingsCard } from './findings-card'
 import { claimFindings, gateCounts, gatesSummary, needsGates, plural, type ErrorItem, type GateResult } from './gates'
 import { IdentifierFix } from './identifier-fix'
 import { answeredAfter } from './review-model'
+import { SectionCards } from './sections'
+import { SECTION_LABEL, type Section } from './sections-model'
+import { AnswersBanner, RegenerateButton } from './answers-banner'
 import { ListOnButton } from './list-on'
 import { useListingResolution } from './api'
 import { useChipContext, usePublishGate } from './publishing'
@@ -92,8 +99,6 @@ import { hasResolution, resolutionView } from './resolution-model'
 import { ListingIssuesAndFixes } from './issues-and-fixes'
 import { ResolutionActionLink, ResolutionCard } from './resolution-timeline'
 import { approveAllTargets, approveBlockers } from './review-model'
-import { AI_PAUSED_REASON, isAiPausedError } from '@/features/ai-credit/model'
-import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
 import { STAGE_SUB } from './run-steps'
 import { ActionButton, CardSkeleton, GATE_CHIP, GateLegend, GateList, GateListSkeleton, ReadsAsSkeleton, ReviewTopSkeleton } from './ui'
 import { useListingChecks } from './use-listing-checks'
@@ -373,6 +378,8 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
       !openTasks.rows.some((t) => t.product_id === listing.product_id)) ||
     answeredAfter(appliedTasks.rows, listing.product_id, listing.content?.created_at)
   const shownBlockers = blockers && blockers.version === listing.current_version_id ? blockers.items : null
+  // Client feedback 14: the sections the answered facts feed (the server's dependency map).
+  const affected: Section[] = listing.affected_sections ?? []
 
   return (
     <div className="flex min-h-[calc(100svh-56px)] flex-col">
@@ -422,19 +429,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
               : 'This page updates on its own.'}
           </Banner>
         ) : null}
-        {answered && !busy ? (
-          <Banner
-            tone="attention"
-            className="mb-4"
-            title="Your answers are saved."
-            data-testid="answered-regenerate"
-            action={<RegenerateButton listing={listing} state={actions.regenerate} testId="answered-regenerate-button" />}
-          >
-            {listing.status === 'blocked'
-              ? 'Generate the listing again to use them. Until then it stays blocked.'
-              : 'Generate the listing again to use them. The new version stays a draft until it is approved.'}
-          </Banner>
-        ) : null}
+        {(answered || affected.length > 0) && !busy ? <AnswersBanner listing={listing} affected={affected} state={actions.regenerate} /> : null}
         {listing.status === 'approved' ? (
           <Banner
             tone="success"
@@ -491,8 +486,21 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
                 claims={claims}
                 author={history.isPending || history.error ? 'unknown' : contentAuthor(history.rows, !history.hasNextPage)}
                 authorPending={history.isPending}
-                onEdit={() => setEdit(true)}
+              />
+              <SectionCards
+                listing={listing}
+                etag={checks.etag}
+                findings={findings}
                 editState={actions.edit}
+                regenerateState={actions.regenerate}
+                onSaved={(section) => {
+                  if (resendEdit)
+                    toast.success(TEAMMATE_TEXT, { description: `Saved as a new version. A teammate approves it and sends it to ${mp} again.` })
+                  else
+                    toast.success(`${SECTION_LABEL[section]} saved`, {
+                      description: 'Kept as your edit and locked. The checks ran again. Someone else approves it.',
+                    })
+                }}
               />
               {/* Unsupported claims already show on the bullet and in the claim card. */}
               {otherFindings.length ? <FindingsCard findings={otherFindings} productId={listing.product_id} /> : null}
@@ -683,45 +691,6 @@ function PublishingPausedNote() {
   )
 }
 
-/** "Generate again" (POST /listings/{id}/regenerate) after a photo value was removed here. */
-function RegenerateButton({ listing, state: given, testId = 'photo-regenerate' }: { listing: ListingDetail; state: ActionState; testId?: string }) {
-  const paused = useAiPaused()
-  const state: ActionState = paused && given.show ? { show: true, enabled: false, reason: AI_PAUSED_REASON } : given
-  const navigate = useNavigate()
-  const regenerate = useRegenerateListing(listing.id)
-  const key = useIntentKey()
-  return (
-    <ActionButton
-      state={state}
-      size="sm"
-      variant="secondary"
-      disabled={regenerate.isPending}
-      data-testid={testId}
-      onClick={() =>
-        regenerate.mutate(
-          { instructions: null, key: key.get() },
-          {
-            onSuccess: (a) => {
-              key.reset()
-              rememberJob(listing.id, a.job_id)
-              void navigate({ to: '/runs/$runId', params: { runId: a.job_id } })
-            },
-            onError: (e) => {
-              if (isApiError(e) && !e.isNetwork) key.reset()
-              // A pause shows in the app-wide banner instead.
-              if (isAiPausedError(e)) return
-              toastError(e, 'Couldn’t start a new generation')
-            },
-          },
-        )
-      }
-    >
-      <Icon name="refresh" size={14} />
-      {regenerate.isPending ? 'Starting…' : 'Generate again'}
-    </ActionButton>
-  )
-}
-
 /* ---------------------------------------------------------------------------------------------- */
 
 function MarketplaceTabs({
@@ -790,8 +759,6 @@ function ReadsAs({
   claims,
   author,
   authorPending,
-  onEdit,
-  editState,
 }: {
   checks: ReturnType<typeof useListingChecks>
   listing: ListingDetail
@@ -800,12 +767,13 @@ function ReadsAs({
   author: 'agent' | 'team' | 'unknown'
   /** The history is still being read: the author line is a placeholder, not a guess. */
   authorPending: boolean
-  onEdit: () => void
-  editState: ActionState
 }) {
   const canonical = listing.content!
   const content = canonical.content
   const [more, setMore] = useState(false)
+  // The section cards below show every field; the full preview is one click away (client feedback 16).
+  const [open, setOpen] = useState(false)
+  const bodyId = useId()
   const [removedOpen, setRemovedOpen] = useState(false)
   const mp = mpName(listing.marketplace)
   const preview = checks.preview
@@ -845,10 +813,10 @@ function ReadsAs({
           )
         }
         action={
-          <ActionButton state={editState} size="sm" variant="secondary" onClick={onEdit} data-testid="edit">
-            <Icon name="file" size={14} />
-            Edit
-          </ActionButton>
+          <Button size="sm" variant="ghost" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen((o) => !o)} data-testid="reads-as-toggle">
+            {open ? 'Hide the preview' : 'Show the preview'}
+            <Icon name="chev" size={14} aria-hidden className={cn('motion-safe:transition-transform motion-safe:duration-150', open && 'rotate-180')} />
+          </Button>
         }
       />
       <div className="mt-4 flex flex-col items-start gap-4 sm:flex-row">
@@ -891,32 +859,34 @@ function ReadsAs({
           <h2 className="font-sans text-h3 font-bold text-ink" data-testid="reads-title">
             {content.title}
           </h2>
-          <ul className="m-0 mt-3 list-disc pl-[18px] text-body leading-6 text-ink">
-            {content.bullets.map((b, i) => {
-              const flag = bulletFinding(claims, i, b)
-              // Every bullet keeps its outside marker; a flagged one highlights its text only.
-              return (
-                <li key={i}>
-                  {flag ? (
-                    <>
-                      <span className="-mx-1 box-decoration-clone rounded-sm bg-attention-bg px-1">{b}</span>{' '}
-                      <StatusChip status="needs-you" className="align-middle">
-                        No evidence
-                      </StatusChip>
-                    </>
-                  ) : (
-                    b
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-          <p className={cn('mt-3 text-small whitespace-pre-line text-ink-2', !more && 'line-clamp-3')}>{content.description}</p>
-          {content.description.length > 240 ? (
-            <Button variant="link" size="sm" className="mt-1" onClick={() => setMore((m) => !m)} aria-expanded={more}>
-              {more ? 'Show less' : 'Show the full description'}
-            </Button>
-          ) : null}
+          <div id={bodyId} hidden={!open}>
+            <ul className="m-0 mt-3 list-disc pl-[18px] text-body leading-6 text-ink">
+              {content.bullets.map((b, i) => {
+                const flag = bulletFinding(claims, i, b)
+                // Every bullet keeps its outside marker; a flagged one highlights its text only.
+                return (
+                  <li key={i}>
+                    {flag ? (
+                      <>
+                        <span className="-mx-1 box-decoration-clone rounded-sm bg-attention-bg px-1">{b}</span>{' '}
+                        <StatusChip status="needs-you" className="align-middle">
+                          No evidence
+                        </StatusChip>
+                      </>
+                    ) : (
+                      b
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+            <p className={cn('mt-3 text-small whitespace-pre-line text-ink-2', !more && 'line-clamp-3')}>{content.description}</p>
+            {content.description.length > 240 ? (
+              <Button variant="link" size="sm" className="mt-1" onClick={() => setMore((m) => !m)} aria-expanded={more}>
+                {more ? 'Show less' : 'Show the full description'}
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
       {mappingErrors.length ? (
