@@ -60,7 +60,8 @@ test.describe('public pages', () => {
 
     await page.getByTestId('signup-agree').click()
     const created = page.waitForResponse((r) => r.url().endsWith('/api/v1/signup') && r.request().method() === 'POST')
-    const status = page.waitForResponse((r) => r.url().endsWith('/api/v1/signup/status'))
+    // The status panel polls with the sign-up's status handle (body only), never the password.
+    const status = page.waitForResponse((r) => r.url().endsWith('/api/v1/signup/status/poll'))
     await page.getByTestId('signup-submit').click()
     expect((await created).status()).toBe(202)
     expect((await status).status()).toBe(200)
@@ -69,6 +70,10 @@ test.describe('public pages', () => {
 
     await page.getByTestId('signup-sent-status').click()
     await expect(page).toHaveURL(/\/signup\/status\?email=/)
+    // The handle kept on this device opens the live status without the password.
+    await expect(page.getByTestId('signup-status-badge')).toHaveText('Waiting for review')
+    await expect(page.getByText(/This page updates by itself/)).toBeVisible()
+    await page.getByTestId('signup-status-another').click()
     await page.getByLabel('Password').fill(password)
     await page.getByTestId('signup-status-submit').click()
     await expect(page.getByTestId('signup-status-badge')).toHaveText('Waiting for review')

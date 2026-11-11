@@ -1,6 +1,8 @@
 /**
  * /signup/status: POST /signup/status (routers/signup.py signup_status) with email and password,
  * the newest request out. Every refusal is the same 401. Credentials stay in memory only.
+ * A pending answer carries a status handle: from then on (and on a later visit from this device,
+ * while the handle is kept) the card polls POST /signup/status/poll and updates by itself.
  * Frame: hi-fi 01 without column 1b.
  */
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -13,6 +15,7 @@ import { Icon, IconTile, type IconSource, type TileTone } from '@/components/la/
 import { StatusChip } from '@/components/la/status-chip'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { useCheckSignupStatus } from '@/features/signup-admin/api'
 import { retryAfterSeconds, SIGNUP_STATUS_META, statusCheckError, type SignupStatusOut } from '@/features/signup-admin/format'
@@ -24,12 +27,15 @@ import {
   type SignupStatusBody,
   type StatusFormValues,
 } from '@/features/signup-admin/schema'
+import { clearStatusHandle, readStatusHandle, saveStatusHandle, type StatusHandleEntry } from '@/features/signup-admin/status-handle'
 import { TimeAgo } from '@/features/signup-admin/time'
 import { useCountdown } from '@/features/signup-admin/use-countdown'
 import { FORM_VALIDATION_MODE } from '@/lib/validation'
 import { AsideLink, AuthFootnote, AuthFrame, FormAlert } from './auth-frame'
 import { signupChip } from './model'
 import { useDocumentTitle } from './use-document-title'
+import { useWaitingStatus, WAITING_TITLE, waitingCopy, type StatusView } from './waiting'
+import { WaitingActions } from './waiting-status'
 
 export function SignupStatusPage({ initialEmail }: { initialEmail?: string }) {
   useDocumentTitle('Check a request')
@@ -55,6 +61,10 @@ function SignupStatusCheck({ initialEmail }: { initialEmail?: string }) {
   const [formError, setFormError] = useState<{ message: string; ref: string | null } | null>(null)
   const [creds, setCreds] = useState<SignupStatusBody | null>(null)
   const [result, setResult] = useState<SignupStatusOut | null>(null)
+  // A handle kept on this device from an earlier visit (or the check below): poll with it.
+  const [entry, setEntry] = useState<StatusHandleEntry | null>(() => readStatusHandle())
+  const [remembered, setRemembered] = useState(() => entry !== null)
+  const waiting = useWaitingStatus(entry?.handle ?? null, result)
 
   const form = useForm<StatusFormValues>({
     resolver: zodResolver(statusFormSchema),
@@ -69,6 +79,11 @@ function SignupStatusCheck({ initialEmail }: { initialEmail?: string }) {
       const out = await check.mutateAsync(body)
       setCreds(body)
       setResult(out)
+      if (out.status === 'pending' && out.status_handle) {
+        const next: StatusHandleEntry = { handle: out.status_handle, via: 'password', returnTo: null }
+        setRemembered(saveStatusHandle(next))
+        setEntry(next)
+      }
     } catch (e) {
       const wait = retryAfterSeconds(e)
       if (wait) countdown.start(wait)
@@ -83,6 +98,26 @@ function SignupStatusCheck({ initialEmail }: { initialEmail?: string }) {
 
   const onSubmit = form.handleSubmit((values) => run(toStatusBody(values)))
   const locked = countdown.left > 0
+  const reset = (email: string) => {
+    clearStatusHandle()
+    setEntry(null)
+    setResult(null)
+    setCreds(null)
+    form.reset({ email, password: '' })
+  }
+
+  if (entry && !waiting.gone) {
+    if (!waiting.view) return <StatusLoading />
+    return (
+      <PolledResult
+        view={waiting.view}
+        entry={entry}
+        email={creds?.email ?? ''}
+        remembered={remembered}
+        onReset={() => reset(creds?.email ?? initialEmail ?? '')}
+      />
+    )
+  }
 
   if (result && creds) {
     return (
@@ -91,11 +126,7 @@ function SignupStatusCheck({ initialEmail }: { initialEmail?: string }) {
         email={creds.email}
         refreshing={check.isPending}
         onRefresh={() => void run(creds)}
-        onReset={() => {
-          setResult(null)
-          setCreds(null)
-          form.reset({ email: creds.email, password: '' })
-        }}
+        onReset={() => reset(creds.email)}
       />
     )
   }
@@ -155,6 +186,54 @@ function SignupStatusCheck({ initialEmail }: { initialEmail?: string }) {
   )
 }
 
+/** The card while the first poll answers. */
+function StatusLoading() {
+  return (
+    <div className="flex flex-col gap-3" role="status" aria-label="Checking your request…" data-testid="signup-status-loading">
+      <Skeleton className="h-8 w-2/3" />
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="h-32 w-full" />
+    </div>
+  )
+}
+
+/** The polled card: updates by itself, one next step per state. */
+function PolledResult({
+  view,
+  entry,
+  email,
+  remembered,
+  onReset,
+}: {
+  view: StatusView
+  entry: StatusHandleEntry
+  email: string
+  remembered: boolean
+  onReset: () => void
+}) {
+  return (
+    <StatusResult
+      result={view}
+      email={email}
+      title={WAITING_TITLE[view.status]}
+      description={waitingCopy(view.status, entry.via, remembered)}
+      actions={
+        <WaitingActions
+          status={view.status}
+          via={entry.via}
+          returnTo={entry.returnTo}
+          email={email}
+          secondary={
+            <Button size="lg" variant="ghost" className="w-full" onClick={onReset} data-testid="signup-status-another">
+              Use another email
+            </Button>
+          }
+        />
+      }
+    />
+  )
+}
+
 /**
  * A request's status card. Also shown by /auth/google for a Google sign-up, which passes its own
  * `actions` (checking again there means another Google round trip, not a password).
@@ -167,8 +246,9 @@ export function StatusResult({
   onReset,
   actions,
   description,
+  title,
 }: {
-  result: SignupStatusOut
+  result: StatusView
   email: string
   refreshing?: boolean
   onRefresh?: () => void
@@ -177,6 +257,8 @@ export function StatusResult({
   actions?: ReactNode
   /** Replaces the status's default sentence under the title. */
   description?: string
+  /** Replaces the status's default title. */
+  title?: string
 }) {
   const meta = SIGNUP_STATUS_META[result.status]
   const chip = signupChip(result.status)
@@ -186,7 +268,7 @@ export function StatusResult({
         <div className="flex items-center gap-3">
           <IconTile icon={RESULT_TILE[result.status].icon} tone={RESULT_TILE[result.status].tone} />
           <h1 className="text-h1 text-ink" data-testid="signup-status-title">
-            {meta.title}
+            {title ?? meta.title}
           </h1>
         </div>
         <p className="mt-2 text-body text-ink-2">{description ?? meta.description}</p>
