@@ -32,7 +32,6 @@ const PRODUCT2 = '0b1c2d3e-0000-4000-8000-000000000111'
 
 const task = (kind: Task['kind']): Task => ({
   id: TASK,
-  blocking: false,
   kind,
   blocking: true,
   status: 'open',

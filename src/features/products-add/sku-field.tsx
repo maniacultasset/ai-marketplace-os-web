@@ -98,6 +98,7 @@ export function SkuField({
       <TextField
         id={id}
         label="SKU"
+        required
         value={value}
         onChange={onChange}
         onBlur={onBlur}
