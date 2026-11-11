@@ -8,6 +8,8 @@
  *   GET /products/{id}. Action: "Check status now" is POST /listings/{id}/refresh-status
  *   (Idempotency-Key; 429 inside 5 minutes).
  *   SI11 "What Kuinn did": GET /listings/{id}/resolution (Amazon only), the tries and each step.
+ *   Feedback item 20 "Issues and fixes": GET /listings/{id}/issue-history, each marketplace issue
+ *   by who handles it and each fix Kuinn made (before, after, reason, outcome).
  */
 import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
@@ -35,6 +37,7 @@ import { ListOnButton } from './list-on'
 import { liveProof, maskId, type Proof } from './proof'
 import { notSentHero, usePublishGate } from './publishing'
 import { hasResolution, resolutionView } from './resolution-model'
+import { ListingIssuesAndFixes } from './issues-and-fixes'
 import { ResolutionActionLink, ResolutionCard, ResolutionSkeleton } from './resolution-timeline'
 import { CardSkeleton, KeyValues, Timeline, TimelineItem, type DotTone } from './ui'
 
@@ -294,6 +297,7 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
 
         <div className="flex min-w-0 flex-col gap-4">
           <WhatKuinnDid listing={listing} marketplaceState={proof.marketplaceState} />
+          <ListingIssuesAndFixes listingId={listing.id} marketplace={listing.marketplace} poll={proof.state === 'waiting' || proof.state === 'unconfirmed'} skeleton />
           <AgentDid listing={listing} />
           <LaCard data-testid="next">
             <h3 className="text-h3 text-ink">Next</h3>

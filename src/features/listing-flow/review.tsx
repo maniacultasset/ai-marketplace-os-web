@@ -20,6 +20,8 @@
  *     lands with the gates. On a resend (a fix Kuinn prepared, or a change after a send) the
  *     approve button is "Approve and resend" (approve, then publish; resend.ts) for a teammate who
  *     did not make the version; its maker or editor sees "Sent to a teammate for approval".
+ *   - Feedback item 20 "Issues and fixes" (GET /listings/{id}/issue-history, every marketplace):
+ *     each marketplace issue by who handles it and each fix Kuinn made; lands with the gates.
  */
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useLocation, useNavigate } from '@tanstack/react-router'
@@ -83,6 +85,7 @@ import { useListingResolution } from './api'
 import { useChipContext, usePublishGate } from './publishing'
 import { approveThenPublish, isResend, resendView, TEAMMATE_TEXT } from './resend'
 import { hasResolution, resolutionView } from './resolution-model'
+import { ListingIssuesAndFixes } from './issues-and-fixes'
 import { ResolutionActionLink, ResolutionCard } from './resolution-timeline'
 import { approveAllTargets, approveBlockers } from './review-model'
 import { AI_PAUSED_REASON, isAiPausedError } from '@/features/ai-credit/model'
@@ -510,6 +513,13 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
                   }
                 />
               ) : null}
+              <ListingIssuesAndFixes
+                listingId={listing.id}
+                marketplace={listing.marketplace}
+                ready={checks.gatesReady && !fixesQ.isPending}
+                poll={!!rview?.headline.working}
+                linkFields={false}
+              />
               <GatesCard
                 gates={checks.gates}
                 ready={checks.gatesReady && !fixesQ.isPending && !resolutionPending}

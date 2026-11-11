@@ -10,6 +10,8 @@
  *                                 INVALID_STATUS_TRANSITION (exists and not `created`), 422 category
  *   GET  /listings/{id}/resolution ResolutionOut (SI11): polled while Kuinn or the marketplace works;
  *                                 404 on a backend without it, read as "nothing to show"
+ *   GET  /listings/{id}/issue-history IssueHistoryOut (feedback item 20): each marketplace issue and
+ *                                 each fix Kuinn made; 404 on a backend without it, read as nothing
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -65,6 +67,30 @@ export function useListingResolution(listingId: string, opts: { enabled?: boolea
     },
     retry: (n, e) => !isNotFound(e) && n < 2,
     refetchInterval: (q) => (q.state.data && WORKING_STATES.has(q.state.data.state) ? RESOLUTION_POLL_MS : false),
+    refetchIntervalInBackground: false,
+  })
+}
+
+/**
+ * "Issues and fixes" (GET /listings/{id}/issue-history). A backend without the route answers 404:
+ * the hook then resolves to null, so the screen shows nothing instead of an error. `poll` follows
+ * the resolution read: while Kuinn or the marketplace works, the history is re-read with it.
+ */
+export function useIssueHistory(listingId: string, opts: { enabled?: boolean; poll?: boolean } = {}) {
+  const keys = useKeys()
+  return useQuery({
+    queryKey: keys.listings.issueHistory(listingId),
+    enabled: opts.enabled ?? true,
+    queryFn: async () => {
+      try {
+        return await unwrap(api.GET('/listings/{listing_id}/issue-history', { params: { path: { listing_id: listingId } } }))
+      } catch (e) {
+        if (isNotFound(e)) return null
+        throw e
+      }
+    },
+    retry: (n, e) => !isNotFound(e) && n < 2,
+    refetchInterval: opts.poll ? RESOLUTION_POLL_MS : false,
     refetchIntervalInBackground: false,
   })
 }
