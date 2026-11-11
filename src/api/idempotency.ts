@@ -37,6 +37,7 @@ export const IDEMPOTENT_OPS = [
   'POST /jobs/{job_id}/cancel',
   'POST /tasks/{task_id}/answer',
   'POST /tasks/{task_id}/close',
+  'POST /tenants',
 ] as const
 
 export type IdempotentOp = (typeof IDEMPOTENT_OPS)[number]

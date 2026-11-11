@@ -30,9 +30,10 @@ export type StepUpHandler = (prompt: StepUpPrompt) => Promise<boolean>
 /**
  * The high-risk ops (contract 2.1.0): marketplace connect and revoke, member changes (removal,
  * role, owner), invites, member reset links, authenticator replace, new recovery codes, Google
- * unlink and the brand's owner approval setting (PATCH /tenants/me `owner_self_approval`, ADR-0031;
- * other profile fields never ask). The account revoke and a member reset link need a TOTP code only (surface.py
- * `step_up="otp"`); the others also take a recovery code. The
+ * unlink, adding another brand and the brand's owner approval setting (PATCH /tenants/me
+ * `owner_self_approval`, ADR-0031; other profile fields never ask). The account revoke and a
+ * member reset link need a TOTP code only (surface.py `step_up="otp"`); the others also take a
+ * recovery code. The
  * sign-up approve/reject no longer ask (platform admin only). The contract does not mark the mode,
  * so step-up.test.ts pins this table against every op whose 403 lists the step-up code.
  */
@@ -45,6 +46,7 @@ export const STEP_UP_OPS: Readonly<Record<string, StepUpMode>> = {
   'POST /auth/mfa/totp/enroll': 'any',
   'POST /auth/mfa/totp/confirm': 'any',
   'POST /auth/google/unlink': 'any',
+  'POST /tenants': 'any',
   'POST /marketplaces/accounts/{account_id}/revoke': 'otp',
   'POST /members/{user_id}/password-reset': 'otp',
 }

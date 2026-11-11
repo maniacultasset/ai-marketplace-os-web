@@ -85,6 +85,7 @@ export const OP_ACTION = {
   'POST /invites/join': 'tenant:read',
   'GET /tenants/me': 'tenant:read',
   'PATCH /tenants/me': 'settings:manage',
+  'POST /tenants': 'settings:manage',
   'GET /brand/documents': 'tenant:read',
   'POST /brand/documents': 'settings:manage',
   'DELETE /brand/documents/{document_id}': 'settings:manage',
