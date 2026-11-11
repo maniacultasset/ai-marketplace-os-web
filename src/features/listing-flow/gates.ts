@@ -270,6 +270,11 @@ export function onlyRecommended(gate: Pick<GateResult, 'state' | 'findings'>): b
   return gate.state === 'warning' && gate.findings.length > 0 && gate.findings.every(isRecommendation)
 }
 
+/** The gates that need the seller: blocked, or a warning beyond recommended attributes. */
+export function needsGates(gates: readonly GateResult[]): GateResult[] {
+  return gates.filter((g) => g.state === 'blocked' || (g.state === 'warning' && !onlyRecommended(g)))
+}
+
 /**
  * Gate counts. `warning` leaves out the gates that only recommend attributes, and `recommended`
  * counts those attributes (one per field across the gates), so blockers, warnings and

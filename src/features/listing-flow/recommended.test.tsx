@@ -2,7 +2,8 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { gateCounts, gatesSummary, onlyRecommended, rollUpGates, type ErrorItem } from './gates'
+import { gateCounts, gatesSummary, needsGates, onlyRecommended, rollUpGates, type ErrorItem } from './gates'
+import { GateList, gateChip, gateWord } from './ui'
 import { addOnProductLink, groupFindings, isRecommendation, recommendedHelp, recommendedKey } from './recommended'
 import { editableAttrs } from '@/features/products/edit-model'
 import { recommendedBy, recommendedText, type Requirements } from '@/features/products/needs'
@@ -134,6 +135,31 @@ describe('gate counts', () => {
     const attrs = gates.find((g) => g.id === 'attributes')!
     expect(attrs.note).toBe('1 warning, 1 recommended to add')
     expect(gateCounts(gates)).toMatchObject({ warning: 1, recommended: 1 })
+  })
+})
+
+describe('a gate with only recommendations', () => {
+  it('reads as passed and never needs the seller', () => {
+    const gates = gatesFor([rec('fit'), rec('pattern')])
+    const attrs = gates.find((g) => g.id === 'attributes')!
+    expect(gateChip(attrs)).toBe('live')
+    expect(gateWord(attrs)).toBe('Passed')
+    expect(needsGates(gates).map((g) => g.id)).not.toContain('attributes')
+    render(
+      <TooltipProvider>
+        <GateList gates={gates} />
+      </TooltipProvider>,
+    )
+    expect(screen.getByLabelText('Attributes: Passed. 2 recommended to add')).toBeTruthy()
+  })
+
+  it('a real warning beside a recommendation still needs the seller', () => {
+    const color = item({ error_code: 'VALUE_NOT_ALLOWED', field: 'attributes.color', severity: 'warning', message: 'odd colour', rule_id: 'r2' })
+    const gates = gatesFor([color, rec('fit')])
+    const attrs = gates.find((g) => g.id === 'attributes')!
+    expect(gateChip(attrs)).toBe('needs-you')
+    expect(gateWord(attrs)).toBe('Warning')
+    expect(needsGates(gates).map((g) => g.id)).toContain('attributes')
   })
 })
 

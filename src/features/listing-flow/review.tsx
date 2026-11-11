@@ -79,7 +79,7 @@ import { autoFixTrail, FIXED_FOR_YOU_HASH, siblingFixes, versionRef } from './au
 import { EditDialog, SendBackDialog } from './dialogs'
 import { clock, fieldLabel, mpName, plainMessage, sentenceCase } from './format'
 import { FindingBody, FindingsCard } from './findings-card'
-import { claimFindings, gateCounts, gatesSummary, plural, type ErrorItem, type GateResult } from './gates'
+import { claimFindings, gateCounts, gatesSummary, needsGates, plural, type ErrorItem, type GateResult } from './gates'
 import { IdentifierFix } from './identifier-fix'
 import { answeredAfter } from './review-model'
 import { ListOnButton } from './list-on'
@@ -994,7 +994,7 @@ function GatesCard({
   const onCurrent = !!v && v.listing_version_id === listing.current_version_id
   const stage = onCurrent ? v.stages?.[v.stages.length - 1] : undefined
   const counts = gateCounts(gates)
-  const needs = gates.filter((g) => g.state === 'blocked' || g.state === 'warning')
+  const needs = needsGates(gates)
   const serverBlocking = listing.display_state === 'needs_you' ? (listing.needs_you_count ?? 0) : 0
   const listedSet = new Set(listed)
   return (
@@ -1056,6 +1056,14 @@ function GatesCard({
           ) : onCurrent ? (
             <p className="mt-2 text-small text-ink">
               {counts.passed === counts.total ? `All ${counts.total} checks passed.` : 'Nothing blocks approval in the checks that ran.'}
+              {counts.recommended ? (
+                <>
+                  {' '}
+                  <a href="#findings" className="focus-ring rounded-sm font-semibold whitespace-nowrap text-brand hover:underline" data-testid="gates-recommended">
+                    See {counts.recommended} recommended
+                  </a>
+                </>
+              ) : null}
             </p>
           ) : null}
         </>
@@ -1077,7 +1085,7 @@ function GatesCard({
         <GateList gates={gates} />
         <p className="mt-3 text-caption text-ink-3" data-testid="gates-note">
           {onCurrent
-            ? `${v.blocking_count} blocking, ${v.warning_count} ${v.warning_count === 1 ? 'warning' : 'warnings'} on version ${listing.content?.version ?? ''}${stage ? `, checked ${clock(stage.created_at)}` : ''}.`
+            ? `${v.blocking_count} blocking, ${v.warning_count} ${v.warning_count === 1 ? 'warning' : 'warnings'}${counts.recommended ? `, ${counts.recommended} recommended` : ''} on version ${listing.content?.version ?? ''}${stage ? `, checked ${clock(stage.created_at)}` : ''}.`
             : 'This version has not been checked yet. Approval needs a passing check.'}
           {rulesCount != null ? ` ${plural(rulesCount, 'rule')} apply to this category.` : ''}
         </p>
