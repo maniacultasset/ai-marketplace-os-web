@@ -2019,8 +2019,11 @@ export interface paths {
          *     image editing is switched on), `fix` (re-frame the main photo to a white square, no AI) or
          *     `size_chart` (an image of the product's size chart, no AI). A candidate is never a product
          *     image until it is accepted. The same source asked again answers the same candidate; 202 names
-         *     its job only when a new one started (poll `poll_url`). A new AI edit while AI is paused
-         *     for every brand is 503 with the pause's code and no `Retry-After` (SI10).
+         *     its job only when a new one started (poll `poll_url`). `accepted` with `accepted_image_id`
+         *     means it is already applied: that image is still this colourway's live main. An accepted
+         *     candidate whose image was replaced or deleted no longer answers: a new one is made. A new
+         *     AI edit while AI is paused for every brand is 503 with the pause's code and no
+         *     `Retry-After` (SI10).
          */
         post: operations["image_candidates_create"];
         delete?: never;
@@ -3367,6 +3370,11 @@ export interface components {
         };
         /** ImageCandidateAccepted */
         ImageCandidateAccepted: {
+            /**
+             * Accepted Image Id
+             * @description Set only with status `accepted`: the candidate's image already took this place and still holds it (the live main of the same product and colourway, or the product's size-chart image for a size chart). No new job was started.
+             */
+            accepted_image_id?: string | null;
             /**
              * Candidate Id
              * Format: uuid
@@ -5938,6 +5946,8 @@ export interface components {
         };
         /** TenantOut */
         TenantOut: {
+            /** @description This deployment's feature switches, so screens never promise what is off. */
+            capabilities?: components["schemas"]["TenantCapabilitiesOut"];
             /** Glossary */
             glossary?: {
                 [key: string]: string;
@@ -5965,8 +5975,6 @@ export interface components {
              * @description When the trial ends, while the brand is on trial; else null.
              */
             trial_ends_at?: string | null;
-            /** @description This deployment's feature switches, so screens never promise what is off. */
-            capabilities?: components["schemas"]["TenantCapabilitiesOut"];
         };
         /**
          * TenantPatch

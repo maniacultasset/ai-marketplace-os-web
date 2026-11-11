@@ -12,14 +12,17 @@ import { useAcceptCandidate, useCreateCandidate, useRejectCandidate } from './ca
 import type { CandidateSession } from './candidate-session'
 import {
   ACTION_LABEL,
-  ALREADY_IN_USE_COPY,
   AI_HINT,
   AI_LIMIT_COPY,
   AI_OFF_COPY,
+  APPLIED_COPY,
+  appliedFrom,
   CACHE_HIT_COPY,
   candidateErrorCopy,
+  canStart,
   FAILURE_COPY,
   FREE_HINT,
+  fixState,
   isAiOff,
   isCacheHit,
   openCandidates,
@@ -45,6 +48,7 @@ export function CandidateBlock({
   aiLimit,
   onPreviewError,
   hasSizeChartImage = false,
+  imageUrlOf,
 }: {
   productId: string
   sourceId: string | null
@@ -60,16 +64,23 @@ export function CandidateBlock({
   onPreviewError: () => void
   /** The product already has a size chart image, so a new one replaces it. */
   hasSizeChartImage?: boolean
+  /** A product image's view URL, when the product read has it (to show an applied result). */
+  imageUrlOf?: (imageId: string) => string | null | undefined
 }) {
   const create = useCreateCandidate(productId)
   const [createError, setCreateError] = useState<{ kind: CandidateKind; error: unknown } | null>(null)
-  // The cache answered a candidate that is already a product image.
-  const [note, setNote] = useState<string | null>(null)
+  // The API said the result already took this place: which kind, and its image.
+  const [answered, setAnswered] = useState<{ kind: CandidateKind; imageId: string | null } | null>(null)
   // One call per click: React disables the button a render later than a fast double click.
   const creating = useRef(false)
   const open = openCandidates(candidates, sourceId, session.hidden)
   const busy = open.some((c) => c.status === 'queued')
-  const shown = canAct ? kinds : []
+  // A used photo is never the main again: the list knows before the product read catches up.
+  const used = appliedFrom(candidates, sourceId)
+  const applied = answered ?? (used ? { kind: used.kind, imageId: used.accepted_image_id ?? null } : null)
+  // A photo that was replaced offers no fix; a size chart keeps its button (its chart may change).
+  const replaced = applied !== null && applied.kind !== 'size_chart'
+  const shown = canAct && !replaced ? kinds : []
 
   if (listPending && (shown.length || open.length))
     return (
@@ -79,13 +90,13 @@ export function CandidateBlock({
         ))}
       </div>
     )
-  if (!shown.length && !open.length) return null
+  if (!shown.length && !open.length && !applied) return null
 
   const make = (kind: CandidateKind) => {
     if (creating.current) return
     creating.current = true
     setCreateError(null)
-    setNote(null)
+    setAnswered(null)
     create.mutate(
       { kind, sourceImageId: sourceId },
       {
@@ -93,7 +104,10 @@ export function CandidateBlock({
           if (isCacheHit(a)) session.markCacheHit(a.candidate_id)
           // A cached failure answers again: show its reason even if it was closed.
           if (a.status === 'failed') session.unhide(a.candidate_id)
-          if (a.status === 'accepted') setNote(ALREADY_IN_USE_COPY)
+          if (a.status === 'accepted') {
+            setAnswered({ kind, imageId: a.accepted_image_id ?? null })
+            if (a.accepted_image_id) session.markApplied(a.accepted_image_id, kind)
+          }
         },
         onError: (error) => {
           if (isAiOff(error, kind)) session.setAiOff()
@@ -113,7 +127,12 @@ export function CandidateBlock({
           {shown.map((kind) => {
             const ai = kind === 'white_background'
             const blocked = ai ? (session.aiOff ? AI_OFF_COPY : aiLimit ? AI_LIMIT_COPY : null) : null
-            const starting = create.isPending && create.variables?.kind === kind
+            const state = fixState(kind, {
+              open,
+              applied: false,
+              starting: create.isPending ? (create.variables?.kind ?? null) : null,
+              blocked: blocked !== null,
+            })
             return (
               <div key={kind} className="flex flex-col gap-1">
                 {blocked ? (
@@ -126,12 +145,13 @@ export function CandidateBlock({
                     variant="secondary"
                     size="sm"
                     // One open result per kind at a time: Use or Discard it before making another.
-                    disabled={busy || create.isPending || open.some((c) => c.kind === kind && c.status !== 'failed')}
+                    disabled={!canStart(state)}
                     onClick={() => make(kind)}
                     data-testid={`make-${kind}`}
+                    data-state={state}
                   >
                     <Icon name={ai ? 'spark' : 'image'} size={16} />
-                    {starting ? 'Starting…' : ACTION_LABEL[kind]}
+                    {state === 'starting' ? 'Starting…' : ACTION_LABEL[kind]}
                   </Button>
                 )}
                 <span className={cn('text-caption', blocked ? 'text-attention-ink' : 'text-ink-3')} data-testid={`hint-${kind}`}>
@@ -143,11 +163,7 @@ export function CandidateBlock({
         </div>
       ) : null}
 
-      {note ? (
-        <p role="status" className="text-small text-ink-2" data-testid="candidate-create-note">
-          {note}
-        </p>
-      ) : null}
+      {applied ? <AppliedNote kind={applied.kind} src={applied.imageId ? imageUrlOf?.(applied.imageId) : null} /> : null}
 
       {createError ? (
         <div role="alert" className="flex flex-col gap-0.5 text-small text-danger-ink" data-testid="candidate-create-error">
@@ -170,6 +186,20 @@ export function CandidateBlock({
           replaces={hasSizeChartImage}
         />
       ))}
+    </div>
+  )
+}
+
+/** The result already took this place: say so, with the image when the product read has it. */
+export function AppliedNote({ kind, src }: { kind: CandidateKind; src?: string | null }) {
+  return (
+    <div role="status" className="flex items-center gap-3 text-small text-ink-2" data-testid="candidate-applied" data-kind={kind}>
+      {src ? (
+        <img src={src} alt={RESULT_LABEL[kind]} className="size-12 shrink-0 rounded-md border border-line bg-subtle object-contain" />
+      ) : (
+        <Icon name="check" size={16} className="shrink-0 text-success" />
+      )}
+      <span>{APPLIED_COPY[kind]}</span>
     </div>
   )
 }

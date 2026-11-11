@@ -13,6 +13,10 @@ import {
   originBadge,
   supportsCandidates,
   AI_OFF_COPY,
+  APPLIED_COPY,
+  appliedFrom,
+  canStart,
+  fixState,
   type Candidate,
 } from './candidates-model'
 
@@ -127,5 +131,46 @@ describe('create answers and errors', () => {
     expect(FAILURE_COPY.too_small).toBe('Photo too small. Upload at least 800 px.')
     expect(Object.keys(FAILURE_COPY)).toHaveLength(9)
     expect(FAILURE_COPY.source_changed).toBe('The photo changed since this was made. Try again.')
+  })
+})
+
+describe('fix state', () => {
+  const base = { open: [] as Candidate[], applied: false, starting: null, blocked: false }
+
+  it('maps each case to one plain state', () => {
+    expect(fixState('white_background', base)).toBe('available')
+    expect(fixState('white_background', { ...base, starting: 'white_background' })).toBe('starting')
+    expect(fixState('white_background', { ...base, starting: 'fix' })).toBe('working')
+    expect(fixState('white_background', { ...base, open: [cand({ status: 'queued' })] })).toBe('working')
+    expect(fixState('fix', { ...base, open: [cand({ status: 'queued' })] })).toBe('working')
+    expect(fixState('white_background', { ...base, open: [cand({ status: 'ready' })] })).toBe('ready')
+    expect(fixState('fix', { ...base, open: [cand({ status: 'ready' })] })).toBe('available')
+    expect(fixState('white_background', { ...base, open: [cand({ status: 'failed', failure_reason: 'model_failed' })] })).toBe('failed')
+    expect(fixState('white_background', { ...base, blocked: true })).toBe('blocked')
+    expect(fixState('white_background', { ...base, applied: true, open: [cand({ status: 'queued' })] })).toBe('applied')
+  })
+
+  it('lets the button start only when nothing is open, or to retry a failure', () => {
+    expect(canStart('available')).toBe(true)
+    expect(canStart('failed')).toBe(true)
+    for (const s of ['blocked', 'starting', 'working', 'ready', 'applied'] as const) expect(canStart(s)).toBe(false)
+  })
+})
+
+describe('applied', () => {
+  it('finds the newest used candidate made from this photo, never another photo or a size chart', () => {
+    const used = cand({ status: 'accepted', accepted_image_id: OTHER })
+    expect(appliedFrom([cand({ status: 'ready' }), used], MAIN)).toBe(used)
+    expect(appliedFrom([used], OTHER)).toBeUndefined()
+    expect(appliedFrom([cand({ kind: 'size_chart', source_image_id: null, status: 'accepted' })], null)).toBeUndefined()
+    expect(appliedFrom([cand({ status: 'rejected' })], MAIN)).toBeUndefined()
+  })
+
+  it('says it is done in short calm words, with no "already in use"', () => {
+    expect(APPLIED_COPY.white_background).toBe("This photo is already on a white background. It's your main photo now.")
+    for (const copy of Object.values(APPLIED_COPY)) {
+      expect(copy).not.toMatch(/in use|!|AI/)
+      expect(copy.length).toBeLessThan(80)
+    }
   })
 })
