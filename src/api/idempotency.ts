@@ -22,6 +22,8 @@ export const IDEMPOTENT_OPS = [
   'POST /products/{product_id}/size-chart-read',
   'POST /products/{product_id}/category-suggestion',
   'POST /products/{product_id}/size-run',
+  'POST /catalog/category-suggestions',
+  'POST /skus/suggestion',
   'POST /imports/column-maps',
   'POST /imports/column-maps/{map_id}/confirm',
   'POST /listings/generate',
