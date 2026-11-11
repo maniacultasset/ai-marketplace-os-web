@@ -422,7 +422,7 @@ function LiveStatus({ creds, handle: sentHandle, remembered }: { creds: SignupSt
             </p>
             {!manual && questionState(result) !== 'none' ? (
               <div className="mt-2">
-                <QuestionBlock view={result} handle={handle} />
+                <QuestionBlock view={result} handle={handle} via="password" />
               </div>
             ) : null}
           </div>

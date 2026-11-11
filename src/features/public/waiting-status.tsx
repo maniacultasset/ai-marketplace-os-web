@@ -31,7 +31,7 @@ import { cn } from '@/lib/utils'
 import { FORM_VALIDATION_MODE } from '@/lib/validation'
 import { FormAlert } from './auth-frame'
 import { COMPANY } from './company'
-import { questionState, type StatusView } from './waiting'
+import { questionState, replyElsewhere, type StatusView } from './waiting'
 
 /** The one next step for a status, plus `secondary` (a back link) under it. */
 export function WaitingActions({
@@ -93,10 +93,10 @@ export function WaitingActions({
 
 /**
  * The reviewer's one question on a pending request, and the person's one reply. With a live
- * handle and no reply yet: the question and a reply box. Once replied: both, read only. Nothing
- * when no question was asked.
+ * handle and no reply yet: the question and a reply box; without one, the way back in for `via`.
+ * Once replied: both, read only. Nothing when no question was asked.
  */
-export function QuestionBlock({ view, handle }: { view: StatusView; handle: string | null }) {
+export function QuestionBlock({ view, handle, via }: { view: StatusView; handle: string | null; via: SignInVia }) {
   const state = questionState(view)
   if (state === 'none' || !view.question) return null
   return (
@@ -122,7 +122,9 @@ export function QuestionBlock({ view, handle }: { view: StatusView; handle: stri
       ) : handle ? (
         <ReplyForm handle={handle} />
       ) : (
-        <p className="text-small text-ink-2">To reply, open Check your request on the sign-in page.</p>
+        <p className="text-small text-ink-2" data-testid="signup-question-hint">
+          {replyElsewhere(via)}
+        </p>
       )}
     </section>
   )

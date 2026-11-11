@@ -259,7 +259,7 @@ function PolledResult({
       email={email}
       title={waitingTitle(view)}
       description={viewCopy(view, entry.via, remembered)}
-      extra={<QuestionBlock view={view} handle={entry.handle} />}
+      extra={<QuestionBlock view={view} handle={entry.handle} via={entry.via} />}
       actions={
         <WaitingActions
           status={view.status}

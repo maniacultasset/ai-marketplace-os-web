@@ -728,7 +728,7 @@ function GoogleStatus({
           email={email}
           title={waitingTitle(view)}
           description={sent && view.status === 'pending' && !view.question ? `Request sent. ${copy}` : copy}
-          extra={<QuestionBlock view={view} handle={live ? handle : null} />}
+          extra={<QuestionBlock view={view} handle={live ? handle : null} via="google" />}
           actions={
             <WaitingActions
               status={view.status}

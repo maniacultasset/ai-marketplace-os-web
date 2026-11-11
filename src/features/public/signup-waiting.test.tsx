@@ -8,6 +8,8 @@ import { envelope, installFetch, json, type Call, type Handler } from '@/test/fa
 import { readStatusHandle, saveStatusHandle } from '@/features/signup-admin/status-handle'
 import { SignupPage } from './signup-page'
 import { SignupStatusPage } from './signup-status'
+import { viewCopy } from './waiting'
+import { QuestionBlock } from './waiting-status'
 
 vi.hoisted(() => {
   vi.stubEnv('VITE_API_ORIGIN', 'http://localhost:3000')
@@ -248,5 +250,25 @@ describe('the password waiting screens', () => {
     await user.click(screen.getByTestId('signup-status-submit'))
     expect(await screen.findByText(/updates by itself while it stays open/)).toBeTruthy()
     await waitFor(() => expect(polled(calls)).toHaveLength(1))
+  })
+})
+
+describe('a question with no live handle', () => {
+  afterEach(() => cleanup())
+  const view = { status: 'pending' as const, brand_name: 'Kalakar Weaves', created_at: '2026-11-11T09:00:00Z', question: 'Which marketplaces?', asked_at: '2026-11-11T10:00:00Z' }
+
+  it('Google: points back to Continue with Google, never to the password check', () => {
+    render(<QuestionBlock view={view} handle={null} via="google" />)
+    const hint = screen.getByTestId('signup-question-hint').textContent
+    expect(hint).toBe('To reply, use Continue with Google again.')
+    expect(screen.queryByTestId('signup-reply')).toBeNull()
+    expect(viewCopy(view, 'google', false, false)).toBe('Our team has one question for you. To reply, use Continue with Google again.')
+  })
+
+  it('password: points to Check your request', () => {
+    render(<QuestionBlock view={view} handle={null} via="password" />)
+    expect(screen.getByTestId('signup-question-hint').textContent).toBe('To reply, open Check your request on the sign-in page.')
+    expect(viewCopy(view, 'password', false, false)).toBe('Our team has one question for you. To reply, open Check your request on the sign-in page.')
+    expect(viewCopy(view, 'password', false)).toMatch(/Reply below/)
   })
 })

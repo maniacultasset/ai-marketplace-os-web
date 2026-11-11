@@ -60,9 +60,17 @@ export function waitingTitle(view: StatusView): string {
 /** The sentence under the title, with the question's state taken into account. */
 export function viewCopy(view: StatusView, via: SignInVia, remembered: boolean, live = true): string {
   const q = questionState(view)
-  if (q === 'asked') return 'Our team needs one more detail before approving. Reply below. You can send one reply.'
+  if (q === 'asked')
+    return live
+      ? 'Our team needs one more detail before approving. Reply below. You can send one reply.'
+      : `Our team has one question for you. ${replyElsewhere(via)}`
   if (q === 'replied') return 'Thanks. Your reply is with our team. This page updates by itself when there is a decision.'
   return waitingCopy(view.status, via, remembered, live)
+}
+
+/** How to get back to the reply box when this page has no live handle. */
+export function replyElsewhere(via: SignInVia): string {
+  return via === 'google' ? 'To reply, use Continue with Google again.' : 'To reply, open Check your request on the sign-in page.'
 }
 
 export const WAITING_TITLE: Record<StatusView['status'], string> = {
