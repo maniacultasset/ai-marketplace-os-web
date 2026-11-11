@@ -15,6 +15,7 @@ import { useId, type ReactNode } from 'react'
 import { fieldHintId, LaField } from '@/components/la'
 import { cn } from '@/lib/utils'
 import { chipFor, type ChipProps } from './field-sources'
+import { GtinExemptionHelp } from './gtin-exemption'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { BARCODE_LABEL, BARCODE_TYPES, normalizeBarcode, type BarcodeDraft, type BarcodeLevel, type BarcodeType } from './barcode'
@@ -203,6 +204,8 @@ export function BarcodeField({
             />
           </div>
         ) : null}
+        {/* Amazon only: where to apply, next to the exemption choice. */}
+        {amazon ? <GtinExemptionHelp testId={`${id}-exemption-help`} /> : null}
       </div>
     </LaField>
   )
