@@ -15,11 +15,16 @@ const ROLE_ICON: Record<(typeof ROLE_ORDER)[number], IconSource> = {
 
 /**
  * What each role can do, plus the approvals note. The note follows the brand's owner approval
- * setting (item 17); until the brand is read it keeps its height and says nothing.
+ * setting (item 17); while the brand loads it keeps its height and says nothing, and it is left
+ * out if the brand can't be read.
  */
 export function RolesLegend({ className }: { className?: string }) {
   const profile = useBrandProfile()
   const setting = profile.data?.data.owner_self_approval
+  // Blank while the brand loads. If it can't be read the note is left out: either wording
+  // could be wrong, and an icon beside an empty line says nothing.
+  const hidden = setting === undefined && profile.isPending
+  const unknown = setting === undefined && !profile.isPending
   return (
     <Card role="region" aria-labelledby="roles-heading" className={cn('gap-0 py-0', className)}>
       <CardHeader className="pt-5 pb-4">
@@ -42,15 +47,17 @@ export function RolesLegend({ className }: { className?: string }) {
           </div>
         ))}
       </dl>
-      <p
-        className="flex items-start gap-2 border-t border-line bg-sunken px-5 py-3.5 text-xs leading-relaxed text-muted-foreground"
-        data-testid="approvals-note"
-      >
-        <Icon name="info" size={14} className="mt-[calc((1lh-14px)/2)]" />
-        <span className={cn(setting === undefined && 'invisible')} aria-hidden={setting === undefined || undefined}>
-          {approvalsNote(setting === true)}
-        </span>
-      </p>
+      {unknown ? null : (
+        <p
+          className="flex items-start gap-2 border-t border-line bg-sunken px-5 py-3.5 text-xs leading-relaxed text-muted-foreground"
+          data-testid="approvals-note"
+        >
+          <Icon name="info" size={14} className="mt-[calc((1lh-14px)/2)]" />
+          <span className={cn(hidden && 'invisible')} aria-hidden={hidden || undefined}>
+            {approvalsNote(setting === true)}
+          </span>
+        </p>
+      )}
     </Card>
   )
 }

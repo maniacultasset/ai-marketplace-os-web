@@ -195,6 +195,7 @@ export function useSaveContent(listingId: string) {
     onSuccess: (next) => {
       qc.setQueryData(keys.listings.detail(listingId), next)
       void qc.invalidateQueries({ queryKey: keys.listings.history(listingId) })
+      void qc.invalidateQueries({ queryKey: keys.listings.versions(listingId) })
       void qc.invalidateQueries({ queryKey: keys.listings.preview(listingId) })
       void qc.invalidateQueries({ queryKey: keys.listings.lists() })
       void qc.invalidateQueries({ queryKey: keys.issues.all() })
