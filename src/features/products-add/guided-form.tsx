@@ -63,7 +63,7 @@ import { ATTRIBUTE_KEY_SUGGESTIONS, ATTRIBUTE_TEXT_MAX, SKU_PATTERN, TITLE_MAX }
 import { categoryLabel } from '@/features/products/categories'
 import { useCategorySuggestEnabled, useLampsEnabled } from '@/features/assist/flags'
 import { CategorySelect } from '@/features/products/category-select'
-import { mappingText, useCatalogCategories } from '@/features/products/catalog-categories'
+import { mappingText, unmappedText, useCatalogCategories } from '@/features/products/catalog-categories'
 import { invalidateListingWork } from '@/features/listings/api'
 import { tenantName, useMe, useSession } from '@/lib/auth'
 import { AudienceSelect, BrandField } from '@/features/products/audience-fields'
@@ -399,7 +399,9 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
     Date.parse(conflict.created_at) >= lostCreateAt - 5_000
 
   // Client feedback 11 Nov: what each ticked marketplace is sent for the chosen category.
-  const categoryMapping = values.category.trim() ? mappingText(catalogItems?.find((c) => c.category === values.category.trim()), listOn) : null
+  const catalogItem = values.category.trim() ? catalogItems?.find((c) => c.category === values.category.trim()) : undefined
+  const categoryMapping = catalogItem ? mappingText(catalogItem, listOn) : null
+  const categoryUnmapped = catalogItem ? unmappedText(catalogItem, listOn) : null
 
   // SI12: what the ticked marketplaces need for this category, while it is empty.
   const requirements = useRequirements(values.category)
@@ -510,7 +512,9 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
     setPhase({ kind: 'saving' })
     // Client feedback 11 Nov: a SKU already in the brand is caught here, before the create
     // answers 409. A slow or failed check never blocks the save (the create still refuses it).
-    const taken = await skuTaken(values.sku.trim())
+    // After a create that got no answer the check is skipped: the product holding the SKU may be
+    // that create's, and only the create's 409 path offers "Continue with it".
+    const taken = lostCreateAt === null ? await skuTaken(values.sku.trim()) : null
     if (taken) {
       setPhase(null)
       setServerErrors((e) => ({ ...e, sku: takenMessage(values.sku.trim(), taken) }))
@@ -765,6 +769,11 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               {categoryMapping ? (
                 <p className="text-caption text-ink-2" data-testid="g-category-mapping">
                   {categoryMapping}
+                </p>
+              ) : null}
+              {categoryUnmapped ? (
+                <p className="text-caption text-attention-ink" data-testid="g-category-unmapped">
+                  {categoryUnmapped}
                 </p>
               ) : null}
               {suggestOn && !values.kuinnSuggests ? (

@@ -82,6 +82,31 @@ describe('CategorySuggest (client feedback 11 Nov)', () => {
     await waitFor(() => expect(screen.getByText(/isn’t sure/)).toBeTruthy())
   })
 
+  it('shows an answer the ask already holds (the same draft asked again) without a read', async () => {
+    post.mockReturnValue(answer(SUGGESTED))
+    setup()
+    await userEvent.click(screen.getByTestId('category-suggest-ask'))
+    expect(await screen.findAllByTestId('category-suggest-chip')).toHaveLength(2)
+    expect(get).not.toHaveBeenCalled()
+  })
+
+  it.each([404, 500])('says so and stops reading when the read answers %i', async (status) => {
+    post.mockReturnValue(answer({ suggestion_id: 's1', status: 'queued', candidates: [] }, 202))
+    get.mockReturnValue(answer({ error: { type: 'NOT_FOUND', message: 'x' } }, status))
+    setup()
+    await userEvent.click(screen.getByTestId('category-suggest-ask'))
+    expect(await screen.findByText(/couldn’t load the suggestion/, undefined, { timeout: 4000 })).toBeTruthy()
+    expect(screen.getByTestId('category-suggest').getAttribute('data-view')).toBe('failed')
+    expect(screen.queryByText(/is reading the name/)).toBeNull()
+    const calls = get.mock.calls.length
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(get.mock.calls.length).toBe(calls)
+    // a new press reads again
+    get.mockReturnValue(answer(SUGGESTED))
+    await userEvent.click(screen.getByTestId('category-suggest-ask'))
+    expect(await screen.findAllByTestId('category-suggest-chip')).toHaveLength(2)
+  })
+
   it('shows the chosen chip as chosen', async () => {
     post.mockReturnValue(answer({ suggestion_id: 's1', status: 'queued', candidates: [] }, 202))
     get.mockReturnValue(answer(SUGGESTED))

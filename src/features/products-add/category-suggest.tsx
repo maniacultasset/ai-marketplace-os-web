@@ -39,30 +39,40 @@ export function CategorySuggest({
   const [asking, setAsking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [timedOut, setTimedOut] = useState(false)
+  // Each press reads afresh: an unchanged draft answers the same id, and its failed read must not stick.
+  const [round, setRound] = useState(0)
 
   const read = useQuery({
-    queryKey: [...keys.all(), 'catalog', 'category-suggestion', id] as const,
+    queryKey: [...keys.all(), 'catalog', 'category-suggestion', id, round] as const,
     queryFn: () => unwrap(api.GET('/catalog/category-suggestions/{suggestion_id}', { params: { path: { suggestion_id: id! } } })),
     enabled: !!id && !timedOut,
-    refetchInterval: (q) => (q.state.data?.status === 'queued' || !q.state.data ? DRAFT_POLL_MS : false),
+    // A read that fails stops the polling: the view says so instead of waiting out the timeout.
+    refetchInterval: (q) => (q.state.status === 'error' ? false : q.state.data?.status === 'queued' || !q.state.data ? DRAFT_POLL_MS : false),
     retry: 1,
   })
   const answer = id ? (read.data ?? first) : first
-  const view = timedOut && answer?.status === 'queued' ? ({ kind: 'failed', message: 'This is taking longer than usual. Choose the category, or try again.' } as const) : draftView(answer, asking)
+  const readFailed = !!id && read.isError && !asking
+  const view = readFailed
+    ? ({ kind: 'failed', message: 'Kuinn couldn’t load the suggestion. Choose the category, or try again.' } as const)
+    : timedOut && answer?.status === 'queued'
+      ? ({ kind: 'failed', message: 'This is taking longer than usual. Choose the category, or try again.' } as const)
+      : draftView(answer, asking)
 
   useEffect(() => {
-    if (!id || answer?.status !== 'queued') return
+    if (!id || readFailed || answer?.status !== 'queued') return
     const t = setTimeout(() => setTimedOut(true), DRAFT_WAIT_MS)
     return () => clearTimeout(t)
-  }, [id, answer?.status])
+  }, [id, readFailed, answer?.status])
 
   const noName = !draft.title.trim()
   const ask = async () => {
     setError(null)
     setTimedOut(false)
     setAsking(true)
+    setRound((n) => n + 1)
     try {
-      // A new key per press: the seller may have changed the name since the last ask.
+      // A new key per press: the seller may have changed the name since the last ask. The backend
+      // answers an unchanged draft with its earlier suggestion, so a repeat press costs nothing.
       const out = await unwrap(api.POST('/catalog/category-suggestions', { params: { header: idempotencyHeader(newIdempotencyKey()) }, body: draft }))
       setFirst(out)
       setId(out.status === 'queued' ? (out.suggestion_id ?? null) : null)

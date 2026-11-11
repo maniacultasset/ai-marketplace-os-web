@@ -73,4 +73,11 @@ export function unmappedOn(item: CatalogCategory | null | undefined, listOn: rea
   return ORDER.filter((m) => listOn.includes(m) && !(item.marketplaces ?? []).some((x) => x.marketplace === m))
 }
 
+/** "Flipkart can’t list this category yet." for the ticked marketplaces with no template; null when every one maps (pure). */
+export function unmappedText(item: CatalogCategory | null | undefined, listOn: readonly Marketplace[]): string | null {
+  const missing = unmappedOn(item, listOn)
+  if (!missing.length) return null
+  return `${missing.map((m) => NAME[m]).join(' and ')} can’t list this category yet.`
+}
+
 export const marketplaceName = (m: Marketplace) => NAME[m]

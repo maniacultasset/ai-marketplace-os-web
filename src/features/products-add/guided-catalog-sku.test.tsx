@@ -101,4 +101,49 @@ describe('Guided form: backend categories and the SKU check (client feedback 11 
     await waitFor(() => expect(screen.getAllByText('KS-1 is already used by “Old kurta”. Use another, or let Kuinn make one.').length).toBeGreaterThan(0))
     expect(post.mock.calls.some(([p]) => p === '/products')).toBe(false)
   })
+
+  it('names a ticked marketplace that has no template for the category', async () => {
+    const amazonOnly = { ...CATALOG, items: [{ ...CATALOG.items[0]!, marketplaces: [CATALOG.items[0]!.marketplaces[0]!] }] }
+    get.mockImplementation((path: string) => (path === '/catalog/categories' ? answer(amazonOnly) : never()))
+    draft({ title: 'Cotton kurta set', sku: 'KS-1', category: 'ethnic_wear_kurta_sets' })
+    setup('category')
+    expect((await screen.findByTestId('g-category-mapping')).textContent).toBe('On Amazon: Kurta (KURTA)')
+    expect(screen.getByTestId('g-category-unmapped').textContent).toBe('Flipkart can’t list this category yet.')
+  })
+
+  it('after a create that got no answer, the taken SKU offers "Continue with it"', async () => {
+    const mine = {
+      id: 'p1',
+      sku: 'KS-1',
+      title: 'Cotton kurta set',
+      category: 'ethnic_wear_kurta_sets',
+      created_at: new Date().toISOString(),
+      image_details: [],
+    }
+    let made = false
+    get.mockImplementation((path: string) => {
+      if (path === '/catalog/categories') return answer(CATALOG)
+      if (path === '/products') return answer({ data: made ? [mine] : [], page: { has_more: false, next_cursor: null } })
+      // the check sees the product the first try made
+      if (path === '/skus/availability') return answer({ sku: 'KS-1', available: !made, product_id: made ? 'p1' : null, title: made ? mine.title : null, is_variant: false, deleted: false })
+      return never()
+    })
+    post.mockImplementation((path: string) => {
+      if (path !== '/products') return never()
+      if (!made) {
+        made = true // it went through, but the answer is lost
+        return Promise.reject(new TypeError('Failed to fetch'))
+      }
+      const body = { error: { type: 'SKU_CONFLICT', status: 409, message: 'SKU taken', details: [{ loc: ['body', 'sku'], msg: 'taken', type: 'conflict' }] } }
+      return Promise.resolve({ data: undefined, error: body, response: new Response(JSON.stringify(body), { status: 409 }) })
+    })
+    draft({ title: 'Cotton kurta set', sku: 'KS-1', category: 'ethnic_wear_kurta_sets' })
+    setup('category')
+    await screen.findByTestId('g-category-mapping')
+    await userEvent.click(screen.getByTestId('guided-send'))
+    await waitFor(() => expect(post.mock.calls.filter(([p]) => p === '/products')).toHaveLength(1))
+    await userEvent.click(screen.getByTestId('guided-send'))
+    await waitFor(() => expect(post.mock.calls.filter(([p]) => p === '/products')).toHaveLength(2))
+    expect(await screen.findByText('Continue with it')).toBeTruthy()
+  })
 })

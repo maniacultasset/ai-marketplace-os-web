@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { catalogChoices, mappingText, typeText, unmappedOn, type CatalogCategory } from './catalog-categories'
+import { catalogChoices, mappingText, typeText, unmappedOn, unmappedText, type CatalogCategory } from './catalog-categories'
 
 const m = (marketplace: 'amazon' | 'flipkart', product_type: string, product_type_name: string) => ({
   marketplace,
@@ -34,6 +34,10 @@ describe('category picker mapping (client feedback 11 Nov)', () => {
     expect(mappingText(LAMPS, ['flipkart'])).toBeNull()
     expect(mappingText(undefined, ['amazon'])).toBeNull()
     expect(unmappedOn(LAMPS, ['amazon', 'flipkart'])).toEqual(['flipkart'])
+    expect(unmappedText(LAMPS, ['amazon', 'flipkart'])).toBe('Flipkart can’t list this category yet.')
+    expect(unmappedText(KURTA, ['amazon', 'flipkart'])).toBeNull()
+    expect(unmappedText(LAMPS, [])).toBeNull()
+    expect(unmappedText(undefined, ['flipkart'])).toBeNull()
   })
 
   it('names a code only when it says more than the name', () => {
