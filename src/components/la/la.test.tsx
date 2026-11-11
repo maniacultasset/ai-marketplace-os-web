@@ -4,6 +4,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { formatConfidence, sourceLabel } from './source-badge'
 import { CHIP_META, StatusChip } from './status-chip'
 import { Stepper } from './progress'
+import { LaField } from './field'
 
 describe('status chip', () => {
   it('pairs every status with a glyph and a word', () => {
@@ -53,5 +54,39 @@ describe('stepper', () => {
     expect(items[1]!.textContent).toContain('(not done yet)')
     expect(items[1]!.textContent).toContain('2')
     expect(items[2]!.getAttribute('aria-current')).toBe('step')
+  })
+})
+
+describe('field required mark', () => {
+  it('shows a quiet "Required" beside the label from the start, and keeps the accessible name the label', () => {
+    const { container } = render(
+      <LaField label="SKU" htmlFor="sku" hint="Unique in this brand." required>
+        <input id="sku" aria-describedby="sku-hint" />
+      </LaField>,
+    )
+    const mark = container.querySelector('[data-slot="field-required"]')!
+    expect(mark.textContent).toBe('Required')
+    expect(mark.getAttribute('aria-hidden')).toBe('true')
+    // Never red: the mark is ink-3, not danger, and nothing is an error yet.
+    expect(mark.className).toContain('text-ink-3')
+    expect(mark.className).not.toContain('danger')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('textbox', { name: 'SKU' })).toBeTruthy()
+    expect(document.getElementById('sku-hint')!.textContent).toMatch(/^Required\.Unique in this brand\./)
+  })
+
+  it('takes other words, and shows nothing when not required', () => {
+    const { container, rerender } = render(
+      <LaField label="Barcode" htmlFor="b" required="Needed for Amazon">
+        <input id="b" />
+      </LaField>,
+    )
+    expect(container.querySelector('[data-slot="field-required"]')!.textContent).toBe('Needed for Amazon')
+    rerender(
+      <LaField label="Barcode" htmlFor="b">
+        <input id="b" />
+      </LaField>,
+    )
+    expect(container.querySelector('[data-slot="field-required"]')).toBeNull()
   })
 })

@@ -17,6 +17,7 @@ const PUBLIC_PATHS: ReadonlySet<string> = new Set([
   '/auth/logout',
   '/signup',
   '/signup/status',
+  '/signup/status/poll',
   '/auth/login/mfa',
   '/auth/login/mfa/enroll',
   '/auth/login/mfa/confirm',

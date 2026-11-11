@@ -23,6 +23,7 @@ describe('STEP_UP_OPS', () => {
         'POST /marketplaces/accounts/{account_id}/revoke',
         'PATCH /members/{user_id}',
         'POST /invites',
+        'PATCH /tenants/me',
         'POST /members/{user_id}/password-reset',
         'POST /auth/mfa/totp/enroll',
         'POST /auth/mfa/totp/confirm',
@@ -41,6 +42,8 @@ describe('STEP_UP_OPS', () => {
     expect(stepUpModeFor('post', '/admin/signup-requests/abc/approve')).toBe('any')
     expect(stepUpModeFor('POST', '/admin/signup-requests/abc/reject')).toBe('any')
     expect(stepUpModeFor('PATCH', '/members/u1')).toBe('any')
+    // Owner approval (ADR-0031): a recovery code is enough, as for a team change.
+    expect(stepUpModeFor('PATCH', '/tenants/me')).toBe('any')
     expect(stepUpModeFor('POST', '/marketplaces/connect')).toBe('any')
     expect(stepUpModeFor('POST', '/auth/mfa/recovery-codes')).toBe('any')
     // Unknown ops (a future step-up route) still get a dialog.

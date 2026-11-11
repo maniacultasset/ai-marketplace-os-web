@@ -8,7 +8,7 @@ afterEach(cleanup)
 
 let last: BarcodeDraft = emptyBarcode()
 
-function Harness({ level, initial = emptyBarcode(), error }: { level?: BarcodeLevel; initial?: BarcodeDraft; error?: string }) {
+function Harness({ level, initial = emptyBarcode(), error, amazon, needed }: { level?: BarcodeLevel; initial?: BarcodeDraft; error?: string; amazon?: boolean; needed?: string }) {
   const [v, setV] = useState(initial)
   return (
     <BarcodeField
@@ -16,6 +16,8 @@ function Harness({ level, initial = emptyBarcode(), error }: { level?: BarcodeLe
       level={level}
       value={v}
       error={error}
+      amazon={amazon}
+      needed={needed}
       onChange={(next) => {
         last = next
         setV(next)
@@ -32,24 +34,57 @@ describe('BarcodeField', () => {
     expect(screen.getByLabelText('Barcode type').textContent).toContain('EAN')
     fireEvent.change(input, { target: { value: '4006381333931' } })
     expect(last).toEqual({ type: 'ean', value: '4006381333931', exempt: false })
-    expect(screen.getByText(/Amazon needs one unless your brand has a GTIN exemption/)).toBeTruthy()
+    expect(screen.getByText('GTIN-8, 12, 13 or 14: an EAN, UPC or GTIN from the pack.')).toBeTruthy()
   })
 
-  it('hides the digits when marked exempt, and says when that is allowed', () => {
-    render(<Harness initial={{ type: 'ean', value: '4006381333931', exempt: false }} />)
-    fireEvent.click(screen.getByRole('switch'))
+  it('offers "Has a barcode" or the exemption as two explicit options', () => {
+    render(<Harness amazon initial={{ type: 'ean', value: '4006381333931', exempt: false }} />)
+    expect(screen.getByRole('radiogroup', { name: 'Barcode' })).toBeTruthy()
+    const has = screen.getByRole('radio', { name: 'Has a barcode' }) as HTMLInputElement
+    expect(has.checked).toBe(true)
+    fireEvent.click(screen.getByRole('radio', { name: 'No barcode: my brand has an Amazon GTIN exemption' }))
     expect(last.exempt).toBe(true)
     expect(screen.queryByLabelText('Barcode type')).toBeNull()
     expect(screen.queryByRole('textbox')).toBeNull()
-    expect(screen.getByText(/Only if Amazon approved a GTIN exemption/)).toBeTruthy()
+    expect(screen.getByText('Amazon approves GTIN exemptions per brand and category. Choose this only if yours is approved.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('radio', { name: 'Has a barcode' }))
+    expect(last.exempt).toBe(false)
+    expect(screen.getByRole('textbox')).toBeTruthy()
   })
 
-  it('on a style shows only the exemption, which applies to its variants', () => {
-    render(<Harness level="style" />)
+  it('with Amazon chosen: "Needed for Amazon" beside the label, calm (no attention, no error), and no second chip', () => {
+    const { container } = render(<Harness amazon needed="Amazon needs this" />)
+    expect(container.querySelector('[data-slot="field-required"]')?.textContent).toBe('Needed for Amazon')
+    expect(container.querySelector('[data-needs-input]')).toBeNull()
+    expect(screen.queryByText('Amazon needs this')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByText(/Amazon needs one to create the listing/)).toBeTruthy()
+    // Screen readers hear it in the description, the name stays "Barcode".
+    const input = screen.getByRole('textbox', { name: 'Barcode' })
+    expect(document.getElementById(input.getAttribute('aria-describedby')!)!.textContent).toMatch(/^Needed for Amazon\./)
+  })
+
+  it('without Amazon: no mark, and the SI12 chip still says who needs it', () => {
+    const { container } = render(<Harness needed="Flipkart needs this" />)
+    expect(container.querySelector('[data-slot="field-required"]')).toBeNull()
+    expect(screen.getByText('Flipkart needs this')).toBeTruthy()
+  })
+
+  it('without Amazon says nothing about Amazon: plain formats and a plain "No barcode"', () => {
+    const { container } = render(<Harness />)
+    expect(container.textContent).not.toMatch(/Amazon/)
+    fireEvent.click(screen.getByRole('radio', { name: 'No barcode' }))
+    expect(last.exempt).toBe(true)
+    expect(screen.getByText('Saved without a barcode.')).toBeTruthy()
+    expect(container.textContent).not.toMatch(/Amazon/)
+  })
+
+  it('on a style shows only the exemption choice, which applies to its variants', () => {
+    render(<Harness level="style" amazon />)
     expect(screen.queryByRole('textbox')).toBeNull()
-    expect(screen.getByText('No barcodes (exempt)')).toBeTruthy()
+    expect(screen.getByRole('radio', { name: 'Variants have barcodes' })).toBeTruthy()
     expect(screen.getByText(/Each variant has its own barcode/)).toBeTruthy()
-    fireEvent.click(screen.getByRole('switch'))
+    fireEvent.click(screen.getByRole('radio', { name: 'No barcodes: my brand has an Amazon GTIN exemption' }))
     expect(screen.getByText(/Every variant without a barcode is marked exempt/)).toBeTruthy()
     // A change on a style is always sent, even when it matches what was read.
     expect(last.touched).toBe(true)

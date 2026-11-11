@@ -2,9 +2,10 @@
  * /signup (hi-fi 01 Sign up). Column 1a creates the request with POST /signup
  * (routers/signup.py signup_create → 202 SignupAccepted). Column 1b shows "What best describes you?"
  * as an honest disabled group (SignupCreate is strict and has no such field) and, in place of the
- * 6-digit email code (there is no email provider), the pending-approval state read from
- * POST /signup/status (routers/signup.py signup_status) with the credentials just typed, kept in
- * memory only. "Sign up with Google" sits above the form when the backend has it switched on; that
+ * 6-digit email code (there is no email provider), the pending-approval state. It polls
+ * POST /signup/status/poll with the answer's status handle (kept in localStorage, never in a URL)
+ * and updates by itself; when that handle names nothing (an email that already had an account),
+ * it reads POST /signup/status once with the credentials just typed, kept in memory only. "Sign up with Google" sits above the form when the backend has it switched on; that
  * path finishes on /auth/google with a prefilled form.
  */
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -36,6 +37,7 @@ import {
   type SignupStatusBody,
   WEBSITE_MAX,
 } from '@/features/signup-admin/schema'
+import { clearStatusHandle, saveStatusHandle } from '@/features/signup-admin/status-handle'
 import { TimeAgo } from '@/features/signup-admin/time'
 import { useCountdown } from '@/features/signup-admin/use-countdown'
 import { useGoogleEnabled } from '@/features/google/api'
@@ -45,7 +47,9 @@ import { filterInput, FORM_VALIDATION_MODE, phoneChars } from '@/lib/validation'
 import { AsideLink, AuthColumn, AuthFrame, FormAlert } from './auth-frame'
 import { RecoveryHint } from './recovery-hint'
 import { signupChip } from './model'
+import { COMPANY } from './company'
 import { useDocumentTitle } from './use-document-title'
+import { pollErrorMessage, pollErrorRef, useWaitingStatus, waitingCopy } from './waiting'
 
 const FIELDS = ['brand_name', 'owner_name', 'email', 'phone', 'website', 'password'] as const
 
@@ -54,8 +58,8 @@ export function SignupPage({ initialEmail }: { initialEmail?: string }) {
   const create = useCreateSignup()
   const countdown = useCountdown()
   const [formError, setFormError] = useState<{ message: string; ref: string | null } | null>(null)
-  /** Sent credentials, in memory only, so the status card can ask POST /signup/status. */
-  const [sent, setSent] = useState<(SignupStatusBody & { brand: string }) | null>(null)
+  /** Sent credentials, in memory only (the status card's fallback), and the status handle. */
+  const [sent, setSent] = useState<(SignupStatusBody & { brand: string; handle: string | null; remembered: boolean }) | null>(null)
   // With Google on, its button comes first: no autofocus on Brand name (or on any touch device).
   const googleShown = useGoogleEnabled()
 
@@ -70,8 +74,10 @@ export function SignupPage({ initialEmail }: { initialEmail?: string }) {
     setFormError(null)
     const body = toSignupBody(values)
     try {
-      await create.mutateAsync(body)
-      setSent({ email: body.email, password: body.password, brand: body.brand_name })
+      const out = await create.mutateAsync(body)
+      const handle = out.status_handle ?? null
+      const remembered = handle ? saveStatusHandle({ handle, via: 'password', returnTo: null }) : false
+      setSent({ email: body.email, password: body.password, brand: body.brand_name, handle, remembered })
     } catch (e) {
       const wait = retryAfterSeconds(e)
       if (wait) countdown.start(wait)
@@ -250,7 +256,7 @@ export function SignupPage({ initialEmail }: { initialEmail?: string }) {
           )}
         </AuthColumn>
         <AuthColumn tone="canvas">
-          {sent ? <LiveStatus creds={sent} /> : <HowAccessWorks />}
+          {sent ? <LiveStatus creds={sent} handle={sent.handle} remembered={sent.remembered} /> : <HowAccessWorks />}
         </AuthColumn>
       </div>
     </AuthFrame>
@@ -300,8 +306,7 @@ function SentSummary({ email, brand }: { email: string; brand: string }) {
           Request sent
         </h1>
         <p className="mt-2 text-body text-ink-2">
-          A person reviews every request before the workspace opens. Your status is on the right, and you can check it again
-          any time.
+          A person reviews every request before the workspace opens. Your status is on the right and updates by itself.
         </p>
       </div>
       <dl className="divide-y divide-line rounded-card border border-line bg-sunken text-body">
@@ -333,29 +338,45 @@ function SentSummary({ email, brand }: { email: string; brand: string }) {
   )
 }
 
-/** POST /signup/status with the in-memory credentials: read once on mount, then on request. */
-function LiveStatus({ creds }: { creds: SignupStatusBody }) {
+/**
+ * The request's live status: polled with the status handle (15 s, visible tab only, stops once
+ * decided). With no handle, or one that names nothing (404), POST /signup/status is read once with
+ * the in-memory credentials, then on request; a pending answer there hands a fresh handle to poll.
+ */
+function LiveStatus({ creds, handle: sentHandle, remembered }: { creds: SignupStatusBody; handle: string | null; remembered: boolean }) {
   const check = useCheckSignupStatus()
-  const [result, setResult] = useState<SignupStatusOut | null>(null)
+  const [handle, setHandle] = useState(sentHandle)
+  const [kept, setKept] = useState(remembered)
+  const waiting = useWaitingStatus(handle, null)
+  const [checked, setChecked] = useState<SignupStatusOut | null>(null)
   const [error, setError] = useState<{ message: string; ref: string | null } | null>(null)
-  const started = useRef(false)
+  const fellBack = useRef(false)
+  const manual = !handle || waiting.gone
 
   const run = async () => {
     setError(null)
     try {
-      setResult(await check.mutateAsync({ email: creds.email, password: creds.password }))
+      const out = await check.mutateAsync({ email: creds.email, password: creds.password })
+      setChecked(out)
+      if (out.status === 'pending' && out.status_handle) {
+        setKept(saveStatusHandle({ handle: out.status_handle, via: 'password', returnTo: null }))
+        setHandle(out.status_handle)
+      }
     } catch (e) {
       setError({ message: isApiError(e) ? statusCheckError(e) : describeError(e), ref: isApiError(e) ? e.correlationId : null })
     }
   }
 
   useEffect(() => {
-    if (started.current) return
-    started.current = true
+    if (!manual || fellBack.current) return
+    fellBack.current = true
     void run()
-    // run once for the credentials just sent
+    // once, when the handle is missing or names nothing
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [manual])
+
+  const result = (manual ? null : waiting.view) ?? checked
+  const busy = manual ? check.isPending : waiting.loading
 
   return (
     <LaCard pad="sm" className="mt-2" data-testid="signup-live-status">
@@ -374,21 +395,21 @@ function LiveStatus({ creds }: { creds: SignupStatusBody }) {
         ) : null}
       </div>
       <div aria-live="polite" className="mt-3">
-        {check.isPending && !result ? (
+        {busy && !result ? (
           <div className="flex flex-col gap-2" aria-label="Checking status…">
             <Skeleton className="h-4 w-2/3" />
             <Skeleton className="h-4 w-1/2" />
           </div>
         ) : error ? (
           <FormAlert message={error.message} reference={error.ref} />
+        ) : !manual && !result && waiting.error ? (
+          <FormAlert testId="signup-live-error" message={pollErrorMessage(waiting.error)} reference={pollErrorRef(waiting.error)} />
         ) : result ? (
           <div className="flex flex-col gap-1 text-small text-ink-2">
             <p>
-              {result.status === 'pending'
+              {result.status === 'pending' && manual
                 ? 'Waiting for a person to review it. Nothing else is needed from you yet.'
-                : result.status === 'approved'
-                  ? 'Approved. Sign in with the email and password you just used.'
-                  : 'Not approved.'}
+                : waitingCopy(result.status, 'password', kept)}
             </p>
             {result.status === 'rejected' && result.reason ? (
               <p className="rounded-control border border-danger-line bg-danger-bg px-3 py-2 break-words whitespace-pre-wrap text-danger-ink">
@@ -404,8 +425,21 @@ function LiveStatus({ creds }: { creds: SignupStatusBody }) {
       <div className="mt-4 flex gap-2">
         {result?.status === 'approved' ? (
           <Button asChild size="sm">
-            <Link to="/login">Sign in</Link>
+            <Link to="/login" onClick={clearStatusHandle} data-testid="signup-live-continue">
+              Continue to your workspace
+            </Link>
           </Button>
+        ) : result?.status === 'rejected' ? (
+          <Button asChild size="sm" variant="secondary">
+            <a href={`mailto:${COMPANY.email}`}>Contact support</a>
+          </Button>
+        ) : !manual ? (
+          waiting.error && !result ? (
+            <Button size="sm" variant="secondary" onClick={waiting.refetch} disabled={waiting.retrying} data-testid="signup-live-refresh">
+              {waiting.retrying ? <Spinner data-icon="inline-start" /> : <Icon name="refresh" size={14} />}
+              {waiting.retrying ? 'Checking…' : 'Check again'}
+            </Button>
+          ) : null
         ) : (
           <Button size="sm" variant="secondary" onClick={() => void run()} disabled={check.isPending} data-testid="signup-live-refresh">
             {check.isPending ? <Spinner data-icon="inline-start" /> : <Icon name="refresh" size={14} />}

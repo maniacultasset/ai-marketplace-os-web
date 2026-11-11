@@ -8,6 +8,10 @@
  *   <Input id="brand" aria-invalid={!!errors.brand} aria-describedby={fieldHintId('brand')} … />
  * </LaField>
  *
+ * `required` puts a quiet "Required" word beside the label from the first visit (pass a string for
+ * other words, e.g. "Needed for Amazon"). It is a mark, never an error: empty required fields still
+ * turn red only once a save is tried (the caller decides when to pass `error`).
+ *
  * Motion (all off under prefers-reduced-motion):
  * - The error line opens with a height + opacity reveal (grid rows 0fr → 1fr, --ease-spring) and
  *   cross-fades with the hint; it fades out with its text when fixed.
@@ -51,7 +55,8 @@ export function LaField({
   hint?: ReactNode
   error?: ReactNode
   source?: Source
-  required?: boolean
+  /** Shows a quiet "Required" mark beside the label; a string replaces the word. */
+  required?: boolean | string
   /** Critical fact (star mark): never filled by the agent. */
   critical?: boolean
   /** Attention state ("Needed"): the value is missing and blocks a listing. */
@@ -118,6 +123,7 @@ export function LaField({
     )
   }, [submitCount, hasError, error])
 
+  const requiredText = required === true ? 'Required' : required || null
   const errorVisible = hasError || shownError !== null
   const lineOpen = Boolean(hasError || hint || source || hintAction || needsInput || fixed)
   // Clip only while the line is closed or moving, so a focus ring on `hintAction` is never cut.
@@ -144,7 +150,7 @@ export function LaField({
         ) : null}
         {label}
         {critical ? <span className="sr-only"> (critical fact)</span> : null}
-        {required ? <span className="sr-only"> (required)</span> : null}
+        {requiredText ? <RequiredMark text={requiredText} /> : null}
       </label>
       <div
         ref={controlRef}
@@ -158,6 +164,8 @@ export function LaField({
       <div className="field-reveal" data-open={lineOpen ? true : undefined} data-settled={lineOpen && settled ? true : undefined}>
         <div className="min-h-0">
           <div id={hintId} className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1.5 text-caption font-normal">
+            {/* The mark is read here, in the control's description, so its accessible name stays the label. */}
+            {requiredText ? <span className="sr-only">{requiredText}.</span> : null}
             {source ? <SourceBadge source={source} /> : null}
             {needsInput && !source ? <SourceBadge source={{ kind: 'needed' }} /> : null}
             {errorVisible || hint || fixed ? (
@@ -195,6 +203,15 @@ export function LaField({
         </div>
       </div>
     </div>
+  )
+}
+
+/** The quiet word beside a required field's label: ink-3 caption, never red, never an asterisk. */
+export function RequiredMark({ text = 'Required', className }: { text?: string; className?: string }) {
+  return (
+    <span aria-hidden data-slot="field-required" className={cn('ml-2 text-caption font-normal whitespace-nowrap text-ink-3', className)}>
+      {text}
+    </span>
   )
 }
 

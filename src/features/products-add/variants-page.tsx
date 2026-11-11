@@ -16,7 +16,7 @@ import { api, unwrap } from '@/api/client'
 import { describeError, isApiError } from '@/api/errors'
 import { idempotencyHeader, newIdempotencyKey, useIntentKey } from '@/api/idempotency'
 import { Page, PageHeader } from '@/components/app/page-header'
-import { Banner, CardHead, DashedCard, fieldHintId, FooterBar, Icon, IconTile, LaCard, LaField, StatusChip, VariantCell } from '@/components/la'
+import { Banner, CardHead, DashedCard, fieldHintId, FooterBar, Icon, IconTile, LaCard, LaField, RequiredMark, StatusChip, VariantCell } from '@/components/la'
 import { EmptyState } from '@/components/states/empty-state'
 import { ErrorState } from '@/components/states/error-state'
 import { ReferenceId } from '@/components/states/reference-id'
@@ -25,7 +25,6 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
-import { Switch } from '@/components/ui/switch'
 import { SavedPhoto } from '@/components/la/saved-photo'
 import { useRefreshProductViews, viewsById } from '@/features/products/image-views'
 import { checkImageReadable, imageIdFromKey, marketplaceReports, SLOT_LABEL, validateImageFile, type ImageSlot } from '@/features/analytics-images/images/report'
@@ -34,6 +33,7 @@ import { uploadImage } from '@/features/analytics-images/images/upload'
 import { useImportHistory } from '@/features/imports/history'
 import { markJobLive } from '@/features/imports/use-import-job'
 import { useProduct } from '@/features/products/api'
+import { BARCODE_FORMATS, BarcodeChoice, EXEMPT_EXPLAINER } from '@/features/products/barcode-field'
 import { formatMoney } from '@/features/products/intake-model'
 import { SKU_MAX } from '@/features/products/schema'
 import { useCapability } from '@/hooks/use-capabilities'
@@ -42,7 +42,7 @@ import { cn } from '@/lib/utils'
 import { decimal, digitsOnly, filterInput, focusFirstInvalid } from '@/lib/validation'
 import { useAllProducts } from './catalog'
 import type { Marketplace } from './catalog-model'
-import { serializeListOn } from './list-on'
+import { serializeListOn, useConnectedMarketplaces } from './list-on'
 import {
   addTag,
   buildFamilyCsv,
@@ -553,6 +553,10 @@ export function VariantsPage({ productId, listOn = [] }: { productId: string | n
 
 function VariantsEditor({ productId, listOn }: { productId: string; listOn: Marketplace[] }) {
   const on = serializeListOn(listOn)
+  const { connected } = useConnectedMarketplaces()
+  // Amazon is a target when the add flow chose it; opened from the product page (no `?on=`),
+  // when the tenant's Amazon account is connected, as the product page's "Sell on" works it out.
+  const amazon = listOn.length ? listOn.includes('amazon') : !!connected?.includes('amazon')
   const navigate = useNavigate()
   const q = useProduct(productId)
   const all = useAllProducts()
@@ -849,15 +853,29 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
                 ? `Leave MRP or price blank to use the style’s (${[styleMrp ? `${formatMoney(styleMrp)} MRP` : null, stylePrice ? `${formatMoney(stylePrice)} price` : null].filter(Boolean).join(', ')}). Fill a cell only when that variant costs differently.`
                 : 'This style has no price yet. Add one in its details, or fill each variant.'}
             </p>
-            <div className="flex flex-col gap-1 border-t border-line px-4 py-3">
-              <label className="flex min-h-10 items-center gap-2.5 self-start text-small text-ink-2">
-                <Switch checked={s.exempt} onCheckedChange={(exempt) => change({ exempt })} aria-describedby="v-exempt-hint" data-testid="variants-exempt" />
-                No barcodes (exempt)
-              </label>
+            <div className="flex flex-col gap-2 border-t border-line px-4 py-3" data-testid="variants-barcodes">
+              <p className="text-small font-bold text-ink">
+                Barcodes
+                {amazon ? <RequiredMark text="Needed for Amazon" /> : null}
+              </p>
+              <BarcodeChoice
+                id="v-barcode"
+                testId="variants"
+                level="style"
+                label="Barcodes"
+                amazon={amazon}
+                exempt={s.exempt}
+                onChange={(exempt) => change({ exempt })}
+                describedBy="v-exempt-hint"
+              />
               <p id="v-exempt-hint" className="text-caption text-ink-3">
                 {s.exempt
-                  ? 'Variants left blank are marked exempt. Only if Amazon approved a GTIN exemption for your brand.'
-                  : 'Amazon needs a barcode for each variant unless your brand has a GTIN exemption.'}
+                  ? amazon
+                    ? `Variants left blank are marked exempt. ${EXEMPT_EXPLAINER}`
+                    : 'Variants left blank are saved without a barcode.'
+                  : amazon
+                    ? `${BARCODE_FORMATS} Amazon needs one for each variant unless your brand has a GTIN exemption.`
+                    : BARCODE_FORMATS}
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-2.5">

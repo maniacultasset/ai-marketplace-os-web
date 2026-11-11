@@ -17,6 +17,7 @@
  *   POST  /jobs/{id}/cancel                       Idempotency-Key, 200 JobEnvelope
  */
 import { queryOptions, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { api, unwrap } from '@/api/client'
 import { ifMatchHeader, unwrapVersioned, type Versioned } from '@/api/etag'
 import { idempotencyHeader } from '@/api/idempotency'
@@ -24,6 +25,7 @@ import type { JobEnvelope } from '@/api/types'
 import { PAGE_SIZE, useCursorList } from '@/hooks/use-cursor-list'
 import { useKeys, type ListingsFilters, type QueryKeys } from '@/lib/query-keys'
 import {
+  foldSelfApprovals,
   isBusy,
   type ApproveItem,
   type AuditEvent,
@@ -87,9 +89,10 @@ export function useListing(listingId: string, opts: { enabled?: boolean } = {}) 
   return useQuery({ ...listingDetailQuery(keys, listingId), enabled: opts.enabled ?? true })
 }
 
+/** GET /listings/{id}/history, newest first. A self-approval's second event is folded into its approval row. */
 export function useListingHistory(listingId: string, enabled = true) {
   const keys = useKeys()
-  return useCursorList<AuditEvent>({
+  const list = useCursorList<AuditEvent>({
     queryKey: keys.listings.history(listingId),
     enabled,
     keepPrevious: false,
@@ -100,6 +103,8 @@ export function useListingHistory(listingId: string, enabled = true) {
         }),
       ),
   })
+  const rows = useMemo(() => foldSelfApprovals(list.rows), [list.rows])
+  return { ...list, rows }
 }
 
 export function useListingSubmissions(listingId: string, enabled = true) {

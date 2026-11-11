@@ -11,6 +11,6 @@ export const Route = createFileRoute('/_app/products/$productId')({
 
 function ProductDetailRoute() {
   const { productId } = Route.useParams()
-  const { tab } = Route.useSearch()
-  return <ProductDetailPage key={productId} productId={productId} tab={tab ?? 'overview'} />
+  const { tab, edit } = Route.useSearch()
+  return <ProductDetailPage key={productId} productId={productId} tab={tab ?? 'overview'} edit={edit} />
 }

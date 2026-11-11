@@ -110,7 +110,8 @@ function UnitInput({
 }
 
 /**
- * Package size (length × breadth × height, cm) and weight (g), as packed for shipping. Errors keyed
+ * Package size (length × breadth × height, cm) and weight (g): the packed box as shipped, never the
+ * product itself; Amazon needs them for shipping and fees. Errors keyed
  * `package`, `package.length|breadth|height|weight`.
  */
 export function PackageFields({
@@ -148,7 +149,7 @@ export function PackageFields({
         label="Package size"
         htmlFor={`${id}-length`}
         error={sizeError}
-        hint="Length, breadth and height of the packed box, in cm."
+        hint="The packed box as you ship it, not the product itself. Length, breadth and height in cm. Amazon uses it for shipping and fees."
         {...sizeChip}
         submitCount={submitCount}
         confirmFix
@@ -170,7 +171,7 @@ export function PackageFields({
           ))}
         </div>
       </LaField>
-      <LaField label="Package weight" htmlFor={`${id}-weight`} error={weightError} hint="Packed, in grams." {...weightChip} submitCount={submitCount} confirmFix>
+      <LaField label="Package weight" htmlFor={`${id}-weight`} error={weightError} hint="The packed box with the product inside, in grams. Amazon uses it for shipping and fees." {...weightChip} submitCount={submitCount} confirmFix>
         <UnitInput
           id={`${id}-weight`}
           label="Package weight in grams"

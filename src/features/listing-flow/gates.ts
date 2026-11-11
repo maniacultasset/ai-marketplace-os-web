@@ -267,3 +267,19 @@ export function gateCounts(gates: readonly GateResult[]) {
 export function claimFindings(items: readonly ErrorItem[]): ErrorItem[] {
   return items.filter((i) => i.error_code === 'UNSUPPORTED_CLAIM')
 }
+
+const VARIANT_PATH = /^variants\[(.+)\]\./
+
+/**
+ * The Identity gate blocked by a missing barcode (IDENTIFIER_MISSING: Amazon refuses to create a
+ * listing with no barcode and no GTIN exemption, backend adapters/amazon/mapping.py `_identifier`).
+ * `skus`: the variants it names (`variants[SKU].facts.identifier`); empty when it is the product
+ * itself (`facts.identifier`). Null when the gate is not blocked for this reason.
+ */
+export function identifierMissing(gate: Pick<GateResult, 'state' | 'findings'> | undefined): { skus: string[] } | null {
+  if (!gate || gate.state !== 'blocked') return null
+  const hits = gate.findings.filter((f) => f.error_code === 'IDENTIFIER_MISSING' && f.severity === 'error')
+  if (!hits.length) return null
+  const skus = [...new Set(hits.flatMap((f) => VARIANT_PATH.exec(f.field)?.[1] ?? []))]
+  return { skus }
+}

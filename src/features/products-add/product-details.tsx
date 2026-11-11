@@ -525,6 +525,7 @@ function CategoryField({ session, lock, onRetry }: { session: ProductEditSession
       htmlFor="e-category"
       error={errors.category}
       hint={LOCK_HINT[lock]}
+      required={open}
       hintAction={
         lock === 'unknown' && onRetry ? (
           <Button type="button" variant="ghost" size="xs" onClick={onRetry}>
@@ -664,6 +665,7 @@ export function ProductDetailsEditor({
             <TextField
               id="e-title"
               label="Product name"
+              required
               value={d.title}
               onChange={(title) => patch({ title }, 'title')}
               onBlur={() => touch('title')}
@@ -710,6 +712,7 @@ export function ProductDetailsEditor({
               id="e-barcode"
               level={session.isStyle ? 'style' : 'item'}
               needed={need('identifier')}
+              amazon={sellOn.includes('amazon')}
               value={d.barcode}
               onChange={(barcode) => patch({ barcode }, 'barcode')}
               onBlur={() => touch('barcode')}

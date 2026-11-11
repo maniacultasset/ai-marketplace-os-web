@@ -78,7 +78,8 @@ import { ProductDetailsCard, ProductDetailsEditor } from './product-details'
 import { useProductEditSession, type ProductEditSession } from './product-edit-session'
 import { manufacturerSource } from '@/features/products/edit-model'
 import { CategorySuggestionCard } from '@/features/assist/category-suggestion-card'
-import { DETAIL_TABS, type DetailTab } from './detail-tabs'
+import { DETAIL_TABS, type DetailTab, type EditTarget } from './detail-tabs'
+import { useEditAt } from './edit-at'
 import { ProductThumb } from './products-page'
 import { marketplaceLink } from '@/features/listings/external-link'
 import { recategorizeState } from '@/features/products/recategorize'
@@ -271,7 +272,7 @@ interface DetailData {
 
 const NO_LISTINGS: Listing[] = []
 
-export function ProductDetailPage({ productId, tab }: { productId: string; tab: DetailTab }) {
+export function ProductDetailPage({ productId, tab, edit }: { productId: string; tab: DetailTab; edit?: EditTarget }) {
   const q = useProduct(productId)
   const all = useAllProducts()
   const listingsQ = useAllListings({ productId })
@@ -335,14 +336,25 @@ export function ProductDetailPage({ productId, tab }: { productId: string; tab: 
     )
   }
 
-  return <LoadedDetail key={data.product.id} data={data} tab={tab} tabsRef={tabsRef} />
+  return <LoadedDetail key={data.product.id} data={data} tab={tab} edit={edit} tabsRef={tabsRef} />
 }
 
 /**
  * The page once the product is loaded. The product editor's draft lives here, above the tabs,
  * so switching tabs while editing keeps it.
  */
-function LoadedDetail({ data, tab, tabsRef }: { data: DetailData; tab: DetailTab; tabsRef: React.RefObject<HTMLDivElement | null> }) {
+function LoadedDetail({
+  data,
+  tab,
+  edit,
+  tabsRef,
+}: {
+  data: DetailData
+  tab: DetailTab
+  /** Open the editor at this field (`?edit=barcode`), then drop it from the address. */
+  edit?: EditTarget
+  tabsRef: React.RefObject<HTMLDivElement | null>
+}) {
   const navigate = useNavigate()
   const can = useCan()
   const canEdit = can(OP_ACTION['PATCH /products/{product_id}'])
@@ -359,6 +371,8 @@ function LoadedDetail({ data, tab, tabsRef }: { data: DetailData; tab: DetailTab
   const review = data.listingsPending || data.listingsFailed ? undefined : listingsIn(data).find(needsReview)
   const setTab = (t: string) =>
     void navigate({ to: '/products/$productId', params: { productId }, search: t === 'overview' ? {} : { tab: t as DetailTab }, replace: true })
+
+  useEditAt({ edit, ready: !data.variantsPending, canEdit, editing, tab, start: session.start, clear: () => setTab('overview') })
 
   return (
     <Page>
@@ -1380,7 +1394,7 @@ function HistoryList({
               <li key={e.id} className="flex items-start justify-between gap-3 border-b border-line py-2.5 text-small last:border-b-0" data-testid="history-row">
                 <span className="min-w-0 text-ink">
                   <span className="block truncate">
-                    {historyLabel(e.action)}
+                    {historyLabel(e.action, e.review)}
                     <span className="text-ink-2"> · {auditActorLabel(e, me?.user_id)}</span>
                   </span>
                   {reason ? (

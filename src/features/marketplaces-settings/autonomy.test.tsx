@@ -1,7 +1,11 @@
 import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { AutonomySettings } from './autonomy'
+
+// The owner approval card reads the brand; it has its own tests (team-account/owner-approval-setting.test.tsx).
+vi.mock('@/features/team-account/owner-approval-setting', () => ({ OwnerApprovalSetting: () => <div data-testid="owner-approval" /> }))
+
+const { AutonomySettings } = await import('./autonomy')
 
 afterEach(cleanup)
 
@@ -20,5 +24,6 @@ describe('AutonomySettings', () => {
     expect(fixes.textContent).toContain('You approve')
     expect(screen.getByTestId('autonomy-retry').textContent).toContain('3 automatic tries, then the agent stops and asks you.')
     expect(screen.queryAllByRole('switch')).toHaveLength(0)
+    expect(screen.getByTestId('owner-approval')).toBeTruthy()
   })
 })

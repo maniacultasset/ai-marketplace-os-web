@@ -1,4 +1,4 @@
-/** /brand: profile and manufacturer (main column) + documents (aside). Readable by every role; editable with settings:manage. */
+/** /brand: profile, website and manufacturer (main column) + documents (aside). Readable by every role; editable with settings:manage. */
 import { PageColumns } from '@/components/app/page-header'
 import { ErrorState } from '@/components/states/error-state'
 import { Card } from '@/components/ui/card'
@@ -9,6 +9,7 @@ import { useBrandProfile } from './api'
 import { DocumentsPanel } from './documents-panel'
 import { ManufacturerCard } from './manufacturer-card'
 import { ProfileEditor } from './profile-editor'
+import { WebsiteCard } from './website-card'
 
 export function BrandPage() {
   const can = useCan()
@@ -28,6 +29,7 @@ export function BrandPage() {
         ) : (
           <ProfileSkeleton />
         )}
+        <WebsiteCard canEdit={can(OP_ACTION['PATCH /brand-profile'])} />
         <ManufacturerCard canEdit={can(OP_ACTION['PATCH /brand-profile'])} />
       </div>
     </PageColumns>

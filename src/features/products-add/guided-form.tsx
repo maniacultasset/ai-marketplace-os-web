@@ -636,6 +636,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
             <TextField
               id="g-title"
               label="Product name"
+              required
               value={values.title}
               onChange={(title) => set({ title })}
               onBlur={() => touch('title')}
@@ -673,6 +674,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
             <TextField
               id="g-sku"
               label="SKU"
+              required
               value={values.sku}
               onChange={(sku) => set({ sku })}
               onBlur={() => touch('sku')}
@@ -685,6 +687,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
             <BarcodeField
               id="g-barcode"
               needed={need('identifier')}
+              amazon={listOn.includes('amazon')}
               value={values.barcode}
               onChange={(barcode) => set({ barcode })}
               onBlur={() => touch('barcode')}

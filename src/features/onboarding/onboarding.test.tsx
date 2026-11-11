@@ -28,6 +28,7 @@ const tenant = (over: Partial<Tenant> = {}): Tenant => ({
   tone: null,
   guidelines: [],
   glossary: {},
+  owner_self_approval: false,
   ...over,
 })
 

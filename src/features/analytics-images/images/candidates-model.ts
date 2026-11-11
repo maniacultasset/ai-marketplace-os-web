@@ -148,4 +148,60 @@ export function candidatesUnsupported(error: unknown): boolean {
   return isApiError(error) && (error.status === 404 || error.status === 405)
 }
 
-export const ALREADY_IN_USE_COPY = 'Already in use.'
+/** The result already took this place (a create answered `accepted`, or the list says so). */
+export const APPLIED_COPY: Record<CandidateKind, string> = {
+  white_background: "This photo is already on a white background. It's your main photo now.",
+  fix: "This photo is already framed. It's your main photo now.",
+  size_chart: 'This size chart is already your size chart image.',
+}
+
+/**
+ * The newest candidate made from this photo that the seller used, while its image is still a live
+ * main in the product read (the backend's rule for "already applied"). If the seller deleted that
+ * image or made the old photo the main again, the candidate is history only and the fix is offered
+ * again. Until the product read shows the new main, a click is answered "already applied".
+ */
+export function appliedFrom(
+  list: readonly Candidate[] | undefined,
+  sourceId: string | null,
+  isLiveMain: (imageId: string) => boolean,
+): Candidate | undefined {
+  if (sourceId === null) return undefined
+  return (list ?? []).find(
+    (c) =>
+      c.kind !== 'size_chart' &&
+      c.source_image_id === sourceId &&
+      c.status === 'accepted' &&
+      !!c.accepted_image_id &&
+      isLiveMain(c.accepted_image_id),
+  )
+}
+
+/** What one fix control shows. */
+export type FixState = 'available' | 'blocked' | 'starting' | 'working' | 'ready' | 'failed'
+
+/**
+ * One kind's control, in order of truth: this kind's create on its way; its open candidate (queued,
+ * ready for review, failed); another kind working; held by the AI switch or limit; else available.
+ * An applied result hides the controls instead (`CandidateBlock`), so it has no state here.
+ */
+export function fixState(
+  kind: CandidateKind,
+  s: {
+    open: readonly Candidate[]
+    /** The kind whose create is in flight, if any. */
+    starting: CandidateKind | null
+    blocked: boolean
+  },
+): FixState {
+  if (s.starting === kind) return 'starting'
+  const mine = s.open.find((c) => c.kind === kind)
+  if (mine?.status === 'queued') return 'working'
+  if (mine?.status === 'ready') return 'ready'
+  if (s.starting !== null || s.open.some((c) => c.status === 'queued')) return 'working'
+  if (s.blocked) return 'blocked'
+  return mine?.status === 'failed' ? 'failed' : 'available'
+}
+
+/** The button can be pressed: nothing open for this kind, or its last try failed (Retry). */
+export const canStart = (state: FixState) => state === 'available' || state === 'failed'
