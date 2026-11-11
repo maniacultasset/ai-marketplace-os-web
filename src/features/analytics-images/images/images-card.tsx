@@ -18,7 +18,7 @@ import { BUILT } from '@/api/capabilities'
 import { useCapability, useCapabilityProbe } from '@/hooks/use-capabilities'
 import { useJobPolling } from '@/hooks/use-job-polling'
 import { MARKETPLACE_META } from '@/features/marketplaces/meta'
-import { useDeleteImage } from '@/features/products/api'
+import { useDeleteImage, useKeepPhoto } from '@/features/products/api'
 import { useRefreshProductViews } from '@/features/products/image-views'
 import { SavedPhoto } from '@/components/la/saved-photo'
 import { useKeys } from '@/lib/query-keys'
@@ -56,6 +56,8 @@ import { useImageCandidates } from './candidates-api'
 import { aiLimitHit, candidatesUnsupported, keptOriginals, openCandidates, originBadge, type CandidateKind } from './candidates-model'
 import { CandidateBlock, OriginBadges } from './candidate-review'
 import { useCandidateSession } from './candidate-session'
+import { matchTile, openQuestions, type PhotoMatch } from './photo-match'
+import { PhotoMatchNote } from './photo-match-note'
 
 interface ProductLike extends ColourSource {
   id: string
@@ -112,8 +114,9 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
   // Per-colour photos: only a style with colourways offers the choice. A size chart is the style's.
   const groups = colourGroups(product)
   const byColour = (product.colourways ?? []).length > 0
+  // The colour "More photos" files under (each colour's own tiles file under that colour).
   const [colour, setColour] = useState<string>(ALL_COLOURS)
-  const colourFor = (s: ImageSlot) => (byColour && s !== 'size_chart' && colour !== ALL_COLOURS ? colour : null)
+  const colourFor = (s: ImageSlot, picked: string = colour) => (byColour && s !== 'size_chart' && picked !== ALL_COLOURS ? picked : null)
   const colourwayId = colourFor(slot)
 
   // Object URLs live as long as the card.
@@ -132,6 +135,9 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
   const mutation = useMutation({ meta: { toast: false }, mutationFn: uploadImage })
   const del = useDeleteImage(product.id)
   const canDelete = live && can(OP_ACTION['DELETE /images/{image_id}'])
+  // Client feedback item 9: the seller keeps a photo the colour check questioned.
+  const keepPhoto = useKeepPhoto(product.id)
+  const canKeep = live && can(OP_ACTION['POST /images/{image_id}/photo-match/keep'])
   const onDelete = async (imageId: string) => {
     await del.mutateAsync(imageId)
     setUploads((list) => list.filter((u) => !(u.stage.kind === 'accepted' && u.stage.imageId === imageId)))
@@ -153,9 +159,12 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
       })
   }
 
-  const add = (files: File[], rejected: FileRejection[]) => addAs([...files, ...rejected.map((r) => r.file)], slot, null)
-  /** Upload into one slot (and role). Front, Back, Close-up and Size chart take one photo each. */
-  const addAs = (all: File[], toSlot: ImageSlot, role: ImageRole | null) => {
+  const add = (files: File[], rejected: FileRejection[]) => addAs([...files, ...rejected.map((r) => r.file)], slot, null, colourFor(slot))
+  /**
+   * Upload into one slot (and role) for one colour (null: every colour). Front, Back, Close-up and
+   * Size chart take one photo each.
+   */
+  const addAs = (all: File[], toSlot: ImageSlot, role: ImageRole | null, toColour: string | null) => {
     const single = toSlot === 'main' || toSlot === 'size_chart' || !!role
     const take = single ? all.slice(0, 1) : all
     const created = take.map((file): SessionUpload => {
@@ -168,7 +177,7 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         previewUrl,
         slot: toSlot,
         role,
-        colourwayId: colourFor(toSlot),
+        colourwayId: toSlot === 'size_chart' ? null : toColour,
         multipartKey: newIdempotencyKey(),
         stage: problem ? { kind: 'invalid', message: problem } : { kind: 'uploading' },
       }
@@ -182,12 +191,13 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
   // Each image's report, shared with the rows below (same key), so a tile can say "warning".
   const tileReports = useQueries({ queries: (product.image_details ?? []).map((d) => reportQuery(keys, d.image_id, live)) })
   const warnedIds = new Set((product.image_details ?? []).filter((_, i) => hasWarnings(tileReports[i]?.data)).map((d) => d.image_id))
-  const passedTile = (d: { image_id: string }): Pick<TileState, 'status' | 'tone'> =>
-    warnedIds.has(d.image_id) ? { status: 'Check the warning below', tone: 'warn' } : { status: 'Checked', tone: 'ok' }
+  const passedTile = (d: { image_id: string; photo_match?: PhotoMatch | null }): Pick<TileState, 'status' | 'tone'> =>
+    matchTile(d.photo_match) ??
+    (warnedIds.has(d.image_id) ? { status: 'Check the warning below', tone: 'warn' } : { status: 'Checked', tone: 'ok' })
 
-  /** What a tile shows: this visit's upload for it, else the product's image in that place. */
-  const tileState = (def: PhotoSlotDef): TileState => {
-    const cw = colourFor(def.slot)
+  /** What a tile shows for one colour (null: every colour): this visit's upload, else the saved image. */
+  const tileState = (def: PhotoSlotDef, colourKey: string = ALL_COLOURS): TileState => {
+    const cw = colourFor(def.slot, colourKey)
     const mine = uploads.find((u) => photoSlotOf(u.slot, u.role) === def.id && u.colourwayId === cw)
     if (mine) {
       const st = mine.stage
@@ -245,6 +255,8 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
     const d = detailById.get(imageId)
     const label = originBadge(d)
     return {
+      match: d?.photo_match,
+      onKeep: canKeep ? (key: string) => keepPhoto.mutateAsync({ imageId, key }) : undefined,
       viewUrl: d?.view_url,
       onViewError: refreshViews,
       // The product read is the truth for the slot: a demoted main's cached report may still say main.
@@ -326,26 +338,24 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         </div>
       ) : canUpload ? (
         <div className="flex flex-col gap-4 p-4 sm:p-5" data-testid="photo-slots-card">
-          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-            <p className="max-w-md text-small text-ink-2">
-              The same four photos for every product, so the agent reads each one the same way. Each is checked against Amazon and Flipkart image rules.
-            </p>
-            {byColour ? <ColourSelect colours={groups.filter((g) => g.key !== 'other')} colour={colour} onColour={setColour} /> : null}
-          </div>
-          <PhotoSlotGrid>
-            {tiles.map((def) => (
-              <Fragment key={def.id}>
-                {def.id === 'back' ? <PhotoSlotRowCaption /> : null}
-                <PhotoTile def={def} large={def.id === 'front'} state={tileState(def)} onFiles={(files) => addAs(files, def.slot, def.role)} onPreviewError={refreshViews} />
-              </Fragment>
-            ))}
-          </PhotoSlotGrid>
+          <p className="max-w-md text-small text-ink-2">
+            The same four photos for every product, so the agent reads each one the same way. Each is checked against Amazon and Flipkart image rules.
+          </p>
           {byColour ? (
-            <p className="text-caption text-ink-3">
-              Front, Back and Close-up are filed under {colour === ALL_COLOURS ? 'all colours' : (groups.find((g) => g.key === colour)?.label ?? 'this colour')}.
+            <p className="text-caption text-ink-3" data-testid="colour-photos-note">
+              Each colour has its own photos below. Photos under All colours show for every colour.
               {isVariant ? '' : ' The size chart is for every colour.'}
             </p>
-          ) : null}
+          ) : (
+            <PhotoSlotGrid>
+              {tiles.map((def) => (
+                <Fragment key={def.id}>
+                  {def.id === 'back' ? <PhotoSlotRowCaption /> : null}
+                  <PhotoTile def={def} large={def.id === 'front'} state={tileState(def)} onFiles={(files) => addAs(files, def.slot, def.role, null)} onPreviewError={refreshViews} />
+                </Fragment>
+              ))}
+            </PhotoSlotGrid>
+          )}
           <Collapsible open={moreOpen} onOpenChange={setMoreOpen} className="rounded-card border border-line">
             <CollapsibleTrigger asChild>
               <button type="button" className="focus-ring flex w-full items-center justify-between gap-3 rounded-card px-4 py-3 text-left" data-testid="more-photos-toggle">
@@ -357,6 +367,11 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent className="border-t border-line">
+              {byColour ? (
+                <div className="px-4 pt-4 sm:px-5">
+                  <ColourSelect colours={groups.filter((g) => g.key !== 'other')} colour={colour} onColour={setColour} />
+                </div>
+              ) : null}
               <Dropzone slot={slot} slots={MORE_SLOTS} onSlot={setSlot} onFiles={add} hasMain={false} colours={null} colour={colour} colourName={byColour && slot !== 'size_chart' && colourwayId ? groups.find((g) => g.key === colour)?.label : undefined} />
             </CollapsibleContent>
           </Collapsible>
@@ -383,8 +398,38 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
           {groups.map((g) => {
             const fresh = notYetListed.filter((u) => (u.colourwayId ?? ALL_COLOURS) === g.key)
             if (g.key === 'other' && !g.keys.length) return null
+            const groupTiles = g.key === ALL_COLOURS ? tiles : tiles.filter((def) => def.slot !== 'size_chart')
+            const questions = openQuestions(
+              g.keys.map((key) => {
+                const id = imageIdFromKey(key)
+                return id ? detailById.get(id)?.photo_match : null
+              }),
+            )
             return (
-              <ColourSection key={g.key} group={g} count={g.keys.length + fresh.length}>
+              <ColourSection
+                key={g.key}
+                group={g}
+                count={g.keys.length + fresh.length}
+                questions={questions}
+                tiles={
+                  canUpload && g.key !== 'other' ? (
+                    <PhotoSlotGrid>
+                      {groupTiles.map((def) => (
+                        <Fragment key={def.id}>
+                          {def.id === 'back' ? <PhotoSlotRowCaption /> : null}
+                          <PhotoTile
+                            def={def}
+                            large={def.id === 'front'}
+                            state={tileState(def, g.key)}
+                            onFiles={(files) => addAs(files, def.slot, def.role, g.colourwayId)}
+                            onPreviewError={refreshViews}
+                          />
+                        </Fragment>
+                      ))}
+                    </PhotoSlotGrid>
+                  ) : null
+                }
+              >
                 {fresh.map((u) =>
                   u.stage.kind === 'accepted' ? (
                     <ImageRow key={u.stage.imageId} imageId={u.stage.imageId} upload={u} live={live} productId={product.id} settled={reportsSettled} onDelete={canDelete ? onDelete : undefined} />
@@ -436,17 +481,46 @@ function AcceptedImageWatcher({ imageId, jobId, productId }: { imageId: string; 
   return null
 }
 
-/** One colour's images: a quiet heading with its count, then its rows (or a one-line empty note). */
-function ColourSection({ group, count, children }: { group: ColourGroup; count: number; children: ReactNode }) {
+/**
+ * One colour's photos: a quiet heading with its count (and how many photos wait for an answer), its
+ * own upload tiles, then its rows (or a one-line empty note).
+ */
+function ColourSection({
+  group,
+  count,
+  questions = 0,
+  tiles,
+  children,
+}: {
+  group: ColourGroup
+  count: number
+  /** Photos whose colour check asks the seller. */
+  questions?: number
+  /** This colour's upload tiles (Front, Back, Close-up; the size chart only for all colours). */
+  tiles?: ReactNode
+  children: ReactNode
+}) {
   const empty = count === 0
   return (
     <section aria-label={`${group.label} images`} data-testid="colour-group" data-colour={group.key} className="border-b border-border/70 last:border-b-0">
       <header className="flex items-center justify-between gap-3 bg-sunken px-5 py-2">
         <h3 className="truncate font-sans text-small font-semibold text-ink">{group.label}</h3>
-        <span className="text-caption text-ink-3 tabular-nums">
-          {empty ? (group.colourwayId ? 'No photos yet' : 'None') : `${count} ${count === 1 ? 'image' : 'images'}`}
+        <span className="flex items-center gap-2">
+          {questions > 0 ? (
+            <span className="rounded-md border border-attention-line bg-attention-bg px-1.5 py-0.5 text-caption text-attention-ink" data-testid="colour-questions">
+              {questions} to check
+            </span>
+          ) : null}
+          <span className="text-caption text-ink-3 tabular-nums">
+            {empty ? (group.colourwayId ? 'No photos yet' : 'None') : `${count} ${count === 1 ? 'image' : 'images'}`}
+          </span>
         </span>
       </header>
+      {tiles ? (
+        <div className="px-4 pt-4 pb-1 sm:px-5" data-testid="colour-tiles">
+          {tiles}
+        </div>
+      ) : null}
       {empty ? (
         <p className="px-5 py-3 text-small text-ink-2">
           {group.colourwayId ? 'Uses the photos for all colours until you add its own.' : 'Photos here show for every colour.'}
@@ -642,7 +716,13 @@ function ImageRow({
   knownSlot,
   knownRole,
   acceptedJob,
+  match,
+  onKeep,
 }: {
+  /** Client feedback item 9: does the photo show this product in its colour. */
+  match?: PhotoMatch | null
+  /** Keep a photo the colour check questioned; absent when the person may not. */
+  onKeep?: (key: string) => Promise<unknown>
   knownRole?: ImageRole | null
   imageId: string
   storageKey?: string
@@ -721,6 +801,8 @@ function ImageRow({
             ) : null}
             {badges ? <div className="mt-1.5 flex flex-wrap gap-1.5">{badges}</div> : null}
             <PhotoQaChips warnings={photoQaWarnings(report.data)} className="mt-1.5" />
+            {/* One keep key per check: a later re-check asks again with a fresh key. */}
+            <PhotoMatchNote key={match?.checked_at ?? match?.status ?? 'none'} match={match} onKeep={onKeep} onRemove={onDelete ? () => setConfirm(true) : undefined} />
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {live && (report.isPending || !settled) ? (
