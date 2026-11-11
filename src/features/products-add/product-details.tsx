@@ -40,7 +40,7 @@ import { PhotoFactsGroup } from '@/features/photo-facts/photo-facts-group'
 import { usePhotoFactActions } from '@/features/photo-facts/api'
 import { OP_ACTION, useCan } from '@/lib/permissions'
 import { editingSource, fieldSource, rawFieldSource } from '@/features/products/field-sources'
-import { missingNeeds, missingSummary, needText, productFilled, useRequirements, type Filled, type Marketplace, type NeedFieldId } from '@/features/products/needs'
+import { missingNeeds, missingSummary, needText, productFilled, recommendedBy, recommendedText, useRequirements, type Filled, type Marketplace, type NeedFieldId } from '@/features/products/needs'
 import { countryName, fromPackageOut, normalizeCountry, packageHasSize, packageHasWeight, packageText, samePackage } from '@/features/products/seller-fields'
 import { CountryField, HsnField, PackageFields } from '@/features/products/seller-field-inputs'
 import { isReadingPhotos } from '@/features/products/photo-reading'
@@ -49,7 +49,7 @@ import { SizeRunAction } from '@/features/products/size-run-action'
 import { normalizeBarcode } from '@/features/products/barcode'
 import { humanizeSlug, productCategoryLabel } from './catalog-model'
 import type { ProductEditSession } from './product-edit-session'
-import { ATTR_FIELDS, ATTR_LABEL } from './guided-model'
+import { ATTR_FIELDS, ATTR_LABEL, CATEGORY_ATTR_FIELDS } from './guided-model'
 import { focusFirstInvalid } from '@/lib/validation'
 import { cn } from '@/lib/utils'
 
@@ -601,9 +601,12 @@ export function ProductDetailsEditor({
   const needs = missingNeeds(requirements.data, sellOn, filled)
   const need = (id: NeedFieldId) => needText(needs, id)
 
-  const attrs = editableAttrs(isVariant)
+  const attrs = editableAttrs(isVariant, d.category)
   const field = (k: (typeof attrs)[number]) => {
-    const f = ATTR_FIELDS.find((x) => x.key === k)!
+    const f = [...ATTR_FIELDS, ...CATEGORY_ATTR_FIELDS].find((x) => x.key === k)!
+    // Item 10: an empty field a ticked marketplace recommends says so, calmly, in its hint.
+    const rec = d.attrs[k].trim() ? null : recommendedText(recommendedBy(k, requirements.data, sellOn))
+    const hint = rec ? [f.hint, rec].filter(Boolean).join(' ') : f.hint
     const chip = {
       source: saved(k, d.attrs[k].trim() === b.attrs[k].trim(), !!d.attrs[k].trim()),
       needed: k === 'fabric_type' || k === 'color' ? need(k) : undefined,
@@ -620,7 +623,7 @@ export function ProductDetailsEditor({
         onBlur={() => touch(`attr.${k}`)}
         error={errors[`attr.${k}`]}
         submitCount={submitted}
-        hint={f.hint}
+        hint={hint}
         {...chip}
       />
     ) : (
@@ -634,7 +637,7 @@ export function ProductDetailsEditor({
         onBlur={() => touch(`attr.${k}`)}
         error={errors[`attr.${k}`]}
         submitCount={submitted}
-        hint={f.hint}
+        hint={hint}
         maxLength={4000}
         {...chip}
       />

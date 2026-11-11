@@ -63,11 +63,37 @@ import {
 type Product = Schema<'ProductOut'>
 export type ProductPatchBody = Schema<'ProductPatch'>
 
-/** Text attributes the editor shows, in order. */
-export const EDIT_ATTRS = ['fabric_type', 'color', 'fit', 'neckline', 'sleeve_length', 'pattern', 'wash_care', 'iron_care'] as const
+/**
+ * Text attributes the editor shows, in order. The last five belong to one category each
+ * (`CATEGORY_ATTRS`): the recommended attributes of Kurta sets and lamps (client feedback item 10),
+ * so Review's "Add on the product" always lands on a field.
+ */
+export const EDIT_ATTRS = [
+  'fabric_type',
+  'color',
+  'fit',
+  'neckline',
+  'sleeve_length',
+  'pattern',
+  'kurta_type',
+  'lamp_type',
+  'lamp_material',
+  'shade_material',
+  'light_source_type',
+  'wash_care',
+  'iron_care',
+] as const
 export type EditAttr = (typeof EDIT_ATTRS)[number]
 /** Set on the style, never on a variant (attribute_dictionary.json owner_levels). */
 const STYLE_ONLY_ATTRS: readonly EditAttr[] = ['color']
+/** Shown only for products of this category. */
+const CATEGORY_ATTRS: Partial<Record<EditAttr, string>> = {
+  kurta_type: 'ethnic_wear_kurta_sets',
+  lamp_type: 'home_decor_lamps',
+  lamp_material: 'home_decor_lamps',
+  shade_material: 'home_decor_lamps',
+  light_source_type: 'home_decor_lamps',
+}
 
 export interface EditDraft {
   title: string
@@ -158,8 +184,8 @@ export function withHsnSuggestion(d: EditDraft, p: Pick<Product, 'hsn_code' | 's
 }
 
 /** Which inputs a row may edit: a variant has no style number, size chart or colour. */
-export function editableAttrs(isVariant: boolean): readonly EditAttr[] {
-  return isVariant ? EDIT_ATTRS.filter((k) => !STYLE_ONLY_ATTRS.includes(k)) : EDIT_ATTRS
+export function editableAttrs(isVariant: boolean, category?: string | null): readonly EditAttr[] {
+  return EDIT_ATTRS.filter((k) => !(isVariant && STYLE_ONLY_ATTRS.includes(k)) && (CATEGORY_ATTRS[k] == null || CATEGORY_ATTRS[k] === category))
 }
 
 export type EditErrors = Partial<Record<string, string>>
@@ -183,7 +209,7 @@ export function validateEdit(d: EditDraft, isVariant: boolean): EditErrors {
       if (b) e.brand_name = b
     }
   }
-  for (const k of editableAttrs(isVariant)) {
+  for (const k of editableAttrs(isVariant, d.category)) {
     const v = d.attrs[k].trim()
     if (hasStrayControlChars(v)) e[`attr.${k}`] = CONTROL_MSG
     else if (codePoints(v) > ATTRIBUTE_TEXT_MAX) e[`attr.${k}`] = `Shorten it to ${ATTRIBUTE_TEXT_MAX.toLocaleString('en-IN')} characters or fewer.`
@@ -223,7 +249,7 @@ export function buildPatch(base: EditDraft, d: EditDraft, isVariant: boolean, ba
   if (!sameMoney(d.mrp, base.mrp)) body.mrp = d.mrp.trim() ? normalizeMoney(d.mrp) : null
   if (!sameMoney(d.sellingPrice, base.sellingPrice)) body.selling_price = d.sellingPrice.trim() ? normalizeMoney(d.sellingPrice) : null
   const attributes: Record<string, string | null> = {}
-  for (const k of editableAttrs(isVariant)) {
+  for (const k of editableAttrs(isVariant, d.category)) {
     const now = d.attrs[k].trim()
     if (now !== base.attrs[k].trim()) attributes[k] = now || null
   }

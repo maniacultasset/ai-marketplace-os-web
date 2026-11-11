@@ -77,8 +77,9 @@ import { ApproverNotice, SelfApprovalNote } from '@/features/team-account/approv
 import { AutoFixedChip, FixedForYouCard } from './auto-fix'
 import { autoFixTrail, FIXED_FOR_YOU_HASH, siblingFixes, versionRef } from './auto-fix-model'
 import { EditDialog, SendBackDialog } from './dialogs'
-import { clock, fieldLabel, findingText, mpName, plainMessage, sellerFinding, sentenceCase } from './format'
-import { claimFindings, gateCounts, plural, type ErrorItem, type GateResult } from './gates'
+import { clock, fieldLabel, mpName, plainMessage, sentenceCase } from './format'
+import { FindingBody, FindingsCard } from './findings-card'
+import { claimFindings, gateCounts, gatesSummary, plural, type ErrorItem, type GateResult } from './gates'
 import { IdentifierFix } from './identifier-fix'
 import { answeredAfter } from './review-model'
 import { ListOnButton } from './list-on'
@@ -491,7 +492,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
                 editState={actions.edit}
               />
               {/* Unsupported claims already show on the bullet and in the claim card. */}
-              {otherFindings.length ? <FindingsCard findings={otherFindings} /> : null}
+              {otherFindings.length ? <FindingsCard findings={otherFindings} productId={listing.product_id} /> : null}
             </div>
             {/* What Kuinn did, the gates and the photo facts stay in view while the listing scrolls. */}
             <div className={cn('flex min-w-0 flex-col gap-4', STICKY_ASIDE)}>
@@ -1017,7 +1018,7 @@ function GatesCard({
       ) : (
         <>
           <p className="mt-2 text-small text-ink-2 tabular-nums" data-testid="gates-summary">
-            {counts.blocked + counts.warning} need you · {counts.passed} passed · {counts.unchecked} not checked yet
+            {gatesSummary(counts)}
           </p>
           {needs.length ? (
             <ul className="m-0 mt-2 flex list-none flex-col gap-1.5 p-0" data-testid="gates-needs">
@@ -1091,8 +1092,6 @@ function GatesCard({
   )
 }
 
-const WARNINGS_SHOWN = 3
-
 /** SI9: why approve was refused: the marketplace check's blocking items, and what to do about each. */
 function ApproveBlockersCard({ items, onClose }: { items: readonly ErrorItem[]; onClose: () => void }) {
   return (
@@ -1120,50 +1119,6 @@ function ApproveBlockersCard({ items, onClose }: { items: readonly ErrorItem[]; 
       ) : (
         <p className="mt-3 text-body text-ink-2">Run checks to see the details.</p>
       )}
-    </LaCard>
-  )
-}
-
-/** One finding in seller words: plain message, the field, the value, a suggestion meant for them. */
-function FindingBody({ f }: { f: ErrorItem }) {
-  // Seller words (labels, no agent guidance) with the value line that says "sent" only for a
-  // marketplace's answer.
-  const s = sellerFinding(f)
-  const t = findingText(f)
-  return (
-    <div className="min-w-0 flex-1">
-      <p className="text-body text-ink">{s.message}</p>
-      <p className="text-caption text-ink-3">
-        <span title={f.field}>{fieldLabel(f.field)}</span>
-        {t.value ? ` · ${t.value}` : ''}
-      </p>
-      {s.action ? <p className="mt-0.5 text-small text-ink-2">{s.action}</p> : null}
-    </div>
-  )
-}
-
-function FindingsCard({ findings }: { findings: readonly ErrorItem[] }) {
-  const [allWarnings, setAllWarnings] = useState(false)
-  const errors = findings.filter((f) => f.severity === 'error')
-  const warnings = findings.filter((f) => f.severity !== 'error')
-  const hiddenCount = Math.max(0, warnings.length - WARNINGS_SHOWN)
-  const shown = [...errors, ...(allWarnings ? warnings : warnings.slice(0, WARNINGS_SHOWN))]
-  return (
-    <LaCard data-testid="findings" id="findings" className="scroll-mt-20 md:scroll-mt-4">
-      <CardHead title="What the checks found" sub="Fix blocking items first." />
-      <ul className="m-0 mt-3 flex list-none flex-col p-0">
-        {shown.map((f, i) => (
-          <li key={i} className="flex items-start gap-3 border-b border-line py-3 last:border-b-0 last:pb-0">
-            <StatusChip status={f.severity === 'error' ? 'blocked' : 'needs-you'} iconOnly label={f.severity === 'error' ? 'Blocking' : 'Warning'} />
-            <FindingBody f={f} />
-          </li>
-        ))}
-      </ul>
-      {hiddenCount ? (
-        <Button variant="ghost" size="sm" className="mt-2 -ml-2" aria-expanded={allWarnings} onClick={() => setAllWarnings((o) => !o)}>
-          {allWarnings ? 'Show fewer warnings' : `Show ${plural(hiddenCount, 'more warning')}`}
-        </Button>
-      ) : null}
     </LaCard>
   )
 }

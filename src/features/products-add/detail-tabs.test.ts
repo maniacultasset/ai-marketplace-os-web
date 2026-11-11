@@ -8,8 +8,10 @@ describe('product page deep links (prod QA 9 Nov, item 13)', () => {
     expect(detailSearch.parse({ tab: 'nope' })).toEqual({ tab: undefined })
   })
 
-  it('opens the editor at the barcode by ?edit=barcode; an unknown target is dropped', () => {
+  it('opens the editor at the barcode or an attribute by ?edit=; a malformed value is dropped', () => {
     expect(detailSearch.parse({ edit: 'barcode' })).toEqual({ edit: 'barcode' })
-    expect(detailSearch.parse({ edit: 'price' })).toEqual({ edit: undefined })
+    expect(detailSearch.parse({ edit: 'sleeve_length' })).toEqual({ edit: 'sleeve_length' })
+    expect(detailSearch.parse({ edit: 'Price!' })).toEqual({ edit: undefined })
+    expect(detailSearch.parse({ edit: '../x' })).toEqual({ edit: undefined })
   })
 })

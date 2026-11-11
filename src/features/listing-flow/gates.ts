@@ -18,9 +18,13 @@
  *     marketplace check), so the gates never say "0 need you" while the header says
  *     "Needs your info · 3" (prod demo 9 Nov).
  *   - Anything else is "Not checked yet". Never a green dot without evidence.
+ *   - A missing recommended attribute (recommended.ts, client feedback item 10) never blocks: a
+ *     gate with only those says "N recommended to add", and the counts keep them apart, so the
+ *     summary never adds recommendations to what must be fixed.
  */
 import type { Schema } from '@/api/types'
 import type { Listing, ValidationSummary } from '@/features/listings/model'
+import { isRecommendation } from './recommended'
 
 export type ErrorItem = Schema<'ErrorItem'>
 export type Rule = Schema<'RuleOut'>
@@ -238,12 +242,12 @@ export function rollUpGates({ listing, validation, rules, preview, imageCount, m
     if (id === 'media') {
       if (imageCount === 0)
         return { id, label, state: 'blocked', findings: [], note: `Add at least one image. ${marketplaceName ?? 'The marketplace'} needs a main image.` }
-      if (mine.length) return { id, label, state: 'warning', findings: mine, note: plural(mine.length, 'warning') }
+      if (mine.length) return { id, label, state: 'warning', findings: mine, note: warningNote(mine) }
       if (imageCount != null && imageCount > 0 && visionChecked(validation, listing.current_version_id))
         return { id, label, state: 'passed', findings: [], note: 'Passed the image checks.' }
       return { id, label, state: 'unchecked', findings: [], note: 'Not checked yet.' }
     }
-    if (mine.length) return { id, label, state: 'warning', findings: mine, note: plural(mine.length, 'warning') }
+    if (mine.length) return { id, label, state: 'warning', findings: mine, note: warningNote(mine) }
     if (covered.has(id)) return { id, label, state: 'passed', findings: [], note: 'Passed the checks that apply.' }
     return { id, label, state: 'unchecked', findings: [], note: checked ? 'No rule covers this yet.' : 'Not checked yet.' }
   })
@@ -253,14 +257,46 @@ export function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? '' : 's'}`
 }
 
+/** "2 warnings", "3 recommended to add", or both, for a gate in the warning state. */
+function warningNote(findings: readonly ErrorItem[]): string {
+  const recommended = findings.filter(isRecommendation).length
+  const other = findings.length - recommended
+  const parts = [other ? plural(other, 'warning') : '', recommended ? `${recommended} recommended to add` : '']
+  return parts.filter(Boolean).join(', ')
+}
+
+/** True for a warning gate whose findings are all missing recommended attributes. */
+export function onlyRecommended(gate: Pick<GateResult, 'state' | 'findings'>): boolean {
+  return gate.state === 'warning' && gate.findings.length > 0 && gate.findings.every(isRecommendation)
+}
+
+/**
+ * Gate counts. `warning` leaves out the gates that only recommend attributes, and `recommended`
+ * counts those attributes (one per field across the gates), so blockers, warnings and
+ * recommendations are never added together.
+ */
 export function gateCounts(gates: readonly GateResult[]) {
+  const recommended = new Set(gates.flatMap((g) => g.findings.filter(isRecommendation).map((f) => f.field)))
   return {
     passed: gates.filter((g) => g.state === 'passed').length,
     blocked: gates.filter((g) => g.state === 'blocked').length,
-    warning: gates.filter((g) => g.state === 'warning').length,
+    warning: gates.filter((g) => g.state === 'warning' && !onlyRecommended(g)).length,
+    recommended: recommended.size,
     unchecked: gates.filter((g) => g.state === 'unchecked').length,
     total: gates.length,
   }
+}
+
+/** The gates card's one line: "1 must fix · 2 to check · 3 recommended · 4 passed · 2 not checked yet". */
+export function gatesSummary(counts: ReturnType<typeof gateCounts>): string {
+  const parts = [
+    `${counts.blocked} must fix`,
+    counts.warning ? `${counts.warning} to check` : '',
+    counts.recommended ? `${counts.recommended} recommended` : '',
+    `${counts.passed} passed`,
+    `${counts.unchecked} not checked yet`,
+  ]
+  return parts.filter(Boolean).join(' · ')
 }
 
 /** Findings that are unsupported claims (p13 "claim to check"); only real UNSUPPORTED_CLAIM items. */

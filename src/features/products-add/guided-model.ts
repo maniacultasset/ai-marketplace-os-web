@@ -105,9 +105,22 @@ export const ATTR_FIELDS: readonly AttrField[] = [
   { key: 'iron_care', label: 'Iron care', hint: 'Exactly as on the care label.', critical: true, section: 'care' },
 ]
 
+/**
+ * Client feedback item 10: the product editor's fields for one category's recommended
+ * attributes (edit-model `CATEGORY_ATTRS`). Not on the add form, which takes them as extra rows.
+ */
+export const CATEGORY_ATTR_FIELDS: readonly AttrField[] = [
+  { key: 'kurta_type', label: 'Kurta style', hint: 'Straight, A-line, anarkali…', critical: false, section: 'fabric' },
+  { key: 'lamp_type', label: 'Lamp type', hint: 'Table, floor, bedside…', critical: false, section: 'fabric' },
+  { key: 'lamp_material', label: 'Lamp material', hint: 'What the body is made of, like brass or wood.', critical: false, section: 'fabric' },
+  { key: 'shade_material', label: 'Shade material', hint: 'Fabric, glass, paper…', critical: false, section: 'fabric' },
+  { key: 'light_source_type', label: 'Bulb type', hint: 'LED, E27, B22…', critical: false, section: 'fabric' },
+]
+
 /** Labels for every key the form or the detail page names. */
 export const ATTR_LABEL: Readonly<Record<string, string>> = {
   ...Object.fromEntries(ATTR_FIELDS.map((f) => [f.key, f.label])),
+  ...Object.fromEntries(CATEGORY_ATTR_FIELDS.map((f) => [f.key, f.label])),
   fiber_composition: 'Fabric composition',
   size_chart_url: 'Size chart link',
   size_measurements: 'Size chart',
