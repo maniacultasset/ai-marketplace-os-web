@@ -7,7 +7,8 @@
  *   link_required  an existing account: its password once, then the same steps; the link is kept
  *                  only after they pass
  *   needs_details  no account yet: a short sign-up form, prefilled from Google
- *   pending        a Google sign-up waiting for review: the status card
+ *   pending        a Google sign-up waiting for review: the status card, which polls
+ *                  POST /signup/status/poll with the answer's status handle and updates by itself
  *
  * Started from an invite (intent `invite`), `needs_details` accepts that invite instead of the
  * sign-up form (invite-google.tsx).
@@ -35,10 +36,13 @@ import { AccountChip, AsideLink, AuthCard, AuthColumn, AuthFrame, FormAlert } fr
 import { SignInSteps } from '@/features/public/sign-in-steps'
 import { useSignInFlow } from '@/features/public/use-sign-in-flow'
 import { StatusResult } from '@/features/public/signup-status'
+import { useWaitingStatus, WAITING_TITLE, waitingCopy } from '@/features/public/waiting'
+import { WaitingActions } from '@/features/public/waiting-status'
 import { useDocumentTitle } from '@/features/public/use-document-title'
 import type { SignupStatusOut } from '@/features/signup-admin/format'
 import { PasswordInput } from '@/features/signup-admin/password-input'
 import { NAME_MAX, PHONE_MAX, signupFormSchema, WEBSITE_MAX, type SignupFormValues } from '@/features/signup-admin/schema'
+import { saveStatusHandle } from '@/features/signup-admin/status-handle'
 import { useCountdown } from '@/features/signup-admin/use-countdown'
 import { collapseSpaces, filterInput, FORM_VALIDATION_MODE, normalizeWebsite, phoneChars } from '@/lib/validation'
 import { linkGoogle, signupGoogle, type GoogleDetails, type GoogleLink, type GoogleSignupFields } from './api'
@@ -64,7 +68,7 @@ type View =
   | { kind: 'link'; link: GoogleLink }
   | { kind: 'details'; details: GoogleDetails; showForm: boolean }
   | { kind: 'invite'; details: GoogleDetails }
-  | { kind: 'status'; status: SignupStatusOut; sent: boolean }
+  | { kind: 'status'; status: SignupStatusOut; sent: boolean; handle: string | null; remembered: boolean }
   | { kind: 'suspended'; ref: string | null }
 
 export function GoogleReturnPage({ search }: { search: { handle?: string; error?: string } }) {
@@ -121,7 +125,7 @@ export function GoogleReturnPage({ search }: { search: { handle?: string; error?
           if (cap.ticket.intent === 'invite') return setView({ kind: 'invite', details: out.details })
           return setView({ kind: 'details', details: out.details, showForm: cap.ticket.intent === 'signup' })
         }
-        if (out.outcome === 'pending' && out.signup) return setView({ kind: 'status', status: out.signup, sent: false })
+        if (out.outcome === 'pending' && out.signup) return showStatus(out.signup, false)
         setView({ kind: 'error', reason: 'failed', ref: null })
       },
       (e: unknown) => {
@@ -134,6 +138,13 @@ export function GoogleReturnPage({ search }: { search: { handle?: string; error?
     // `flow.apply` is stable; this runs once per handle.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cap])
+
+  /** A pending answer: keep its status handle (this device) and show the polled card. */
+  const showStatus = (status: SignupStatusOut, sent: boolean) => {
+    const handle = status.status === 'pending' ? (status.status_handle ?? null) : null
+    const remembered = handle ? saveStatusHandle({ handle, via: 'google', returnTo: ticket?.returnTo ?? null }) : false
+    setView({ kind: 'status', status, sent, handle, remembered })
+  }
 
   const toLogin = () => void router.navigate({ to: '/login' })
   const fail = (e: unknown) => setView(failView(e))
@@ -154,14 +165,23 @@ export function GoogleReturnPage({ search }: { search: { handle?: string; error?
           details={view.details}
           bind={ticket!.bind}
           intent={intent}
-          onSent={(status) => setView({ kind: 'status', status, sent: true })}
+          onSent={(status) => showStatus(status, true)}
           onFail={fail}
         />
       ) : (
         <NoAccount email={view.details.email} onContinue={() => setView({ ...view, showForm: true })} />
       )
     case 'status':
-      return <GoogleStatus status={view.status} email={email} sent={view.sent} />
+      return (
+        <GoogleStatus
+          status={view.status}
+          email={email}
+          sent={view.sent}
+          handle={view.handle}
+          remembered={view.remembered}
+          returnTo={ticket?.returnTo ?? null}
+        />
+      )
     case 'invite':
       return <InviteGoogleAccept details={view.details} bind={ticket!.bind} />
     case 'suspended':
@@ -664,7 +684,7 @@ function GoogleNextSteps() {
       <ol className="mt-3.5 flex flex-col gap-2.5 text-small text-ink-2">
         {[
           'A person on our team reviews every request.',
-          'To see where it stands, use Continue with Google on the sign-in page. No password to remember.',
+          'The page you land on after sending updates by itself when there is a decision. No password to remember.',
           'Once approved, you sign in with Google and set up a 6-digit login code from an authenticator app.',
         ].map((t, i) => (
           <li key={t} className="flex gap-3">
@@ -679,27 +699,53 @@ function GoogleNextSteps() {
   )
 }
 
-const STATUS_COPY: Record<SignupStatusOut['status'], string> = {
-  pending: 'A person on our team reviews every request. Nothing else is needed from you. To check on it, use Continue with Google again.',
-  approved: 'Your trial workspace is ready. Continue with Google to sign in.',
-  rejected: 'You can contact support about the reviewer’s reason.',
-}
-
-function GoogleStatus({ status, email, sent }: { status: SignupStatusOut; email: string; sent: boolean }) {
+function GoogleStatus({
+  status,
+  email,
+  sent,
+  handle,
+  remembered,
+  returnTo,
+}: {
+  status: SignupStatusOut
+  email: string
+  sent: boolean
+  handle: string | null
+  remembered: boolean
+  returnTo: string | null
+}) {
+  const waiting = useWaitingStatus(handle, status)
+  const view = waiting.view ?? status
+  // Only a handle that still names the request is polled; otherwise checking again is another
+  // Google sign-in, so pending offers that button.
+  const live = !!handle && !waiting.gone
+  const copy = waitingCopy(view.status, 'google', remembered && live, live)
   return (
     <AuthFrame>
       <div className="mx-auto flex w-full max-w-[448px] flex-1 flex-col gap-4 px-4 pt-8 pb-6 sm:pt-12" data-testid={sent ? 'google-sent' : 'google-pending'}>
         <StatusResult
-          result={status}
+          result={view}
           email={email}
-          description={sent && status.status === 'pending' ? `Request sent. ${STATUS_COPY.pending}` : STATUS_COPY[status.status]}
+          title={WAITING_TITLE[view.status]}
+          description={sent && view.status === 'pending' ? `Request sent. ${copy}` : copy}
           actions={
-            <div className="flex flex-col gap-3">
-              {status.status === 'rejected' ? null : <GoogleButton intent="login" returnTo={null} />}
-              <Button asChild size="lg" variant="ghost" className="w-full">
-                <Link to="/">Back to Kuinn</Link>
-              </Button>
-            </div>
+            <WaitingActions
+              status={view.status}
+              via="google"
+              returnTo={returnTo}
+              secondary={
+                <>
+                  {view.status === 'pending' && !live ? (
+                    <div data-testid="google-recheck">
+                      <GoogleButton intent="login" returnTo={returnTo} />
+                    </div>
+                  ) : null}
+                  <Button asChild size="lg" variant="ghost" className="w-full">
+                    <Link to="/">Back to Kuinn</Link>
+                  </Button>
+                </>
+              }
+            />
           }
         />
       </div>

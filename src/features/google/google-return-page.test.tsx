@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { StrictMode, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,6 +9,7 @@ import { envelope, installFetch, json, jwt, type Handler } from '@/test/fake-api
 import { GoogleReturnPage } from './google-return-page'
 import { readDeviceToken, writeDeviceToken } from '@/features/mfa/trusted-device'
 import { resetGoogleReturn } from './return-state'
+import { readStatusHandle } from '@/features/signup-admin/status-handle'
 
 vi.hoisted(() => {
   vi.stubEnv('VITE_API_ORIGIN', 'http://localhost:3000')
@@ -41,6 +42,9 @@ const SIGNED_IN = { status: 'signed_in', access_token: access, refresh_token: 'r
 const ME = { user_id: 'u1', email: EMAIL, display_name: 'Meera Iyer', tenant_id: 't1', role: 'owner', memberships, is_platform_admin: false }
 const challenge = (status: string, ttl = 300) => ({ status, challenge_token: `ch-${status}`, challenge_expires_in: ttl })
 const PENDING = { request_id: 'r1', brand_name: 'Acme Naturals', status: 'pending', created_at: '2026-10-30T09:00:00Z' }
+const STATUS_HANDLE = 's'.repeat(43)
+const poll = (status: string, extra: Record<string, unknown> = {}) => () =>
+  json(200, { status, brand_name: 'Acme Naturals', requested_at: '2026-10-30T09:00:00Z', decided_at: null, reason: null, ...extra })
 const DETAILS = {
   email: EMAIL,
   email_verified: true,
@@ -83,6 +87,8 @@ describe('/auth/google', () => {
     clearSession('logout')
     queryClient.clear()
     sessionStorage.clear()
+    localStorage.clear()
+    vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
 
@@ -197,15 +203,86 @@ describe('/auth/google', () => {
     expect(await screen.findByRole('heading', { name: 'Couldn’t sign you in with Google' })).toBeTruthy()
   })
 
-  it('pending: the request status card, checked again through Google', async () => {
-    ticket()
-    const { user } = setup({ 'POST /auth/google/complete': out({ outcome: 'pending', signup: PENDING }) })
+  it('pending without a status handle: the status card, nothing polls, so Continue with Google checks again', async () => {
+    ticket('login', '/products')
+    const { calls, user } = setup({ 'POST /auth/google/complete': out({ outcome: 'pending', signup: PENDING }) })
     expect(await screen.findByTestId('google-pending')).toBeTruthy()
     expect(screen.getByTestId('signup-status-badge').textContent).toBe('Waiting for review')
     expect(screen.getByText('Acme Naturals')).toBeTruthy()
     expect(screen.getByText(EMAIL)).toBeTruthy()
+    expect(screen.getByText(/To check on it later, use Continue with Google again\./)).toBeTruthy()
+    expect(screen.queryByText(/updates by itself/)).toBeNull()
+    expect(calls.some((c) => c.path === '/signup/status/poll')).toBe(false)
     await user.click(screen.getByRole('button', { name: 'Continue with Google' }))
-    expect(start.startGoogle).toHaveBeenCalledWith({ intent: 'login', returnTo: null })
+    expect(start.startGoogle).toHaveBeenCalledWith({ intent: 'login', returnTo: '/products' })
+    expect(readStatusHandle()).toBeNull()
+  })
+
+  it('pending with a status handle: kept on this device, polled in the body, then "You’re approved" with Google', async () => {
+    ticket('login', '/products')
+    const { calls, user } = setup({
+      'POST /auth/google/complete': out({ outcome: 'pending', signup: { ...PENDING, status_handle: STATUS_HANDLE } }),
+      'POST /signup/status/poll': [poll('pending'), poll('approved', { decided_at: '2026-11-11T10:00:00Z' })],
+    })
+    expect(await screen.findByTestId('google-pending')).toBeTruthy()
+    expect(readStatusHandle()).toEqual({ handle: STATUS_HANDLE, via: 'google', returnTo: '/products' })
+    expect(screen.getByText(/you can close it and check again later on this device/)).toBeTruthy()
+    expect(screen.queryByTestId('google-recheck')).toBeNull()
+    await waitFor(() => expect(calls.some((c) => c.path === '/signup/status/poll')).toBe(true))
+    expect(calls.find((c) => c.path === '/signup/status/poll')).toMatchObject({ body: { status_handle: STATUS_HANDLE }, auth: null })
+    expect(calls.every((c) => !c.path.includes(STATUS_HANDLE))).toBe(true)
+    // the next read (15 s later) says approved
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: ['signup', 'status-poll'] })
+    })
+    expect(await screen.findByRole('heading', { name: 'You’re approved' })).toBeTruthy()
+    expect(screen.getByText('Continue to your workspace with the same Google account.')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Continue with Google' }))
+    expect(start.startGoogle).toHaveBeenCalledWith({ intent: 'login', returnTo: '/products' })
+    expect(readStatusHandle()).toBeNull()
+  })
+
+  it('pending, then rejected: the reviewer’s reason and how to reach support', async () => {
+    ticket()
+    setup({
+      'POST /auth/google/complete': out({ outcome: 'pending', signup: { ...PENDING, status_handle: STATUS_HANDLE } }),
+      'POST /signup/status/poll': poll('rejected', { reason: 'We could not verify the brand.', decided_at: '2026-11-11T10:00:00Z' }),
+    })
+    expect(await screen.findByRole('heading', { name: 'Your request was not approved' })).toBeTruthy()
+    expect(screen.getByTestId('signup-status-reason').textContent).toBe('We could not verify the brand.')
+    expect(screen.getByText(/write to us at mukul@kuinn\.in/)).toBeTruthy()
+    expect(screen.getByTestId('waiting-support').getAttribute('href')).toBe('mailto:mukul@kuinn.in')
+    expect(screen.queryByRole('button', { name: 'Continue with Google' })).toBeNull()
+  })
+
+  it('a status handle that names nothing (404): the handle is dropped, the card stays and Continue with Google checks again', async () => {
+    ticket()
+    setup({
+      'POST /auth/google/complete': out({ outcome: 'pending', signup: { ...PENDING, status_handle: STATUS_HANDLE } }),
+      'POST /signup/status/poll': () => envelope(404, 'NOT_FOUND'),
+    })
+    expect(await screen.findByTestId('google-pending')).toBeTruthy()
+    await waitFor(() => expect(readStatusHandle()).toBeNull())
+    expect(screen.getByTestId('signup-status-badge').textContent).toBe('Waiting for review')
+    expect(await screen.findByText(/To check on it later, use Continue with Google again\./)).toBeTruthy()
+    expect(screen.queryByText(/updates by itself/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeTruthy()
+  })
+
+  it('storage blocked: the page still polls while it stays open and promises nothing more', async () => {
+    ticket()
+    const setItem = Storage.prototype.setItem
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key: string, value: string) {
+      if (this === localStorage) throw new DOMException('blocked', 'SecurityError')
+      setItem.call(this, key, value)
+    })
+    const { calls } = setup({
+      'POST /auth/google/complete': out({ outcome: 'pending', signup: { ...PENDING, status_handle: STATUS_HANDLE } }),
+      'POST /signup/status/poll': poll('pending'),
+    })
+    expect(await screen.findByTestId('google-pending')).toBeTruthy()
+    expect(screen.getByText(/updates by itself while it stays open/)).toBeTruthy()
+    await waitFor(() => expect(calls.some((c) => c.path === '/signup/status/poll')).toBe(true))
   })
 
   it('needs_details from "Continue with Google": "No Kuinn account yet", then the prefilled form', async () => {

@@ -2,11 +2,12 @@
  * Sign-up endpoints (ADR-0019). Checked against the backend:
  *   POST /signup                                   routers/signup.py signup_create   → 202 SignupAccepted
  *   POST /signup/status                            routers/signup.py signup_status   → 200 SignupStatusOut | 401
+ *   POST /signup/status/poll                       routers/signup.py signup_status_poll → 200 SignupPollOut | 404 (poll.ts)
  *   GET  /admin/signup-requests                    routers/admin.py  list (oldest first, cursor, ?status)
  *   POST /admin/signup-requests/{id}/approve       routers/admin.py  → SignupRequestOut (tenant_id set) | 404 | 409
  *   POST /admin/signup-requests/{id}/reject        routers/admin.py  → SignupRequestOut | 404 | 409
  * None of these take an Idempotency-Key (approve and reject are idempotent on the server; handover §7).
- * The two public ops never carry a bearer token and their 401 never ends a session (src/api/client.ts).
+ * The public ops never carry a bearer token and their 401 never ends a session (src/api/client.ts).
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, unwrap } from '@/api/client'
