@@ -75,7 +75,7 @@ export function NewProductImages({
   const checklist = fromChecklist(views)
   const tiles = tilesFor(views, { isVariant: false, sellOn })
   const gaps = newProductGaps(views, filledViews(images), { hasChart, sellOn })
-  const extraLevels = extraViews(views, sellOn)
+  const extraLevels = extraViews(views, sellOn, filledViews(images))
   const [moreSlot, setMoreSlot] = useState<ImageSlot>('secondary')
   const extras = images.filter((i) => photoSlotOf(i.slot, i.role) === null)
   const [moreOpen, setMoreOpen] = useState(extras.length > 0)

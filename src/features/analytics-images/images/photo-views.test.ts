@@ -118,6 +118,13 @@ describe('extra views', () => {
     expect(moreSubtitle(extraViews(LAMP), 'fallback')).toBe('Lifestyle recommended. Other photos optional.')
     expect(moreSubtitle([], 'fallback')).toBe('fallback')
   })
+
+  it('shows the status of a lamp lifestyle photo, from the product read or the pending photos', () => {
+    const states = LAMP.map((r) => state(r, r.view === 'lifestyle' ? 'missing' : 'present'))
+    expect(moreSubtitle(extraViews(states), 'fallback')).toBe('Lifestyle recommended (not added yet). Other photos optional.')
+    expect(moreSubtitle(extraViews(LAMP.map((r) => state(r, 'invalid'))), 'fallback')).toBe('Lifestyle recommended (needs a new photo). Other photos optional.')
+    expect(moreSubtitle(extraViews(LAMP, undefined, new Set(['front', 'lifestyle'])), 'fallback')).toBe('Lifestyle recommended (added). Other photos optional.')
+  })
 })
 
 describe('size flags', () => {

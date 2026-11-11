@@ -52,11 +52,33 @@ export function fromChecklist(views: readonly unknown[] | null | undefined): boo
   return !!views?.length
 }
 
-/** "Lifestyle recommended" style lines for the views beyond the tiles that are not optional. */
-export function extraViews(views: readonly PhotoViewRule[] | null | undefined, sellOn?: readonly Marketplace[]): { label: string; requirement: ViewRequirement; why: string }[] {
+export type ViewStatus = PhotoViewState['status']
+
+export interface ExtraView {
+  label: string
+  requirement: ViewRequirement
+  why: string
+  /** Whether a photo meets it: the product read's own status, else from `filled` (a new product). */
+  status?: ViewStatus
+}
+
+/**
+ * "Lifestyle recommended" style lines for the views beyond the tiles that are not optional, each
+ * with its status when it is known: a product read's views carry one, and a product not saved yet
+ * passes the views its pending photos fill.
+ */
+export function extraViews(
+  views: readonly (PhotoViewRule | PhotoViewState)[] | null | undefined,
+  sellOn?: readonly Marketplace[],
+  filled?: ReadonlySet<string>,
+): ExtraView[] {
   return (views ?? [])
     .filter((v) => !isTile(v.view))
-    .map((v) => ({ label: v.label, requirement: requirementFor(v, sellOn), why: v.why }))
+    .map((v): ExtraView => {
+      const own = 'status' in v ? v.status : undefined
+      const status = own ?? (filled ? (filled.has(v.view) ? 'present' : 'missing') : undefined)
+      return { label: v.label, requirement: requirementFor(v, sellOn), why: v.why, ...(status ? { status } : {}) }
+    })
     .filter((v) => v.requirement !== 'optional')
 }
 
@@ -108,10 +130,12 @@ export function recommendedGaps(gaps: readonly ViewGap[]): string[] {
   return gaps.filter((g) => g.requirement === 'recommended').map(gapLabel)
 }
 
-/** "Lifestyle recommended. Packaging label and other angles optional." for "More photos". */
-export function moreSubtitle(extras: readonly { label: string; requirement: ViewRequirement }[], fallback: string): string {
+const STATUS_TEXT: Record<ViewStatus, string> = { present: 'added', missing: 'not added yet', invalid: 'needs a new photo' }
+
+/** "Lifestyle recommended (not added yet). Other photos optional." for "More photos". */
+export function moreSubtitle(extras: readonly Pick<ExtraView, 'label' | 'requirement' | 'status'>[], fallback: string): string {
   if (!extras.length) return fallback
-  const named = extras.map((e) => `${e.label} ${e.requirement}`).join(', ')
+  const named = extras.map((e) => `${e.label} ${e.requirement}${e.status ? ` (${STATUS_TEXT[e.status]})` : ''}`).join(', ')
   return `${named.charAt(0).toUpperCase()}${named.slice(1)}. Other photos optional.`
 }
 
