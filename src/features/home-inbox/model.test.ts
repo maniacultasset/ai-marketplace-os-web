@@ -632,6 +632,8 @@ describe('SI11 lanes: who settles an issue', () => {
     it('a text fix waits for approval, then for Amazon', () => {
       expect(issueChip(text, ctx([send('2026-11-07T09:00:00Z', 'rejected')]))).toEqual({ status: 'ready', label: 'Fix ready, needs approval' })
       expect(issueNextStep(text, ctx([]))).toMatch(/A teammate who did not make the change approves it/)
+      // Item 17: an owner who may approve it is never sent to a teammate.
+      expect(issueNextStep(text, { ...ctx([]), ownApproval: true })).toBe('Kuinn changed the text. You can approve it, then it is sent.')
       expect(issueChip(text, ctx([send('2026-11-07T09:00:00Z', 'rejected'), send('2026-11-07T09:20:00Z', 'pending')], true)).label).toBe('Resent, waiting for Amazon')
       expect(issueChip(text, ctx([send('2026-11-07T09:00:00Z', 'rejected'), send('2026-11-07T09:20:00Z', 'live')], true)).label).toBe('Fixed for you')
       // Never sent: approved is enough, no resend was needed.
@@ -645,7 +647,8 @@ describe('SI11 lanes: who settles an issue', () => {
     })
 
     it('fixContext reads the approval of the current version', () => {
-      expect(fixContext({ attempts: [] }, { current_version_id: 'v2', approved_version_id: 'v2' })).toEqual({ attempts: [], approved: true })
+      expect(fixContext({ attempts: [] }, { current_version_id: 'v2', approved_version_id: 'v2' })).toEqual({ attempts: [], approved: true, ownApproval: false })
+      expect(fixContext({ attempts: [] }, { current_version_id: 'v2' }, true)?.ownApproval).toBe(true)
       expect(fixContext({ attempts: [] }, { current_version_id: 'v2', approved_version_id: 'v1' })?.approved).toBe(false)
       expect(fixContext(null, { current_version_id: 'v2' })).toBeNull()
     })

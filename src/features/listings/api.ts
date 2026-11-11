@@ -41,6 +41,7 @@ import {
   type Submission,
   type ValidationSummary,
 } from './model'
+import type { ListingVersion } from './versions'
 
 /* ---------------------------------------------------------------------------------------------- */
 /* Reads                                                                                           */
@@ -105,6 +106,22 @@ export function useListingHistory(listingId: string, enabled = true) {
   })
   const rows = useMemo(() => foldSelfApprovals(list.rows), [list.rows])
   return { ...list, rows }
+}
+
+/** GET /listings/{id}/versions, newest first (item 17). */
+export function useListingVersions(listingId: string, enabled = true) {
+  const keys = useKeys()
+  return useCursorList<ListingVersion>({
+    queryKey: keys.listings.versions(listingId),
+    enabled,
+    keepPrevious: false,
+    fetchPage: (cursor) =>
+      unwrap(
+        api.GET('/listings/{listing_id}/versions', {
+          params: { path: { listing_id: listingId }, query: { limit: PAGE_SIZE, cursor } },
+        }),
+      ),
+  })
 }
 
 export function useListingSubmissions(listingId: string, enabled = true) {

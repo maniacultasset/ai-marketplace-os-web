@@ -100,16 +100,18 @@ export const AUTONOMY_REASON = {
 } as const
 
 /**
- * Who did it. The API gives an actor type and a user id; only the signed-in user's own id can be
- * named ("You"), other people are "Your team" (no user directory is readable by every role).
+ * Who did it. "You" for the signed-in user; a teammate by the `actor_name` the API sends (item 17:
+ * a member's display name, else email); "Your team" when the API names nobody (an older backend,
+ * an erased account).
  */
 export function auditActorLabel(
-  e: { actor_type: 'user' | 'system' | 'staff'; actor_user_id?: string | null },
+  e: { actor_type: 'user' | 'system' | 'staff'; actor_user_id?: string | null; actor_name?: string | null },
   meId: string | null | undefined,
 ): string {
   if (e.actor_type === 'system') return 'Kuinn'
   if (e.actor_type === 'staff') return 'Support team'
-  return meId && e.actor_user_id === meId ? 'You' : 'Your team'
+  if (meId && e.actor_user_id === meId) return 'You'
+  return e.actor_name?.trim() || 'Your team'
 }
 
 /** One row of a listing's history in Activity: an audit event or a marketplace submission. */

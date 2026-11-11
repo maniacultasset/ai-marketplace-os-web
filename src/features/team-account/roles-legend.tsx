@@ -1,7 +1,9 @@
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { Icon, IconGlyph, type IconSource } from '@/components/la/icons'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useBrandProfile } from '@/features/brand/api'
 import { cn } from '@/lib/utils'
+import { approvalsNote } from './approver'
 import { ROLE_INFO, ROLE_ORDER } from './roles'
 
 const ROLE_ICON: Record<(typeof ROLE_ORDER)[number], IconSource> = {
@@ -11,8 +13,13 @@ const ROLE_ICON: Record<(typeof ROLE_ORDER)[number], IconSource> = {
   reviewer: CONCEPT_ICON.reviewer,
 }
 
-/** What each role can do, plus the approvals note. */
+/**
+ * What each role can do, plus the approvals note. The note follows the brand's owner approval
+ * setting (item 17); until the brand is read it keeps its height and says nothing.
+ */
 export function RolesLegend({ className }: { className?: string }) {
+  const profile = useBrandProfile()
+  const setting = profile.data?.data.owner_self_approval
   return (
     <Card role="region" aria-labelledby="roles-heading" className={cn('gap-0 py-0', className)}>
       <CardHeader className="pt-5 pb-4">
@@ -40,7 +47,9 @@ export function RolesLegend({ className }: { className?: string }) {
         data-testid="approvals-note"
       >
         <Icon name="info" size={14} className="mt-[calc((1lh-14px)/2)]" />
-        Approvals need a second person: the person who generated or edited a listing cannot approve it.
+        <span className={cn(setting === undefined && 'invisible')} aria-hidden={setting === undefined || undefined}>
+          {approvalsNote(setting === true)}
+        </span>
       </p>
     </Card>
   )

@@ -40,6 +40,7 @@ import { useChipContext } from '@/features/listing-flow/publishing'
 import { listingChip } from '@/lib/listing-chip'
 import { useCan } from '@/lib/permissions'
 import { supportMailto } from '@/lib/support'
+import { useOwnerMayApproveOwn } from '@/features/team-account/approver'
 import { useFindIssueListing, useListingIssues } from './api'
 import {
   attemptsTimeline,
@@ -88,6 +89,7 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
   const resolution = useListingResolution(listingId, { enabled: listing.data?.data.marketplace === 'amazon' })
   const can = useCan()
   const chipCtx = useChipContext()
+  const ownApproval = useOwnerMayApproveOwn()
 
   if (issues.isPending) return <DetailSkeleton />
   if (issues.isError)
@@ -104,7 +106,7 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
 
   const l = listing.data?.data
   // A closed fix says "Fixed for you" only with the listing's attempts proving it (SI11 lanes).
-  const fix = fixContext(resolution.data, l)
+  const fix = fixContext(resolution.data, l, ownApproval)
   const fixed = isAutoFix(issue)
   const trailLink = l ? issueTrailLink(issue, l) : null
   const others = issues.data.filter((i) => i.id !== issueId)

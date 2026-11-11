@@ -116,6 +116,8 @@ export interface HeadlineContext {
   canAnswer?: boolean
   /** Amazon publishing is switched off: approving a fix sends nothing (publishGate). */
   publishingPaused?: boolean
+  /** Item 17: the viewer may approve it themselves (useOwnerMayApproveOwn): never ask for a teammate. */
+  ownApproval?: boolean
 }
 
 export function resolutionHeadline(r: Pick<Resolution, 'state' | 'attempts' | 'cycles_used' | 'max_cycles'>, ctx: HeadlineContext): ResolutionHeadline {
@@ -132,10 +134,12 @@ export function resolutionHeadline(r: Pick<Resolution, 'state' | 'attempts' | 'c
       return resendAccepted(attempts)
         ? h('Fixed for you', `Kuinn changed how a value is sent, and ${mp} accepted the resend. Your product facts and text stayed the same.`, 'success', true)
         : h(`Sent again to ${mp}`, `Kuinn changed how a value is sent and sent it again. Your product facts and text stayed the same.`, 'working', true)
-    case 'fix_ready':
+    case 'fix_ready': {
+      const who = ctx.ownApproval ? 'You can approve it' : 'A teammate who did not make the change approves it'
       return ctx.publishingPaused
-        ? h('Fix ready to approve', 'Kuinn changed the text. A teammate who did not make the change approves it. Publishing to Amazon is paused for now, so nothing is sent.', 'attention')
-        : h('Fix ready: approve to resend', 'Kuinn changed the text. A teammate who did not make the change approves it, then it is sent again.', 'attention')
+        ? h('Fix ready to approve', `Kuinn changed the text. ${who}. Publishing to Amazon is paused for now, so nothing is sent.`, 'attention')
+        : h('Fix ready: approve to resend', `Kuinn changed the text. ${who}, then it is sent again.`, 'attention')
+    }
     case 'needs_you':
       return ctx.canAnswer === false
         ? h('Needs an answer', 'Kuinn needs an answer from an operator or owner before it can fix the listing.', 'attention')

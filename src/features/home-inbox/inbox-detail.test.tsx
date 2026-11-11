@@ -18,6 +18,8 @@ vi.mock('@/features/inbox/dismiss-issue', () => ({ DismissIssueButton: () => <bu
 // SI11: a closed fix reads its listing and the resolution read; these tests run with neither.
 vi.mock('@/features/listings/api', async (orig) => ({ ...(await orig<object>()), useListing: () => ({ data: undefined }) }))
 vi.mock('@/features/listing-flow/api', async (orig) => ({ ...(await orig<object>()), useListingResolution: () => ({ data: undefined }) }))
+// Item 17: owner approval off (the brand read needs a QueryClient these tests do not mount).
+vi.mock('@/features/team-account/approver', async (orig) => ({ ...(await orig<object>()), useOwnerMayApproveOwn: () => false }))
 
 const { InboxDetail } = await import('./inbox-detail')
 
