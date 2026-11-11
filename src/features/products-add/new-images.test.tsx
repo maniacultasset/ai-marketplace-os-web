@@ -86,3 +86,36 @@ describe('guided form photos (SI12)', () => {
     expect(placePending([front], [img({ stage: { kind: 'invalid', message: 'x' } })]).dropped).toEqual([])
   })
 })
+
+describe('guided form photo checklist (feedback 7)', () => {
+  const rule = (view: string, requirement: 'required' | 'recommended' | 'optional', amazon = requirement, flipkart = requirement) => ({
+    view,
+    label: { front: 'Front', back: 'Back', close_up: 'Close-up', size_chart: 'Size chart', lifestyle: 'Lifestyle' }[view]!,
+    slot: ({ front: 'main', back: 'secondary', close_up: 'secondary', size_chart: 'size_chart', lifestyle: 'lifestyle' } as Record<string, string>)[view]!,
+    role: view === 'back' || view === 'close_up' ? view : null,
+    requirement,
+    why: `Why ${view}`,
+    amazon,
+    flipkart,
+  })
+  const KURTA = [rule('front', 'required'), rule('back', 'recommended'), rule('close_up', 'recommended'), rule('size_chart', 'required', 'required', 'optional')] as never[]
+
+  it('draws the tiles from the checklist and says what approval will need', () => {
+    render(<NewProductImages images={[img({ slot: 'main' })]} onAdd={vi.fn()} onRemove={vi.fn()} onRetry={vi.fn()} views={KURTA} sellOn={['amazon']} />)
+    expect(screen.queryByTestId('photo-slots-recommended')).toBeNull()
+    expect(within(screen.getByTestId('photo-slot-back')).getByTestId('photo-slot-level').textContent).toBe('Recommended')
+    expect(within(screen.getByTestId('photo-slot-size_chart')).getByTestId('photo-slot-required')).toBeTruthy()
+    expect(screen.getByTestId('photo-needed').textContent).toContain('Needed before approval: Size chart.')
+    expect(screen.getByTestId('photo-recommended').textContent).toBe('Recommended: Back, Close-up.')
+  })
+
+  it('takes the ticked marketplace level, and a typed chart meets the size chart', () => {
+    render(<NewProductImages images={[img({ slot: 'main' })]} onAdd={vi.fn()} onRemove={vi.fn()} onRetry={vi.fn()} views={KURTA} sellOn={['flipkart']} />)
+    expect(within(screen.getByTestId('photo-slot-size_chart')).getByTestId('photo-slot-level').textContent).toBe('Optional')
+    expect(screen.queryByTestId('photo-needed')).toBeNull()
+    cleanup()
+    render(<NewProductImages images={[img({ slot: 'main' })]} onAdd={vi.fn()} onRemove={vi.fn()} onRetry={vi.fn()} views={KURTA} sellOn={['amazon']} hasChart />)
+    expect(within(screen.getByTestId('photo-slot-size_chart')).getByText('Chart entered')).toBeTruthy()
+    expect(screen.queryByTestId('photo-needed')).toBeNull()
+  })
+})

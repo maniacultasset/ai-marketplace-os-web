@@ -17,6 +17,7 @@ import { useKeys } from '@/lib/query-keys'
 import type { Listing, Marketplace, Product } from './catalog-model'
 import { ListOnPicker, useConnectedMarketplaces } from './list-on'
 import { generateMany, planGenerate, SKIP_COPY, type GenerateItem, type ItemOutcome } from './generate'
+import { neededForApproval, viewGaps } from '@/features/analytics-images/images/photo-views'
 
 const API_NAMES: Record<Marketplace, string> = { amazon: 'Amazon', flipkart: 'Flipkart' }
 
@@ -29,7 +30,8 @@ export function AddMarketplaceDialog({
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
-  products: readonly Pick<Product, 'id' | 'sku' | 'title' | 'parent_product_id'>[]
+  /** Feedback 7: a product read with `photo_views` adds what approval will still need. */
+  products: readonly (Pick<Product, 'id' | 'sku' | 'title' | 'parent_product_id'> & Partial<Pick<Product, 'photo_views' | 'size_chart_check'>>)[]
   listingsOf: (productId: string) => Partial<Record<Marketplace, Listing>>
   /** Marketplaces ticked when the dialog opens. */
   initial?: readonly Marketplace[]
@@ -46,6 +48,9 @@ export function AddMarketplaceDialog({
   const draftable = useMemo(() => openForDrafts(chosen, connected), [chosen, connected])
 
   const plan = useMemo(() => planGenerate(products, draftable, listingsOf), [products, draftable, listingsOf])
+  // Feedback 7 and 8: said before the draft starts; it never stops the draft.
+  const only = products.length === 1 ? products[0] : undefined
+  const photosNeeded = only ? neededForApproval(viewGaps(only.photo_views, only.size_chart_check, draftable)) : []
 
   const run = async (items: readonly GenerateItem[]) => {
     setSending({ done: 0, total: items.length })
@@ -159,6 +164,11 @@ export function AddMarketplaceDialog({
                     <b className="text-ink">{plan.send.length}</b> {plan.send.length === 1 ? 'draft' : 'drafts'} will be started
                     {plan.skipped.length ? `, ${plan.skipped.length} skipped` : ''}.
                   </p>
+                  {photosNeeded.length && plan.send.length ? (
+                    <p className="mt-1.5 text-attention-ink" data-testid="photos-needed">
+                      Approval will need: {photosNeeded.join(', ')}. You can add {photosNeeded.length === 1 ? 'it' : 'them'} while the draft runs.
+                    </p>
+                  ) : null}
                   {plan.skipped.length ? (
                     <ul className="mt-1.5 flex max-h-32 flex-col gap-0.5 overflow-y-auto">
                       {plan.skipped.map((s) => (

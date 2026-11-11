@@ -25,6 +25,7 @@ const IMG = '0b1c2d3e-0000-4000-8000-000000000501'
 
 const task = (over: Partial<Task> = {}): Task => ({
   id: '0b1c2d3e-0000-4000-8000-000000001101',
+  blocking: false,
   kind: 'missing_fact',
   product_id: '0b1c2d3e-0000-4000-8000-000000000101',
   target_path: 'facts.attributes.color',

@@ -35,7 +35,6 @@ import {
   MAX_IMAGE_BYTES,
   MORE_SLOTS,
   photoSlotOf,
-  photoSlotsFor,
   SLOT_LABEL,
   tally,
   validateImageFile,
@@ -49,7 +48,18 @@ import {
   type PhotoSlotDef,
   type UploadStage,
 } from './report'
-import { PhotoQaChips, PhotoSlotGrid, PhotoSlotRowCaption, PhotoTile, type TileState } from './photo-slots'
+import { PhotoChecklistNote, PhotoQaChips, PhotoSlotGrid, PhotoSlotRowCaption, PhotoTile, type TileState } from './photo-slots'
+import {
+  extraViews,
+  fromChecklist,
+  moreSubtitle,
+  neededForApproval,
+  recommendedGaps,
+  tilesFor,
+  viewGaps,
+  type PhotoViewState,
+  type SizeChartCheck,
+} from './photo-views'
 import { ALL_COLOURS, colourGroups, type ColourGroup, type ColourSource } from './colour-groups'
 import { uploadImage } from './upload'
 import { useImageCandidates } from './candidates-api'
@@ -63,6 +73,9 @@ interface ProductLike extends ColourSource {
   parent_product_id?: string | null
   /** Its rows feed "Make size chart image" (SI7). */
   size_chart?: { rows: readonly unknown[] } | null
+  /** Feedback 7: the category's photo checklist with what is present (empty while it is off). */
+  photo_views?: PhotoViewState[]
+  size_chart_check?: SizeChartCheck | null
 }
 
 /** A preview URL that failed to load is read again at most this often (they expire after 10 min). */
@@ -104,7 +117,10 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
   const canUpload = live && can(OP_ACTION['POST /images/upload']) && can(OP_ACTION['POST /images/upload-url'])
   const listed = product.images ?? []
   const isVariant = !!product.parent_product_id
-  const tiles = photoSlotsFor(isVariant)
+  const checklist = fromChecklist(product.photo_views)
+  const tiles = tilesFor(product.photo_views, { isVariant })
+  const gaps = viewGaps(product.photo_views, isVariant ? null : product.size_chart_check)
+  const extras = extraViews(product.photo_views)
   /** "More photos": the kinds beyond the four tiles. */
   const [slot, setSlot] = useState<ImageSlot>(MORE_SLOTS[0]!)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -201,7 +217,13 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
       return { filled: true, previewUrl: mine.previewUrl, status: 'Uploaded, checking…', tone: 'busy' }
     }
     const held = details.find((d) => photoSlotOf(d.slot, d.role) === def.id && (def.slot === 'size_chart' || (d.colourway_id ?? null) === cw))
-    if (!held) return { filled: false }
+    if (!held) {
+      // Feedback 8: a typed or confirmed size chart meets the view; its photo is then optional.
+      if (def.id === 'size_chart' && (product.size_chart?.rows.length ?? 0) > 0) {
+        return { filled: false, satisfied: true, status: 'Chart saved', tone: 'ok' }
+      }
+      return { filled: false }
+    }
     const previewUrl = held.view_url ?? undefined
     const warnings = qaById.get(held.image_id)
     if (held.compliance_status === 'passed') return { filled: true, previewUrl, ...passedTile(held), warnings }
@@ -337,18 +359,27 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         <div className="flex flex-col gap-4 p-4 sm:p-5" data-testid="photo-slots-card">
           <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
             <p className="max-w-md text-small text-ink-2">
-              The same four photos for every product, so the agent reads each one the same way. Each is checked against Amazon and Flipkart image rules.
+              {checklist
+                ? 'The photos this category needs. Each is checked against Amazon and Flipkart image rules.'
+                : 'The same four photos for every product, so the agent reads each one the same way. Each is checked against Amazon and Flipkart image rules.'}
             </p>
             {byColour ? <ColourSelect colours={groups.filter((g) => g.key !== 'other')} colour={colour} onColour={setColour} /> : null}
           </div>
           <PhotoSlotGrid>
             {tiles.map((def) => (
               <Fragment key={def.id}>
-                {def.id === 'back' ? <PhotoSlotRowCaption /> : null}
-                <PhotoTile def={def} large={def.id === 'front'} state={tileState(def)} onFiles={(files) => addAs(files, def.slot, def.role)} onPreviewError={refreshViews} />
+                {def.id === 'back' && !checklist ? <PhotoSlotRowCaption /> : null}
+                <PhotoTile def={def} large={def.id === 'front'} state={tileState(def)} onFiles={(files) => addAs(files, def.slot, def.role)} onPreviewError={refreshViews} showLevel={checklist} />
               </Fragment>
             ))}
           </PhotoSlotGrid>
+          {checklist ? (
+            <PhotoChecklistNote
+              needed={neededForApproval(gaps)}
+              recommended={recommendedGaps(gaps)}
+              rows={(product.photo_views ?? []).filter((v) => !(isVariant && v.view === 'size_chart'))}
+            />
+          ) : null}
           {byColour ? (
             <p className="text-caption text-ink-3">
               Front, Back and Close-up are filed under {colour === ALL_COLOURS ? 'all colours' : (groups.find((g) => g.key === colour)?.label ?? 'this colour')}.
@@ -360,7 +391,7 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
               <button type="button" className="focus-ring flex w-full items-center justify-between gap-3 rounded-card px-4 py-3 text-left" data-testid="more-photos-toggle">
                 <span className="flex min-w-0 flex-col">
                   <span className="text-small font-bold text-ink">More photos</span>
-                  <span className="text-caption text-ink-3">Lifestyle, packaging label and other angles. Optional.</span>
+                  <span className="text-caption text-ink-3">{moreSubtitle(extras, 'Lifestyle, packaging label and other angles. Optional.')}</span>
                 </span>
                 <Icon name="chev" size={16} className={cn('shrink-0 text-ink-2 motion-safe:transition-transform motion-safe:duration-150', moreOpen && 'rotate-180')} />
               </button>

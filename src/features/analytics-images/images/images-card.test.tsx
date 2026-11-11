@@ -339,3 +339,61 @@ describe('ProductImagesCard photo QA warnings (SI14)', () => {
     expect(screen.queryByTestId('photo-qa')).toBeNull()
   })
 })
+
+describe('ProductImagesCard photo checklist (feedback 7)', () => {
+  beforeEach(() => {
+    live = true
+  })
+  const view = (v: string, requirement: 'required' | 'recommended' | 'optional', status: 'present' | 'missing' | 'invalid', extra: Record<string, unknown> = {}) => ({
+    view: v,
+    label: { front: 'Front', back: 'Back', close_up: 'Close-up', size_chart: 'Size chart', lifestyle: 'Lifestyle' }[v]!,
+    slot: ({ front: 'main', back: 'secondary', close_up: 'secondary', size_chart: 'size_chart', lifestyle: 'lifestyle' } as Record<string, string>)[v]!,
+    role: v === 'back' || v === 'close_up' ? v : null,
+    requirement,
+    why: `Why ${v}`,
+    amazon: requirement,
+    flipkart: requirement,
+    status,
+    image_ids: [],
+    ...extra,
+  })
+  const lamp = {
+    ...product,
+    colourways: [],
+    photo_views: [view('front', 'required', 'present'), view('close_up', 'recommended', 'missing'), view('lifestyle', 'recommended', 'missing'), view('back', 'optional', 'missing')],
+  } as unknown as Parameters<typeof ProductImagesCard>[0]['product']
+
+  it('draws only the views the category has, each with its level', () => {
+    setup(lamp)
+    expect(screen.getAllByTestId(/^photo-slot-(front|back|close_up|size_chart)$/).map((t) => t.dataset.testid)).toEqual([
+      'photo-slot-front',
+      'photo-slot-close_up',
+      'photo-slot-back',
+    ])
+    expect(within(screen.getByTestId('photo-slot-close_up')).getByTestId('photo-slot-level').textContent).toBe('Recommended')
+    expect(within(screen.getByTestId('photo-slot-back')).getByTestId('photo-slot-level').textContent).toBe('Optional')
+    expect(screen.queryByTestId('photo-slots-recommended')).toBeNull()
+    expect(screen.getByTestId('photo-recommended').textContent).toBe('Recommended: Close-up, Lifestyle.')
+    expect(screen.queryByTestId('photo-needed')).toBeNull()
+    expect(screen.getByText('Lifestyle recommended (not added yet). Other photos optional.')).toBeTruthy()
+  })
+
+  it('says what approval needs, and a saved chart meets the size chart', () => {
+    const kurta = {
+      ...product,
+      colourways: [],
+      image_details: [],
+      images: [],
+      photo_views: [view('front', 'required', 'missing'), view('back', 'recommended', 'missing'), view('size_chart', 'required', 'missing')],
+      size_chart_check: { required: true, saved: false, missing_sizes: [], unused_sizes: [] },
+    } as unknown as Parameters<typeof ProductImagesCard>[0]['product']
+    setup(kurta)
+    expect(screen.getByTestId('photo-needed').textContent).toContain('Needed before approval: Front, Size chart.')
+    expect(within(screen.getByTestId('photo-slot-size_chart')).getByTestId('photo-slot-required')).toBeTruthy()
+    cleanup()
+    setup({ ...kurta, size_chart: { rows: [{ size: 'M' }] }, size_chart_check: { required: true, saved: true, missing_sizes: [], unused_sizes: [] } } as typeof kurta)
+    expect(within(screen.getByTestId('photo-slot-size_chart')).queryByTestId('photo-slot-required')).toBeNull()
+    expect(within(screen.getByTestId('photo-slot-size_chart')).getByText('Chart saved')).toBeTruthy()
+    expect(screen.getByTestId('photo-needed').textContent).toContain('Needed before approval: Front.')
+  })
+})
