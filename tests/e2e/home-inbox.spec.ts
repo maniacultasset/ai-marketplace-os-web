@@ -51,26 +51,24 @@ test.describe('home', () => {
     await expect(page.getByTestId('tile-live-value')).toHaveText(complete ? String(live) : new RegExp(`^${live}\\+$`))
   })
 
-  test('Needs you and "Waiting for you" match open tasks and issues', async ({ page }) => {
+  test('"Waiting for you" lists the home summary\'s things to do', async ({ page }) => {
     const { access_token } = await apiLogin(page.request, USERS.acme.owner)
-    const [l, t, i] = await Promise.all([
+    const [l, h] = await Promise.all([
       page.request.get('/api/v1/listings?limit=1', { headers: auth(access_token) }),
-      page.request.get('/api/v1/tasks?limit=50', { headers: auth(access_token) }),
-      page.request.get('/api/v1/issues?limit=50', { headers: auth(access_token) }),
+      page.request.get('/api/v1/home/summary', { headers: auth(access_token) }),
     ])
     test.skip(((await l.json()) as PageBody<unknown>).data.length === 0, 'first run: no dashboard tiles')
-    const tasks = (await t.json()) as PageBody<unknown>
-    const issues = (await i.json()) as PageBody<unknown>
-    const n = tasks.data.length + issues.data.length
+    // Client feedback 6: the card shows the summary's needs_you_items (at most 5), and Open Inbox
+    // when a blocked listing or a question waits there.
+    const summary = (await h.json()) as { needs_you: { blocked: number; questions: number }; needs_you_items: unknown[] }
+    const n = summary.needs_you_items.length
 
     await loginAs(page, USERS.acme.owner, '/home')
     const card = page.getByTestId('waiting-card')
-    if (n === 0) await expect(card.getByTestId('waiting-empty')).toBeVisible()
-    else {
-      await expect(card.getByTestId('waiting-title')).toHaveCount(Math.min(3, n))
-      const more = tasks.page.has_more || issues.page.has_more
-      await expect(card.getByTestId('waiting-view-all')).toHaveText(`View all ${n}${more ? '+' : ''}`)
-    }
+    if (n > 0) await expect(card.getByTestId('waiting-title')).toHaveCount(n)
+    else await expect(card.getByTestId('waiting-title')).toHaveCount(0)
+    const inbox = summary.needs_you.blocked + summary.needs_you.questions
+    await expect(card.getByTestId('waiting-view-all')).toHaveCount(inbox > 0 ? 1 : 0)
   })
 
   test('unsupported marketplaces are honest: On the roadmap, waitlist disabled', async ({ page }) => {
