@@ -102,6 +102,11 @@ export interface IssueHistoryView {
    * first. They wait for the seller's "Apply fixes"; their issues are not listed again.
    */
   suggested: FixLine[]
+  /**
+   * Client item 20: open issues Kuinn would fix with a content fix or an AI rewrite (no value
+   * change to show yet). They wait for the same "Apply fixes" and are not listed again.
+   */
+  suggestedIssues: IssueLine[]
   /** Open issues Kuinn is still working on (no fix yet, or the fix is not confirmed). */
   fixing: IssueLine[]
   needsYou: IssueLine[]
@@ -148,12 +153,16 @@ function plural(n: number, one: string, many: string): string {
 }
 
 export function summaryLine(
-  v: Pick<IssueHistoryView, 'fixing' | 'needsYou' | 'marketplace' | 'team'> & { fixed: readonly Pick<FixLine, 'result'>[]; suggested?: readonly unknown[] },
+  v: Pick<IssueHistoryView, 'fixing' | 'needsYou' | 'marketplace' | 'team'> & {
+    fixed: readonly Pick<FixLine, 'result'>[]
+    suggested?: readonly unknown[]
+    suggestedIssues?: readonly unknown[]
+  },
   marketplace: string,
 ): string {
   const mp = mpName(marketplace)
   const parts: string[] = []
-  const suggested = v.suggested?.length ?? 0
+  const suggested = (v.suggested?.length ?? 0) + (v.suggestedIssues?.length ?? 0)
   if (suggested) parts.push(`${plural(suggested, 'suggested fix waits', 'suggested fixes wait')} for you`)
   const fixes = (...results: FixOutcome[]) => v.fixed.filter((f) => results.includes(f.result)).length
   const accepted = fixes('accepted')
@@ -211,12 +220,17 @@ export function issueHistoryView(h: IssueHistory, marketplace: string): IssueHis
       fixes: (a.fix_ids ?? []).map((id) => fixesById.get(id)).filter((x): x is FixLine => !!x),
     }
   })
+  // an open issue the API marks suggested with no suggested value change: a content fix or an
+  // AI rewrite Kuinn makes once the seller applies the fixes
+  const suggestedIssues = open.filter((i) => i.suggested === true && !suggestedIssueIds.has(i.id)).map(line)
+  const waiting = new Set([...suggestedIssueIds, ...suggestedIssues.map((i) => i.id)])
   const view = {
     fixed,
     suggested,
+    suggestedIssues,
     fixing,
     // an issue with a suggested fix shows under its suggestion, not twice
-    needsYou: by('you').filter((i) => !suggestedIssueIds.has(i.id)),
+    needsYou: by('you').filter((i) => !waiting.has(i.id)),
     marketplace: by('marketplace'),
     team: by('staff'),
     steps,

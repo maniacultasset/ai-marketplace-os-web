@@ -21,6 +21,7 @@ export function issue(over: Partial<HistoryIssue> = {}): HistoryIssue {
     first_seen_at: AT,
     last_seen_at: AT,
     resolved_at: null,
+    suggested: false,
     ...over,
   }
 }

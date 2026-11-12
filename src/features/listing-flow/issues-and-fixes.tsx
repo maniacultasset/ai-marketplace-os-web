@@ -87,17 +87,20 @@ export function IssuesAndFixesCard({
           ))}
         </Group>
       ) : null}
-      {view.suggested.length ? (
+      {view.suggested.length + view.suggestedIssues.length ? (
         <Group
           title="Kuinn suggests"
           testId="issues-suggested"
-          count={view.suggested.length}
+          count={view.suggested.length + view.suggestedIssues.length}
           hint="Automatic fixes are off for this brand. Check each change, then apply them. Kuinn checks the listing again afterwards."
-          footer={<ApplyFixes listingId={listingId} count={view.suggested.length} />}
+          footer={<ApplyFixes listingId={listingId} count={view.suggested.length + view.suggestedIssues.length} />}
         >
-          {view.suggested.map((f) => (
-            <FixItem key={f.id} fix={f} marketplace={marketplace} suggested />
-          ))}
+          {[
+            ...view.suggested.map((f) => <FixItem key={f.id} fix={f} marketplace={marketplace} suggested />),
+            ...view.suggestedIssues.map((i) => (
+              <IssueItem key={i.id} issue={i} marketplace={marketplace} note="Kuinn rewrites this text when you apply. The new version then waits for approval as usual." />
+            )),
+          ]}
         </Group>
       ) : null}
       {view.fixed.length ? (

@@ -164,6 +164,17 @@ describe('suggested fixes (client item 20)', () => {
     await waitFor(() => expect(toasts.success).toHaveBeenCalledWith('Fix applied', expect.anything()))
   })
 
+  it('offers "Apply fix" for a suggested content fix that has no value to show yet', async () => {
+    post.mockResolvedValue({ data: { released: 0, job_id: 'j2' }, response: new Response(null, { status: 200 }) })
+    card(history({ issues: [issue({ id: 'i9', field: 'content.title', handler: 'you', lane: 'seller', suggested: true })] }))
+    const group = screen.getByTestId('issues-suggested')
+    expect(within(group).getByText(/Kuinn rewrites this text when you apply/)).toBeTruthy()
+    expect(screen.queryByTestId('issues-needs-you')).toBeNull()
+    expect(screen.queryByTestId('issues-team')).toBeNull()
+    await userEvent.click(within(group).getByRole('button', { name: 'Apply fix' }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/listings/{listing_id}/fixes/apply', { params: { path: { listing_id: 'L1' } } }))
+  })
+
   it('tells a role that cannot edit listings who can apply them', () => {
     perm.edit = false
     card(suggested())
