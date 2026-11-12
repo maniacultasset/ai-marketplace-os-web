@@ -75,6 +75,8 @@ const listing = (
 
 const task = (n: number, at: string, over: Partial<Task> = {}): Task => ({
   id: U(n),
+  // no server flag: these cases test the client's own rule (`isBlockingTask` without `blocking`)
+  blocking: undefined as unknown as boolean,
   kind: 'missing_fact',
   question: `Q${n}`,
   reason: 'Needed',
@@ -85,7 +87,7 @@ const task = (n: number, at: string, over: Partial<Task> = {}): Task => ({
   resume_from: 'generate',
   suggestions: [],
   ...over,
-})
+}) as Task
 
 const issue = (n: number, at: string, over: Partial<Issue> = {}): Issue => ({
   id: U(n),
@@ -206,6 +208,7 @@ describe('photo questions on Home (never blocking)', () => {
   const IMG = U(501)
   const q = (n: number, over: Partial<Task> = {}): Task => ({
     id: U(n),
+    blocking: undefined as unknown as boolean,
     kind: 'missing_fact',
     product_id: U(101),
     target_path: 'facts.attributes.neckline',
@@ -219,7 +222,7 @@ describe('photo questions on Home (never blocking)', () => {
     created_at: '2026-10-05T09:30:00Z',
     updated_at: '2026-10-05T09:30:00Z',
     ...over,
-  })
+  }) as Task
   const reconnect = q(9, { kind: 'reconnect_account', product_id: null, target_path: 'account.x', image_id: null, marketplace_account_id: U(77) })
 
   it('splits open questions into blocking ones and photo questions', () => {

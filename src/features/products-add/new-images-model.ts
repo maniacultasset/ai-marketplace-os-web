@@ -1,6 +1,6 @@
 /** Images picked for a product that is not saved yet (see ./new-images.tsx). */
 import { newIdempotencyKey } from '@/api/idempotency'
-import { validateImageFile, type ImageRole, type ImageSlot } from '@/features/analytics-images/images/report'
+import { photoSlotOf, validateImageFile, type ImageRole, type ImageSlot } from '@/features/analytics-images/images/report'
 
 export type PendingStage =
   | { kind: 'invalid'; message: string }
@@ -52,4 +52,15 @@ export function placePending(list: readonly PendingImage[], added: readonly Pend
   const dropped = list.filter(replaces)
   const next = [...list.filter((i) => !dropped.includes(i)), ...added].slice(0, 20)
   return { next, dropped }
+}
+
+/** Feedback 7: the checklist view a pending photo fills (a plain secondary fills none). */
+export function pendingView(img: Pick<PendingImage, 'slot' | 'role'>): string | null {
+  if (img.slot === 'lifestyle' || img.slot === 'packaging_label') return img.slot
+  return photoSlotOf(img.slot, img.role)
+}
+
+/** The views the chosen photos fill (a refused file fills none). */
+export function filledViews(images: readonly PendingImage[]): Set<string> {
+  return new Set(images.flatMap((i) => (i.stage.kind === 'invalid' ? [] : [pendingView(i)])).filter((v): v is string => !!v))
 }

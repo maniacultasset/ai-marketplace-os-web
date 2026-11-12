@@ -24,6 +24,8 @@ export interface TileState {
   tone?: TileTone
   /** SI14 photo QA warnings (never blocking). */
   warnings?: readonly PhotoQaWarning[]
+  /** Feedback 8: the view is met without a photo (a size chart the seller saved), so no level chip. */
+  satisfied?: boolean
 }
 
 /**
@@ -75,6 +77,7 @@ export function PhotoTile({
   disabled,
   large,
   onPreviewError,
+  showLevel,
 }: {
   def: PhotoSlotDef
   state: TileState
@@ -85,6 +88,11 @@ export function PhotoTile({
   onPreviewError?: () => void
   /** The Front tile: full width, 4:3. */
   large?: boolean
+  /**
+   * Feedback 7: the tiles come from the category checklist, so an empty tile names its own level
+   * (Recommended, Optional) instead of the row caption. Required shows either way.
+   */
+  showLevel?: boolean
 }) {
   const dz = useDropzone({
     onDrop: (files: File[], rejected: FileRejection[]) => {
@@ -158,13 +166,18 @@ export function PhotoTile({
         )}
         <span className="absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1">
           <span className="truncate rounded-md border border-line bg-surface/95 px-1.5 py-0.5 text-caption font-semibold text-ink shadow-raised-sm">{def.label}</span>
-          {def.required && !state.filled ? (
+          {def.required && !state.filled && !state.satisfied ? (
             <span className="shrink-0 rounded-md border border-attention-line bg-attention-bg px-1.5 py-0.5 text-caption font-semibold text-attention" data-testid="photo-slot-required">
               Required
+            </span>
+          ) : showLevel && !def.required && !state.filled && !state.satisfied ? (
+            <span className="shrink-0 rounded-md border border-line bg-surface/95 px-1.5 py-0.5 text-caption text-ink-2" data-testid="photo-slot-level">
+              {def.requirement === 'recommended' ? 'Recommended' : 'Optional'}
             </span>
           ) : null}
         </span>
       </div>
+
       {onRemove && state.filled ? (
         <Button
           type="button"
@@ -192,6 +205,54 @@ export function PhotoTile({
       </p>
       ) : null}
       <PhotoQaChips warnings={state.warnings} className="mt-1" />
+    </div>
+  )
+}
+
+/**
+ * Feedback 7: what the category needs at a glance, with the why behind each view one click away.
+ * `gaps` are the required views still missing (blocking approval) and the recommended ones.
+ */
+export function PhotoChecklistNote({
+  needed,
+  recommended,
+  rows,
+}: {
+  /** Labels approval still needs. */
+  needed: readonly string[]
+  /** Labels recommended and still missing. */
+  recommended: readonly string[]
+  /** Every view of the checklist with its level and why, for the disclosure. */
+  rows: readonly { label: string; requirement: 'required' | 'recommended' | 'optional'; why: string }[]
+}) {
+  const level = { required: 'Required', recommended: 'Recommended', optional: 'Optional' } as const
+  return (
+    <div className="flex flex-col gap-1.5" data-testid="photo-checklist">
+      {needed.length ? (
+        <p className="flex items-start gap-1.5 text-small text-attention-ink" data-testid="photo-needed">
+          <Icon name="alert" size={14} className="mt-0.5 shrink-0" aria-hidden />
+          <span>
+            Needed before approval: {needed.join(', ')}. You can still start a draft.
+          </span>
+        </p>
+      ) : null}
+      {recommended.length ? (
+        <p className="text-small text-ink-2" data-testid="photo-recommended">
+          Recommended: {recommended.join(', ')}.
+        </p>
+      ) : null}
+      <details className="group text-small">
+        <summary className="focus-ring w-fit cursor-pointer rounded-sm font-semibold text-brand marker:content-none">
+          Why these photos
+        </summary>
+        <ul className="mt-1.5 flex flex-col gap-1">
+          {rows.map((r) => (
+            <li key={r.label} className="text-caption text-ink-2">
+              <b className="text-ink">{r.label}</b> · {level[r.requirement]}. {r.why}
+            </li>
+          ))}
+        </ul>
+      </details>
     </div>
   )
 }

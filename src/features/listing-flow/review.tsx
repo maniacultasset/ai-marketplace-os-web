@@ -18,10 +18,16 @@
  *     self-approval says it is recorded (ListingDetail.self_approval);
  *   - Send back with a note: POST /listings/approve `decision: reject` (+ `regenerate`);
  *   - once approved: Publish (POST /listings/publish) opens the publish run.
+ *   - client feedback 14 and 16: one card per section (sections.tsx: Title, Key features,
+ *     Description, Search terms, Attributes), each with its own limit, errors, Save (no AI; the
+ *     edit is locked) and "Regenerate this section"; "How it will read" is the full preview,
+ *     folded by default; answered facts name the sections they affect ("Update these sections");
  *   - SI11 "What Kuinn did" (GET /listings/{id}/resolution, Amazon only): the resolution card
  *     lands with the gates. On a resend (a fix Kuinn prepared, or a change after a send) the
  *     approve button is "Approve and resend" (approve, then publish; resend.ts) for a teammate who
  *     did not make the version; its maker or editor sees "Sent to a teammate for approval".
+ *   - Feedback item 20 "Issues and fixes" (GET /listings/{id}/issue-history, every marketplace):
+ *     each marketplace issue by who handles it and each fix Kuinn made; lands with the gates.
  */
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useLocation, useNavigate } from '@tanstack/react-router'
@@ -45,7 +51,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useFixCounts, useFixTrail } from '@/features/home-inbox/api'
 import { useTasksList } from '@/features/inbox/api'
-import { invalidateListingWork, useListingHistory, usePublishListings, useRegenerateListing, useReviewListings, useValidateListing } from '@/features/listings/api'
+import { invalidateListingWork, useListingHistory, usePublishListings, useReviewListings, useValidateListing } from '@/features/listings/api'
 import { recallJob, rememberJob } from '@/features/listings/job-memory'
 import {
   approveItems,
@@ -77,19 +83,22 @@ import { ApproverNotice, SelfApprovalNote } from '@/features/team-account/approv
 import { AutoFixedChip, FixedForYouCard } from './auto-fix'
 import { autoFixTrail, FIXED_FOR_YOU_HASH, siblingFixes, versionRef } from './auto-fix-model'
 import { EditDialog, SendBackDialog } from './dialogs'
-import { clock, fieldLabel, findingText, mpName, plainMessage, sellerFinding, sentenceCase } from './format'
-import { claimFindings, gateCounts, plural, type ErrorItem, type GateResult } from './gates'
+import { clock, fieldLabel, mpName, plainMessage, sentenceCase } from './format'
+import { FindingBody, FindingsCard } from './findings-card'
+import { claimFindings, gateCounts, gatesSummary, needsGates, plural, type ErrorItem, type GateResult } from './gates'
 import { IdentifierFix } from './identifier-fix'
 import { answeredAfter } from './review-model'
+import { SectionCards } from './sections'
+import { SECTION_LABEL, type Section } from './sections-model'
+import { AnswersBanner, RegenerateButton } from './answers-banner'
 import { ListOnButton } from './list-on'
 import { useListingResolution } from './api'
 import { useChipContext, usePublishGate } from './publishing'
 import { approveThenPublish, isResend, resendView, TEAMMATE_TEXT } from './resend'
 import { hasResolution, resolutionView } from './resolution-model'
+import { ListingIssuesAndFixes } from './issues-and-fixes'
 import { ResolutionActionLink, ResolutionCard } from './resolution-timeline'
 import { approveAllTargets, approveBlockers } from './review-model'
-import { AI_PAUSED_REASON, isAiPausedError } from '@/features/ai-credit/model'
-import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
 import { STAGE_SUB } from './run-steps'
 import { ActionButton, CardSkeleton, GATE_CHIP, GateLegend, GateList, GateListSkeleton, ReadsAsSkeleton, ReviewTopSkeleton } from './ui'
 import { useListingChecks } from './use-listing-checks'
@@ -369,6 +378,8 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
       !openTasks.rows.some((t) => t.product_id === listing.product_id)) ||
     answeredAfter(appliedTasks.rows, listing.product_id, listing.content?.created_at)
   const shownBlockers = blockers && blockers.version === listing.current_version_id ? blockers.items : null
+  // Client feedback 14: the sections the answered facts feed (the server's dependency map).
+  const affected: Section[] = listing.affected_sections ?? []
 
   return (
     <div className="flex min-h-[calc(100svh-56px)] flex-col">
@@ -418,19 +429,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
               : 'This page updates on its own.'}
           </Banner>
         ) : null}
-        {answered && !busy ? (
-          <Banner
-            tone="attention"
-            className="mb-4"
-            title="Your answers are saved."
-            data-testid="answered-regenerate"
-            action={<RegenerateButton listing={listing} state={actions.regenerate} testId="answered-regenerate-button" />}
-          >
-            {listing.status === 'blocked'
-              ? 'Generate the listing again to use them. Until then it stays blocked.'
-              : 'Generate the listing again to use them. The new version stays a draft until it is approved.'}
-          </Banner>
-        ) : null}
+        {(answered || affected.length > 0) && !busy ? <AnswersBanner listing={listing} affected={affected} state={actions.regenerate} /> : null}
         {listing.status === 'approved' ? (
           <Banner
             tone="success"
@@ -487,11 +486,24 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
                 claims={claims}
                 author={history.isPending || history.error ? 'unknown' : contentAuthor(history.rows, !history.hasNextPage)}
                 authorPending={history.isPending}
-                onEdit={() => setEdit(true)}
+              />
+              <SectionCards
+                listing={listing}
+                etag={checks.etag}
+                findings={findings}
                 editState={actions.edit}
+                regenerateState={actions.regenerate}
+                onSaved={(section) => {
+                  if (resendEdit)
+                    toast.success(TEAMMATE_TEXT, { description: `Saved as a new version. A teammate approves it and sends it to ${mp} again.` })
+                  else
+                    toast.success(`${SECTION_LABEL[section]} saved`, {
+                      description: 'Kept as your edit and locked. The checks ran again. Someone else approves it.',
+                    })
+                }}
               />
               {/* Unsupported claims already show on the bullet and in the claim card. */}
-              {otherFindings.length ? <FindingsCard findings={otherFindings} /> : null}
+              {otherFindings.length ? <FindingsCard findings={otherFindings} productId={listing.product_id} /> : null}
             </div>
             {/* What Kuinn did, the gates and the photo facts stay in view while the listing scrolls. */}
             <div className={cn('flex min-w-0 flex-col gap-4', STICKY_ASIDE)}>
@@ -515,6 +527,13 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
                   }
                 />
               ) : null}
+              <ListingIssuesAndFixes
+                listingId={listing.id}
+                marketplace={listing.marketplace}
+                ready={checks.gatesReady && !fixesQ.isPending}
+                poll={!!rview?.headline.working}
+                linkFields={false}
+              />
               <GatesCard
                 gates={checks.gates}
                 ready={checks.gatesReady && !fixesQ.isPending && !resolutionPending}
@@ -672,45 +691,6 @@ function PublishingPausedNote() {
   )
 }
 
-/** "Generate again" (POST /listings/{id}/regenerate) after a photo value was removed here. */
-function RegenerateButton({ listing, state: given, testId = 'photo-regenerate' }: { listing: ListingDetail; state: ActionState; testId?: string }) {
-  const paused = useAiPaused()
-  const state: ActionState = paused && given.show ? { show: true, enabled: false, reason: AI_PAUSED_REASON } : given
-  const navigate = useNavigate()
-  const regenerate = useRegenerateListing(listing.id)
-  const key = useIntentKey()
-  return (
-    <ActionButton
-      state={state}
-      size="sm"
-      variant="secondary"
-      disabled={regenerate.isPending}
-      data-testid={testId}
-      onClick={() =>
-        regenerate.mutate(
-          { instructions: null, key: key.get() },
-          {
-            onSuccess: (a) => {
-              key.reset()
-              rememberJob(listing.id, a.job_id)
-              void navigate({ to: '/runs/$runId', params: { runId: a.job_id } })
-            },
-            onError: (e) => {
-              if (isApiError(e) && !e.isNetwork) key.reset()
-              // A pause shows in the app-wide banner instead.
-              if (isAiPausedError(e)) return
-              toastError(e, 'Couldn’t start a new generation')
-            },
-          },
-        )
-      }
-    >
-      <Icon name="refresh" size={14} />
-      {regenerate.isPending ? 'Starting…' : 'Generate again'}
-    </ActionButton>
-  )
-}
-
 /* ---------------------------------------------------------------------------------------------- */
 
 function MarketplaceTabs({
@@ -779,8 +759,6 @@ function ReadsAs({
   claims,
   author,
   authorPending,
-  onEdit,
-  editState,
 }: {
   checks: ReturnType<typeof useListingChecks>
   listing: ListingDetail
@@ -789,12 +767,13 @@ function ReadsAs({
   author: 'agent' | 'team' | 'unknown'
   /** The history is still being read: the author line is a placeholder, not a guess. */
   authorPending: boolean
-  onEdit: () => void
-  editState: ActionState
 }) {
   const canonical = listing.content!
   const content = canonical.content
   const [more, setMore] = useState(false)
+  // The section cards below show every field; the full preview is one click away (client feedback 16).
+  const [open, setOpen] = useState(false)
+  const bodyId = useId()
   const [removedOpen, setRemovedOpen] = useState(false)
   const mp = mpName(listing.marketplace)
   const preview = checks.preview
@@ -834,10 +813,10 @@ function ReadsAs({
           )
         }
         action={
-          <ActionButton state={editState} size="sm" variant="secondary" onClick={onEdit} data-testid="edit">
-            <Icon name="file" size={14} />
-            Edit
-          </ActionButton>
+          <Button size="sm" variant="ghost" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen((o) => !o)} data-testid="reads-as-toggle">
+            {open ? 'Hide the preview' : 'Show the preview'}
+            <Icon name="chev" size={14} aria-hidden className={cn('motion-safe:transition-transform motion-safe:duration-150', open && 'rotate-180')} />
+          </Button>
         }
       />
       <div className="mt-4 flex flex-col items-start gap-4 sm:flex-row">
@@ -880,32 +859,34 @@ function ReadsAs({
           <h2 className="font-sans text-h3 font-bold text-ink" data-testid="reads-title">
             {content.title}
           </h2>
-          <ul className="m-0 mt-3 list-disc pl-[18px] text-body leading-6 text-ink">
-            {content.bullets.map((b, i) => {
-              const flag = bulletFinding(claims, i, b)
-              // Every bullet keeps its outside marker; a flagged one highlights its text only.
-              return (
-                <li key={i}>
-                  {flag ? (
-                    <>
-                      <span className="-mx-1 box-decoration-clone rounded-sm bg-attention-bg px-1">{b}</span>{' '}
-                      <StatusChip status="needs-you" className="align-middle">
-                        No evidence
-                      </StatusChip>
-                    </>
-                  ) : (
-                    b
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-          <p className={cn('mt-3 text-small whitespace-pre-line text-ink-2', !more && 'line-clamp-3')}>{content.description}</p>
-          {content.description.length > 240 ? (
-            <Button variant="link" size="sm" className="mt-1" onClick={() => setMore((m) => !m)} aria-expanded={more}>
-              {more ? 'Show less' : 'Show the full description'}
-            </Button>
-          ) : null}
+          <div id={bodyId} hidden={!open}>
+            <ul className="m-0 mt-3 list-disc pl-[18px] text-body leading-6 text-ink">
+              {content.bullets.map((b, i) => {
+                const flag = bulletFinding(claims, i, b)
+                // Every bullet keeps its outside marker; a flagged one highlights its text only.
+                return (
+                  <li key={i}>
+                    {flag ? (
+                      <>
+                        <span className="-mx-1 box-decoration-clone rounded-sm bg-attention-bg px-1">{b}</span>{' '}
+                        <StatusChip status="needs-you" className="align-middle">
+                          No evidence
+                        </StatusChip>
+                      </>
+                    ) : (
+                      b
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+            <p className={cn('mt-3 text-small whitespace-pre-line text-ink-2', !more && 'line-clamp-3')}>{content.description}</p>
+            {content.description.length > 240 ? (
+              <Button variant="link" size="sm" className="mt-1" onClick={() => setMore((m) => !m)} aria-expanded={more}>
+                {more ? 'Show less' : 'Show the full description'}
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
       {mappingErrors.length ? (
@@ -993,7 +974,7 @@ function GatesCard({
   const onCurrent = !!v && v.listing_version_id === listing.current_version_id
   const stage = onCurrent ? v.stages?.[v.stages.length - 1] : undefined
   const counts = gateCounts(gates)
-  const needs = gates.filter((g) => g.state === 'blocked' || g.state === 'warning')
+  const needs = needsGates(gates)
   const serverBlocking = listing.display_state === 'needs_you' ? (listing.needs_you_count ?? 0) : 0
   const listedSet = new Set(listed)
   return (
@@ -1017,7 +998,7 @@ function GatesCard({
       ) : (
         <>
           <p className="mt-2 text-small text-ink-2 tabular-nums" data-testid="gates-summary">
-            {counts.blocked + counts.warning} need you · {counts.passed} passed · {counts.unchecked} not checked yet
+            {gatesSummary(counts)}
           </p>
           {needs.length ? (
             <ul className="m-0 mt-2 flex list-none flex-col gap-1.5 p-0" data-testid="gates-needs">
@@ -1055,6 +1036,14 @@ function GatesCard({
           ) : onCurrent ? (
             <p className="mt-2 text-small text-ink">
               {counts.passed === counts.total ? `All ${counts.total} checks passed.` : 'Nothing blocks approval in the checks that ran.'}
+              {counts.recommended ? (
+                <>
+                  {' '}
+                  <a href="#findings" className="focus-ring rounded-sm font-semibold whitespace-nowrap text-brand hover:underline" data-testid="gates-recommended">
+                    See {counts.recommended} recommended
+                  </a>
+                </>
+              ) : null}
             </p>
           ) : null}
         </>
@@ -1076,7 +1065,7 @@ function GatesCard({
         <GateList gates={gates} />
         <p className="mt-3 text-caption text-ink-3" data-testid="gates-note">
           {onCurrent
-            ? `${v.blocking_count} blocking, ${v.warning_count} ${v.warning_count === 1 ? 'warning' : 'warnings'} on version ${listing.content?.version ?? ''}${stage ? `, checked ${clock(stage.created_at)}` : ''}.`
+            ? `${v.blocking_count} blocking, ${v.warning_count} ${v.warning_count === 1 ? 'warning' : 'warnings'}${counts.recommended ? `, ${counts.recommended} recommended` : ''} on version ${listing.content?.version ?? ''}${stage ? `, checked ${clock(stage.created_at)}` : ''}.`
             : 'This version has not been checked yet. Approval needs a passing check.'}
           {rulesCount != null ? ` ${plural(rulesCount, 'rule')} apply to this category.` : ''}
         </p>
@@ -1090,8 +1079,6 @@ function GatesCard({
     </LaCard>
   )
 }
-
-const WARNINGS_SHOWN = 3
 
 /** SI9: why approve was refused: the marketplace check's blocking items, and what to do about each. */
 function ApproveBlockersCard({ items, onClose }: { items: readonly ErrorItem[]; onClose: () => void }) {
@@ -1120,50 +1107,6 @@ function ApproveBlockersCard({ items, onClose }: { items: readonly ErrorItem[]; 
       ) : (
         <p className="mt-3 text-body text-ink-2">Run checks to see the details.</p>
       )}
-    </LaCard>
-  )
-}
-
-/** One finding in seller words: plain message, the field, the value, a suggestion meant for them. */
-function FindingBody({ f }: { f: ErrorItem }) {
-  // Seller words (labels, no agent guidance) with the value line that says "sent" only for a
-  // marketplace's answer.
-  const s = sellerFinding(f)
-  const t = findingText(f)
-  return (
-    <div className="min-w-0 flex-1">
-      <p className="text-body text-ink">{s.message}</p>
-      <p className="text-caption text-ink-3">
-        <span title={f.field}>{fieldLabel(f.field)}</span>
-        {t.value ? ` · ${t.value}` : ''}
-      </p>
-      {s.action ? <p className="mt-0.5 text-small text-ink-2">{s.action}</p> : null}
-    </div>
-  )
-}
-
-function FindingsCard({ findings }: { findings: readonly ErrorItem[] }) {
-  const [allWarnings, setAllWarnings] = useState(false)
-  const errors = findings.filter((f) => f.severity === 'error')
-  const warnings = findings.filter((f) => f.severity !== 'error')
-  const hiddenCount = Math.max(0, warnings.length - WARNINGS_SHOWN)
-  const shown = [...errors, ...(allWarnings ? warnings : warnings.slice(0, WARNINGS_SHOWN))]
-  return (
-    <LaCard data-testid="findings" id="findings" className="scroll-mt-20 md:scroll-mt-4">
-      <CardHead title="What the checks found" sub="Fix blocking items first." />
-      <ul className="m-0 mt-3 flex list-none flex-col p-0">
-        {shown.map((f, i) => (
-          <li key={i} className="flex items-start gap-3 border-b border-line py-3 last:border-b-0 last:pb-0">
-            <StatusChip status={f.severity === 'error' ? 'blocked' : 'needs-you'} iconOnly label={f.severity === 'error' ? 'Blocking' : 'Warning'} />
-            <FindingBody f={f} />
-          </li>
-        ))}
-      </ul>
-      {hiddenCount ? (
-        <Button variant="ghost" size="sm" className="mt-2 -ml-2" aria-expanded={allWarnings} onClick={() => setAllWarnings((o) => !o)}>
-          {allWarnings ? 'Show fewer warnings' : `Show ${plural(hiddenCount, 'more warning')}`}
-        </Button>
-      ) : null}
     </LaCard>
   )
 }

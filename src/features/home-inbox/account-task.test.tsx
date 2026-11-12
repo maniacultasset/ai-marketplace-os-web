@@ -33,6 +33,7 @@ const PRODUCT2 = '0b1c2d3e-0000-4000-8000-000000000111'
 const task = (kind: Task['kind']): Task => ({
   id: TASK,
   kind,
+  blocking: true,
   status: 'open',
   question: kind === 'permission_decision' ? 'Grant the marketplace permission this listing needs.' : 'Review a marketplace error the system does not know yet.',
   reason: 'The marketplace refused a publish.',

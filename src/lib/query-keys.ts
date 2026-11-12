@@ -125,6 +125,8 @@ export function keysFor(tid: string) {
       submissions: (listingId: string) => [...T, 'listings', 'detail', listingId, 'submissions'] as const,
       /** GET /listings/{id}/resolution (SI11 "What Kuinn did"). */
       resolution: (listingId: string) => [...T, 'listings', 'detail', listingId, 'resolution'] as const,
+      /** GET /listings/{id}/issue-history (feedback item 20 "Issues and fixes"). */
+      issueHistory: (listingId: string) => [...T, 'listings', 'detail', listingId, 'issue-history'] as const,
     },
     issues: {
       all: () => [...T, 'issues'] as const,

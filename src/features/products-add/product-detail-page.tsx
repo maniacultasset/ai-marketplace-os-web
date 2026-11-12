@@ -78,7 +78,7 @@ import { ProductDetailsCard, ProductDetailsEditor } from './product-details'
 import { useProductEditSession, type ProductEditSession } from './product-edit-session'
 import { manufacturerSource } from '@/features/products/edit-model'
 import { CategorySuggestionCard } from '@/features/assist/category-suggestion-card'
-import { DETAIL_TABS, type DetailTab, type EditTarget } from './detail-tabs'
+import { DETAIL_TABS, isEditTarget, type DetailTab } from './detail-tabs'
 import { useEditAt } from './edit-at'
 import { ProductThumb } from './products-page'
 import { marketplaceLink } from '@/features/listings/external-link'
@@ -272,7 +272,7 @@ interface DetailData {
 
 const NO_LISTINGS: Listing[] = []
 
-export function ProductDetailPage({ productId, tab, edit }: { productId: string; tab: DetailTab; edit?: EditTarget }) {
+export function ProductDetailPage({ productId, tab, edit }: { productId: string; tab: DetailTab; edit?: string }) {
   const q = useProduct(productId)
   const all = useAllProducts()
   const listingsQ = useAllListings({ productId })
@@ -351,8 +351,11 @@ function LoadedDetail({
 }: {
   data: DetailData
   tab: DetailTab
-  /** Open the editor at this field (`?edit=barcode`), then drop it from the address. */
-  edit?: EditTarget
+  /**
+   * `?edit=`: `barcode` opens the editor at the barcode choice; an attribute key (Review's "Add
+   * on the product") opens it on that field. Either is used once, then dropped from the address.
+   */
+  edit?: string
   tabsRef: React.RefObject<HTMLDivElement | null>
 }) {
   const navigate = useNavigate()
@@ -371,8 +374,25 @@ function LoadedDetail({
   const review = data.listingsPending || data.listingsFailed ? undefined : listingsIn(data).find(needsReview)
   const setTab = (t: string) =>
     void navigate({ to: '/products/$productId', params: { productId }, search: t === 'overview' ? {} : { tab: t as DetailTab }, replace: true })
+  // `?edit=<key>`: open the editor once and drop the key from the URL, so Back or a reload never
+  // reopens it; the field takes focus once the editor is on screen.
+  const [focusField] = useState(edit && !isEditTarget(edit) ? edit : undefined)
+  const opened = useRef(false)
+  useEffect(() => {
+    if (!focusField || opened.current) return
+    opened.current = true
+    void navigate({ to: '/products/$productId', params: { productId }, search: {}, replace: true })
+    if (canEdit && !session.editing) session.start()
+  }, [focusField, canEdit, navigate, productId, session])
+  useEffect(() => {
+    if (!focusField || !session.editing) return
+    const field = document.getElementById(`e-attr-${focusField}`)
+    if (!field) return
+    field.scrollIntoView({ block: 'center' })
+    field.focus({ preventScroll: true })
+  }, [focusField, session.editing])
 
-  useEditAt({ edit, ready: !data.variantsPending, canEdit, editing, tab, start: session.start, clear: () => setTab('overview') })
+  useEditAt({ edit: edit && isEditTarget(edit) ? edit : undefined, ready: !data.variantsPending, canEdit, editing, tab, start: session.start, clear: () => setTab('overview') })
 
   return (
     <Page>

@@ -53,4 +53,16 @@ describe('Needed chips', () => {
     expect(f).toMatchObject({ identifier: true, fabric_type: true, color: false, mrp: true, selling_price: false, package_size: false, package_weight: true, hsn_code: false })
     expect(productFilled(p, { isVariant: true, isStyle: false }).color).toBe(true)
   })
+
+  it('feedback 8: the size chart is Needed where the category needs one, never on a variant', () => {
+    const apparel: Requirements = { category: 'tshirts', amazon: ['size_measurements'], flipkart: ['size_measurements'] }
+    expect(missingNeeds(apparel, ['flipkart'], { size_chart: false }).map((n) => [n.field.id, n.text])).toEqual([['size_chart', 'Flipkart needs this']])
+    expect(missingNeeds(apparel, ['amazon'], { size_chart: true })).toEqual([])
+    expect(missingNeeds(req, ['amazon'], { size_chart: false })).toEqual([])
+    const p = { id: 'p', attributes: {}, size_chart: null } as unknown as Product
+    expect(productFilled(p, { isVariant: false, isStyle: false }).size_chart).toBe(false)
+    expect(productFilled(p, { isVariant: true, isStyle: false }).size_chart).toBe(true)
+    const withChart = { ...p, size_chart: { unit: 'cm', basis: 'garment', rows: [{ size: 'M' }] } } as unknown as Product
+    expect(productFilled(withChart, { isVariant: false, isStyle: false }).size_chart).toBe(true)
+  })
 })

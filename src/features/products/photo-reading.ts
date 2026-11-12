@@ -43,3 +43,11 @@ export function soonest(a: number | false, b: number | false): number | false {
   if (b === false) return a
   return Math.min(a, b)
 }
+
+/** How often the product is read again while a photo's colour check runs (client feedback item 9). */
+export const PHOTO_MATCH_POLL_MS = 3_000
+
+/** The next product read while a photo's colour check runs (`photo_match.status` `checking`). */
+export function photoMatchDelay(p: Pick<ProductDetail, 'image_details'> | null | undefined): number | false {
+  return (p?.image_details ?? []).some((d) => d.photo_match?.status === 'checking') ? PHOTO_MATCH_POLL_MS : false
+}

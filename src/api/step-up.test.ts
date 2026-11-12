@@ -29,6 +29,7 @@ describe('STEP_UP_OPS', () => {
         'POST /auth/mfa/totp/confirm',
         'POST /auth/mfa/recovery-codes',
         'POST /auth/google/unlink',
+        'POST /tenants',
       ].sort(),
     )
     expect(Object.keys(STEP_UP_OPS).some((op) => op.includes('/admin/'))).toBe(false)

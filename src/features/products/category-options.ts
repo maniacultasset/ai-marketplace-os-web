@@ -4,7 +4,8 @@
  * backend's lamps switch is on (features/assist/flags.ts `useLampsEnabled`, SI14): while it is off
  * the backend refuses a new lamps listing, so offering lamps would lead nowhere.
  * There is no "Other": any other category saves, but the agent refuses it (CATEGORY_NOT_MAPPED).
- * There is no GET for the mapped categories yet, so keep these in step with the backend templates.
+ * The add form reads the categories from `GET /catalog/categories` (./catalog-categories.ts); this
+ * list stands in while that read is pending or failed, so keep it in step with the backend templates.
  */
 import { APPAREL_CATEGORIES, categoryLabel, type CategoryChoice } from './categories'
 

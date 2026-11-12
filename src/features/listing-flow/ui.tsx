@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ActionState } from '@/features/listings/model'
 import { cn } from '@/lib/utils'
-import type { GateResult, GateState } from './gates'
+import { onlyRecommended, type GateResult, type GateState } from './gates'
 import type { StepState } from './run-steps'
 
 /* ---------------------------------------------------------------------------------------------- */
@@ -141,6 +141,18 @@ const GATE_WORD: Record<GateState, string> = {
   unchecked: 'Not checked yet',
 }
 
+/**
+ * A gate's chip and word. A gate whose only findings are recommended attributes has nothing to
+ * fix, so it reads as passed; its note says how many attributes are recommended.
+ */
+export function gateChip(g: Pick<GateResult, 'state' | 'findings'>): ChipStatus {
+  return onlyRecommended(g) ? 'live' : GATE_CHIP[g.state]
+}
+
+export function gateWord(g: Pick<GateResult, 'state' | 'findings'>): string {
+  return onlyRecommended(g) ? 'Passed' : GATE_WORD[g.state]
+}
+
 /** p13 grid (two columns, chip then label) or p18 list (label left, chip right). */
 export function GateList({ gates, layout = 'grid' }: { gates: readonly GateResult[]; layout?: 'grid' | 'list' }) {
   return (
@@ -149,7 +161,7 @@ export function GateList({ gates, layout = 'grid' }: { gates: readonly GateResul
       className={cn('m-0 list-none p-0', layout === 'grid' ? 'mt-3 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2' : 'mt-3 flex flex-col gap-2')}
     >
       {gates.map((g) => {
-        const chip = <StatusChip status={GATE_CHIP[g.state]} iconOnly label={`${g.label}: ${GATE_WORD[g.state]}. ${g.note}`} />
+        const chip = <StatusChip status={gateChip(g)} iconOnly label={`${g.label}: ${gateWord(g)}. ${g.note}`} />
         return (
           <li
             key={g.id}

@@ -25,6 +25,7 @@ const IMG = '0b1c2d3e-0000-4000-8000-000000000501'
 
 const task = (over: Partial<Task> = {}): Task => ({
   id: '0b1c2d3e-0000-4000-8000-000000001101',
+  blocking: false,
   kind: 'missing_fact',
   product_id: '0b1c2d3e-0000-4000-8000-000000000101',
   target_path: 'facts.attributes.color',
@@ -38,7 +39,7 @@ const task = (over: Partial<Task> = {}): Task => ({
   created_at: '2026-10-05T09:30:00Z',
   updated_at: '2026-10-05T09:30:00Z',
   ...over,
-})
+}) as Task
 
 const ok = (body: unknown) => Promise.resolve({ data: body, error: undefined, response: new Response(JSON.stringify(body), { status: 200 }) })
 const refuse = (status: number, type: string, details: unknown[] | null = null) => {

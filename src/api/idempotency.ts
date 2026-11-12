@@ -16,12 +16,15 @@ export const IDEMPOTENT_OPS = [
   'POST /imports/{import_id}/rows/retry',
   'POST /brand/documents',
   'POST /images/upload',
+  'POST /images/{image_id}/photo-match/keep',
   'POST /products/{product_id}/image-candidates',
   'POST /image-candidates/{candidate_id}/accept',
   'POST /image-candidates/{candidate_id}/reject',
   'POST /products/{product_id}/size-chart-read',
   'POST /products/{product_id}/category-suggestion',
   'POST /products/{product_id}/size-run',
+  'POST /catalog/category-suggestions',
+  'POST /skus/suggestion',
   'POST /imports/column-maps',
   'POST /imports/column-maps/{map_id}/confirm',
   'POST /listings/generate',
@@ -34,6 +37,7 @@ export const IDEMPOTENT_OPS = [
   'POST /jobs/{job_id}/cancel',
   'POST /tasks/{task_id}/answer',
   'POST /tasks/{task_id}/close',
+  'POST /tenants',
 ] as const
 
 export type IdempotentOp = (typeof IDEMPOTENT_OPS)[number]

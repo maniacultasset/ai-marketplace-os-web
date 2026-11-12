@@ -6,8 +6,11 @@
  * `glossary` only, so the step asks for just two things:
  *   Brand name   → `name`  (autosaves on blur)
  *   Brand voice  → `tone`  (autosaves on blur; this is what the agent writes in)
- * The design's legal name, business type, website, logo, description and "Read my site" have no
- * API and no V1 use, so they are not shown.
+ * The design's legal name, business type, website, logo and "Read my site" have no API and no V1
+ * use, so they are not shown.
+ *
+ * Below it, "Tell Kuinn about your brand" (client feedback item 19; BrandVoiceCard, saved through
+ * PATCH /brand-profile on its own): optional, with "Do this later". Continue never waits for it.
  *
  * STALE_VERSION: re-read, lay this person's own changes on top (profile-model `rebase`), say so,
  * and let them save again. Never retry blindly. While both people changed the same field, blur
@@ -34,6 +37,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { fetchProfile, useBrandProfile, useSaveProfile } from '@/features/brand/api'
+import { BrandVoiceCard } from '@/features/brand/brand-voice-card'
 import {
   buildPatch,
   FIELD_LABEL,
@@ -49,7 +53,7 @@ import {
   type ProfileField,
   type TenantOut,
 } from '@/features/brand/profile-model'
-import { useCan } from '@/lib/permissions'
+import { OP_ACTION, useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
 import { focusFirstInvalid } from '@/lib/validation'
 import { cn } from '@/lib/utils'
@@ -219,99 +223,102 @@ function BrandStepForm({ initial }: { initial: Versioned<TenantOut> }) {
       <SetupBody step={0}>
         <SetupColumns
           main={
-            <LaCard className="flex flex-col gap-4" data-setup-form>
-              <SetupHeading title="Tell us about your brand once" sub="Your brand name and how listings should sound. We reuse them on every product." />
+            <div className="flex flex-col gap-4">
+              <LaCard className="flex flex-col gap-4" data-setup-form>
+                <SetupHeading title="Tell us about your brand once" sub="Your brand name and how listings should sound. We reuse them on every product." />
 
-              {stale ? (
-                <div id="setup-stale" tabIndex={-1} className="rounded-banner outline-none">
-                  <Banner tone="attention" role="alert" title="Someone saved a newer version">
-                    We loaded it and kept your changes on top
-                    {stale.conflicts.length
-                      ? `. You both changed ${stale.conflicts.map((f) => FIELD_LABEL[f].toLowerCase()).join(' and ')}: check it, then save again.`
-                      : '. Save again to keep them.'}
-                    <div className="mt-2 flex flex-wrap items-center gap-3">
-                      <Button size="sm" variant="secondary" onClick={() => void saveNow('explicit')} disabled={state.kind === 'saving'}>
-                        Save again
-                      </Button>
-                      <ReferenceId id={stale.correlationId} />
-                    </div>
+                {stale ? (
+                  <div id="setup-stale" tabIndex={-1} className="rounded-banner outline-none">
+                    <Banner tone="attention" role="alert" title="Someone saved a newer version">
+                      We loaded it and kept your changes on top
+                      {stale.conflicts.length
+                        ? `. You both changed ${stale.conflicts.map((f) => FIELD_LABEL[f].toLowerCase()).join(' and ')}: check it, then save again.`
+                        : '. Save again to keep them.'}
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <Button size="sm" variant="secondary" onClick={() => void saveNow('explicit')} disabled={state.kind === 'saving'}>
+                          Save again
+                        </Button>
+                        <ReferenceId id={stale.correlationId} />
+                      </div>
+                    </Banner>
+                  </div>
+                ) : null}
+
+                {!canEdit ? (
+                  <Banner tone="neutral" icon="lock" title="Only owners and admins can change the brand profile">
+                    You can look through setup. Ask an owner or admin to fill it in.
                   </Banner>
+                ) : null}
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <LaField
+                    label="Brand name"
+                    htmlFor="brand-name"
+                    hint="Exactly as customers see it. Marketplaces match on this."
+                    error={err('name')}
+                    submitCount={attempts}
+                    confirmFix
+                    source={canEdit && touched.has('name') && draft.name.trim() ? { kind: 'you' } : undefined}
+                    required
+                  >
+                    <Input
+                      id="brand-name"
+                      name="name"
+                      value={draft.name}
+                      maxLength={NAME_MAX + 50}
+                      readOnly={!canEdit}
+                      className={cn(!canEdit && READ_ONLY_CONTROL)}
+                      aria-invalid={err('name') ? true : undefined}
+                      aria-describedby={fieldHintId('brand-name')}
+                      autoComplete="organization"
+                      autoCapitalize="words"
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setDraft((d) => ({ ...d, name: v }))
+                        touch('name')
+                        recheck('name', { ...draftRef.current, name: v })
+                      }}
+                      onBlur={() => void saveNow('blur')}
+                    />
+                  </LaField>
                 </div>
-              ) : null}
 
-              {!canEdit ? (
-                <Banner tone="neutral" icon="lock" title="Only owners and admins can change the brand profile">
-                  You can look through setup. Ask an owner or admin to fill it in.
-                </Banner>
-              ) : null}
-
-              <div className="grid gap-4 md:grid-cols-2">
                 <LaField
-                  label="Brand name"
-                  htmlFor="brand-name"
-                  hint="Exactly as customers see it. Marketplaces match on this."
-                  error={err('name')}
+                  label="Brand voice"
+                  htmlFor="brand-voice"
+                  hint={`How listings should sound, for example “warm and plain, no hype”. The agent writes in this voice. ${fieldLength(draft.tone).toLocaleString('en-IN')} of ${TONE_MAX.toLocaleString('en-IN')} characters.`}
+                  error={err('tone')}
                   submitCount={attempts}
                   confirmFix
-                  source={canEdit && touched.has('name') && draft.name.trim() ? { kind: 'you' } : undefined}
-                  required
+                  source={canEdit && touched.has('tone') && draft.tone.trim() ? { kind: 'you' } : undefined}
                 >
-                  <Input
-                    id="brand-name"
-                    name="name"
-                    value={draft.name}
-                    maxLength={NAME_MAX + 50}
+                  <Textarea
+                    id="brand-voice"
+                    name="tone"
+                    value={draft.tone}
+                    maxLength={TONE_MAX * 2}
+                    autoComplete="off"
                     readOnly={!canEdit}
-                    className={cn(!canEdit && READ_ONLY_CONTROL)}
-                    aria-invalid={err('name') ? true : undefined}
-                    aria-describedby={fieldHintId('brand-name')}
-                    autoComplete="organization"
-                    autoCapitalize="words"
+                    className={cn('min-h-[64px]', !canEdit && READ_ONLY_CONTROL)}
+                    aria-invalid={err('tone') ? true : undefined}
+                    aria-describedby={fieldHintId('brand-voice')}
                     onChange={(e) => {
                       const v = e.target.value
-                      setDraft((d) => ({ ...d, name: v }))
-                      touch('name')
-                      recheck('name', { ...draftRef.current, name: v })
+                      setDraft((d) => ({ ...d, tone: v }))
+                      touch('tone')
+                      recheck('tone', { ...draftRef.current, tone: v })
                     }}
                     onBlur={() => void saveNow('blur')}
                   />
                 </LaField>
-              </div>
-
-              <LaField
-                label="Brand voice"
-                htmlFor="brand-voice"
-                hint={`How listings should sound, for example “warm and plain, no hype”. The agent writes in this voice. ${fieldLength(draft.tone).toLocaleString('en-IN')} of ${TONE_MAX.toLocaleString('en-IN')} characters.`}
-                error={err('tone')}
-                submitCount={attempts}
-                confirmFix
-                source={canEdit && touched.has('tone') && draft.tone.trim() ? { kind: 'you' } : undefined}
-              >
-                <Textarea
-                  id="brand-voice"
-                  name="tone"
-                  value={draft.tone}
-                  maxLength={TONE_MAX * 2}
-                  autoComplete="off"
-                  readOnly={!canEdit}
-                  className={cn('min-h-[64px]', !canEdit && READ_ONLY_CONTROL)}
-                  aria-invalid={err('tone') ? true : undefined}
-                  aria-describedby={fieldHintId('brand-voice')}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    setDraft((d) => ({ ...d, tone: v }))
-                    touch('tone')
-                    recheck('tone', { ...draftRef.current, tone: v })
-                  }}
-                  onBlur={() => void saveNow('blur')}
-                />
-              </LaField>
-              {errors.profile ? (
-                <p role="alert" className="text-small font-semibold text-danger">
-                  {errors.profile}
-                </p>
-              ) : null}
-            </LaCard>
+                {errors.profile ? (
+                  <p role="alert" className="text-small font-semibold text-danger">
+                    {errors.profile}
+                  </p>
+                ) : null}
+              </LaCard>
+              <BrandVoiceCard canEdit={can(OP_ACTION['PATCH /brand-profile'])} variant="setup" />
+            </div>
           }
           aside={
             <>

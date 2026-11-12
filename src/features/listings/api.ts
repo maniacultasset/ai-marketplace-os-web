@@ -21,7 +21,7 @@ import { useMemo } from 'react'
 import { api, unwrap } from '@/api/client'
 import { ifMatchHeader, unwrapVersioned, type Versioned } from '@/api/etag'
 import { idempotencyHeader } from '@/api/idempotency'
-import type { JobEnvelope } from '@/api/types'
+import type { JobEnvelope, Schema } from '@/api/types'
 import { PAGE_SIZE, useCursorList } from '@/hooks/use-cursor-list'
 import { useKeys, type ListingsFilters, type QueryKeys } from '@/lib/query-keys'
 import {
@@ -45,6 +45,8 @@ import {
 /* ---------------------------------------------------------------------------------------------- */
 /* Reads                                                                                           */
 /* ---------------------------------------------------------------------------------------------- */
+
+type RegenerateSection = NonNullable<Schema<'RegenerateRequest'>['sections']>[number]
 
 export function fetchListingsPage(f: ListingsFilters, cursor: string | undefined, limit = PAGE_SIZE) {
   return unwrap(
@@ -199,16 +201,43 @@ export function useValidateListing(listingId: string) {
   })
 }
 
+/**
+ * The regenerate body. Only the keys in use are sent, so a whole regenerate's body stays `{}` or
+ * `{instructions}` (an older backend's strict body takes it); the generated type marks the
+ * defaulted `for_answers` as required, so the partial body is cast.
+ */
+export function regenerateBody(
+  instructions: string | null,
+  sections?: readonly RegenerateSection[],
+  forAnswers?: boolean,
+): Schema<'RegenerateRequest'> {
+  return {
+    ...(instructions ? { instructions } : {}),
+    ...(sections?.length ? { sections: [...sections], ...(forAnswers ? { for_answers: true } : {}) } : {}),
+  } as Schema<'RegenerateRequest'>
+}
+
 export function useRegenerateListing(listingId: string) {
   const keys = useKeys()
   const qc = useQueryClient()
   return useMutation({
     meta: { toast: false },
-    mutationFn: ({ instructions, key }: { instructions: string | null; key: string }): Promise<JobAccepted> =>
+    /** `sections`: rewrite only those (client feedback 14); `forAnswers`: "Update these sections". */
+    mutationFn: ({
+      instructions,
+      key,
+      sections,
+      forAnswers,
+    }: {
+      instructions: string | null
+      key: string
+      sections?: readonly RegenerateSection[]
+      forAnswers?: boolean
+    }): Promise<JobAccepted> =>
       unwrap(
         api.POST('/listings/{listing_id}/regenerate', {
           params: { path: { listing_id: listingId }, header: idempotencyHeader(key) },
-          body: instructions ? { instructions } : {},
+          body: regenerateBody(instructions, sections, forAnswers),
         }),
       ),
     onSuccess: () => invalidateListingWork(qc, keys, [listingId]),

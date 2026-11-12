@@ -48,15 +48,17 @@ export interface PhotoSlotDef {
   slot: ImageSlot
   role: ImageRole | null
   required: boolean
-  /** What the agent reads from it, in the seller's words. */
+  /** Feedback 7: the category checklist's level (the fixed tiles: Front required, the rest recommended). */
+  requirement: 'required' | 'recommended' | 'optional'
+  /** What the agent reads from it, or why the view helps, in the seller's words. */
   hint: string
 }
 
 export const PHOTO_SLOTS: readonly PhotoSlotDef[] = [
-  { id: 'front', label: 'Front', slot: 'main', role: null, required: true, hint: 'The main photo. Colour, pattern and neckline are read from it.' },
-  { id: 'back', label: 'Back', slot: 'secondary', role: 'back', required: false, hint: 'Back details, like a print or a yoke.' },
-  { id: 'close_up', label: 'Close-up', slot: 'secondary', role: 'close_up', required: false, hint: 'Texture, print and embroidery up close.' },
-  { id: 'size_chart', label: 'Size chart', slot: 'size_chart', role: null, required: false, hint: 'Sizes and measurements can be read from it.' },
+  { id: 'front', label: 'Front', slot: 'main', role: null, required: true, requirement: 'required', hint: 'The main photo. Colour, pattern and neckline are read from it.' },
+  { id: 'back', label: 'Back', slot: 'secondary', role: 'back', required: false, requirement: 'recommended', hint: 'Back details, like a print or a yoke.' },
+  { id: 'close_up', label: 'Close-up', slot: 'secondary', role: 'close_up', required: false, requirement: 'recommended', hint: 'Texture, print and embroidery up close.' },
+  { id: 'size_chart', label: 'Size chart', slot: 'size_chart', role: null, required: false, requirement: 'recommended', hint: 'Sizes and measurements can be read from it.' },
 ]
 
 /** The tiles a product shows: a variant has no size chart (it is the style's). */

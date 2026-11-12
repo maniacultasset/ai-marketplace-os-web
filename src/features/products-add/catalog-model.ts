@@ -11,7 +11,7 @@
 import type { Schema } from '@/api/types'
 import type { ChipStatus } from '@/components/la/status-chip'
 import { categoryLabel } from '@/features/products/categories'
-import { listingChip, type ChipContext, type ChipView } from '@/lib/listing-chip'
+import { isApprovedPaused, listingChip, needsYourInfo, type ChipContext, type ChipView } from '@/lib/listing-chip'
 import { draftOpen } from '@/features/marketplaces/meta'
 
 export type Product = Schema<'ProductOut'>
@@ -96,6 +96,49 @@ export function overallStatus(listings: readonly Listing[], ctx?: ChipContext): 
   if (chips.includes('working')) return 'working'
   if (chips.includes('paused')) return 'paused'
   return 'draft'
+}
+
+/**
+ * One listing's bucket, exactly as the backend counts it for Home (`app.services.home.listing_bucket`,
+ * the same order). Home's tiles count listings in these buckets; the Products `?listing=` filter
+ * shows the products that own them, so a tile and the list it opens always agree.
+ */
+export type ListingBucket = 'live' | 'partly_live' | 'problem' | 'in_progress' | 'ready_to_approve' | 'ready_to_publish' | 'inactive' | 'draft'
+
+export function listingBucket(l: Pick<Listing, 'status' | 'marketplace_state'> & Partial<Pick<Listing, 'display_state' | 'needs_you_count'>>): ListingBucket {
+  const state = l.marketplace_state
+  if (state === 'live') return 'live'
+  if (state === 'partially_live') return 'partly_live'
+  if (state === 'rejected') return 'problem'
+  // validated / needs_review / blocked with an open blocking issue on the current version
+  if (needsYourInfo(l)) return 'problem'
+  if (l.status === 'generating' || l.status === 'publishing') return 'in_progress'
+  if (l.status === 'validated' || l.status === 'needs_review') return 'ready_to_approve'
+  if (l.status === 'approved') return 'ready_to_publish'
+  if (l.status === 'blocked' || l.status === 'failed') return 'problem'
+  if (l.status === 'published') return state === 'inactive' || state === 'removed' ? 'inactive' : 'in_progress'
+  return 'draft'
+}
+
+/** The listing filters Home links to (`/products?listing=`). `live` takes partly live too, as the tile does. */
+export type ListingFilter = 'live' | 'in_progress' | 'problem' | 'ready_to_approve' | 'ready_to_publish'
+export const LISTING_FILTERS: Record<ListingFilter, string> = {
+  live: 'live or partly live',
+  in_progress: 'in progress',
+  problem: 'stopped',
+  ready_to_approve: 'ready to approve',
+  ready_to_publish: 'ready to publish',
+}
+
+/**
+ * The listing is in the filter's bucket. `ready_to_publish` leaves out an approved Amazon listing
+ * while Amazon publishing is paused, as Home's "to publish" count does.
+ */
+export function listingMatches(l: Listing, f: ListingFilter, ctx?: ChipContext): boolean {
+  const b = listingBucket(l)
+  if (f === 'live') return b === 'live' || b === 'partly_live'
+  if (f === 'ready_to_publish') return b === 'ready_to_publish' && !isApprovedPaused(l, ctx)
+  return b === f
 }
 
 export function bucketOf(o: Overall): Bucket {
@@ -184,6 +227,10 @@ export interface CatalogFilter {
   category?: string | null
   /** Rows with a listing on this marketplace. */
   marketplace?: Marketplace | null
+  /** Rows with a listing in this bucket (on `marketplace`, when one is set). */
+  listing?: ListingFilter | null
+  /** For `listing: 'ready_to_publish'`: what the publish switches allow now. */
+  ctx?: ChipContext
 }
 
 export function filterCatalog(rows: readonly CatalogRow[], f: CatalogFilter): CatalogRow[] {
@@ -192,6 +239,10 @@ export function filterCatalog(rows: readonly CatalogRow[], f: CatalogFilter): Ca
     if (f.bucket && f.bucket !== 'all' && r.bucket !== f.bucket) return false
     if (f.category && r.product.category !== f.category) return false
     if (f.marketplace && !r.listings[f.marketplace]) return false
+    if (f.listing) {
+      const own = f.marketplace ? [r.listings[f.marketplace]] : Object.values(r.listings)
+      if (!own.some((l) => l && listingMatches(l, f.listing!, f.ctx))) return false
+    }
     if (!q) return true
     if (r.product.title.toLowerCase().includes(q) || r.product.sku.toLowerCase().includes(q)) return true
     return r.variants.some((v) => v.sku.toLowerCase().includes(q))

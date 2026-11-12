@@ -5,6 +5,7 @@ import {
   buildCatalog,
   filterCatalog,
   humanizeSlug,
+  listingBucket,
   productCategoryLabel,
   OVERALL_CHIP,
   overallStatus,
@@ -181,5 +182,45 @@ describe('helpers', () => {
     const m = variantMatrix(vs)
     expect(m.cells.size).toBe(0)
     expect(m.loose).toHaveLength(2)
+  })
+})
+
+describe('listingBucket (the backend test_listing_bucket table)', () => {
+  type Row = [Listing['status'], Listing['marketplace_state'], boolean, ReturnType<typeof listingBucket>]
+  const table: Row[] = [
+    ['published', 'live', false, 'live'],
+    ['approved', 'live', false, 'live'],
+    ['published', 'partially_live', false, 'partly_live'],
+    ['published', 'rejected', false, 'problem'],
+    ['validated', 'not_submitted', true, 'problem'],
+    ['needs_review', 'not_submitted', true, 'problem'],
+    ['blocked', 'not_submitted', false, 'problem'],
+    ['failed', 'not_submitted', false, 'problem'],
+    ['generating', 'not_submitted', false, 'in_progress'],
+    ['publishing', 'not_submitted', false, 'in_progress'],
+    ['published', 'processing', false, 'in_progress'],
+    ['published', 'pending_review', false, 'in_progress'],
+    ['validated', 'not_submitted', false, 'ready_to_approve'],
+    ['needs_review', 'not_submitted', false, 'ready_to_approve'],
+    ['approved', 'not_submitted', false, 'ready_to_publish'],
+    ['published', 'inactive', false, 'inactive'],
+    ['published', 'removed', false, 'inactive'],
+    ['created', 'not_submitted', false, 'draft'],
+  ]
+  it.each(table)('%s / %s (open blocking issue: %s) is %s', (status, marketplace_state, open, bucket) => {
+    expect(listingBucket({ status, marketplace_state, display_state: open ? 'needs_you' : 'draft' })).toBe(bucket)
+  })
+
+  it('the listing filter takes partly live into Live, keeps the marketplace, and skips paused publishing', () => {
+    const p = product()
+    const rows = buildCatalog(
+      [p],
+      [listing(p.id, { status: 'approved' }), listing(p.id, { marketplace: 'flipkart', status: 'published', marketplace_state: 'partially_live' })],
+      [],
+    )
+    expect(filterCatalog(rows, { listing: 'live' })).toHaveLength(1)
+    expect(filterCatalog(rows, { listing: 'live', marketplace: 'amazon' })).toHaveLength(0)
+    expect(filterCatalog(rows, { listing: 'ready_to_publish' })).toHaveLength(1)
+    expect(filterCatalog(rows, { listing: 'ready_to_publish', ctx: { amazonPublishingPaused: true } })).toHaveLength(0)
   })
 })

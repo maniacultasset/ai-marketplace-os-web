@@ -44,6 +44,7 @@ vi.mock('@/features/listings/job-memory', () => ({ recallJob: () => 'job-1' }))
 vi.mock('@/features/products/api', () => ({ useProduct: () => ({ isPending: false, data: { title: 'Kurta set', sku: 'K1' } }) }))
 vi.mock('./api', () => ({
   useListingResolution: () => ({ isPending: false, data: null }),
+  useIssueHistory: () => ({ isPending: false, data: null }),
   useListingStatus: () => ({ isPending: false, data: { status: 'approved', marketplace_state: 'not_submitted' } }),
   useProductListings: () => ({ ...empty, rows: [listing] }),
 }))
