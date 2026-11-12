@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { ValidationSummary } from '@/features/listings/model'
-import { blockingQuestions, gateRowFindings, gateTotals } from './gate-truth'
+import { blockingQuestions, gateDetailsLabel, gateRowFindings, gateTotals } from './gate-truth'
 import { rollUpGates, type ErrorItem } from './gates'
 
 const V = '0b1c2d3e-0000-4000-8000-0000000004a1'
@@ -87,6 +87,18 @@ describe('one set of blockers for the gate panel (F1)', () => {
     const g = rollUpGates({ listing, validation: validation([recommended]), rules: [], preview: null, imageCount: 0 })
     expect(gateTotals(g)).toEqual({ blocking: 1, warnings: 0 })
     expect(gateRowFindings(g.find((x) => x.id === 'attributes')!)).toEqual([])
+  })
+})
+
+describe('gateDetailsLabel', () => {
+  it('speaks in the row note\'s count when a blocked row also holds warnings', () => {
+    const e = item()
+    const w = item({ severity: 'warning' })
+    expect(gateDetailsLabel([e])).toBe('Show it')
+    expect(gateDetailsLabel([e, e, e])).toBe('Show all 3')
+    expect(gateDetailsLabel([e, e, e, e, e, w, w])).toBe('Show all 5 and 2 warnings')
+    expect(gateDetailsLabel([e, w])).toBe('Show it and 1 warning')
+    expect(gateDetailsLabel([w, w])).toBe('Show all 2')
   })
 })
 

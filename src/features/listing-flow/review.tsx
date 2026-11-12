@@ -86,7 +86,7 @@ import { autoFixTrail, FIXED_FOR_YOU_HASH, siblingFixes, versionRef } from './au
 import { EditDialog, SendBackDialog } from './dialogs'
 import { clock, fieldLabel, mpName, plainMessage, sentenceCase } from './format'
 import { FindingBody, FindingsCard } from './findings-card'
-import { blockingQuestions, gateRowFindings, gateTotals } from './gate-truth'
+import { blockingQuestions, gateDetailsLabel, gateRowFindings, gateTotals } from './gate-truth'
 import { claimFindings, gateCounts, gatesSummary, needsGates, plural, type ErrorItem, type GateResult } from './gates'
 import { IdentifierFix } from './identifier-fix'
 import { answeredAfter } from './review-model'
@@ -1121,7 +1121,7 @@ function GateRowDetails({ gate, findings }: { gate: string; findings: readonly E
         onClick={() => setOpen((o) => !o)}
         data-testid={`gate-details-${gate}`}
       >
-        {open ? 'Hide' : findings.length === 1 ? 'Show it' : `Show all ${findings.length}`}
+        {open ? 'Hide' : gateDetailsLabel(findings)}
       </Button>
       <ul id={id} hidden={!open} className="m-0 mt-1.5 flex list-none flex-col gap-2 p-0">
         {findings.map((f, i) => (

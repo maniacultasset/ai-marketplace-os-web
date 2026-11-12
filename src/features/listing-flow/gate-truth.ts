@@ -24,6 +24,18 @@ export function gateRowFindings(gate: Pick<GateResult, 'findings'>): ErrorItem[]
 }
 
 /**
+ * The row's "show" link, in the row note's own count: a blocked row says "5 blocking issues", so
+ * its link never says "Show all 7" when 2 of the 7 are warnings ("Show all 5 and 2 warnings").
+ */
+export function gateDetailsLabel(findings: readonly Pick<ErrorItem, 'severity'>[]): string {
+  if (findings.length === 1) return 'Show it'
+  const errors = findings.filter((f) => f.severity === 'error').length
+  const warnings = findings.length - errors
+  if (errors && warnings) return `Show ${errors === 1 ? 'it' : `all ${errors}`} and ${warnings} ${warnings === 1 ? 'warning' : 'warnings'}`
+  return `Show all ${findings.length}`
+}
+
+/**
  * The footer's totals over the same gates: each finding sits in one gate, so the sum is the
  * number of blockers the rows list. A gate blocked with no finding (no image, a marketplace
  * refusal) is one blocker.
