@@ -58,3 +58,17 @@ describe('photo links the server still checks', () => {
     expect(linkProblem(`https://x.test/${'a'.repeat(2049)}`)).toBe('longer than 2,048 characters')
   })
 })
+
+describe('analyzeCsv skuRows (client feedback 11 Nov, item 3)', () => {
+  it('reads each row’s trimmed seller_sku with its record number and whether it names a style', () => {
+    const a = analyzeCsv('product_name,seller_sku,category,parent_sku\nKurta, KS-1 ,tshirts,\nKurta S,KS-1-S,tshirts,KS-1\nNo sku,,tshirts,\n')
+    expect(a.skuRows).toEqual([
+      { row: 2, sku: 'KS-1', hasParent: false },
+      { row: 3, sku: 'KS-1-S', hasParent: true },
+    ])
+  })
+
+  it('has no SKU rows without a seller_sku column', () => {
+    expect(analyzeCsv('product_name,category\nKurta,tshirts\n').skuRows).toEqual([])
+  })
+})

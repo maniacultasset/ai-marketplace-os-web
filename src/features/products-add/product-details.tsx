@@ -50,6 +50,8 @@ import { SizeFlags } from '@/features/products/size-flags'
 import { sizeFlags, variantSizes } from '@/features/analytics-images/images/photo-views'
 import { SizeRunAction } from '@/features/products/size-run-action'
 import { normalizeBarcode } from '@/features/products/barcode'
+import { IdGuide } from './id-guide'
+import { ID_HINT } from './identifiers'
 import { humanizeSlug, productCategoryLabel } from './catalog-model'
 import type { ProductEditSession } from './product-edit-session'
 import { ATTR_FIELDS, ATTR_LABEL, CATEGORY_ATTR_FIELDS } from './guided-model'
@@ -420,6 +422,7 @@ export function ProductDetailsCard({
             </Row>
           )}
         </dl>
+        <IdGuide className="mt-3" variant={isVariant} values={{ productId: product.id, sku: product.sku, styleNumber: isVariant ? null : product.style_number }} />
         {!isVariant && product.size_chart_check?.saved ? (
           <div className="mt-2">
             <SizeFlags missing={product.size_chart_check.missing_sizes ?? []} unused={product.size_chart_check.unused_sizes ?? []} />
@@ -660,7 +663,7 @@ export function ProductDetailsEditor({
 
   return (
     <LaCard data-testid="product-editor" className="flex flex-col gap-5">
-      <CardHead title="Edit product details" sub={`SKU ${product.sku} stays the same.`} />
+      <CardHead title="Edit product details" sub={`SKU ${product.sku} stays the same. ${ID_HINT.sku}`} />
       {session.stale ? (
         <Banner tone="attention" role="status" title="Someone else saved changes">
           We kept yours on top of theirs. Check them and save again.
@@ -697,7 +700,7 @@ export function ProductDetailsEditor({
                 onChange={(styleNumber) => patch({ styleNumber }, 'style_number')}
                 onBlur={() => touch('style_number')}
                 error={errors.style_number}
-                hint="Optional."
+                hint={`${ID_HINT.styleNumber} Optional.`}
                 submitCount={submitted}
                 maxLength={72}
                 code

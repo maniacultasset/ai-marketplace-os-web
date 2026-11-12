@@ -47,6 +47,7 @@ import { cn } from '@/lib/utils'
 import { useAllListings, useAllProducts, walkPages } from './catalog'
 import type { Marketplace } from './catalog-model'
 import { analyzeCsv, MATCH_COPY, type ColumnMatch, type HeaderAnalysis } from './csv-header'
+import { csvSkuFindings, repeatedSkus, useTakenSkus, type CsvSkuRow } from './sku-batch'
 import { generateMany, planGenerate, type ItemOutcome } from './generate'
 import { ListOnPicker, serializeListOn, useConnectedMarketplaces } from './list-on'
 import { NeedsPhotosCard } from './needs-photos-card'
@@ -351,6 +352,8 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
           </Banner>
         ) : null}
 
+        {step === 1 && analysis && analysis.skuRows.length ? <SkuCheck rows={analysis.skuRows} /> : null}
+
         {confirmMap.error && !upload.isPending ? (
           <Banner tone="danger" role="alert" className="mt-4" title="The columns could not be confirmed">
             {isApiError(confirmMap.error) && confirmMap.error.type === 'IMPORT_FAILED'
@@ -411,6 +414,65 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
         )}
       </FooterBar>
     </div>
+  )
+}
+
+/** The file's SKUs, checked against the brand and against each other before the upload (item 3). */
+function SkuCheck({ rows }: { rows: readonly CsvSkuRow[] }) {
+  const skus = useMemo(() => rows.map((r) => r.sku), [rows])
+  const check = useTakenSkus(skus)
+  const repeats = useMemo(() => repeatedSkus(rows), [rows])
+  const found = useMemo(() => (check.taken ? csvSkuFindings(rows, check.taken) : null), [rows, check.taken])
+  const fails = [
+    ...repeats.map((r) => ({ row: r.rows[1]!, sku: r.sku, message: `${r.sku} is on rows ${listRows(r.rows)}. Every row after the first fails, so change or remove them.` })),
+    ...(found?.fails ?? []),
+  ].sort((a, b) => a.row - b.row)
+  const failing = repeats.reduce((n, r) => n + r.rows.length - 1, 0) + (found?.fails.length ?? 0)
+  const updates = found?.updates ?? []
+  return (
+    <div className="mt-4 flex flex-col gap-3" data-testid="csv-sku-check">
+      {fails.length ? (
+        <Banner tone="danger" role="status" title={`${rowsLabel(failing)} will fail for the SKU`}>
+          <SkuList items={fails} label="Rows that will fail for the SKU" testId="csv-sku-fails" />
+        </Banner>
+      ) : null}
+      {updates.length ? (
+        <Banner tone="info" role="status" title={`${rowsLabel(updates.length)} use a SKU already in this brand`}>
+          <p>These rows update the product that has the SKU. For a new product, give the row a new SKU.</p>
+          <SkuList items={updates} label="Rows that update a product" testId="csv-sku-updates" />
+        </Banner>
+      ) : null}
+      {check.failed ? (
+        <p className="text-small text-ink-2" role="status" data-testid="csv-sku-unknown">
+          Couldn’t check the SKUs against your products now. The import still checks each row.
+        </p>
+      ) : !check.taken ? (
+        <p className="flex items-center gap-1.5 text-small text-ink-2" role="status" data-testid="csv-sku-checking">
+          <Spinner className="size-3.5" aria-hidden />
+          Checking the SKUs against your products
+        </p>
+      ) : !fails.length && !updates.length ? (
+        <p className="flex items-center gap-1.5 text-small text-ink-2" role="status" data-testid="csv-sku-clear">
+          <Icon name="check" size={14} className="text-success" aria-hidden />
+          Every SKU is new to this brand and used once.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+const listRows = (rows: readonly number[]) => (rows.length > 4 ? `${rows.slice(0, 3).join(', ')} and ${rows.length - 3} more` : rows.join(', '))
+
+function SkuList({ items, label, testId }: { items: readonly { row: number; message: string }[]; label: string; testId: string }) {
+  return (
+    <ul className="mt-1.5 flex flex-col gap-0.5 text-small" aria-label={label} data-testid={testId}>
+      {items.slice(0, 5).map((p) => (
+        <li key={p.row}>
+          Row {p.row}: {p.message}
+        </li>
+      ))}
+      {items.length > 5 ? <li>{items.length - 5} more like this.</li> : null}
+    </ul>
   )
 }
 

@@ -63,6 +63,8 @@ import {
   type VariantErrors,
   type VariantsState,
 } from './variants-model'
+import { ID_HINT } from './identifiers'
+import { useTakenSkus, variantSkuClashes } from './sku-batch'
 
 function download(name: string, text: string) {
   const blob = new Blob([text], { type: 'text/csv;charset=utf-8' })
@@ -582,12 +584,19 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
   const edited = own !== null
   const rows = useMemo(() => (p ? buildVariants(p.sku, s) : []), [p, s])
   const allErrors = useMemo(() => (p ? validateVariants(p.sku, s) : {}), [p, s])
+  // Item 3: every variant SKU against the brand's other products, a moment after the grid changes.
+  const ownIds = useMemo(() => new Set([productId, ...existingVariants.map((v) => v.id)]), [productId, existingVariants])
+  const rowSkus = useMemo(() => rows.map((r) => r.sku), [rows])
+  const brandCheck = useTakenSkus(rowSkus, !!p)
+  const clash = useMemo(() => (brandCheck.taken ? variantSkuClashes(rows, brandCheck.taken, ownIds) : { errors: {}, notes: {} }), [rows, brandCheck.taken, ownIds])
+  const [checking, setChecking] = useState(false)
   const errors = useMemo<VariantErrors>(() => {
-    if (submitCount > 0) return allErrors
-    const out: VariantErrors = {}
+    // A clash with another product shows at once: it is a fact about the SKU, not a missed field.
+    if (submitCount > 0) return { ...clash.errors, ...allErrors }
+    const out: VariantErrors = { ...clash.errors }
     for (const [k, msg] of Object.entries(allErrors)) if (touched.has(k)) out[k] = msg
     return out
-  }, [allErrors, touched, submitCount])
+  }, [allErrors, clash.errors, touched, submitCount])
   const touch = (key: string) => setTouched((t) => (t.has(key) ? t : new Set(t).add(key)))
   useEffect(() => {
     if (focusTick) focusFirstInvalid(editorRef.current)
@@ -643,9 +652,20 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
       </Page>
     )
 
-  const validate = () => {
+  const validate = async () => {
     setSubmitCount((n) => n + 1)
-    const keys = Object.keys(allErrors)
+    let found: Record<string, string> = {}
+    if (Object.keys(allErrors).length === 0) {
+      setChecking(true)
+      try {
+        found = variantSkuClashes(rows, await brandCheck.fresh(), ownIds).errors
+      } catch {
+        // The check is a courtesy: the import still checks every row.
+      } finally {
+        setChecking(false)
+      }
+    }
+    const keys = Object.keys({ ...found, ...allErrors })
     if (keys.length === 0) return true
     // Errors in rows past the preview would be invisible: open the full list first.
     const hidden = new Set(rows.slice(PREVIEW_ROWS).map((r) => r.key))
@@ -785,6 +805,9 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
 
         {rows.length ? (
           <LaCard pad="none" className="mt-4 overflow-hidden">
+            <p className="flex items-center gap-1.5 px-4 pt-3 pb-2 text-caption text-ink-2" data-testid="variant-sku-hint">
+              {ID_HINT.variantSku} {brandCheck.failed ? 'Couldn’t check them against your other products now; the save still checks each one.' : 'Each is checked against your other products.'}
+            </p>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] text-small" aria-label="Variant prices and barcodes">
                 <thead>
@@ -817,6 +840,11 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
                             className="h-9 text-small tabular-nums max-md:h-10"
                           />
                           <CellError id={`sku-${r.sku}-error`} error={errors[`${r.key}.sku`]} />
+                          {!errors[`${r.key}.sku`] && clash.notes[`${r.key}.sku`] ? (
+                            <p className="pt-1 text-caption text-ink-2" data-testid={`sku-note-${r.key}`}>
+                              {clash.notes[`${r.key}.sku`]}
+                            </p>
+                          ) : null}
                         </td>
                         <td className="px-2 py-2">
                           <MoneyInput id={`mrp-${r.sku}`} label={`MRP for ${r.sku}`} value={c.mrp} onChange={(v) => setCommercial(r.key, { mrp: v })} onBlur={() => touch(`${r.key}.mrp`)} error={errors[`${r.key}.mrp`]} placeholder={styleMrp ?? undefined} />
@@ -937,12 +965,12 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
             Skip for now
           </Link>
         </Button>
-        <Button variant="secondary" onClick={() => validate() && download(`${p.sku}-variants.csv`, csv())} data-testid="variants-download">
+        <Button variant="secondary" disabled={checking} onClick={() => void validate().then((ok) => ok && download(`${p.sku}-variants.csv`, csv()))} data-testid="variants-download">
           <Icon name="download" size={16} />
           Download spreadsheet
         </Button>
-        <Button disabled={upload.isPending} onClick={() => validate() && upload.mutate(csv())} data-testid="variants-save">
-          {upload.isPending ? <Spinner data-icon="inline-start" /> : null}
+        <Button disabled={upload.isPending || checking} onClick={() => void validate().then((ok) => ok && upload.mutate(csv()))} data-testid="variants-save">
+          {upload.isPending || checking ? <Spinner data-icon="inline-start" /> : null}
           Save {rows.length || ''} {rows.length === 1 ? 'variant' : 'variants'}
         </Button>
       </FooterBar>

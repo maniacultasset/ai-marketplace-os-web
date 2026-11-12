@@ -122,6 +122,7 @@ export const OP_ACTION = {
   'POST /catalog/category-suggestions': 'product:import',
   'GET /catalog/category-suggestions/{suggestion_id}': 'tenant:read',
   'GET /skus/availability': 'tenant:read',
+  'POST /skus/availability-check': 'tenant:read',
   'POST /skus/suggestion': 'product:import',
   'GET /listings': 'tenant:read',
   'GET /listings/{listing_id}': 'tenant:read',
