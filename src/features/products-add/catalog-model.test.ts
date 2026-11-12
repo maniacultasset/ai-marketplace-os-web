@@ -5,7 +5,12 @@ import {
   buildCatalog,
   filterCatalog,
   humanizeSlug,
+  LISTING_FILTERS,
   listingBucket,
+  listingMatches,
+  mergeById,
+  SERVER_BUCKET,
+  serverMatches,
   productCategoryLabel,
   OVERALL_CHIP,
   overallStatus,
@@ -222,5 +227,46 @@ describe('listingBucket (the backend test_listing_bucket table)', () => {
     expect(filterCatalog(rows, { listing: 'live', marketplace: 'amazon' })).toHaveLength(0)
     expect(filterCatalog(rows, { listing: 'ready_to_publish' })).toHaveLength(1)
     expect(filterCatalog(rows, { listing: 'ready_to_publish', ctx: { amazonPublishingPaused: true } })).toHaveLength(0)
+  })
+})
+
+describe('Home filters read on the server (client feedback item 6)', () => {
+  const p = product()
+  const live = listing(p.id, { status: 'published', marketplace_state: 'live' })
+  const partly = listing(p.id, { status: 'published', marketplace_state: 'partially_live', marketplace: 'flipkart' })
+  const approvedAmazon = listing(p.id, { status: 'approved' })
+  const approvedFlipkart = listing(p.id, { status: 'approved', marketplace: 'flipkart' })
+  const paused = { amazonPublishingPaused: true }
+
+  it('asks the backend for the bucket of every filter', () => {
+    expect(Object.keys(SERVER_BUCKET).sort()).toEqual(Object.keys(LISTING_FILTERS).sort())
+    expect(SERVER_BUCKET.live).toBe('any_live')
+    expect(SERVER_BUCKET.fully_live).toBe('live')
+    expect(SERVER_BUCKET.approved).toBe('ready_to_publish')
+    expect(SERVER_BUCKET.ready_to_publish).toBe('ready_to_publish')
+  })
+
+  it('tells live from partly live, and approved from sendable', () => {
+    expect([live, partly].map((l) => listingMatches(l, 'live'))).toEqual([true, true])
+    expect([live, partly].map((l) => listingMatches(l, 'fully_live'))).toEqual([true, false])
+    expect([live, partly].map((l) => listingMatches(l, 'partly_live'))).toEqual([false, true])
+    expect(listingMatches(approvedAmazon, 'approved', paused)).toBe(true)
+    expect(listingMatches(approvedAmazon, 'ready_to_publish', paused)).toBe(false)
+  })
+
+  it('trusts the server bucket, leaving out only a paused marketplace for ready to publish', () => {
+    const rows = [approvedAmazon, approvedFlipkart]
+    expect(serverMatches(rows, 'ready_to_publish', paused)).toEqual([approvedFlipkart])
+    expect(serverMatches(rows, 'approved', paused)).toEqual(rows)
+    expect(serverMatches(rows, 'ready_to_publish')).toEqual(rows)
+    // a server row the browser would bucket differently is still the server's
+    expect(serverMatches([live], 'problem')).toEqual([live])
+  })
+
+  it('merges a server page onto the walk by id, the server row winning', () => {
+    const a = product()
+    const b = product()
+    const newer = { ...a, title: 'Renamed' }
+    expect(mergeById([a], [newer, b])).toEqual([newer, b])
   })
 })

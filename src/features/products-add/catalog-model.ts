@@ -8,7 +8,7 @@
  *   GET /issues?status=open  open issues, each with its listing_id
  * Every number shown (counts, variants, issues) is computed from those responses, never invented.
  */
-import type { Schema } from '@/api/types'
+import type { Schema, V1Paths } from '@/api/types'
 import type { ChipStatus } from '@/components/la/status-chip'
 import { categoryLabel } from '@/features/products/categories'
 import { isApprovedPaused, listingChip, needsYourInfo, type ChipContext, type ChipView } from '@/lib/listing-chip'
@@ -120,14 +120,49 @@ export function listingBucket(l: Pick<Listing, 'status' | 'marketplace_state'> &
   return 'draft'
 }
 
-/** The listing filters Home links to (`/products?listing=`). `live` takes partly live too, as the tile does. */
-export type ListingFilter = 'live' | 'in_progress' | 'problem' | 'ready_to_approve' | 'ready_to_publish'
+/**
+ * The listing filters Home links to (`/products?listing=`). `live` takes partly live too, as the
+ * Live tile does; `fully_live` and `partly_live` are the marketplace cards' two live numbers.
+ * `ready_to_publish` is what a person can send now; `approved` is every approved listing, sendable
+ * or waiting while publishing is paused.
+ */
+export type ListingFilter =
+  | 'live'
+  | 'fully_live'
+  | 'partly_live'
+  | 'in_progress'
+  | 'problem'
+  | 'ready_to_approve'
+  | 'ready_to_publish'
+  | 'approved'
 export const LISTING_FILTERS: Record<ListingFilter, string> = {
   live: 'live or partly live',
+  fully_live: 'live',
+  partly_live: 'partly live',
   in_progress: 'in progress',
   problem: 'stopped',
   ready_to_approve: 'ready to approve',
   ready_to_publish: 'ready to publish',
+  approved: 'approved',
+}
+
+/** The backend's Home bucket filter (`GET /listings?bucket=`, `GET /products?listing=`). */
+export type ServerBucket = NonNullable<NonNullable<V1Paths['/listings']['get']['parameters']['query']>['bucket']>
+
+/**
+ * The server bucket each filter reads, so the list is filtered by the backend's own definition
+ * and its count is the tile's on any catalog size. `ready_to_publish` then leaves out the
+ * listings of a marketplace whose publishing is paused (`listingMatches`), as Home's count does.
+ */
+export const SERVER_BUCKET: Record<ListingFilter, ServerBucket> = {
+  live: 'any_live',
+  fully_live: 'live',
+  partly_live: 'partly_live',
+  in_progress: 'in_progress',
+  problem: 'problem',
+  ready_to_approve: 'ready_to_approve',
+  ready_to_publish: 'ready_to_publish',
+  approved: 'ready_to_publish',
 }
 
 /**
@@ -137,8 +172,25 @@ export const LISTING_FILTERS: Record<ListingFilter, string> = {
 export function listingMatches(l: Listing, f: ListingFilter, ctx?: ChipContext): boolean {
   const b = listingBucket(l)
   if (f === 'live') return b === 'live' || b === 'partly_live'
+  if (f === 'fully_live') return b === 'live'
+  if (f === 'approved') return b === 'ready_to_publish'
   if (f === 'ready_to_publish') return b === 'ready_to_publish' && !isApprovedPaused(l, ctx)
   return b === f
+}
+
+/**
+ * Of the listings the server filtered by `SERVER_BUCKET[f]`, the ones the filter keeps: all of
+ * them, except a paused marketplace's for `ready_to_publish`. The server's bucket is trusted as is.
+ */
+export function serverMatches(rows: readonly Listing[], f: ListingFilter, ctx?: ChipContext): Listing[] {
+  return f === 'ready_to_publish' ? rows.filter((l) => !isApprovedPaused(l, ctx)) : [...rows]
+}
+
+/** `base` with `extra` merged in by id (an `extra` row wins): a server-filtered page on a walk. */
+export function mergeById<T extends { id: string }>(base: readonly T[], extra: readonly T[]): T[] {
+  const byId = new Map(base.map((r) => [r.id, r]))
+  for (const r of extra) byId.set(r.id, r)
+  return [...byId.values()]
 }
 
 export function bucketOf(o: Overall): Bucket {

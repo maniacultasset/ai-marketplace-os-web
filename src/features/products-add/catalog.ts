@@ -16,7 +16,7 @@ import { isBusy } from '@/features/listings/model'
 import { viewRefreshDelay } from '@/features/products/image-views'
 import { useKeys } from '@/lib/query-keys'
 import { useChipContext } from '@/features/listing-flow/publishing'
-import { buildCatalog, type Issue, type Listing, type Product } from './catalog-model'
+import { buildCatalog, SERVER_BUCKET, type Issue, type Listing, type ListingFilter, type Marketplace, type Product } from './catalog-model'
 
 export const WALK_PAGE_SIZE = 200
 export const WALK_MAX_PAGES = 10
@@ -40,6 +40,8 @@ export async function walkPages<T>(fetchPage: (cursor: string | undefined) => Pr
 }
 
 const STALE_MS = 20_000
+const EMPTY_LISTINGS: Listing[] = []
+const EMPTY_PRODUCTS: Product[] = []
 
 export function useAllProducts() {
   const keys = useKeys()
@@ -94,6 +96,44 @@ export function useOpenIssues(opts: { refetchInterval?: number | false } = {}) {
         unwrap(api.GET('/issues', { params: { query: { status: 'open', limit: WALK_PAGE_SIZE, cursor } } })),
       ),
   })
+}
+
+/**
+ * A Home filter read on the server (client feedback item 6): the listings in the filter's bucket
+ * (`GET /listings?bucket=`) and the products that own them (`GET /products?listing=`), both on
+ * `marketplace` when given. The backend applies the same bucket definition as Home's counts, so
+ * the filtered list holds what the tile counts even when the whole-catalog walk stops early.
+ * Off (no request) while `filter` is null.
+ */
+export function useListingFilter(filter: ListingFilter | null, marketplace: Marketplace | null) {
+  const keys = useKeys()
+  const bucket = filter ? SERVER_BUCKET[filter] : undefined
+  const mp = marketplace ?? undefined
+  const listings = useQuery({
+    queryKey: [...keys.listings.lists(), 'bucket', bucket ?? null, mp ?? null] as const,
+    enabled: !!bucket,
+    staleTime: STALE_MS,
+    queryFn: () =>
+      walkPages<Listing>((cursor) =>
+        unwrap(api.GET('/listings', { params: { query: { bucket, marketplace: mp, limit: WALK_PAGE_SIZE, cursor } } })),
+      ),
+  })
+  const products = useQuery({
+    queryKey: [...keys.products.list(), 'listing', bucket ?? null, mp ?? null] as const,
+    enabled: !!bucket,
+    staleTime: STALE_MS,
+    queryFn: () =>
+      walkPages<Product>((cursor) =>
+        unwrap(api.GET('/products', { params: { query: { listing: bucket, marketplace: mp, limit: WALK_PAGE_SIZE, cursor } } })),
+      ),
+  })
+  const state: LoadState = !bucket ? 'ready' : listings.error || products.error ? 'error' : listings.data && products.data ? 'ready' : 'pending'
+  return {
+    listings: listings.data?.rows ?? EMPTY_LISTINGS,
+    products: products.data?.rows ?? EMPTY_PRODUCTS,
+    state,
+    truncated: !!listings.data?.truncated || !!products.data?.truncated,
+  }
 }
 
 /** Whether a joined list is loaded. Until it is, the cells it feeds show a placeholder, not a guess. */

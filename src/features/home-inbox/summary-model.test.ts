@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { ISSUE, L2, P1, summary, TASK } from '@/test/home-summary'
 import {
+  CARD_DEFINITION,
   cardInputs,
   cardNext,
+  marketCard,
   feedRows,
   feedSummary,
   itemTarget,
@@ -226,5 +228,69 @@ describe('a tile and the list it opens agree', () => {
     expect(shown({ listing: 'ready_to_approve' })).toEqual(new Set([e.id]))
     // Flipkart's approved listing can be sent; Amazon's waits while publishing is paused
     expect(shown({ listing: 'ready_to_publish' })).toEqual(new Set([c.id]))
+  })
+})
+
+describe('marketplace cards (client feedback item 6, bullets 1 and 4)', () => {
+  const at = (bucket: string, m = 'amazon') => ({ to: '/products', search: { listing: bucket, marketplace: m } })
+
+  it('every number says what it counts and opens its filtered list', () => {
+    const s = summary()
+    const amazon = marketCard(s, 'amazon')
+    expect(amazon.chip).toEqual({ status: 'live', label: '2 live', definition: CARD_DEFINITION.live, target: at('fully_live') })
+    expect(amazon.stats.map((x) => [x.key, x.label, x.target])).toEqual([
+      ['partly', '1 partly live', at('partly_live')],
+      ['working', '1 processing', at('in_progress')],
+      ['approve', '1 to approve', at('ready_to_approve')],
+    ])
+    expect(amazon.stats.every((x) => x.definition.length > 0)).toBe(true)
+    // the one listing to fix is named and opens its product
+    expect(amazon.problem).toEqual({ productId: P1, text: '1 to fix: The title is longer than Amazon allows.' })
+  })
+
+  it('a paused marketplace says so plainly and shows its approved listings', () => {
+    const s = summary()
+    const paused = marketCard({ ...s, by_marketplace: [{ ...s.by_marketplace[0]!, ready_to_publish: 3 }, s.by_marketplace[1]!] }, 'amazon')
+    expect(paused.paused).toBe('Publishing is paused by Kuinn for now; approved listings are ready.')
+    const approved = paused.stats.find((x) => x.key === 'approved')!
+    expect(approved.label).toBe('3 approved')
+    expect(approved.definition).toBe(CARD_DEFINITION.approvedPaused)
+    // every approved listing, not only the sendable ones (none are, while paused)
+    expect(approved.target).toEqual(at('approved'))
+    expect(marketCard(s, 'amazon').paused).toBe('Publishing is paused by Kuinn for now.')
+  })
+
+  it('publishing on: the approved count is what a person can publish now', () => {
+    const flipkart = marketCard(summary(), 'flipkart')
+    expect(flipkart.paused).toBeNull()
+    expect(flipkart.stats.find((x) => x.key === 'approved')).toMatchObject({ label: '1 ready to publish', target: at('ready_to_publish', 'flipkart') })
+  })
+
+  it('several listings to fix link to all of them', () => {
+    const s = summary()
+    const card = marketCard({ ...s, by_marketplace: [{ ...s.by_marketplace[0]!, problem: 4 }, s.by_marketplace[1]!] }, 'amazon')
+    expect(card.problem).toBeNull()
+    expect(card.stats.find((x) => x.key === 'fix')).toMatchObject({ label: '4 to fix', attention: true, target: at('problem'), definition: CARD_DEFINITION.fix })
+    // one to fix that is not among the top items: the count still links to it
+    const unnamed = marketCard({ ...s, needs_you_items: [] }, 'flipkart')
+    expect(unnamed.stats.find((x) => x.key === 'fix')).toMatchObject({ label: '1 to fix', target: at('problem', 'flipkart') })
+  })
+
+  it('an expired account keeps its live number linked, and says how to go on', () => {
+    const s = summary()
+    const card = marketCard({ ...s, marketplaces: [{ ...s.marketplaces[0]!, account: 'needs_reconnect', next_step: 'reconnect' }, s.marketplaces[1]!] }, 'amazon')
+    expect(card.chip.label).toBe('Reconnect')
+    expect(card.action).toBe('reconnect')
+    expect(card.stats).toEqual([expect.objectContaining({ key: 'live', label: '2 live', target: at('fully_live') })])
+    expect(card.sub).toBe('Access expired')
+  })
+
+  it('a missing account offers to connect, and a closed marketplace is coming soon', () => {
+    const s = summary()
+    const none = { ...s, marketplaces: [{ ...s.marketplaces[0]!, account: 'not_connected' as const, next_step: 'connect' as const }, s.marketplaces[1]!] }
+    expect(marketCard(none, 'amazon')).toMatchObject({ action: 'connect', sub: 'Account disconnected. Connect to keep listing.', chip: { label: '2 live' } })
+    const empty = { ...none, by_marketplace: [{ ...s.by_marketplace[0]!, live: 0 }, s.by_marketplace[1]!] }
+    expect(marketCard(empty, 'amazon')).toMatchObject({ action: 'connect', sub: 'Connect to list here', chip: { label: 'Not connected' } })
+    expect(marketCard(empty, 'amazon', { reason: 'Soon.' })).toMatchObject({ chip: { label: 'Coming soon' }, sub: 'Soon.', action: null })
   })
 })

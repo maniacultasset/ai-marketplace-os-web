@@ -43,15 +43,18 @@ import { useChipContext } from '@/features/listing-flow/publishing'
 import { APPROVED_PAUSED_LABEL, needsYourInfo } from '@/lib/listing-chip'
 import { cn } from '@/lib/utils'
 import { AddMarketplaceDialog } from './add-marketplace-dialog'
-import { useCatalog, type LoadState } from './catalog'
+import { useCatalog, useListingFilter, type LoadState } from './catalog'
 import { cleanProductsSearch, type ProductsSearch } from './products-search'
 import {
   BUCKETS,
   bucketCounts,
   categoriesOf,
   cellChip,
+  buildCatalog,
   filterCatalog,
   LISTING_FILTERS,
+  mergeById,
+  serverMatches,
   productCategoryLabel,
   OVERALL_CHIP,
   type Bucket,
@@ -462,18 +465,33 @@ export function ProductsPage({ search, onSearch }: { search?: ProductsSearch; on
   const load = useMemo(() => ({ listings: catalog.listingsState, issues: catalog.issuesState }), [catalog.listingsState, catalog.issuesState])
   const counts = useMemo(() => bucketCounts(catalog.rows), [catalog.rows])
   const categories = useMemo(() => categoriesOf(catalog.rows), [catalog.rows])
+  // A Home filter (`?listing=`) is read on the server, so the list holds exactly what the Home
+  // number counts on any catalog size: the matched listings and their products are merged onto
+  // the whole-catalog walk (which can stop early), and only those products are rows.
+  const server = useListingFilter(listing, marketplace)
+  const scoped = useMemo(() => {
+    if (!listing || server.state !== 'ready' || !catalog.products.data) return null
+    const ctx = { amazonPublishingPaused }
+    const matched = serverMatches(server.listings, listing, ctx)
+    const owners = new Set(matched.map((l) => l.product_id))
+    const products = mergeById(catalog.products.data.rows, server.products)
+    const listings = mergeById(catalog.listings.data?.rows ?? [], server.listings)
+    const rows = buildCatalog(products, listings, catalog.issues.data?.rows ?? [], ctx).filter((r) => owners.has(r.product.id))
+    return { rows, listings: matched.length }
+  }, [listing, server.state, server.listings, server.products, catalog.products.data, catalog.listings.data, catalog.issues.data, amazonPublishingPaused])
+  const filterPending = !!listing && server.state === 'pending'
   // Status and marketplace filters read listings; until they are loaded they would filter on a guess.
   const rows = useMemo(
     () =>
-      filterCatalog(catalog.rows, {
+      filterCatalog(scoped ? scoped.rows : listing ? [] : catalog.rows, {
         q,
         bucket: listingsReady ? bucket : 'all',
         category,
         marketplace: listingsReady ? marketplace : null,
-        listing: listingsReady ? listing : null,
+        listing: null,
         ctx: { amazonPublishingPaused },
       }),
-    [catalog.rows, q, bucket, category, marketplace, listing, listingsReady, amazonPublishingPaused],
+    [scoped, catalog.rows, q, bucket, category, marketplace, listing, listingsReady, amazonPublishingPaused],
   )
   const byId = useMemo(() => new Map(catalog.rows.map((r) => [r.product.id, r])), [catalog.rows])
   const listingsOf = useCallback((id: string) => byId.get(id)?.listings ?? {}, [byId])
@@ -517,7 +535,7 @@ export function ProductsPage({ search, onSearch }: { search?: ProductsSearch; on
         label="Products"
         className="[&_tbody_tr]:relative [&_tbody_[role=checkbox]]:relative [&_tbody_[role=checkbox]]:z-10"
         data={rows}
-        isLoading={catalog.isPending}
+        isLoading={catalog.isPending || filterPending}
         error={catalog.error}
         onRetry={catalog.refetch}
         columns={columns}
@@ -591,11 +609,18 @@ export function ProductsPage({ search, onSearch }: { search?: ProductsSearch; on
                 )}
                 <GlyphKey />
               </div>
-              {listing && catalog.listingsState !== 'error' ? (
+              {listing && server.state === 'error' ? (
+                <p className="text-small text-danger" role="alert" data-testid="products-listing-filter-error">
+                  Couldn’t load the listings that are {LISTING_FILTERS[listing]}. Try again in a moment.
+                </p>
+              ) : listing ? (
                 <p className="flex flex-wrap items-center gap-x-2 text-small text-ink-2" role="status" data-testid="products-listing-filter">
                   <span>
-                    Products with a listing that is {LISTING_FILTERS[listing]}
-                    {marketplace ? ` on ${marketplace === 'amazon' ? 'Amazon' : 'Flipkart'}` : ''}.
+                    {scoped
+                      ? `${scoped.listings.toLocaleString('en-IN')} ${scoped.listings === 1 ? 'listing' : 'listings'} ${LISTING_FILTERS[listing]}${
+                          marketplace ? ` on ${marketplace === 'amazon' ? 'Amazon' : 'Flipkart'}` : ''
+                        }, across ${scoped.rows.length.toLocaleString('en-IN')} ${scoped.rows.length === 1 ? 'product' : 'products'}${server.truncated ? ' (first pages only)' : ''}.`
+                      : `Products with a listing that is ${LISTING_FILTERS[listing]}${marketplace ? ` on ${marketplace === 'amazon' ? 'Amazon' : 'Flipkart'}` : ''}.`}
                   </span>
                   <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setFilters({ listing: undefined })} data-testid="products-listing-filter-clear">
                     Show all
