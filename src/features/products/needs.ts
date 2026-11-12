@@ -5,8 +5,9 @@
  *
  * Every entry is an attribute-dictionary key. A field shows "Flipkart needs this" (or "Amazon and
  * Flipkart need this") only while it is empty, and only for the marketplaces the seller ticked in
- * "Sell on". Keys with no field on our forms (for example `product_dimensions` from a template) are
- * not counted: the seller could not fill them here, so the count would not be true.
+ * "Sell on". Keys with no field on our forms are not counted: the seller could not fill them here,
+ * so the count would not be true. Client item 15: `product_dimensions` (the lamp templates) is the
+ * "Product itself" size now, so it counts.
  */
 import { useQuery } from '@tanstack/react-query'
 import { api, unwrap } from '@/api/client'
@@ -35,6 +36,7 @@ export type NeedFieldId =
   | 'hsn_code'
   | 'package_size'
   | 'package_weight'
+  | 'product_size'
   | 'country_of_origin'
   | 'manufacturer'
   | 'size_chart'
@@ -51,6 +53,7 @@ export const NEED_FIELDS: readonly NeedField[] = [
   { id: 'hsn_code', label: 'HSN code', keys: ['hsn_code'] },
   { id: 'package_size', label: 'Package size', keys: ['package_dimensions'] },
   { id: 'package_weight', label: 'Package weight', keys: ['package_weight'] },
+  { id: 'product_size', label: 'Product size', keys: ['product_dimensions'] },
   { id: 'country_of_origin', label: 'Country of origin', keys: ['country_of_origin'] },
   { id: 'manufacturer', label: 'Manufacturer', keys: ['manufacturer'] },
   // Feedback 8: the backend names `size_measurements` where the category's checklist needs a chart.
@@ -159,6 +162,7 @@ export function productFilled(p: ProductOut, opts: { isVariant: boolean; isStyle
     return typeof v === 'string' ? v.trim() !== '' : v !== null && v !== undefined
   }
   const pkg = fromPackageOut(p.package)
+  const item = fromPackageOut(p.item)
   return {
     brand_name: !('brand_name_inherited' in p) || !!p.brand_name?.trim(),
     identifier: opts.isStyle || !!p.product_identifier || p.identifier_exemption === true,
@@ -170,6 +174,8 @@ export function productFilled(p: ProductOut, opts: { isVariant: boolean; isStyle
     hsn_code: !!p.hsn_code,
     package_size: packageHasSize(pkg),
     package_weight: packageHasWeight(pkg),
+    // a free-text product size (an older lamp) is filled too
+    product_size: packageHasSize(item) || text('product_dimensions'),
     country_of_origin: !!p.country_of_origin,
     manufacturer: !!p.manufacturer?.legal_name,
     // A variant's chart is its style's.

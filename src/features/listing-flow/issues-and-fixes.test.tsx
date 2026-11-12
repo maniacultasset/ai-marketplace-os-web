@@ -1,4 +1,5 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -16,15 +17,31 @@ vi.mock('@tanstack/react-router', () => ({
   },
 }))
 
+const post = vi.hoisted(() => vi.fn())
+vi.mock('@/api/client', async (orig) => ({
+  ...(await orig<typeof import('@/api/client')>()),
+  api: { POST: (...a: unknown[]) => post(...a) },
+}))
+const perm = vi.hoisted(() => ({ edit: true }))
+vi.mock('@/lib/permissions', async (orig) => ({
+  ...(await orig<typeof import('@/lib/permissions')>()),
+  useCan: () => (p: string) => (p === 'listing:edit' ? perm.edit : true),
+}))
+vi.mock('@/lib/auth', async (orig) => ({ ...(await orig<typeof import('@/lib/auth')>()), useSession: () => ({ tenantId: 't1' }) }))
+const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
+vi.mock('@/lib/toast', () => ({ toast: toasts, toastError: vi.fn() }))
+
 const { IssuesAndFixesCard } = await import('./issues-and-fixes')
 
 afterEach(cleanup)
 
 const card = (h: IssueHistory, opts: { marketplace?: string; linkFields?: boolean } = {}) =>
   render(
-    <div style={{ width: 320 }}>
-      <IssuesAndFixesCard view={issueHistoryView(h, opts.marketplace ?? 'amazon')} marketplace={opts.marketplace ?? 'amazon'} listingId="L1" linkFields={opts.linkFields} />
-    </div>,
+    <QueryClientProvider client={new QueryClient()}>
+      <div style={{ width: 320 }}>
+        <IssuesAndFixesCard view={issueHistoryView(h, opts.marketplace ?? 'amazon')} marketplace={opts.marketplace ?? 'amazon'} listingId="L1" linkFields={opts.linkFields} />
+      </div>
+    </QueryClientProvider>,
   )
 
 describe('IssuesAndFixesCard', () => {
@@ -123,5 +140,46 @@ describe('IssuesAndFixesCard', () => {
     const steps = within(screen.getByTestId('issues-history')).getAllByTestId('issues-history-step')
     expect(steps.map((s) => s.textContent?.split('Version')[0])).toEqual(['Pre-checkPassed', 'Sent 1Refused'])
     expect(steps[1]!.textContent).toContain('(90244)')
+  })
+})
+
+describe('suggested fixes (client item 20)', () => {
+  const suggested = () =>
+    history({
+      issues: [issue({ id: 'i1', handler: 'you', lane: 'seller', field: 'attributes.color' })],
+      fixes: [fix({ id: 's1', issue_id: 'i1', suggested: true, before: 'navy blue', after: 'Navy Blue' })],
+    })
+
+  it('shows each suggestion with before and after, and applies them on the seller’s go', async () => {
+    post.mockResolvedValue({ data: { released: 1, job_id: 'j1' }, response: new Response(null, { status: 200 }) })
+    card(suggested())
+    const group = screen.getByTestId('issues-suggested')
+    expect(within(group).getByText('Kuinn suggests')).toBeTruthy()
+    expect(within(group).getByTestId('fix-values').textContent).toContain('Navy Blue')
+    expect(within(group).getByTestId('fix-outcome').textContent).toBe('Waits for you')
+    expect(screen.queryByTestId('issues-needs-you')).toBeNull()
+    expect(screen.queryByTestId('issues-fixed')).toBeNull()
+    await userEvent.click(within(group).getByRole('button', { name: 'Apply fix' }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/listings/{listing_id}/fixes/apply', { params: { path: { listing_id: 'L1' } } }))
+    await waitFor(() => expect(toasts.success).toHaveBeenCalledWith('Fix applied', expect.anything()))
+  })
+
+  it('offers "Apply fix" for a suggested content fix that has no value to show yet', async () => {
+    post.mockResolvedValue({ data: { released: 0, job_id: 'j2' }, response: new Response(null, { status: 200 }) })
+    card(history({ issues: [issue({ id: 'i9', field: 'content.title', handler: 'you', lane: 'seller', suggested: true })] }))
+    const group = screen.getByTestId('issues-suggested')
+    expect(within(group).getByText(/Kuinn rewrites this text when you apply/)).toBeTruthy()
+    expect(screen.queryByTestId('issues-needs-you')).toBeNull()
+    expect(screen.queryByTestId('issues-team')).toBeNull()
+    await userEvent.click(within(group).getByRole('button', { name: 'Apply fix' }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/listings/{listing_id}/fixes/apply', { params: { path: { listing_id: 'L1' } } }))
+  })
+
+  it('tells a role that cannot edit listings who can apply them', () => {
+    perm.edit = false
+    card(suggested())
+    expect(screen.queryByTestId('apply-fixes')).toBeNull()
+    expect(screen.getByText('An owner or operator can apply these fixes.')).toBeTruthy()
+    perm.edit = true
   })
 })

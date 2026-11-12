@@ -422,6 +422,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
     selling_price: !!values.sellingPrice.trim(),
     hsn_code: !!values.hsn.trim(),
     package_size: packageHasSize(values.pkg),
+    product_size: packageHasSize(values.item),
     package_weight: packageHasWeight(values.pkg),
     country_of_origin: !!values.country.trim(),
     // Unknown while the brand loads: not counted until it is known.
@@ -954,6 +955,16 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               neededSize={need('package_size')}
               neededWeight={need('package_weight')}
               category={values.category}
+              submitCount={submitCount}
+            />
+            <PackageFields
+              kind="item"
+              id="g-item"
+              value={values.item}
+              onChange={(item) => set({ item })}
+              onBlur={touch}
+              errors={errors}
+              neededSize={need('product_size')}
               submitCount={submitCount}
             />
             <p className="text-caption text-ink-3">Amazon and Flipkart both ask for the package and the country of origin. Flipkart also asks for the HSN code.</p>

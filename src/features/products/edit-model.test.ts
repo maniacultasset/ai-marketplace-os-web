@@ -303,3 +303,36 @@ describe('SI12 seller fields in the editor', () => {
     expect(Object.keys(fields).sort()).toEqual(['hsn_code', 'package.weight', 'size_chart'])
   })
 })
+
+describe('product itself beside the packed box (item 15)', () => {
+  it('reads, patches and clears the product size apart from the package', () => {
+    const p = product({ item: { length_cm: '30', breadth_cm: '15', height_cm: '12.5', weight_g: 420 } } as Partial<Schema<'ProductOut'>>)
+    const base = toEditDraft(p, 'own')
+    expect(base.item).toEqual({ length: '30', breadth: '15', height: '12.5', weight: '420' })
+    expect(buildPatch(base, { ...base, item: { ...base.item, weight: '500' } }, false)).toEqual({ item: { weight_g: 500 } })
+    expect(buildPatch(base, { ...base, item: { length: '', breadth: '', height: '', weight: '' } }, false)).toEqual({ item: null })
+    expect(buildPatch(base, base, false)).toEqual({})
+  })
+
+  it('refuses a packed box past the category limit and checks the product size', () => {
+    const d = toEditDraft(product({ category: 'ethnic_wear_kurta_sets' }), 'own')
+    const e = validateEdit({ ...d, pkg: { length: '', breadth: '', height: '', weight: '31000' }, item: { length: '30', breadth: '', height: '', weight: '' } }, false)
+    expect(e['package.weight']).toMatch(/between 20 g and 30 kg/)
+    expect(e.item).toMatch(/all three sizes/)
+  })
+
+  it('maps the server’s item and package refusals to their fields', () => {
+    const { fields } = mapPatchErrors(
+      {
+        type: 'VALUE_NOT_ALLOWED',
+        details: [
+          { loc: ['body', 'package', 'weight_g'], msg: 'A packed box for clothing weighs between 20 g and 30 kg.' },
+          { loc: ['body', 'item', 'length_cm'], msg: 'Bad side.' },
+        ],
+      } as never,
+      toEditDraft(product(), 'own'),
+    )
+    expect(fields['package.weight']).toMatch(/30 kg/)
+    expect(fields['item.length']).toBe('Bad side.')
+  })
+})

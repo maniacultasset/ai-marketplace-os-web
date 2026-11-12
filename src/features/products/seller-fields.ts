@@ -17,6 +17,8 @@ export { COUNTRIES }
 
 export type PackageIn = Schema<'PackageIn'>
 export type PackageOut = Schema<'PackageOut'>
+/** Client item 15: the product itself, beside the packed box (the same shape). */
+export type ItemSizeIn = Schema<'ItemSizeIn'>
 
 export const HSN_PATTERN = /^(?:[0-9]{4}|[0-9]{6}|[0-9]{8})$/
 const DIM_PATTERN = /^(0|[1-9][0-9]{0,4})(\.[0-9]{1,2})?$/
@@ -65,18 +67,21 @@ export const packageHasSize = (p: PackageDraft) => dimsFilled(p) === DIMS.length
 export const packageHasWeight = (p: PackageDraft) => p.weight.trim() !== ''
 export const packageEmpty = (p: PackageDraft) => dimsFilled(p) === 0 && !packageHasWeight(p)
 
-/** Keys `package.length|breadth|height|weight` (and `package` for the three together). */
-export function packageProblems(p: PackageDraft): Record<string, string> {
+/**
+ * Keys `package.length|breadth|height|weight` (and `package` for the three together). `prefix`
+ * `item` checks the product itself (item 15) with the same rules, keyed `item.*`.
+ */
+export function packageProblems(p: PackageDraft, prefix: 'package' | 'item' = 'package'): Record<string, string> {
   const e: Record<string, string> = {}
   for (const d of DIMS) {
     const v = p[d].trim()
     if (!v) continue
-    if (!DIM_PATTERN.test(v) || Number(v) <= 0) e[`package.${d}`] = `Enter the ${d} in cm, above 0 with up to 2 decimals.`
+    if (!DIM_PATTERN.test(v) || Number(v) <= 0) e[`${prefix}.${d}`] = `Enter the ${d} in cm, above 0 with up to 2 decimals.`
   }
   const n = dimsFilled(p)
-  if (n > 0 && n < DIMS.length && !Object.keys(e).length) e.package = 'Enter all three sizes (length, breadth and height), or none.'
+  if (n > 0 && n < DIMS.length && !Object.keys(e).length) e[prefix] = 'Enter all three sizes (length, breadth and height), or none.'
   const w = p.weight.trim()
-  if (w && (!GRAMS_PATTERN.test(w) || Number(w) > MAX_GRAMS)) e['package.weight'] = 'Enter the weight in whole grams, from 1 to 20,00,000.'
+  if (w && (!GRAMS_PATTERN.test(w) || Number(w) > MAX_GRAMS)) e[`${prefix}.weight`] = 'Enter the weight in whole grams, from 1 to 20,00,000.'
   return e
 }
 
@@ -86,7 +91,9 @@ export function packageProblems(p: PackageDraft): Record<string, string> {
  * Client item 15: does the packed box look right for its category? The same per-category ranges as
  * the backend (`services/package_sense.py`; keep the two in step). Outside the range is a warning,
  * never an error: an odd but true box still saves. A likely unit slip (grams typed for kilograms,
- * millimetres or metres for centimetres) names what the seller probably meant.
+ * millimetres or metres for centimetres) names what the seller probably meant. Item 15 bullet 4:
+ * past the category's hard limit (a kurta box over 30 kg) the box is refused (`packageLimitProblems`,
+ * the backend's `package_errors`), and the message names the allowed range.
  */
 interface PackageRange {
   minCm: number
@@ -95,10 +102,13 @@ interface PackageRange {
   maxG: number
   /** What the box holds, for "heavy for clothing". */
   noun: string | null
+  /** The hard limits: a side or a weight over these is refused, not warned. */
+  limitCm?: number
+  limitG?: number
 }
 
-const APPAREL: PackageRange = { minCm: 0.3, maxCm: 100, minG: 20, maxG: 5_000, noun: 'clothing' }
-const LAMPS: PackageRange = { minCm: 1, maxCm: 200, minG: 50, maxG: 30_000, noun: 'a lamp' }
+const APPAREL: PackageRange = { minCm: 0.3, maxCm: 100, minG: 20, maxG: 5_000, noun: 'clothing', limitCm: 150, limitG: 30_000 }
+const LAMPS: PackageRange = { minCm: 1, maxCm: 200, minG: 50, maxG: 30_000, noun: 'a lamp', limitCm: 300, limitG: 100_000 }
 const ANY_BOX: PackageRange = { minCm: 0.1, maxCm: 300, minG: 5, maxG: 100_000, noun: null }
 export const PACKAGE_RANGES: Readonly<Record<string, PackageRange>> = {
   tshirts: APPAREL,
@@ -141,12 +151,34 @@ export interface PackageWarnings {
   weight?: string
 }
 
+const rangeFor = (category: string | null | undefined) => PACKAGE_RANGES[(category ?? '').trim()] ?? ANY_BOX
+
+/**
+ * The hard-limit errors of a draft whose values pass `packageProblems`: `package.length` (any side
+ * over the category's limit) and `package.weight`, worded as the backend's 422 detail.
+ */
+export function packageLimitProblems(p: PackageDraft, category: string | null | undefined): Record<string, string> {
+  const r = rangeFor(category)
+  const problems = packageProblems(p)
+  const e: Record<string, string> = {}
+  const of = r.noun ? ` for ${r.noun}` : ''
+  const sizeOk = problems.package === undefined && DIMS.every((d) => problems[`package.${d}`] === undefined)
+  if (r.limitCm !== undefined && packageHasSize(p) && sizeOk && DIMS.some((d) => Number(p[d].trim()) > r.limitCm!)) {
+    e['package.length'] = `A packed box${of} has each side between ${num(r.minCm)} and ${num(r.limitCm)} cm. Check the size is the box in cm.`
+  }
+  if (r.limitG !== undefined && packageHasWeight(p) && !problems['package.weight'] && Number(p.weight.trim()) > r.limitG) {
+    e['package.weight'] = `A packed box${of} weighs between ${num(r.minG)} g and ${num(r.limitG / 1000)} kg. Check the weight is the box in grams.`
+  }
+  return e
+}
+
 /** Plausibility warnings for a draft whose values pass `packageProblems` (an invalid value gets none). */
 export function packageWarnings(p: PackageDraft, category: string | null | undefined): PackageWarnings {
-  const r = PACKAGE_RANGES[(category ?? '').trim()] ?? ANY_BOX
-  const problems = packageProblems(p)
+  const r = rangeFor(category)
+  const problems = { ...packageProblems(p), ...packageLimitProblems(p, category) }
   const out: PackageWarnings = {}
   const sizeBad = problems.package !== undefined || DIMS.some((d) => problems[`package.${d}`] !== undefined)
+  // a box over the hard limit is an error (packageLimitProblems), never a warning as well
   if (packageHasSize(p) && !sizeBad) {
     const size = sizeWarning(DIMS.map((d) => Number(p[d].trim())), r)
     if (size) out.size = size

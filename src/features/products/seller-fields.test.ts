@@ -6,6 +6,7 @@ import {
   emptyPackage,
   fromPackageOut,
   hsnProblem,
+  packageLimitProblems,
   packagePatch,
   packageProblems,
   packageText,
@@ -95,15 +96,35 @@ describe('package plausibility (item 15)', () => {
     expect(packageWarnings(pkg('300', '', '3', '2.5'), 'tshirts')).toEqual({})
   })
   it('names the likely meaning of a unit slip', () => {
-    expect(packageWarnings(pkg('', '', '', '500000'), 'tshirts')).toEqual({ weight: 'This box weighs 500 kg. Did you mean 500 g?' })
+    expect(packageWarnings(pkg('', '', '', '25000'), 'tshirts')).toEqual({ weight: 'This box weighs 25 kg. Did you mean 25 g?' })
     expect(packageWarnings(pkg('', '', '', '3'), 'home_decor_lamps')).toEqual({ weight: 'This box weighs 3 g. Did you mean 3 kg (3,000 g)?' })
-    expect(packageWarnings(pkg('300', '250', '30'), 'tshirts')).toEqual({ size: 'A 300 cm side is 3 m long. Did you mean 300 mm (30 cm)?' })
+    expect(packageWarnings(pkg('140', '120', '30'), 'tshirts')).toEqual({ size: 'A 140 cm side is 1.4 m long. Did you mean 140 mm (14 cm)?' })
     expect(packageWarnings(pkg('0.4', '0.4', '0.6'), 'home_decor_lamps')).toEqual({ size: 'A 0.4 cm side is very thin. Did you mean 0.4 m (40 cm)?' })
   })
   it('asks to check an absurd box with no likely slip', () => {
-    expect(packageWarnings(pkg('', '', '', '1234567'), 'tshirts').weight).toBe('This box weighs 1,234.57 kg, which is heavy for clothing. Check the weight.')
+    expect(packageWarnings(pkg('', '', '', '12345'), 'tshirts').weight).toBe('This box weighs 12.35 kg, which is heavy for clothing. Check the weight.')
     expect(packageWarnings(pkg('', '', '', '40'), 'home_decor_lamps').weight).toBe('This box weighs only 40 g, which is light for a lamp. Check the weight.')
-    expect(packageWarnings(pkg('99999.99', '20', '2'), 'tshirts').size).toBe('A 99,999.99 cm side is 1,000 m long, which is large for clothing. Check the size.')
+    expect(packageWarnings(pkg('99999.99', '20', '2'), '').size).toBe('A 99,999.99 cm side is 1,000 m long, which is large. Check the size.')
+  })
+  it('refuses a box past the category\'s hard limit (bullet 4), with the allowed range, and warns no more', () => {
+    expect(packageLimitProblems(pkg('', '', '', '31000'), 'ethnic_wear_kurta_sets')).toEqual({
+      'package.weight': 'A packed box for clothing weighs between 20 g and 30 kg. Check the weight is the box in grams.',
+    })
+    expect(packageLimitProblems(pkg('', '', '', '30000'), 'ethnic_wear_kurta_sets')).toEqual({})
+    expect(packageLimitProblems(pkg('151', '20', '2'), 'tshirts')).toEqual({
+      'package.length': 'A packed box for clothing has each side between 0.3 and 150 cm. Check the size is the box in cm.',
+    })
+    expect(packageWarnings(pkg('151', '20', '2', '500000'), 'tshirts')).toEqual({})
+    expect(Object.keys(packageLimitProblems(pkg('301', '40', '40', '100001'), 'home_decor_lamps'))).toEqual(['package.length', 'package.weight'])
+    expect(packageLimitProblems(pkg('2000', '40', '40', '500000'), 'kitchen')).toEqual({})
+    expect(packageLimitProblems(pkg('300', '', '3', '2.5'), 'tshirts')).toEqual({}) // an invalid draft has its own errors
+  })
+  it('checks the product itself with the same rules, keyed item.*', () => {
+    expect(packageProblems(pkg('30', '', '', '0'), 'item')).toEqual({
+      item: 'Enter all three sizes (length, breadth and height), or none.',
+      'item.weight': 'Enter the weight in whole grams, from 1 to 20,00,000.',
+    })
+    expect(packageProblems(pkg('30', '15', '12.5', '420'), 'item')).toEqual({})
   })
   it('uses a wide range for any other category', () => {
     expect(packageWarnings(pkg('250', '40', '40', '60000'), 'kitchen')).toEqual({})
