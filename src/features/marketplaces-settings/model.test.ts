@@ -102,6 +102,13 @@ describe('auditActorLabel', () => {
     expect(auditActorLabel({ actor_type: 'system' }, 'u1')).toBe('Kuinn')
     expect(auditActorLabel({ actor_type: 'staff' }, 'u1')).toBe('Support team')
   })
+
+  it('names a teammate by the name the API sends (item 17)', () => {
+    expect(auditActorLabel({ actor_type: 'user', actor_user_id: 'u2', actor_name: 'Priya Sharma' }, 'u1')).toBe('Priya Sharma')
+    expect(auditActorLabel({ actor_type: 'user', actor_user_id: 'u1', actor_name: 'Asha Mehta' }, 'u1')).toBe('You')
+    expect(auditActorLabel({ actor_type: 'user', actor_user_id: 'u2', actor_name: '  ' }, 'u1')).toBe('Your team')
+    expect(auditActorLabel({ actor_type: 'system', actor_name: 'x' }, 'u1')).toBe('Kuinn')
+  })
 })
 
 describe('Activity: what the marketplace said', () => {

@@ -512,7 +512,7 @@ export function issueLane(i: Pick<Issue, 'status'> & LaneFields, ctx?: FixContex
   if (!i.lane) return null
   const fixed = isAutoFix({ status: i.status, resolution: i.resolution })
   if (i.status !== 'open' && !fixed) return null
-  return laneView(i.lane, { closed: fixed, marketplace: i.marketplace ?? 'amazon', fix: fixed ? fixState(i.lane, i.resolved_at, ctx) : undefined })
+  return laneView(i.lane, { closed: fixed, marketplace: i.marketplace ?? 'amazon', fix: fixed ? fixState(i.lane, i.resolved_at, ctx) : undefined, ownApproval: ctx?.ownApproval })
 }
 
 /** "A product fact", "The listing text": why it failed, when the API says. */
@@ -772,13 +772,17 @@ export function greeting(name: string | null, hour = new Date().getHours()) {
   return `Good ${part}, ${first}`
 }
 
-/** The fix context of one listing: its resolution attempts and whether the current version is approved. */
+/**
+ * The fix context of one listing: its resolution attempts, whether the current version is approved
+ * and whether the viewer may approve it themselves (owner approval, useOwnerMayApproveOwn).
+ */
 export function fixContext(
   resolution: { attempts?: readonly { kind: string; at: string; outcome: string }[] } | null | undefined,
   listing: { current_version_id?: string | null; approved_version_id?: string | null } | null | undefined,
+  ownApproval = false,
 ): FixContext | null {
   if (!resolution || !listing) return null
-  return { attempts: resolution.attempts ?? [], approved: !!listing.current_version_id && listing.approved_version_id === listing.current_version_id }
+  return { attempts: resolution.attempts ?? [], approved: !!listing.current_version_id && listing.approved_version_id === listing.current_version_id, ownApproval }
 }
 
 /* ---------------------------------------------------------------------------------------------- */

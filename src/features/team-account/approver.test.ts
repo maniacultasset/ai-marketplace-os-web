@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { approverNoticeFor, otherApproverExists, soloState } from './approver'
+import { answerApprovalLine, approvalsNote, approverNoticeFor, otherApproverExists, sendBackRewriteLine, soloState } from './approver'
 
 const me = '00000000-0000-4000-8000-000000000001'
 const other = '00000000-0000-4000-8000-000000000002'
@@ -59,5 +59,28 @@ describe('approverNoticeFor (Review)', () => {
     expect(approverNoticeFor({}, 'owner_alone')).toBe('owner_alone')
     expect(approverNoticeFor({}, 'ok')).toBeNull()
     expect(approverNoticeFor({}, 'unknown')).toBeNull()
+  })
+})
+
+describe('approval copy follows owner approval (item 17)', () => {
+  const teammate = /teammate|someone else|second person/i
+
+  it('send back with a rewrite', () => {
+    expect(sendBackRewriteLine(false)).toBe('A new version comes back for review. You become its maker, so someone else approves it.')
+    expect(sendBackRewriteLine(true)).toBe('A new version comes back for review. Owner approval is on, so you can approve it yourself. This is recorded.')
+    expect(sendBackRewriteLine(true)).not.toMatch(teammate)
+  })
+
+  it('an answer that makes a new version', () => {
+    expect(answerApprovalLine({ ownApproval: false, resend: false })).toBe('A teammate then approves it.')
+    expect(answerApprovalLine({ ownApproval: false, resend: true })).toBe('A teammate then approves the resend.')
+    expect(answerApprovalLine({ ownApproval: true, resend: false })).toBe('You can then approve it yourself.')
+    expect(answerApprovalLine({ ownApproval: true, resend: true })).toBe('You can then approve the resend yourself.')
+  })
+
+  it('the team page note', () => {
+    expect(approvalsNote(false)).toMatch(/^Approvals need a second person/)
+    expect(approvalsNote(true)).toBe('Owner approval is on: an owner can approve their own listings, and each one is recorded. Reviewers never approve their own work.')
+    expect(approvalsNote(true)).not.toMatch(teammate)
   })
 })

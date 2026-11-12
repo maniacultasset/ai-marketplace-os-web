@@ -8,6 +8,7 @@
  *   GET /issues?status=auto_fixed&listing_id= what Kuinn fixed on each listing's current version
  *   GET /listings/{id}                       validation summary (Validation tab)
  *   GET /listings/{id}/history               per-listing history (Activity tab)
+ *   GET /listings/{id}/versions              who made, edited and approved each version (Activity tab)
  * Writes: POST /listings/generate ("List on …", AddMarketplaceDialog); image upload in the Media tab.
  */
 import { useQueries } from '@tanstack/react-query'
@@ -36,6 +37,7 @@ import {
 import { EmptyState } from '@/components/states/empty-state'
 import { ErrorState } from '@/components/states/error-state'
 import { NotFound } from '@/components/states/not-found'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -45,9 +47,10 @@ import { ProductImagesCard } from '@/features/analytics-images/images/images-car
 import { useFixCounts } from '@/features/home-inbox/api'
 import { AutoFixedChip } from '@/features/listing-flow/auto-fix'
 import { currentFindings, dedupeFindings, type ErrorItem } from '@/features/listing-flow/gates'
-import { listingDetailQuery, listingPreviewQuery, useListingHistory } from '@/features/listings/api'
+import { listingDetailQuery, listingPreviewQuery, useListingHistory, useListingVersions } from '@/features/listings/api'
 import { recallJob } from '@/features/listings/job-memory'
 import { blockedReason, historyLabel, historyReason, isBusy, statusReasonLabel, validationBlocking } from '@/features/listings/model'
+import { versionRow } from '@/features/listings/versions'
 import { auditActorLabel } from '@/features/marketplaces-settings/model'
 import { comingSoon, comingSoonReason, draftOpen } from '@/features/marketplaces/meta'
 import { useProduct, type ProductDetail } from '@/features/products/api'
@@ -1380,10 +1383,11 @@ function HistoryList({
   onSettled: (listingId: string, settled: boolean) => void
 }) {
   const h = useListingHistory(listing.id)
+  const versions = useListingVersions(listing.id)
   const { data: me } = useMe()
-  const settled = !h.isPending
+  const settled = !h.isPending && !versions.isPending
   useEffect(() => onSettled(listing.id, settled), [listing.id, settled, onSettled])
-  const waiting = !ready || h.isPending
+  const waiting = !ready || h.isPending || versions.isPending
   return (
     <LaCard aria-busy={waiting || undefined}>
       <div className="flex min-h-[22px] items-center justify-between gap-2">
@@ -1399,15 +1403,19 @@ function HistoryList({
             </li>
           ))}
         </ol>
-      ) : h.error && !h.data ? (
+      ) : (
+        <VersionList listingId={listing.id} versions={versions} meId={me?.user_id} />
+      )}
+      {waiting ? null : <h3 className="mt-4 text-caption font-semibold text-ink-2">Activity</h3>}
+      {waiting ? null : h.error && !h.data ? (
         <ErrorState error={h.error} compact onRetry={() => void h.refetch()} />
       ) : h.rows.length === 0 ? (
         // This list records people's reviews and edits, and Kuinn's fixes; drafting is on the card above.
-        <p className="mt-3 text-small text-ink-2">
+        <p className="mt-1 text-small text-ink-2">
           No reviews or edits yet. Drafted <RelativeTime iso={listing.created_at} />.
         </p>
       ) : (
-        <ol className="mt-3 flex flex-col">
+        <ol className="mt-1 flex flex-col">
           {h.rows.map((e) => {
             const reason = historyReason(e)
             return (
@@ -1438,7 +1446,54 @@ function HistoryList({
   )
 }
 
-/** "You" for the signed-in user; other people are "a teammate" (no user directory for every role). */
+/**
+ * Item 17: who started, edited and approved each version, by name (members of this brand only;
+ * the server names them), with Kuinn as the writer of its drafts and a "Self-approved" mark.
+ */
+function VersionList({
+  listingId,
+  versions,
+  meId,
+}: {
+  listingId: string
+  versions: ReturnType<typeof useListingVersions>
+  meId: string | null | undefined
+}) {
+  if (versions.error && !versions.data) return <ErrorState error={versions.error} compact onRetry={() => void versions.refetch()} />
+  if (versions.rows.length === 0) return null
+  return (
+    <>
+      <h3 className="mt-3 text-caption font-semibold text-ink-2">Versions</h3>
+      <ol className="mt-1 flex flex-col" data-testid="version-list" data-listing-id={listingId}>
+        {versions.rows.map((v) => {
+          const row = versionRow(v, meId)
+          return (
+            <li key={row.id} className="flex items-start justify-between gap-3 border-b border-line py-2.5 text-small last:border-b-0" data-testid="version-row">
+              <span className="min-w-0 text-ink">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate">{row.title}</span>
+                  {row.selfApproved ? (
+                    <Badge variant="muted" data-testid="version-self-approved">
+                      Self-approved
+                    </Badge>
+                  ) : null}
+                </span>
+                {row.detail ? <span className="block text-caption break-words text-ink-2">{row.detail}</span> : null}
+              </span>
+              <RelativeTime iso={row.at} className="shrink-0 text-caption text-ink-2" />
+            </li>
+          )
+        })}
+      </ol>
+      {versions.hasNextPage ? (
+        <Button variant="ghost" size="sm" className="mt-2" onClick={() => void versions.fetchNextPage()} disabled={versions.isFetchingNextPage}>
+          {versions.isFetchingNextPage ? 'Loading…' : 'More versions'}
+        </Button>
+      ) : null}
+    </>
+  )
+}
+
 function ActivityTab({ data }: { data: DetailData }) {
   const ls = listingsIn(data)
   const p = data.product

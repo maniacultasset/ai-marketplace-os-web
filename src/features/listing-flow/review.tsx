@@ -238,7 +238,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   // While publishing is paused an edit is saved as a plain new version: nothing is resent.
   const resendEdit = amazon && isResend(resolution) && !publishingPaused
   const ownApproval = useOwnerMayApproveOwn()
-  const rview = resolution && hasResolution(resolution) ? resolutionView(resolution, { marketplace: listing.marketplace, marketplaceState: listing.marketplace_state, canAnswer: can('product:import'), publishingPaused }) : null
+  const rview = resolution && hasResolution(resolution) ? resolutionView(resolution, { marketplace: listing.marketplace, marketplaceState: listing.marketplace_state, canAnswer: can('product:import'), publishingPaused, ownApproval }) : null
   // "Approve all" approves the other marketplaces' fixes too: read them, and name them in the footer.
   const others = allTargets.filter((l) => l.id !== listing.id)
   const otherFixes = useFixCounts(others)

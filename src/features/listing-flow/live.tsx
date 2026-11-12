@@ -26,6 +26,7 @@ import { useListing, useListingHistory, useListingSubmissions, useRefreshStatus 
 import { recallJob } from '@/features/listings/job-memory'
 import { contentAuthor, listingActions, MARKETPLACE_STATE_META, type ListingDetail } from '@/features/listings/model'
 import { useProduct } from '@/features/products/api'
+import { useOwnerMayApproveOwn } from '@/features/team-account/approver'
 import { NOT_BUYABLE_NEXT } from '@/lib/listing-chip'
 import { OP_ACTION, useCan } from '@/lib/permissions'
 import { toast, toastError } from '@/lib/toast'
@@ -362,11 +363,12 @@ function WhatKuinnDid({ listing, marketplaceState }: { listing: ListingDetail; m
   const q = useListingResolution(listing.id, { enabled: amazon })
   const { paused } = usePublishGate(listing.marketplace)
   const can = useCan()
+  const ownApproval = useOwnerMayApproveOwn()
   if (!amazon) return null
   if (q.isPending) return <ResolutionSkeleton />
   if (!q.data || !hasResolution(q.data)) return null
   // The same (fresher) state the hero uses, so the two cards never disagree after a status check.
-  const view = resolutionView(q.data, { marketplace: listing.marketplace, marketplaceState, publishingPaused: paused })
+  const view = resolutionView(q.data, { marketplace: listing.marketplace, marketplaceState, publishingPaused: paused, ownApproval })
   return (
     <ResolutionCard
       view={view}
