@@ -41,6 +41,17 @@ describe('useListingFilter (client feedback item 6)', () => {
     expect(products).toEqual([{ listing: 'live', marketplace: 'amazon', limit: 200, cursor: undefined }])
   })
 
+  it('reads a marketplace alone on the server too (a card\'s "See N listings")', async () => {
+    get.mockReset()
+    get.mockImplementation(() => Promise.resolve(page([])))
+    const { result } = renderHook(() => useListingFilter(null, 'flipkart'), { wrapper })
+    await waitFor(() => expect(result.current.state).toBe('ready'))
+    expect(get.mock.calls.map(([p, init]) => [p, init.params.query])).toEqual([
+      ['/listings', { bucket: undefined, marketplace: 'flipkart', limit: 200, cursor: undefined }],
+      ['/products', { listing: undefined, marketplace: 'flipkart', limit: 200, cursor: undefined }],
+    ])
+  })
+
   it('asks nothing without a filter', () => {
     get.mockReset()
     const { result } = renderHook(() => useListingFilter(null, null), { wrapper })

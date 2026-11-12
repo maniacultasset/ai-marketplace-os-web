@@ -465,12 +465,13 @@ export function ProductsPage({ search, onSearch }: { search?: ProductsSearch; on
   const load = useMemo(() => ({ listings: catalog.listingsState, issues: catalog.issuesState }), [catalog.listingsState, catalog.issuesState])
   const counts = useMemo(() => bucketCounts(catalog.rows), [catalog.rows])
   const categories = useMemo(() => categoriesOf(catalog.rows), [catalog.rows])
-  // A Home filter (`?listing=`) is read on the server, so the list holds exactly what the Home
-  // number counts on any catalog size: the matched listings and their products are merged onto
-  // the whole-catalog walk (which can stop early), and only those products are rows.
+  // A Home filter (`?listing=`, or `?marketplace=` alone) is read on the server, so the list holds
+  // exactly what the Home number counts on any catalog size: the matched listings and their
+  // products are merged onto the whole-catalog walk (which can stop early), and only those
+  // products are rows. A failed marketplace-only read falls back to the walk, as before.
   const server = useListingFilter(listing, marketplace)
   const scoped = useMemo(() => {
-    if (!listing || server.state !== 'ready' || !catalog.products.data) return null
+    if ((!listing && !marketplace) || server.state !== 'ready' || !catalog.products.data) return null
     const ctx = { amazonPublishingPaused }
     const matched = serverMatches(server.listings, listing, ctx)
     const owners = new Set(matched.map((l) => l.product_id))
@@ -478,12 +479,12 @@ export function ProductsPage({ search, onSearch }: { search?: ProductsSearch; on
     const listings = mergeById(catalog.listings.data?.rows ?? [], server.listings)
     const rows = buildCatalog(products, listings, catalog.issues.data?.rows ?? [], ctx).filter((r) => owners.has(r.product.id))
     return { rows, listings: matched.length }
-  }, [listing, server.state, server.listings, server.products, catalog.products.data, catalog.listings.data, catalog.issues.data, amazonPublishingPaused])
-  const filterPending = !!listing && server.state === 'pending'
+  }, [listing, marketplace, server.state, server.listings, server.products, catalog.products.data, catalog.listings.data, catalog.issues.data, amazonPublishingPaused])
+  const filterPending = (!!listing || !!marketplace) && server.state === 'pending'
   // Status and marketplace filters read listings; until they are loaded they would filter on a guess.
   const rows = useMemo(
     () =>
-      filterCatalog(scoped ? scoped.rows : listing ? [] : catalog.rows, {
+      filterCatalog(scoped ? scoped.rows : listing || filterPending ? [] : catalog.rows, {
         q,
         bucket: listingsReady ? bucket : 'all',
         category,
@@ -491,7 +492,7 @@ export function ProductsPage({ search, onSearch }: { search?: ProductsSearch; on
         listing: null,
         ctx: { amazonPublishingPaused },
       }),
-    [scoped, catalog.rows, q, bucket, category, marketplace, listing, listingsReady, amazonPublishingPaused],
+    [scoped, filterPending, catalog.rows, q, bucket, category, marketplace, listing, listingsReady, amazonPublishingPaused],
   )
   const byId = useMemo(() => new Map(catalog.rows.map((r) => [r.product.id, r])), [catalog.rows])
   const listingsOf = useCallback((id: string) => byId.get(id)?.listings ?? {}, [byId])

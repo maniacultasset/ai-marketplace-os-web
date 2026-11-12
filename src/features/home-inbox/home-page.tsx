@@ -332,9 +332,15 @@ function MarketplaceRow({ summary }: { summary: HomeSummary }) {
                     {next ? (
                       <>
                         {view.sub && view.sub !== 'Connected. No listings yet.' ? ' · ' : null}
-                        <Link {...linkTo(next.target)} className={LINK_QUIET} data-testid="mp-next">
-                          {next.label}
-                        </Link>
+                        {next.definition ? (
+                          <CountLink target={next.target} definition={next.definition} testId="mp-next" className={LINK_QUIET}>
+                            {next.label}
+                          </CountLink>
+                        ) : (
+                          <Link {...linkTo(next.target)} className={LINK_QUIET} data-testid="mp-next">
+                            {next.label}
+                          </Link>
+                        )}
                       </>
                     ) : null}
                   </>

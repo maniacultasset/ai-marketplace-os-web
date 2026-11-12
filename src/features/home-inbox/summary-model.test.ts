@@ -158,6 +158,7 @@ describe('marketplace cards', () => {
     expect(cardNext('amazon', status('none'), { ...empty, listings: 3, live: 3 })).toEqual({
       label: 'See 3 listings',
       target: { to: '/products', search: { marketplace: 'amazon' } },
+      definition: CARD_DEFINITION.all,
     })
     expect(cardNext('amazon', status('none'), empty)).toBeNull()
   })

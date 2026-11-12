@@ -90,6 +90,8 @@ describe('Home from the summary', () => {
     expect(href(within(amazon).getByTestId('mp-problem'))).toBe(`/products/${P1}`)
     const flipkart = screen.getByTestId('home-mp-flipkart')
     expect(href(within(flipkart).getByTestId('mp-next'))).toBe('/products?marketplace=flipkart')
+    // the "See N listings" number says what it counts, as every other card number does
+    expect(within(flipkart).getByTestId('mp-next').textContent).toContain('Every listing on this marketplace, in any state.')
   })
 
   it('a connected marketplace with nothing listed offers to add a product', () => {

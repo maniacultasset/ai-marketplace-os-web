@@ -258,10 +258,18 @@ export function cardInputs(
 }
 
 /** The card's last line: the one next step that is not connect, reconnect or a fix. */
-export function cardNext(m: Marketplace, status: MarketplaceStatus | undefined, totals: MarketplaceTotals): { label: string; target: Target } | null {
+export function cardNext(
+  m: Marketplace,
+  status: MarketplaceStatus | undefined,
+  totals: MarketplaceTotals,
+): { label: string; target: Target; definition?: string } | null {
   if (status?.next_step === 'add_listing') return { label: 'Add a product to list here', target: { to: '/add' } }
   if (status?.next_step === 'none' && totals.listings > 0) {
-    return { label: `See ${n(totals.listings)} ${plural(totals.listings, 'listing')}`, target: { to: '/products', search: { marketplace: m } } }
+    return {
+      label: `See ${n(totals.listings)} ${plural(totals.listings, 'listing')}`,
+      target: { to: '/products', search: { marketplace: m } },
+      definition: CARD_DEFINITION.all,
+    }
   }
   return null
 }
@@ -275,6 +283,7 @@ export const CARD_DEFINITION = {
   approved: 'Approved and ready to send to this marketplace.',
   approvedPaused: 'Approved and ready. They wait here while publishing is paused.',
   fix: 'Stopped by a check, a failed step or the marketplace. Each needs a fix.',
+  all: 'Every listing on this marketplace, in any state.',
 } as const
 
 export const PUBLISHING_PAUSED = 'Publishing is paused by Kuinn for now'
@@ -302,7 +311,7 @@ export interface MarketCardView {
   /** Connect or reconnect on Marketplaces. */
   action: 'connect' | 'reconnect' | null
   /** The card's last step that is not a connect or a fix (add a product, see the listings). */
-  next: { label: string; target: Target } | null
+  next: { label: string; target: Target; definition?: string } | null
 }
 
 /** Products filtered to this marketplace's listings in `bucket`. */

@@ -179,10 +179,11 @@ export function listingMatches(l: Listing, f: ListingFilter, ctx?: ChipContext):
 }
 
 /**
- * Of the listings the server filtered by `SERVER_BUCKET[f]`, the ones the filter keeps: all of
- * them, except a paused marketplace's for `ready_to_publish`. The server's bucket is trusted as is.
+ * Of the listings the server filtered by `SERVER_BUCKET[f]` (or by marketplace alone, `f` null),
+ * the ones the filter keeps: all of them, except a paused marketplace's for `ready_to_publish`.
+ * The server's bucket is trusted as is.
  */
-export function serverMatches(rows: readonly Listing[], f: ListingFilter, ctx?: ChipContext): Listing[] {
+export function serverMatches(rows: readonly Listing[], f: ListingFilter | null, ctx?: ChipContext): Listing[] {
   return f === 'ready_to_publish' ? rows.filter((l) => !isApprovedPaused(l, ctx)) : [...rows]
 }
 

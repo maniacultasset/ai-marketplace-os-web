@@ -101,17 +101,19 @@ export function useOpenIssues(opts: { refetchInterval?: number | false } = {}) {
 /**
  * A Home filter read on the server (client feedback item 6): the listings in the filter's bucket
  * (`GET /listings?bucket=`) and the products that own them (`GET /products?listing=`), both on
- * `marketplace` when given. The backend applies the same bucket definition as Home's counts, so
- * the filtered list holds what the tile counts even when the whole-catalog walk stops early.
- * Off (no request) while `filter` is null.
+ * `marketplace` when given; a marketplace alone (a card's "See N listings") reads every listing on
+ * it the same way. The backend applies the same bucket definition as Home's counts, so the
+ * filtered list holds what the number counts even when the whole-catalog walk stops early.
+ * Off (no request) while neither `filter` nor `marketplace` is set.
  */
 export function useListingFilter(filter: ListingFilter | null, marketplace: Marketplace | null) {
   const keys = useKeys()
   const bucket = filter ? SERVER_BUCKET[filter] : undefined
   const mp = marketplace ?? undefined
+  const on = !!bucket || !!mp
   const listings = useQuery({
     queryKey: [...keys.listings.lists(), 'bucket', bucket ?? null, mp ?? null] as const,
-    enabled: !!bucket,
+    enabled: on,
     staleTime: STALE_MS,
     queryFn: () =>
       walkPages<Listing>((cursor) =>
@@ -120,14 +122,14 @@ export function useListingFilter(filter: ListingFilter | null, marketplace: Mark
   })
   const products = useQuery({
     queryKey: [...keys.products.list(), 'listing', bucket ?? null, mp ?? null] as const,
-    enabled: !!bucket,
+    enabled: on,
     staleTime: STALE_MS,
     queryFn: () =>
       walkPages<Product>((cursor) =>
         unwrap(api.GET('/products', { params: { query: { listing: bucket, marketplace: mp, limit: WALK_PAGE_SIZE, cursor } } })),
       ),
   })
-  const state: LoadState = !bucket ? 'ready' : listings.error || products.error ? 'error' : listings.data && products.data ? 'ready' : 'pending'
+  const state: LoadState = !on ? 'ready' : listings.error || products.error ? 'error' : listings.data && products.data ? 'ready' : 'pending'
   return {
     listings: listings.data?.rows ?? EMPTY_LISTINGS,
     products: products.data?.rows ?? EMPTY_PRODUCTS,
