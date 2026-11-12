@@ -181,13 +181,16 @@ describe('helpers', () => {
       'XL',
       '2XL',
       'XXXL',
-      'FREE SIZE',
+      'Free size',
       '28',
       '32W',
       'Petite S',
       '3-4y',
     ])
     expect(variantAxis(product({ variant_attributes: { size: 'xl' } }), 'size')).toBe('XL')
+    // the seller's own spelling of a size in words stays as entered
+    expect(['Free Size', 'FREE SIZE', 'Free size'].map(sizeLabel)).toEqual(['Free Size', 'FREE SIZE', 'Free size'])
+    expect(variantAxis(product({ variant_attributes: { size: 'free size' }, attributes: { size: 'Free Size' } }), 'size')).toBe('Free Size')
     expect(variantAxis(product({ variant_attributes: { size: '3-4y' }, attributes: { size: '3-4Y' } }), 'size')).toBe('3-4Y')
   })
   it('never collapses variants that would share a cell (colour not exposed by the API)', () => {

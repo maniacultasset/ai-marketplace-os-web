@@ -310,11 +310,21 @@ export const attrText = (p: Product, key: string): string | null => {
   return typeof v === 'string' && v.trim() ? v.trim() : typeof v === 'number' ? String(v) : null
 }
 
-/** Letter sizes a seller means in capitals (`m`, `xl`, `2xl`, `xxxl`, `free size`). */
-const LETTER_SIZE = /^(?:xxs|xs|s|m|l|x{1,4}l|[2-6]xl|free\s*size)$/i
+/** Letter sizes a seller means in capitals (`m`, `xl`, `2xl`, `xxxl`). */
+const LETTER_SIZE = /^(?:xxs|xs|s|m|l|x{1,4}l|[2-6]xl)$/i
+const FREE_SIZE = /^free\s*size$/i
 
-/** A size as the seller sees it: standard letter sizes in capitals, anything else as entered. */
-export const sizeLabel = (size: string): string => (LETTER_SIZE.test(size.trim()) ? size.trim().toUpperCase() : size.trim())
+/**
+ * A size as the seller sees it: standard letter sizes in capitals, anything else as entered. "Free
+ * size" is words, not a letter size: kept as the seller spelled it, and only the lower-cased axis
+ * key (`free size`) reads "Free size".
+ */
+export const sizeLabel = (size: string): string => {
+  const s = size.trim()
+  if (LETTER_SIZE.test(s)) return s.toUpperCase()
+  if (FREE_SIZE.test(s) && s === s.toLowerCase()) return `F${s.slice(1)}`
+  return s
+}
 
 /**
  * A variant's colour or size: its own axis (SI8 `variant_attributes`) first, then the fact of the
