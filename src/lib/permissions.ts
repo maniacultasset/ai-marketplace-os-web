@@ -160,6 +160,7 @@ export const OP_ACTION = {
   'GET /admin/quality': PLATFORM_ADMIN,
   'GET /admin/signup-requests': PLATFORM_ADMIN,
   'POST /admin/signup-requests/{request_id}/approve': PLATFORM_ADMIN,
+  'POST /admin/signup-requests/{request_id}/ask': PLATFORM_ADMIN,
   'POST /admin/signup-requests/{request_id}/reject': PLATFORM_ADMIN,
   'GET /admin/tenants': PLATFORM_ADMIN,
   'POST /admin/tenants/{target_tenant_id}/activate': PLATFORM_ADMIN,

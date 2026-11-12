@@ -41,12 +41,12 @@ const ME = { user_id: 'u1', email: 'meera@acme.test', display_name: 'Meera Iyer'
 const challenge = (status: string, ttl = 300) => json(200, { status, challenge_token: `ch-${status}`, challenge_expires_in: ttl })
 const CODES = Array.from({ length: 10 }, (_, i) => `code-${String(i).padStart(4, '0')}`)
 
-function setup(routes: Record<string, Handler | Handler[]>) {
+function setup(routes: Record<string, Handler | Handler[]>, props: { approved?: boolean; initialEmail?: string } = {}) {
   const api = installFetch({ 'GET /auth/me': () => json(200, ME), ...routes })
   const user = userEvent.setup()
   render(
     <QueryClientProvider client={queryClient}>
-      <LoginPage target="/home" />
+      <LoginPage target="/home" {...props} />
     </QueryClientProvider>,
   )
   return { ...api, user }
@@ -329,5 +329,26 @@ describe('LoginPage: forgot password', () => {
     const hint = link.closest('[id]')?.textContent ?? ''
     expect(hint).toContain('may be able to send you a reset link. If they cannot, email')
     expect(hint).not.toContain('Owners, email')
+  })
+})
+
+describe('LoginPage from the approved sign-up card', () => {
+  afterEach(() => {
+    cleanup()
+    queryClient.clear()
+    clearSession('logout')
+  })
+
+  it('says why one sign-in is needed and fills in the email the person applied with', async () => {
+    setup({ 'GET /auth/google/config': () => json(200, { enabled: false }) }, { approved: true, initialEmail: 'meera@acme.test' })
+    expect((await screen.findByTestId('login-approved')).textContent).toBe('Your brand is approved. Sign in once to open your workspace.')
+    expect((screen.getByLabelText('Email') as HTMLInputElement).value).toBe('meera@acme.test')
+    expect((screen.getByLabelText('Password', { exact: true }) as HTMLInputElement).value).toBe('')
+  })
+
+  it('opened any other way: no approval note and an empty email', () => {
+    setup({ 'GET /auth/google/config': () => json(200, { enabled: false }) })
+    expect(screen.queryByTestId('login-approved')).toBeNull()
+    expect((screen.getByLabelText('Email') as HTMLInputElement).value).toBe('')
   })
 })

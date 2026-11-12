@@ -236,7 +236,7 @@ describe('/auth/google', () => {
       await queryClient.refetchQueries({ queryKey: ['signup', 'status-poll'] })
     })
     expect(await screen.findByRole('heading', { name: 'You’re approved' })).toBeTruthy()
-    expect(screen.getByText('Continue to your workspace with the same Google account.')).toBeTruthy()
+    expect(screen.getByText(/This page can only show your status, so sign in once with the same Google account/)).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Continue with Google' }))
     expect(start.startGoogle).toHaveBeenCalledWith({ intent: 'login', returnTo: '/products' })
     expect(readStatusHandle()).toBeNull()
