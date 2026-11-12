@@ -1,6 +1,7 @@
 import { categoryLabel as productCategoryName } from '@/features/products/categories'
 import { NEED_FIELDS } from '@/features/products/needs'
 import { attrLabel } from './mapping'
+import { isRecommendation } from './recommended'
 
 /** Times as the hi-fi writes them: "10:42" today, "14 Oct, 10:42" otherwise. Local time. */
 export function clock(iso: string | null | undefined, now: Date = new Date()): string {
@@ -111,12 +112,25 @@ const AGENT_GUIDANCE = /flag the row|rather than guessing|leave it unset|from th
  * a missing attribute says what to add and where; other messages name fields by their labels;
  * the agent's own guidance becomes one plain next step.
  */
-export function sellerFinding(f: { field: string; error_code?: string | null; message: string; suggestion?: string | null }): {
+export function sellerFinding(f: {
+  field: string
+  error_code?: string | null
+  message: string
+  suggestion?: string | null
+  severity?: string | null
+  source?: string | null
+  rule_id?: string | null
+}): {
   message: string
   action: string | null
 } {
   const key = f.field.startsWith('attributes.') ? f.field.slice('attributes.'.length) : f.field
   const label = PLAIN_KEY[key] ?? fieldLabel(f.field)
+  // A recommended attribute is never "required" (client Chrome pass B4): the level is the
+  // backend's (`is_recommendation`), the same one the approval gate and the mapping page read.
+  if (isRecommendation(f)) {
+    return { message: `${label} is recommended for this category. Not needed for approval.`, action: `Add ${label.toLowerCase()} on the product page if you know it.` }
+  }
   if (f.error_code === 'MISSING_ATTRIBUTE') {
     return { message: `${label} is required for this category.`, action: `Add ${label.toLowerCase()} on the product page, then check again.` }
   }

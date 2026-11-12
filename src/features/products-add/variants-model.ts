@@ -8,8 +8,9 @@
  * Validation mirrors services/imports/row_model.py: seller_sku `^[^\]\s]{1,64}$`; size key
  * `[a-z0-9][a-z0-9 ./+-]{0,31}` (lower-cased); colour ≤ 64; money `[0-9]{1,10}(\.[0-9]{1,2})?`
  * (₹, commas and spaces stripped), positive; selling_price ≤ mrp; identifier GTIN-8/12/13/14 with a
- * valid GS1 check digit; at most 40 sizes per family (runner.MAX_SIZE_RUN). "No barcodes (exempt)"
- * goes on the style row as `identifier_exemption`, which reaches every child row without a barcode.
+ * valid GS1 check digit; at most 40 sizes per family (runner.MAX_SIZE_RUN). "No barcodes" plus a yes
+ * to the GTIN exemption question goes on the style row as `identifier_exemption`, which reaches
+ * every child row without a barcode; "No barcodes" alone sends nothing (Chrome pass B5).
  */
 import { gtinValid } from '@/features/products/barcode'
 import { codePoints } from '@/features/products/schema'
@@ -84,7 +85,9 @@ export interface VariantsState {
   commercial: Record<string, Commercial>
   /** SKU overrides per cell (cellKey); otherwise variantSku(). */
   skus: Record<string, string>
-  /** "No barcodes (exempt)": variants left without a barcode are GTIN-exempt. */
+  /** "No barcodes" was chosen (says nothing about an exemption). */
+  noBarcodes?: boolean
+  /** The seller confirmed Amazon's GTIN exemption: variants left without a barcode are exempt. */
   exempt: boolean
 }
 
@@ -306,7 +309,7 @@ export function seedFromVariants(style: { sku: string; colourways?: readonly { c
     placed.push({ colour, size, v })
   }
   sizes.sort(sizeOrder)
-  const s: VariantsState = { ...emptyVariants(), colours, sizes, exempt: children.some((v) => v.identifier_exemption) }
+  const s: VariantsState = { ...emptyVariants(), colours, sizes, exempt: children.some((v) => v.identifier_exemption), noBarcodes: children.some((v) => v.identifier_exemption) }
   const filled = new Set<string>()
   for (const { colour, size, v } of placed) {
     const key = cellKey(colour, size)

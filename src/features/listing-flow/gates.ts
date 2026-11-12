@@ -12,6 +12,10 @@
  *   - Rule types the backend does not evaluate (NOT_EVALUATED_RULE_TYPES) are never evidence.
  *   - Media is blocked when the listing has no image, and passes only on a vision check
  *     (a `vision_model` validation stage) of the current version. Rules never make it pass.
+ *   - Identity: the adapter preview checks every sellable item's barcode or GTIN exemption (backend
+ *     adapters/amazon/mapping.py `_identifier`; IDENTIFIER_MISSING blocks a create). It passes
+ *     when every sellable item in the preview carries one, and says when that is a confirmed
+ *     exemption (client Chrome pass B5: "Not checked yet. No rule covers this yet").
  *   - Submission is decided by the marketplace itself (listing status and marketplace state).
  *   - The listing's open blocking issues on its current version (GET /issues) are findings too:
  *     they are what the server's `needs_you_count` counts (the stored photo checks, the
@@ -165,8 +169,8 @@ export interface GateInput {
   validation: Pick<ValidationSummary, 'listing_version_id' | 'stages'> | null | undefined
   /** Rules that apply to this listing (applicableRules). Null while unknown. */
   rules: readonly Pick<Rule, 'rule_type' | 'field'>[] | null
-  /** Adapter preview: its mapping errors and whether it resolved a product type. Null if none. */
-  preview: { errors: readonly ErrorItem[]; productType: string | null | undefined } | null
+  /** Adapter preview: its mapping errors, whether it resolved a product type, and its items' barcodes. Null if none. */
+  preview: { errors: readonly ErrorItem[]; productType: string | null | undefined; identity?: PreviewIdentity | null } | null
   /** Images on the current version. Null or undefined while unknown. */
   imageCount?: number | null
   /** Marketplace display name for notes ("Amazon"). */
@@ -200,6 +204,46 @@ export function issueFindings(issues: readonly OpenIssue[], currentVersionId: st
     }))
 }
 
+/** Amazon's identifier attributes (backend adapters/amazon/constants.py EXTERNAL_ID_ATTRIBUTE, EXEMPTION_ATTRIBUTE). */
+const BARCODE_ATTR = 'externally_assigned_product_identifier'
+const EXEMPTION_ATTR = 'supplier_declared_has_product_identifier_exemption'
+
+/** How the preview's sellable items (standalone, child) are identified: a barcode, or an exemption. */
+export interface PreviewIdentity {
+  sellable: number
+  barcodes: number
+  exempt: number
+}
+
+type PreviewItemLike = { item_role: string; payload?: Record<string, unknown> | null }
+
+/** Null when the preview has no sellable item. */
+export function previewIdentity(items: readonly PreviewItemLike[] | null | undefined): PreviewIdentity | null {
+  const sellable = (items ?? []).filter((i) => i.item_role !== 'parent')
+  if (!sellable.length) return null
+  // The backend nests them under `attributes` (adapters/amazon/mapping.py item_payload:
+  // {productType, requirements, attributes}); a flat payload is read too, as payloadField does.
+  const attrsOf = (i: PreviewItemLike): Record<string, unknown> => {
+    const nested = i.payload?.['attributes']
+    return nested && typeof nested === 'object' && !Array.isArray(nested) ? (nested as Record<string, unknown>) : (i.payload ?? {})
+  }
+  const has = (i: PreviewItemLike, key: string) => {
+    const v = attrsOf(i)[key]
+    return Array.isArray(v) && v.length > 0
+  }
+  const barcodes = sellable.filter((i) => has(i, BARCODE_ATTR)).length
+  const exempt = sellable.filter((i) => !has(i, BARCODE_ATTR) && has(i, EXEMPTION_ATTR)).length
+  return { sellable: sellable.length, barcodes, exempt }
+}
+
+/** The passed Identity gate's line, or null when some sellable item has neither. */
+function identityNote(id: PreviewIdentity | null | undefined): string | null {
+  if (!id || id.barcodes + id.exempt < id.sellable) return null
+  if (!id.exempt) return id.sellable === 1 ? 'Has a barcode.' : 'Every item has a barcode.'
+  if (!id.barcodes) return 'No barcode: GTIN exemption confirmed. It is sent with the listing.'
+  return `${plural(id.barcodes, 'item')} with a barcode, ${id.exempt} GTIN-exempt (confirmed).`
+}
+
 const SUBMISSION_BLOCKED = new Set(['marketplace_rejected', 'publish_failed', 'publish_partial', 'publish_attempts_exhausted', 'marketplace_action_required'])
 
 /** One finding per field and code (the first one seen wins). */
@@ -225,6 +269,7 @@ export function rollUpGates({ listing, validation, rules, preview, imageCount, m
   const covered = new Set<GateId>()
   if (checked) for (const r of rules ?? []) if (!NOT_EVALUATED_RULE_TYPES.has(r.rule_type)) covered.add(ruleGate(r))
   if (preview && preview.productType) covered.add('classification')
+  const identityPassed = preview?.productType ? identityNote(preview.identity) : null
 
   return GATES.map(({ id, label }) => {
     const mine = all.filter((f) => findingGate(f) === id)
@@ -248,6 +293,7 @@ export function rollUpGates({ listing, validation, rules, preview, imageCount, m
       return { id, label, state: 'unchecked', findings: [], note: 'Not checked yet.' }
     }
     if (mine.length) return { id, label, state: 'warning', findings: mine, note: warningNote(mine) }
+    if (id === 'identity' && identityPassed) return { id, label, state: 'passed', findings: [], note: identityPassed }
     if (covered.has(id)) return { id, label, state: 'passed', findings: [], note: 'Passed the checks that apply.' }
     return { id, label, state: 'unchecked', findings: [], note: checked ? 'No rule covers this yet.' : 'Not checked yet.' }
   })
