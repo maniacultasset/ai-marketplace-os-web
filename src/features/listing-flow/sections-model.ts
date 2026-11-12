@@ -258,6 +258,14 @@ export function sectionOf(field: string | null | undefined): Section | null {
   return null
 }
 
+/**
+ * The findings no section card shows (client feedback 16): images, the listing, facts. A finding
+ * on a section's field sits on that card, so the general findings card never repeats it.
+ */
+export function outsideSections<T extends { field?: string | null }>(findings: readonly T[]): T[] {
+  return findings.filter((f) => sectionOf(f.field) === null)
+}
+
 /** The bullet a finding points at (`content.bullets[2]` → 2), else null. */
 export function bulletIndex(field: string | null | undefined): number | null {
   const m = /^content\.bullets\[(\d+)\]$/.exec(field ?? '')

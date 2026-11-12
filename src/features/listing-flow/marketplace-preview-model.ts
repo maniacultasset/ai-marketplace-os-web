@@ -52,9 +52,10 @@ export function previewModel(listing: Pick<ListingDetail, 'content'>, product: P
   }
   const attributes = (canonical.attributes ?? {}) as Record<string, AttributeValue>
   const details: [string, string][] = []
-  if (product?.brand_name) details.push(['Brand', product.brand_name])
+  // The listing's own attribute wins over the product's copy, so a row is never shown twice.
+  if (product?.brand_name && !('brand' in attributes)) details.push(['Brand', product.brand_name])
   for (const key of Object.keys(attributes).sort()) details.push([attributeLabel(key), attributeText(attributes[key]!)])
-  if (product?.country_of_origin) details.push(['Country of origin', product.country_of_origin])
+  if (product?.country_of_origin && !('country_of_origin' in attributes)) details.push(['Country of origin', product.country_of_origin])
   const price = formatMoney(product?.selling_price)
   const mrp = formatMoney(product?.mrp)
   const discount = product?.selling_price && product?.mrp ? discountPercent(product.selling_price, product.mrp) : null

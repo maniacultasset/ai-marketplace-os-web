@@ -213,8 +213,8 @@ function Details({ title, rows }: { title: string; rows: readonly [string, strin
       <h3 className="text-body font-bold text-ink">{title}</h3>
       <table className="mt-2 w-full max-w-2xl border-collapse text-small" data-testid="mp-preview-details">
         <tbody>
-          {rows.map(([k, v]) => (
-            <tr key={k} className="border-b border-line last:border-b-0">
+          {rows.map(([k, v], i) => (
+            <tr key={`${i}-${k}`} className="border-b border-line last:border-b-0">
               <th scope="row" className="w-2/5 py-1.5 pr-4 text-left align-top font-semibold text-ink-2">
                 {k}
               </th>

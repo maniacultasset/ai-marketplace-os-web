@@ -10,6 +10,7 @@ import {
   fieldKey,
   lengthText,
   limitsFrom,
+  outsideSections,
   sectionRules,
   type ListingRequirements,
   overLimit,
@@ -165,5 +166,20 @@ describe('sections model', () => {
     })
     expect(sectionPatch(canonical, { section: 'attributes', attributes: { pattern: 'striped' } }).attributes).toEqual({ pattern: 'striped' })
     expect(unlockPatch(canonical, ['content.title'])).toEqual({ content: canonical.content, unlock: ['content.title'] })
+  })
+
+  it('outsideSections keeps only the findings no section card shows, so none is listed twice', () => {
+    const f = (field: string | null) => ({ field })
+    const all = [
+      f('content.title'),
+      f('content.bullets[1]'),
+      f('content.description'),
+      f('keywords.hidden_terms'),
+      f('attributes.color'),
+      f('images[0]'),
+      f('identity.gtin'),
+      f(null),
+    ]
+    expect(outsideSections(all).map((x) => x.field)).toEqual(['images[0]', 'identity.gtin', null])
   })
 })

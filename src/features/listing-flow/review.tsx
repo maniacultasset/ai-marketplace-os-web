@@ -89,7 +89,7 @@ import { claimFindings, gateCounts, gatesSummary, needsGates, plural, type Error
 import { IdentifierFix } from './identifier-fix'
 import { answeredAfter } from './review-model'
 import { SectionCards } from './sections'
-import { SECTION_LABEL, sectionOf, type Section } from './sections-model'
+import { outsideSections, SECTION_LABEL, sectionOf, type Section } from './sections-model'
 import { MarketplacePreviewDialog } from './marketplace-preview'
 import { AnswersBanner, RegenerateButton } from './answers-banner'
 import { ListOnButton } from './list-on'
@@ -257,7 +257,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   const otherFindings = findings.filter((f) => f.error_code !== 'UNSUPPORTED_CLAIM')
   // Client feedback 16: a finding on a section's field shows beside that field; the general card
   // lists only the rest (images, the listing, facts), so nothing is said twice.
-  const generalFindings = otherFindings.filter((f) => sectionOf(f.field) === null)
+  const generalFindings = outsideSections(otherFindings)
   const requirementsQ = useListingRequirements(listing.id)
   const requirements = requirementsQ.isError ? null : requirementsQ.data
   const busy = listing.status === 'generating' || listing.status === 'publishing'

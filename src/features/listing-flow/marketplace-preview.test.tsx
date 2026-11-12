@@ -87,6 +87,15 @@ describe('marketplace preview model', () => {
     expect(none.discount).toBeNull()
   })
 
+  it('shows brand and country of origin once when the listing carries them as attributes', () => {
+    const own = listing()
+    own.content!.attributes = { brand: 'Kuinn', country_of_origin: 'IN', fabric_type: 'Cotton' }
+    const labels = previewModel(own, product).details.map(([k]) => k)
+    expect(labels.filter((k) => k === 'Brand')).toHaveLength(1)
+    expect(labels.filter((k) => k === 'Country of origin')).toHaveLength(1)
+    expect(previewModel(own, product).details).toContainEqual(['Country of origin', 'IN'])
+  })
+
   it('picks a variant’s own size and colour', () => {
     const m = previewModel(listing(), { ...product, size_run: [], colourways: [], variant_attributes: { size: 'M', color: 'Blue' } })
     expect(m.picked).toEqual({ size: 'M', color: 'Blue' })
