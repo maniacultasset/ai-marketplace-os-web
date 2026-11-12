@@ -182,6 +182,10 @@ describe('resolutionAction and helpers', () => {
     expect(resolutionAction(resolution({ next_step: { kind: 'wait', task_ids: [], text: '' } }))).toEqual({ kind: 'none' })
   })
 
+  it('sends a refused barcode or exemption back to the barcode choice', () => {
+    expect(resolutionAction(resolution({ state: 'needs_you', next_step: { kind: 'edit_identifier', task_ids: [], text: '' } }))).toEqual({ kind: 'edit_identifier' })
+  })
+
   it('hasResolution hides an idle listing Kuinn never worked on', () => {
     expect(hasResolution(resolution())).toBe(false)
     expect(hasResolution(resolution({ attempts: [attempt()] }))).toBe(true)

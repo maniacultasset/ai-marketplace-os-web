@@ -36,6 +36,8 @@ export type ResolutionAction =
   | { kind: 'change' }
   /** The answers are saved: generate the listing again to use them. */
   | { kind: 'regenerate' }
+  /** The marketplace refused the barcode or the GTIN exemption: back to the product's barcode choice. */
+  | { kind: 'edit_identifier' }
 
 export interface ResolutionHeadline {
   state: ResolutionState
@@ -253,6 +255,8 @@ export function resolutionAction(r: Pick<Resolution, 'state' | 'next_step'>): Re
       return first ? { kind: 'answer', taskId: first } : { kind: 'change' }
     case 'regenerate':
       return { kind: 'regenerate' }
+    case 'edit_identifier':
+      return { kind: 'edit_identifier' }
     default:
       return { kind: 'none' }
   }

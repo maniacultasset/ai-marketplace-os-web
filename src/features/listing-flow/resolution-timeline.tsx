@@ -12,6 +12,7 @@ import { LaCard } from '@/components/la/cards'
 import { StatusChip, TagChip } from '@/components/la/status-chip'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { GtinExemptionHelp } from '@/features/products/gtin-exemption'
 import { cn } from '@/lib/utils'
 import { RewrittenBadge } from './auto-fix'
 import { clock, mpName } from './format'
@@ -172,8 +173,22 @@ function LaneChip({ failure, marketplace }: { failure: StepFailure; marketplace:
   )
 }
 
-/** The next step as a link: an Inbox question or marketplace step, or the review to change it. */
-export function ResolutionActionLink({ action, listingId, marketplace }: { action: ResolutionAction; listingId: string; marketplace: string }) {
+/**
+ * The next step as a link: an Inbox question or marketplace step, the review to change it, or the
+ * product's barcode choice. `productId` is the product the listing is for, null when the person
+ * may not edit it (the barcode link is then left out).
+ */
+export function ResolutionActionLink({
+  action,
+  listingId,
+  marketplace,
+  productId = null,
+}: {
+  action: ResolutionAction
+  listingId: string
+  marketplace: string
+  productId?: string | null
+}) {
   const mp = mpName(marketplace)
   switch (action.kind) {
     case 'answer':
@@ -215,6 +230,20 @@ export function ResolutionActionLink({ action, listingId, marketplace }: { actio
             Open the review
           </Link>
         </Button>
+      )
+    case 'edit_identifier':
+      return (
+        <span className="flex flex-col items-start gap-2">
+          {productId ? (
+            <Button size="sm" variant="secondary" asChild>
+              <Link to="/products/$productId" params={{ productId }} search={{ edit: 'barcode' }} data-testid="resolution-edit-identifier">
+                Fix the barcode or exemption
+              </Link>
+            </Button>
+          ) : null}
+          {/* Amazon's own page on applying, for a product with no barcode and no exemption yet. */}
+          {marketplace === 'amazon' ? <GtinExemptionHelp testId="resolution-exemption-help" /> : null}
+        </span>
       )
     case 'none':
       return null

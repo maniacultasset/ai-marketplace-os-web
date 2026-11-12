@@ -81,13 +81,26 @@ describe('IdentifierFix (review screen, Identity gate)', () => {
   it('for variants offers no action to someone who cannot change variants', () => {
     render(<IdentifierFix gate={identity([missing('variants[KS-1-M].facts.identifier', 'KS-1-M')])} productId="p1" marketplace="amazon" canEdit canEditVariants={false} />)
     expect(screen.getByTestId('identity-fix').textContent).toContain('Missing on KS-1-M.')
-    expect(screen.queryByRole('link')).toBeNull()
+    expect(screen.queryByTestId('identity-fix-action')).toBeNull()
   })
 
   it('keeps the reason but offers no action to someone who cannot edit products', () => {
     render(<IdentifierFix gate={identity([missing('facts.identifier')])} productId="p1" marketplace="amazon" canEdit={false} canEditVariants={false} />)
     expect(screen.getByTestId('identity-fix')).toBeTruthy()
-    expect(screen.queryByRole('link')).toBeNull()
+    expect(screen.queryByTestId('identity-fix-action')).toBeNull()
+  })
+
+  it("links to Amazon India's GTIN exemption page and says what it needs, even with no edit action", () => {
+    render(<IdentifierFix gate={identity([missing('facts.identifier')])} productId="p1" marketplace="amazon" canEdit={false} canEditVariants={false} />)
+    const link = screen.getByRole('link', { name: /How to get a GTIN exemption/ })
+    expect(link.getAttribute('href')).toBe('https://sellercentral.amazon.in/help/hub/reference/G200426310')
+    expect(link.getAttribute('target')).toBe('_blank')
+    expect(screen.getByTestId('identity-fix').textContent).toContain('Amazon asks for the brand name, the category and photos of the product and its pack.')
+  })
+
+  it('shows no Amazon exemption link for another marketplace', () => {
+    render(<IdentifierFix gate={identity([missing('facts.identifier')])} productId="p1" marketplace="flipkart" canEdit canEditVariants />)
+    expect(screen.queryByTestId('identity-fix-exemption-help')).toBeNull()
   })
 
   it('renders nothing when the Identity gate is not blocked by a missing barcode', () => {

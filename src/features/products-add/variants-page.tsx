@@ -34,6 +34,7 @@ import { useImportHistory } from '@/features/imports/history'
 import { markJobLive } from '@/features/imports/use-import-job'
 import { useProduct } from '@/features/products/api'
 import { BARCODE_FORMATS, BarcodeChoice, EXEMPT_EXPLAINER } from '@/features/products/barcode-field'
+import { GtinExemptionHelp } from '@/features/products/gtin-exemption'
 import { formatMoney } from '@/features/products/intake-model'
 import { SKU_MAX } from '@/features/products/schema'
 import { useCapability } from '@/hooks/use-capabilities'
@@ -877,6 +878,7 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
                     ? `${BARCODE_FORMATS} Amazon needs one for each variant unless your brand has a GTIN exemption.`
                     : BARCODE_FORMATS}
               </p>
+              {amazon ? <GtinExemptionHelp testId="variants-exemption-help" /> : null}
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-2.5">
               {rows.length > PREVIEW_ROWS ? (

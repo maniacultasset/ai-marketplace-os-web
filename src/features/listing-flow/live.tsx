@@ -27,7 +27,7 @@ import { recallJob } from '@/features/listings/job-memory'
 import { contentAuthor, listingActions, MARKETPLACE_STATE_META, type ListingDetail } from '@/features/listings/model'
 import { useProduct } from '@/features/products/api'
 import { NOT_BUYABLE_NEXT } from '@/lib/listing-chip'
-import { useCan } from '@/lib/permissions'
+import { OP_ACTION, useCan } from '@/lib/permissions'
 import { toast, toastError } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { useListingResolution, useListingStatus, useProductListings } from './api'
@@ -361,6 +361,7 @@ function WhatKuinnDid({ listing, marketplaceState }: { listing: ListingDetail; m
   const amazon = listing.marketplace === 'amazon'
   const q = useListingResolution(listing.id, { enabled: amazon })
   const { paused } = usePublishGate(listing.marketplace)
+  const can = useCan()
   if (!amazon) return null
   if (q.isPending) return <ResolutionSkeleton />
   if (!q.data || !hasResolution(q.data)) return null
@@ -370,7 +371,16 @@ function WhatKuinnDid({ listing, marketplaceState }: { listing: ListingDetail; m
     <ResolutionCard
       view={view}
       marketplace={listing.marketplace}
-      action={view.action.kind === 'none' ? null : <ResolutionActionLink action={view.action} listingId={listing.id} marketplace={listing.marketplace} />}
+      action={
+        view.action.kind === 'none' ? null : (
+          <ResolutionActionLink
+            action={view.action}
+            listingId={listing.id}
+            marketplace={listing.marketplace}
+            productId={can(OP_ACTION['PATCH /products/{product_id}']) ? listing.product_id : null}
+          />
+        )
+      }
     />
   )
 }

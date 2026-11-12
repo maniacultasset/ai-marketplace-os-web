@@ -522,7 +522,12 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
                     ) : rview.action.kind === 'approve' ? null : rview.action.kind === 'regenerate' ? (
                       <RegenerateButton listing={listing} state={actions.regenerate} testId="resolution-regenerate" />
                     ) : rview.action.kind === 'answer' && !can('product:import') ? null : (
-                      <ResolutionActionLink action={rview.action} listingId={listing.id} marketplace={listing.marketplace} />
+                      <ResolutionActionLink
+                        action={rview.action}
+                        listingId={listing.id}
+                        marketplace={listing.marketplace}
+                        productId={can(OP_ACTION['PATCH /products/{product_id}']) ? listing.product_id : null}
+                      />
                     )
                   }
                 />
