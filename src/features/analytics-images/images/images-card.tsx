@@ -63,7 +63,7 @@ import {
 import { ALL_COLOURS, colourGroups, type ColourGroup, type ColourSource } from './colour-groups'
 import { uploadImage } from './upload'
 import { useImageCandidates } from './candidates-api'
-import { aiLimitHit, candidatesUnsupported, keptOriginals, openCandidates, originBadge, type CandidateKind } from './candidates-model'
+import { aiLimitHit, candidatesUnsupported, keptOriginals, noFixCopy, openCandidates, originBadge, type CandidateKind, type FixUnavailable } from './candidates-model'
 import { AppliedNote, CandidateBlock, OriginBadges } from './candidate-review'
 import { useCandidateSession } from './candidate-session'
 import { matchTile, openQuestions, type PhotoMatch } from './photo-match'
@@ -299,11 +299,10 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
               </div>
             ) : null}
             {fixesBlock(imageId, d.fixes ?? [])}
-            {/* The background check flagged the Front and no white-background fix is offered. */}
-            {(d.fixes ?? []).length === 0 && backgroundFlagged(tileReports[(product.image_details ?? []).indexOf(d)]?.data) ? (
-              <p className="px-5 pb-3 text-small text-ink-2" data-testid="no-background-fix">
-                Kuinn cannot make a white background for this photo right now. Upload a version on plain white.
-              </p>
+            {/* B2: the Front failed and no fix is offered: say why, and what to do next. */}
+            {(d.fixes ?? []).length === 0 &&
+            (d.fix_unavailable || backgroundFlagged(tileReports[(product.image_details ?? []).indexOf(d)]?.data)) ? (
+              <NoFixNote reason={d.fix_unavailable} />
             ) : null}
           </>
         ) : null,
@@ -1045,5 +1044,15 @@ function MarketplaceReport({ report }: { report: ImageReport }) {
         <p className="px-3 py-3 text-sm text-muted-foreground">No checks recorded.</p>
       )}
     </section>
+  )
+}
+
+/** B2: a failed Front with no fix to offer, with the reason and the next step. */
+function NoFixNote({ reason }: { reason: FixUnavailable | null | undefined }) {
+  const copy = noFixCopy(reason)
+  return (
+    <p className="px-5 pb-3 text-small text-ink-2" data-testid="no-background-fix" data-reason={reason ?? 'unknown'}>
+      {copy.reason} {copy.next}
+    </p>
   )
 }
