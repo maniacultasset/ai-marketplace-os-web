@@ -57,6 +57,7 @@ import {
   approveItems,
   listingActions,
   contentAuthor,
+  blockedReason,
   makerHint,
   publishItems,
   summarizeBatch,
@@ -85,6 +86,7 @@ import { autoFixTrail, FIXED_FOR_YOU_HASH, siblingFixes, versionRef } from './au
 import { EditDialog, SendBackDialog } from './dialogs'
 import { clock, fieldLabel, mpName, plainMessage, sentenceCase } from './format'
 import { FindingBody, FindingsCard } from './findings-card'
+import { blockingQuestions, gateRowFindings, gateTotals } from './gate-truth'
 import { claimFindings, gateCounts, gatesSummary, needsGates, plural, type ErrorItem, type GateResult } from './gates'
 import { IdentifierFix } from './identifier-fix'
 import { answeredAfter } from './review-model'
@@ -378,6 +380,8 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
       !openTasks.rows.some((t) => t.product_id === listing.product_id)) ||
     answeredAfter(appliedTasks.rows, listing.product_id, listing.content?.created_at)
   const shownBlockers = blockers && blockers.version === listing.current_version_id ? blockers.items : null
+  // B15: the open question that keeps the listing blocked is the gate panel's blocking reason.
+  const questions = blockingQuestions(listing, openTasks.data ? openTasks.rows : undefined)
   // Client feedback 14: the sections the answered facts feed (the server's dependency map).
   const affected: Section[] = listing.affected_sections ?? []
 
@@ -541,9 +545,9 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
               />
               <GatesCard
                 gates={checks.gates}
-                ready={checks.gatesReady && !fixesQ.isPending && !resolutionPending}
+                ready={checks.gatesReady && !fixesQ.isPending && !resolutionPending && !(listing.status === 'blocked' && listing.status_reason === 'human_task_open' && openTasks.isPending)}
                 neverChecked={!checks.current.checked}
-                listed={otherFindings}
+                questions={questions}
                 rulesCount={checks.rules?.length ?? null}
                 listing={listing}
                 validateState={actions.validate}
@@ -952,7 +956,7 @@ function GatesCard({
   gates,
   ready,
   neverChecked,
-  listed,
+  questions,
   rulesCount,
   listing,
   validateState,
@@ -964,8 +968,8 @@ function GatesCard({
   ready: boolean
   /** The checks never ran on the current version: open the full list by default. */
   neverChecked: boolean
-  /** Findings listed in "What the checks found", so a gate row can point to them. */
-  listed: readonly ErrorItem[]
+  /** B15: the open questions that keep this listing blocked (blockingQuestions). */
+  questions: readonly { id: string; question: string }[]
   rulesCount: number | null
   listing: ListingDetail
   validateState: ActionState
@@ -981,7 +985,10 @@ function GatesCard({
   const counts = gateCounts(gates)
   const needs = needsGates(gates)
   const serverBlocking = listing.display_state === 'needs_you' ? (listing.needs_you_count ?? 0) : 0
-  const listedSet = new Set(listed)
+  // F1: the footer counts the same blockers the rows list (rules run, marketplace check, stored issues).
+  const totals = gateTotals(gates)
+  // Blocked for a reason no check or question explains ("Rejected by a reviewer"): never "nothing blocks".
+  const otherReason = !needs.length && !questions.length && serverBlocking === 0 ? blockedReason(listing, 0) : null
   return (
     <LaCard data-testid="gates-card">
       <CardHead
@@ -1003,25 +1010,34 @@ function GatesCard({
       ) : (
         <>
           <p className="mt-2 text-small text-ink-2 tabular-nums" data-testid="gates-summary">
+            {questions.length ? `${plural(questions.length, 'question')} to answer · ` : ''}
             {gatesSummary(counts)}
           </p>
+          {questions.length ? (
+            <ul className="m-0 mt-2 flex list-none flex-col gap-1.5 p-0" data-testid="gates-questions">
+              {questions.map((q) => (
+                <li key={q.id} className="flex items-start gap-2 text-small text-ink">
+                  <StatusChip status="blocked" iconOnly label="Blocked: waiting for your answer" className="mt-px" />
+                  <span className="min-w-0 flex-1 break-words">
+                    Waiting for your answer: {q.question}{' '}
+                    <Link to="/inbox" search={{ view: 'questions' }} className="focus-ring rounded-sm font-semibold whitespace-nowrap text-brand hover:underline">
+                      Answer in the Inbox
+                    </Link>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           {needs.length ? (
             <ul className="m-0 mt-2 flex list-none flex-col gap-1.5 p-0" data-testid="gates-needs">
               {needs.map((g) => {
-                const n = g.findings.filter((f) => listedSet.has(f)).length
+                const rows = gateRowFindings(g)
                 return (
                   <li key={g.id} className="flex items-start gap-2 text-small text-ink">
                     <StatusChip status={GATE_CHIP[g.state]} iconOnly label={`${g.label}: ${NEEDS_WORD[g.state as keyof typeof NEEDS_WORD]}`} className="mt-px" />
                     <span className="min-w-0 flex-1 break-words">
                       {g.label}: {g.note}
-                      {n ? (
-                        <>
-                          {' '}
-                          <a href="#findings" className="focus-ring rounded-sm font-semibold whitespace-nowrap text-brand hover:underline">
-                            See {plural(n, 'finding')}
-                          </a>
-                        </>
-                      ) : null}
+                      {rows.length ? <GateRowDetails gate={g.id} findings={rows} /> : null}
                       {g.id === 'identity' ? (
                         <IdentifierFix gate={g} productId={listing.product_id} marketplace={listing.marketplace} canEdit={can(OP_ACTION['PATCH /products/{product_id}'])} canEditVariants={can('product:import')} />
                       ) : null}
@@ -1030,13 +1046,17 @@ function GatesCard({
                 )
               })}
             </ul>
-          ) : serverBlocking > 0 ? (
+          ) : questions.length ? null : serverBlocking > 0 ? (
             // The open issues could not be read here, but the server counts them: never "nothing blocks".
             <p className="mt-2 text-small text-ink" data-testid="gates-server-blocking">
               {plural(serverBlocking, 'open issue')} {serverBlocking === 1 ? 'blocks' : 'block'} approval.{' '}
               <Link to="/inbox" className="focus-ring rounded-sm font-semibold text-brand hover:underline">
                 Open the Inbox
               </Link>
+            </p>
+          ) : otherReason ? (
+            <p className="mt-2 text-small text-ink" data-testid="gates-blocked-reason">
+              {otherReason}.
             </p>
           ) : onCurrent ? (
             <p className="mt-2 text-small text-ink">
@@ -1070,7 +1090,7 @@ function GatesCard({
         <GateList gates={gates} />
         <p className="mt-3 text-caption text-ink-3" data-testid="gates-note">
           {onCurrent
-            ? `${v.blocking_count} blocking, ${v.warning_count} ${v.warning_count === 1 ? 'warning' : 'warnings'}${counts.recommended ? `, ${counts.recommended} recommended` : ''} on version ${listing.content?.version ?? ''}${stage ? `, checked ${clock(stage.created_at)}` : ''}.`
+            ? `${totals.blocking} blocking, ${totals.warnings} ${totals.warnings === 1 ? 'warning' : 'warnings'}${questions.length ? `, ${plural(questions.length, 'open question')}` : ''}${counts.recommended ? `, ${counts.recommended} recommended` : ''} on version ${listing.content?.version ?? ''}${stage ? `, checked ${clock(stage.created_at)}` : ''}.`
             : 'This version has not been checked yet. Approval needs a passing check.'}
           {rulesCount != null ? ` ${plural(rulesCount, 'rule')} apply to this category.` : ''}
         </p>
@@ -1082,6 +1102,36 @@ function GatesCard({
         </Button>
       </div>
     </LaCard>
+  )
+}
+
+/** F1 (B14): a gate row's own findings, one click away, so every counted blocker has its detail. */
+function GateRowDetails({ gate, findings }: { gate: string; findings: readonly ErrorItem[] }) {
+  const [open, setOpen] = useState(false)
+  const id = useId()
+  return (
+    <>
+      {' '}
+      <Button
+        variant="link"
+        size="sm"
+        className="h-auto p-0 align-baseline text-small font-semibold whitespace-nowrap"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((o) => !o)}
+        data-testid={`gate-details-${gate}`}
+      >
+        {open ? 'Hide' : findings.length === 1 ? 'Show it' : `Show all ${findings.length}`}
+      </Button>
+      <ul id={id} hidden={!open} className="m-0 mt-1.5 flex list-none flex-col gap-2 p-0">
+        {findings.map((f, i) => (
+          <li key={i} className="flex items-start gap-2">
+            <StatusChip status={f.severity === 'error' ? 'blocked' : 'needs-you'} iconOnly label={f.severity === 'error' ? 'Blocking' : 'Warning'} className="mt-px" />
+            <FindingBody f={f} />
+          </li>
+        ))}
+      </ul>
+    </>
   )
 }
 
