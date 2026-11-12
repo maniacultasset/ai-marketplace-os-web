@@ -5504,6 +5504,11 @@ export interface components {
              */
             id: string;
             marketplace: components["schemas"]["Marketplace"];
+            /**
+             * Marketplace Id
+             * @description The marketplace this account sells on: Amazon's marketplace id (`A21TJRUUN4KGV`, Amazon.in), or null when there is none to name.
+             */
+            marketplace_id?: string | null;
             /** Needs Reconnect Since */
             needs_reconnect_since?: string | null;
             /**

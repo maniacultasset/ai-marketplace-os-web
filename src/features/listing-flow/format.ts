@@ -139,3 +139,9 @@ export function sellerFinding(f: {
   if (!raw) return { message, action: null }
   return { message, action: AGENT_GUIDANCE.test(raw) ? `Fix ${label.toLowerCase()} on the product page, then check again.` : capital(plainMessage(raw)) }
 }
+
+/** The draft button's words: it only writes a draft, so it never says "List" (Chrome pass 2). */
+export const draftLabel = (marketplaceName: string) => `Draft for ${marketplaceName}`
+
+/** Said beside (or on) every draft button: drafting never sends anything to a marketplace. */
+export const DRAFT_HINT = 'Nothing is sent until you approve.'
