@@ -148,6 +148,35 @@ describe('Section cards', () => {
     expect(lastBody().content.title).toBe('Cotton kurta set')
   })
 
+  it('says why the agent chose each search term, folded until asked', async () => {
+    show(
+      listing(
+        {},
+        {
+          keywords: { search_terms: ['kurta', 'seller term'], hidden_terms: ['cotton kurta'] },
+          keyword_reasons: [
+            { term: 'kurta', reason: 'The product type shoppers search for.', source: 'category', fact_keys: [], used_in: ['title', 'backend'] },
+            { term: 'cotton kurta', reason: 'Names the fabric.', source: 'product_facts', fact_keys: ['attributes.fabric_type'], used_in: ['backend'] },
+          ],
+        },
+      ),
+    )
+    const why = card('keywords').getByTestId('section-keywords-why')
+    expect(why.tagName).toBe('DETAILS')
+    expect((why as HTMLDetailsElement).open).toBe(false)
+    await userEvent.click(within(why).getByText('Why these terms'))
+    expect(within(why).getByText('Why: The product type shoppers search for.')).toBeTruthy()
+    expect(within(why).getByText('Usual for this category · Used in the title and backend keywords')).toBeTruthy()
+    expect(within(why).getByText('From your product: Fabric type · Used in backend keywords')).toBeTruthy()
+    // the seller's own term has no reason, so no row is made up for it
+    expect(within(why).queryByText('seller term')).toBeNull()
+  })
+
+  it('shows no reasons block for a listing written before reasons existed', () => {
+    show(listing())
+    expect(card('keywords').queryByTestId('section-keywords-why')).toBeNull()
+  })
+
   it('edits attribute values in their own type and keeps product values read-only', async () => {
     show(listing())
     expect(card('attributes').getByText('· from your product')).toBeTruthy()

@@ -31,6 +31,7 @@ import {
   attributeText,
   bulletIndex,
   fullyLocked,
+  keywordWhy,
   limitsFor,
   overLimit,
   parseAttribute,
@@ -609,7 +610,32 @@ function KeywordsCard(props: Shared) {
     >
       <TermList label="Search terms" terms={search} />
       <TermList label="Backend keywords" terms={hidden} className="mt-2" />
+      <KeywordReasons reasons={listing.content!.keyword_reasons} terms={[...search, ...hidden]} />
     </SectionShell>
+  )
+}
+
+/** Why the agent chose each term, where it comes from and where the copy uses it. */
+function KeywordReasons({ reasons, terms }: { reasons: Parameters<typeof keywordWhy>[0]; terms: readonly string[] }) {
+  const rows = keywordWhy(reasons, terms)
+  if (!rows.length) return null
+  return (
+    <details className="group mt-3 text-small" data-testid="section-keywords-why">
+      <summary className="focus-ring w-fit cursor-pointer rounded-sm font-semibold text-brand marker:content-none">
+        Why these terms
+      </summary>
+      <ul className="mt-1.5 flex flex-col gap-2">
+        {rows.map((r) => (
+          <li key={r.term} className="min-w-0">
+            <p className="break-words font-medium text-ink">{r.term}</p>
+            <p className="break-words text-ink-2">Why: {r.why}</p>
+            <p className="text-caption text-ink-3">
+              {r.source} · {r.usedIn}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </details>
   )
 }
 

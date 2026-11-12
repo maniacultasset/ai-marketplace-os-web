@@ -200,6 +200,62 @@ export const attributeLabel = (key: string) => {
   return words ? words[0]!.toUpperCase() + words.slice(1) : key
 }
 
+/* ---- why these search terms (client feedback 11) ---- */
+
+type KeywordReason = Schema<'KeywordReason'>
+
+export interface KeywordWhy {
+  term: string
+  /** The agent's reason, as written. */
+  why: string
+  /** Where the term comes from: "From your product: Fabric type", "How shoppers search". */
+  source: string
+  /** Where the copy uses it: "Used in the title, key features and backend keywords". */
+  usedIn: string
+}
+
+const SOURCE_TEXT: Record<KeywordReason['source'], string> = {
+  product_facts: 'From your product',
+  category: 'Usual for this category',
+  search_intent: 'How shoppers search',
+}
+const PLACE_TEXT: Record<NonNullable<KeywordReason['used_in']>[number], string> = {
+  title: 'the title',
+  bullets: 'key features',
+  description: 'the description',
+  backend: 'backend keywords',
+}
+const FACT_TEXT: Record<string, string> = { 'identity.brand_name': 'Brand', 'identity.gender': 'Gender' }
+
+const joinWords = (items: readonly string[]) =>
+  items.length < 2 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
+
+/** "attributes.fabric_type" → "Fabric type"; "identity.gender" → "Gender". */
+export const factLabel = (path: string) =>
+  FACT_TEXT[path] ?? attributeLabel(path.startsWith('attributes.') ? path.slice('attributes.'.length) : path.split('.').pop() ?? path)
+
+/**
+ * The reasons of the terms the card lists, in the card's order. A term with no reason (one the
+ * seller added, or a listing written before reasons existed) has no row: nothing is guessed.
+ */
+export function keywordWhy(reasons: readonly KeywordReason[] | undefined, terms: readonly string[]): KeywordWhy[] {
+  const byTerm = new Map((reasons ?? []).map((r) => [r.term, r]))
+  const rows: KeywordWhy[] = []
+  for (const term of new Set(terms)) {
+    const r = byTerm.get(term)
+    if (!r) continue
+    const facts = r.source === 'product_facts' ? (r.fact_keys ?? []).map(factLabel) : []
+    const places = (r.used_in ?? []).map((p) => PLACE_TEXT[p])
+    rows.push({
+      term,
+      why: r.reason,
+      source: facts.length ? `${SOURCE_TEXT[r.source]}: ${joinWords(facts)}` : SOURCE_TEXT[r.source],
+      usedIn: places.length ? `Used in ${joinWords(places)}` : 'Not used yet',
+    })
+  }
+  return rows
+}
+
 /* ---- the PATCH bodies ---- */
 
 type ContentPatch = Schema<'ListingContentPatch'>

@@ -4,7 +4,9 @@ import {
   attributeLabel,
   attributeText,
   bulletIndex,
+  factLabel,
   fullyLocked,
+  keywordWhy,
   limitsFor,
   overLimit,
   parseAttribute,
@@ -96,5 +98,47 @@ describe('sections model', () => {
     })
     expect(sectionPatch(canonical, { section: 'attributes', attributes: { pattern: 'striped' } }).attributes).toEqual({ pattern: 'striped' })
     expect(unlockPatch(canonical, ['content.title'])).toEqual({ content: canonical.content, unlock: ['content.title'] })
+  })
+})
+
+describe('why these search terms', () => {
+  const reasons = [
+    {
+      term: 'cotton kurta set',
+      reason: 'Names the fabric and the product type.',
+      source: 'product_facts' as const,
+      fact_keys: ['attributes.fabric_type', 'identity.gender'],
+      used_in: ['title' as const, 'bullets' as const, 'backend' as const],
+    },
+    { term: 'kurta for office', reason: 'How shoppers ask for work wear.', source: 'search_intent' as const, used_in: ['backend' as const] },
+    { term: 'kurta set', reason: 'The usual name.', source: 'category' as const, fact_keys: [], used_in: [] },
+    { term: 'dropped term', reason: 'No longer listed.', source: 'category' as const },
+  ]
+
+  it('lists a row per listed term with a reason, in the card order', () => {
+    const rows = keywordWhy(reasons, ['kurta for office', 'cotton kurta set', 'seller term', 'kurta set'])
+    expect(rows.map((r) => r.term)).toEqual(['kurta for office', 'cotton kurta set', 'kurta set'])
+    expect(rows[1]).toEqual({
+      term: 'cotton kurta set',
+      why: 'Names the fabric and the product type.',
+      source: 'From your product: Fabric type and Gender',
+      usedIn: 'Used in the title, key features and backend keywords',
+    })
+    expect(rows[0]!.source).toBe('How shoppers search')
+    expect(rows[0]!.usedIn).toBe('Used in backend keywords')
+    expect(rows[2]!.source).toBe('Usual for this category')
+    expect(rows[2]!.usedIn).toBe('Not used yet')
+  })
+
+  it('shows nothing without reasons and never repeats a term', () => {
+    expect(keywordWhy(undefined, ['kurta'])).toEqual([])
+    expect(keywordWhy([], ['kurta'])).toEqual([])
+    expect(keywordWhy(reasons, ['kurta set', 'kurta set'])).toHaveLength(1)
+  })
+
+  it('names product facts in plain words', () => {
+    expect(factLabel('attributes.sleeve_length')).toBe('Sleeve length')
+    expect(factLabel('identity.brand_name')).toBe('Brand')
+    expect(factLabel('identity.gender')).toBe('Gender')
   })
 })
