@@ -97,6 +97,11 @@ export interface HistoryStep {
 export interface IssueHistoryView {
   /** Kuinn's fixes, newest first. */
   fixed: FixLine[]
+  /**
+   * Client item 20: the fixes Kuinn only suggests (the brand's automatic fixes are off), newest
+   * first. They wait for the seller's "Apply fixes"; their issues are not listed again.
+   */
+  suggested: FixLine[]
   /** Open issues Kuinn is still working on (no fix yet, or the fix is not confirmed). */
   fixing: IssueLine[]
   needsYou: IssueLine[]
@@ -142,9 +147,14 @@ function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`
 }
 
-export function summaryLine(v: Pick<IssueHistoryView, 'fixing' | 'needsYou' | 'marketplace' | 'team'> & { fixed: readonly Pick<FixLine, 'result'>[] }, marketplace: string): string {
+export function summaryLine(
+  v: Pick<IssueHistoryView, 'fixing' | 'needsYou' | 'marketplace' | 'team'> & { fixed: readonly Pick<FixLine, 'result'>[]; suggested?: readonly unknown[] },
+  marketplace: string,
+): string {
   const mp = mpName(marketplace)
   const parts: string[] = []
+  const suggested = v.suggested?.length ?? 0
+  if (suggested) parts.push(`${plural(suggested, 'suggested fix waits', 'suggested fixes wait')} for you`)
   const fixes = (...results: FixOutcome[]) => v.fixed.filter((f) => results.includes(f.result)).length
   const accepted = fixes('accepted')
   const refused = fixes('refused')
@@ -164,7 +174,7 @@ export function issueHistoryView(h: IssueHistory, marketplace: string): IssueHis
   const mp = mpName(marketplace)
   const issues = h.issues ?? []
   const lines = new Map(issues.map((i) => [i.id, line(i)]))
-  const fixed: FixLine[] = (h.fixes ?? []).map((f) => ({
+  const all: (FixLine & { suggestion: boolean })[] = (h.fixes ?? []).map((f) => ({
     id: f.id,
     field: fieldLabel(f.field),
     fieldPath: f.field,
@@ -176,7 +186,12 @@ export function issueHistoryView(h: IssueHistory, marketplace: string): IssueHis
     result: f.outcome,
     at: f.at,
     issue: f.issue_id ? (lines.get(f.issue_id) ?? null) : null,
+    suggestion: f.suggested === true,
   }))
+  const strip = ({ suggestion: _s, ...rest }: FixLine & { suggestion: boolean }): FixLine => rest
+  const fixed = all.filter((f) => !f.suggestion).map(strip)
+  const suggested = all.filter((f) => f.suggestion).map(strip)
+  const suggestedIssueIds = new Set(suggested.map((f) => f.issue?.id).filter(Boolean))
   const open = issues.filter((i) => i.status === 'open')
   const by = (handler: Handler) => open.filter((i) => i.handler === handler).map(line)
   const fixedIssueIds = new Set(fixed.map((f) => f.issue?.id).filter(Boolean))
@@ -198,8 +213,10 @@ export function issueHistoryView(h: IssueHistory, marketplace: string): IssueHis
   })
   const view = {
     fixed,
+    suggested,
     fixing,
-    needsYou: by('you'),
+    // an issue with a suggested fix shows under its suggestion, not twice
+    needsYou: by('you').filter((i) => !suggestedIssueIds.has(i.id)),
     marketplace: by('marketplace'),
     team: by('staff'),
     steps,
@@ -207,7 +224,7 @@ export function issueHistoryView(h: IssueHistory, marketplace: string): IssueHis
   return {
     ...view,
     summary: summaryLine(view, marketplace),
-    empty: issues.length === 0 && fixed.length === 0,
+    empty: issues.length === 0 && fixed.length === 0 && suggested.length === 0,
   }
 }
 

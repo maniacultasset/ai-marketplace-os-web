@@ -61,6 +61,7 @@ import {
   packageEmpty,
   packageHasSize,
   packageHasWeight,
+  packageLimitProblems,
   packageProblems,
   toPackageIn,
   type PackageDraft,
@@ -167,6 +168,8 @@ export interface GuidedValues {
   country: string
   /** SI12: the shipping package. */
   pkg: PackageDraft
+  /** Client item 15: the product itself, beside the packed box. */
+  item: PackageDraft
 }
 
 export const emptyGuided = (): GuidedValues => ({
@@ -191,6 +194,7 @@ export const emptyGuided = (): GuidedValues => ({
   hsnSuggested: false,
   country: '',
   pkg: emptyPackage(),
+  item: emptyPackage(),
 })
 
 /**
@@ -324,7 +328,10 @@ export function validateGuided(v: GuidedValues, listable?: readonly string[] | n
   const country = countryProblem(v.country)
   if (country) e.country_of_origin = country
   Object.assign(e, packageProblems(v.pkg))
-  const seen = new Set([...ATTR_FIELDS.map((f) => f.key), 'fiber_composition', 'fabric_composition', 'size_measurements'])
+  Object.assign(e, packageLimitProblems(v.pkg, v.category))
+  Object.assign(e, packageProblems(v.item, 'item'))
+  // item 15: the product size has its own field ("Product itself"), so it is never an extra
+  const seen = new Set([...ATTR_FIELDS.map((f) => f.key), 'fiber_composition', 'fabric_composition', 'size_measurements', 'product_dimensions'])
   v.extra.forEach((x, i) => {
     const key = x.key.trim()
     const val = x.value.trim()
@@ -439,6 +446,8 @@ export function toProductCreate(v: GuidedValues, uploads?: { id: string; images:
   if (v.country.trim()) body.country_of_origin = normalizeCountry(v.country)
   const pkg = toPackageIn(v.pkg)
   if (pkg) body.package = pkg
+  const item = toPackageIn(v.item)
+  if (item) body.item = item
   if (uploads && uploads.images.length) {
     body.id = uploads.id
     body.image_uploads = uploads.images

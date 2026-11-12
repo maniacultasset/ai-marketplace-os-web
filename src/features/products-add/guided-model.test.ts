@@ -263,3 +263,25 @@ describe('SI12 tax and shipping', () => {
     expect(v).toMatchObject({ hsn: '', hsnSuggested: false, country: '', pkg: { length: '', breadth: '', height: '', weight: '' } })
   })
 })
+
+describe('product itself and the packed box limits (item 15)', () => {
+  it('sends the product size as item, apart from the package', () => {
+    const v = { ...filled(), pkg: { length: '35', breadth: '25', height: '5', weight: '600' }, item: { length: '30', breadth: '15', height: '12.5', weight: '420' } }
+    expect(validateGuided(v)).toEqual({})
+    const body = toProductCreate(v)
+    expect(body.package).toEqual({ length_cm: 35, breadth_cm: 25, height_cm: 5, weight_g: 600 })
+    expect(body.item).toEqual({ length_cm: 30, breadth_cm: 15, height_cm: 12.5, weight_g: 420 })
+    expect(toProductCreate(filled()).item).toBeUndefined()
+  })
+
+  it('refuses a clothing box over 30 kg and an incomplete product size', () => {
+    const e = validateGuided({ ...filled(), pkg: { length: '', breadth: '', height: '', weight: '31000' }, item: { length: '30', breadth: '15', height: '', weight: '' } })
+    expect(e['package.weight']).toMatch(/between 20 g and 30 kg/)
+    expect(e.item).toMatch(/all three sizes/)
+  })
+
+  it('never takes the product size as a free-text extra too', () => {
+    const e = validateGuided({ ...filled(), extra: [{ key: 'product_dimensions', value: '30 x 15 x 12 cm' }] })
+    expect(e['extra.0.key']).toMatch(/already on the form/)
+  })
+})

@@ -54,6 +54,7 @@ import {
   fromPackageOut,
   hsnProblem,
   normalizeCountry,
+  packageLimitProblems,
   packagePatch,
   packageProblems,
   samePackage,
@@ -121,6 +122,8 @@ export interface EditDraft {
   country: string
   /** SI12: the shipping package. */
   pkg: PackageDraft
+  /** Client item 15: the product itself, beside the packed box. */
+  item: PackageDraft
   /**
    * SI12: the size-chart photo the chart rows were read from (the suggestion loaded into the
    * editor). Sent as `size_chart_image_id` with the chart, as its evidence. Null once the seller
@@ -172,6 +175,7 @@ export function toEditDraft(p: Product, source: ManufacturerSource = manufacture
     hsnSuggested: false,
     country: p.country_of_origin ?? '',
     pkg: fromPackageOut(p.package),
+    item: fromPackageOut(p.item),
     sizeChartImageId: null,
   }
 }
@@ -228,6 +232,8 @@ export function validateEdit(d: EditDraft, isVariant: boolean): EditErrors {
   const country = countryProblem(d.country)
   if (country) e.country_of_origin = country
   Object.assign(e, packageProblems(d.pkg))
+  Object.assign(e, packageLimitProblems(d.pkg, d.category))
+  Object.assign(e, packageProblems(d.item, 'item'))
   return e
 }
 
@@ -269,6 +275,8 @@ export function buildPatch(base: EditDraft, d: EditDraft, isVariant: boolean, ba
   if (normalizeCountry(d.country) !== normalizeCountry(base.country)) body.country_of_origin = d.country.trim() ? normalizeCountry(d.country) : null
   const pkg = packagePatch(base.pkg, d.pkg)
   if (pkg !== undefined) body.package = pkg
+  const item = packagePatch(base.item, d.item)
+  if (item !== undefined) body.item = item
   if (d.ownManufacturer && (!base.ownManufacturer || !samePartyDraft(d.manufacturer, base.manufacturer))) body.manufacturer = toPartyIn(d.manufacturer)
   else if (!d.ownManufacturer && base.ownManufacturer) body.manufacturer = null
   Object.assign(body, barcodePatchFields(base.barcode, d.barcode, barcodeLevel))
@@ -313,8 +321,8 @@ export function mapPatchErrors(
       msg = barcodeServerMessage(err.type, d.barcode)
     }
     if (key === 'size_chart_image_id') key = 'size_chart'
-    if (key.startsWith('package.')) key = key.replace(/_(cm|g)$/, '')
-    if (!/^(title|category|style_number|brand_name$|gender$|mrp|selling_price|size_chart|barcode$|attr\.|manufacturer\.|hsn_code$|country_of_origin$|package)/.test(key)) {
+    if (key.startsWith('package.') || key.startsWith('item.')) key = key.replace(/_(cm|g)$/, '')
+    if (!/^(title|category|style_number|brand_name$|gender$|mrp|selling_price|size_chart|barcode$|attr\.|manufacturer\.|hsn_code$|country_of_origin$|package|item)/.test(key)) {
       unmapped = true
       continue
     }
@@ -356,6 +364,7 @@ export function rebaseDraft(original: EditDraft, mine: EditDraft, fresh: EditDra
   }
   if (normalizeCountry(mine.country) !== normalizeCountry(original.country)) out.country = mine.country
   if (!samePackage(mine.pkg, original.pkg)) out.pkg = mine.pkg
+  if (!samePackage(mine.item, original.item)) out.item = mine.item
   if (out.sizeChart === mine.sizeChart) out.sizeChartImageId = mine.sizeChartImageId
   return out
 }

@@ -87,6 +87,17 @@ export const AUTO_FIX_SCOPE: readonly { label: string; mode: AutoFixMode }[] = [
   { label: 'Rewrite titles that break a marketplace rule', mode: 'approval' },
 ]
 
+/** Client item 20: the brand setting on Settings > Autonomy (`./auto-fix-setting`). */
+export const AUTO_FIX_HASH = 'auto-fix'
+export const AUTO_FIX_SETTING = {
+  label: 'Let Kuinn fix safe listing errors automatically',
+  help: 'When a marketplace refuses a value Kuinn can safely correct, such as a colour or size spelling, Kuinn fixes it and checks again on its own.',
+  offHelp: 'Off: Kuinn suggests each fix and waits. You apply it from the listing.',
+} as const
+
+/** With the setting off, a fix that ran on its own becomes one the seller approves. */
+export const modeWith = (mode: AutoFixMode, enabled: boolean): AutoFixMode => (mode === 'auto' && !enabled ? 'approval' : mode)
+
 /** SI11's cap (backend resolution/read.py MAX_CYCLES): automatic tries before it stops and asks. */
 export const AUTO_FIX_TRIES = 3
 

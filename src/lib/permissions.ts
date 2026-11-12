@@ -140,6 +140,7 @@ export const OP_ACTION = {
   'POST /listings/publish': 'listing:publish',
   'POST /listings/{listing_id}/publish/retry-fields': 'listing:publish',
   'POST /listings/{listing_id}/refresh-status': 'listing:publish',
+  'POST /listings/{listing_id}/fixes/apply': 'listing:edit',
   'GET /marketplaces/accounts': 'tenant:read',
   'POST /marketplaces/connect': 'marketplace:connect',
   'POST /marketplaces/connect/confirm': 'marketplace:connect',

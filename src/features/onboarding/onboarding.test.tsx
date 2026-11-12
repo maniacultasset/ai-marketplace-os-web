@@ -29,6 +29,7 @@ const tenant = (over: Partial<Tenant> = {}): Tenant => ({
   guidelines: [],
   glossary: {},
   owner_self_approval: false,
+  auto_fix_enabled: true,
   ...over,
 })
 

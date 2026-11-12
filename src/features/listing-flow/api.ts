@@ -13,7 +13,7 @@
  *   GET  /listings/{id}/issue-history IssueHistoryOut (feedback item 20): each marketplace issue and
  *                                 each fix Kuinn made; 404 on a backend without it, read as nothing
  */
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { api, unwrap } from '@/api/client'
 import { isNetworkError, isNotFound } from '@/api/errors'
@@ -92,6 +92,21 @@ export function useIssueHistory(listingId: string, opts: { enabled?: boolean; po
     retry: (n, e) => !isNotFound(e) && n < 2,
     refetchInterval: opts.poll ? RESOLUTION_POLL_MS : false,
     refetchIntervalInBackground: false,
+  })
+}
+
+/**
+ * Client item 20: apply the fixes Kuinn suggested while the brand's automatic fixes are off
+ * (POST /listings/{id}/fixes/apply). The listing (its history, resolution and issue history) is
+ * read again afterwards, so the card shows the fix as Kuinn's and the re-check as running.
+ */
+export function useApplyFixes(listingId: string) {
+  const keys = useKeys()
+  const qc = useQueryClient()
+  return useMutation({
+    meta: { toast: false },
+    mutationFn: () => unwrap(api.POST('/listings/{listing_id}/fixes/apply', { params: { path: { listing_id: listingId } } })),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.listings.detail(listingId) }),
   })
 }
 

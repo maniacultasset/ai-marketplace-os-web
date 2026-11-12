@@ -16,7 +16,9 @@ import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import { useIssueHistory } from './api'
+import { useCan } from '@/lib/permissions'
+import { toast, toastError } from '@/lib/toast'
+import { useApplyFixes, useIssueHistory } from './api'
 import { clock, mpName } from './format'
 import { fixKindLabel, hasIssueHistory, issueHistoryView, type FixLine, type HistoryStep, type IssueHistoryView, type IssueLine, type Tone } from './issue-history-model'
 
@@ -85,6 +87,19 @@ export function IssuesAndFixesCard({
           ))}
         </Group>
       ) : null}
+      {view.suggested.length ? (
+        <Group
+          title="Kuinn suggests"
+          testId="issues-suggested"
+          count={view.suggested.length}
+          hint="Automatic fixes are off for this brand. Check each change, then apply them. Kuinn checks the listing again afterwards."
+          footer={<ApplyFixes listingId={listingId} count={view.suggested.length} />}
+        >
+          {view.suggested.map((f) => (
+            <FixItem key={f.id} fix={f} marketplace={marketplace} suggested />
+          ))}
+        </Group>
+      ) : null}
       {view.fixed.length ? (
         <Group title="Kuinn's fixes" testId="issues-fixed" count={view.fixed.length}>
           {view.fixed.map((f) => (
@@ -118,7 +133,44 @@ export function IssuesAndFixesCard({
   )
 }
 
-function Group({ title, testId, count, hint, children }: { title: string; testId: string; count: number; hint?: string; children: ReactNode[] }) {
+/** Client item 20: the seller's go for the suggested fixes; only roles that edit listings see it. */
+function ApplyFixes({ listingId, count }: { listingId: string; count: number }) {
+  const can = useCan()
+  const apply = useApplyFixes(listingId)
+  if (!can('listing:edit')) return <p className="mt-2 text-caption text-ink-3">An owner or operator can apply these fixes.</p>
+  return (
+    <Button
+      size="sm"
+      className="mt-3"
+      disabled={apply.isPending}
+      onClick={() =>
+        apply.mutate(undefined, {
+          onSuccess: () => toast.success(count === 1 ? 'Fix applied' : 'Fixes applied', { description: 'Kuinn is checking the listing again.' }),
+          onError: (e) => toastError(e, 'The fixes weren’t applied'),
+        })
+      }
+      data-testid="apply-fixes"
+    >
+      {apply.isPending ? 'Applying…' : count === 1 ? 'Apply fix' : 'Apply fixes'}
+    </Button>
+  )
+}
+
+function Group({
+  title,
+  testId,
+  count,
+  hint,
+  footer,
+  children,
+}: {
+  title: string
+  testId: string
+  count: number
+  hint?: string
+  footer?: ReactNode
+  children: ReactNode[]
+}) {
   const [all, setAll] = useState(false)
   const listId = useId()
   const items = children.flat()
@@ -139,6 +191,7 @@ function Group({ title, testId, count, hint, children }: { title: string; testId
           Show {hidden} more
         </Button>
       ) : null}
+      {footer}
     </section>
   )
 }
@@ -193,7 +246,7 @@ function IssueItem({
   )
 }
 
-function FixItem({ fix, marketplace }: { fix: FixLine; marketplace: string }) {
+function FixItem({ fix, marketplace, suggested = false }: { fix: FixLine; marketplace: string; suggested?: boolean }) {
   return (
     <li className="min-w-0 text-small" data-testid="fix-line">
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -203,8 +256,8 @@ function FixItem({ fix, marketplace }: { fix: FixLine; marketplace: string }) {
         <TagChip tone="plain" className="h-5 px-2 text-[11px]">
           {fixKindLabel(fix.kind)}
         </TagChip>
-        <span className={cn('text-caption font-semibold', TONE_TEXT[fix.outcome.tone])} data-testid="fix-outcome">
-          {fix.outcome.label}
+        <span className={cn('text-caption font-semibold', TONE_TEXT[suggested ? 'need' : fix.outcome.tone])} data-testid="fix-outcome">
+          {suggested ? 'Waits for you' : fix.outcome.label}
         </span>
       </span>
       {fix.before || fix.after ? (

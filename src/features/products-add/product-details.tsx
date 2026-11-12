@@ -602,6 +602,7 @@ export function ProductDetailsEditor({
     selling_price: !!d.sellingPrice.trim(),
     hsn_code: !!d.hsn.trim(),
     package_size: packageHasSize(d.pkg),
+    product_size: packageHasSize(d.item),
     package_weight: packageHasWeight(d.pkg),
     country_of_origin: !!d.country.trim(),
     manufacturer: d.ownManufacturer || !!product.manufacturer?.legal_name,
@@ -826,6 +827,17 @@ export function ProductDetailsEditor({
             neededSize={need('package_size')}
             neededWeight={need('package_weight')}
             category={d.category}
+            submitCount={submitted}
+          />
+          <PackageFields
+            kind="item"
+            id="e-item"
+            value={d.item}
+            onChange={(item) => patch({ item }, 'item')}
+            onBlur={touch}
+            errors={errors}
+            source={samePackage(d.item, b.item) ? fieldSource(product, 'product_dimensions') : undefined}
+            neededSize={need('product_size')}
             submitCount={submitted}
           />
         </Group>

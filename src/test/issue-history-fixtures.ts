@@ -37,6 +37,7 @@ export function fix(over: Partial<Fix> = {}): Fix {
     reason: 'The marketplace accepts only values from its own list, so Kuinn sent the matching value from that list.',
     outcome: 'waiting',
     at: AT,
+    suggested: false,
     ...over,
   }
 }

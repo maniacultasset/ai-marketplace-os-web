@@ -104,3 +104,20 @@ describe('words', () => {
     expect(fixKindLabel('ai_correction')).toBe('Rewritten by the agent')
   })
 })
+
+describe('suggested fixes (client item 20)', () => {
+  it('keeps a suggestion apart from Kuinn’s fixes and lists its issue once', () => {
+    const v = issueHistoryView(
+      history({
+        issues: [issue({ id: 'i1', handler: 'you', lane: 'seller' }), issue({ id: 'i2', handler: 'you', lane: 'seller' })],
+        fixes: [fix({ id: 's1', issue_id: 'i1', suggested: true }), fix({ id: 'f1', outcome: 'accepted' })],
+      }),
+      'amazon',
+    )
+    expect(v.suggested.map((f) => f.id)).toEqual(['s1'])
+    expect(v.fixed.map((f) => f.id)).toEqual(['f1'])
+    expect(v.needsYou.map((i) => i.id)).toEqual(['i2'])
+    expect(v.summary).toContain('1 suggested fix waits for you')
+    expect(v.empty).toBe(false)
+  })
+})
