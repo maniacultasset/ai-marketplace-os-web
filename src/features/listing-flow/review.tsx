@@ -89,12 +89,13 @@ import { claimFindings, gateCounts, gatesSummary, needsGates, plural, type Error
 import { IdentifierFix } from './identifier-fix'
 import { answeredAfter } from './review-model'
 import { SectionCards } from './sections'
-import { SECTION_LABEL, type Section } from './sections-model'
+import { outsideSections, SECTION_LABEL, sectionOf, type Section } from './sections-model'
+import { MarketplacePreviewDialog } from './marketplace-preview'
 import { AnswersBanner, RegenerateButton } from './answers-banner'
 import { ListOnButton } from './list-on'
-import { useListingResolution } from './api'
+import { useListingRequirements, useListingResolution } from './api'
 import { useChipContext, usePublishGate } from './publishing'
-import { approveThenPublish, isResend, resendView, TEAMMATE_TEXT } from './resend'
+import { approveThenPublish, isResend, resendView, sectionSavedToast, TEAMMATE_TEXT } from './resend'
 import { hasResolution, resolutionView } from './resolution-model'
 import { ListingIssuesAndFixes } from './issues-and-fixes'
 import { ResolutionActionLink, ResolutionCard } from './resolution-timeline'
@@ -254,6 +255,11 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   const findings = checks.current.findings
   const claims = claimFindings(findings)
   const otherFindings = findings.filter((f) => f.error_code !== 'UNSUPPORTED_CLAIM')
+  // Client feedback 16: a finding on a section's field shows beside that field; the general card
+  // lists only the rest (images, the listing, facts), so nothing is said twice.
+  const generalFindings = outsideSections(otherFindings)
+  const requirementsQ = useListingRequirements(listing.id)
+  const requirements = requirementsQ.isError ? null : requirementsQ.data
   const busy = listing.status === 'generating' || listing.status === 'publishing'
   const runJob = recallJob(listing.id)
   // Follow the run while the agent works, so the page turns over within seconds of the job ending.
@@ -493,17 +499,15 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
                 findings={findings}
                 editState={actions.edit}
                 regenerateState={actions.regenerate}
+                requirements={requirements}
                 onSaved={(section) => {
-                  if (resendEdit)
-                    toast.success(TEAMMATE_TEXT, { description: `Saved as a new version. A teammate approves it and sends it to ${mp} again.` })
-                  else
-                    toast.success(`${SECTION_LABEL[section]} saved`, {
-                      description: 'Kept as your edit and locked. The checks ran again. Someone else approves it.',
-                    })
+                  // Item 17: with owner approval on, the owner approves their own edit (as EditDialog says).
+                  const t = sectionSavedToast(SECTION_LABEL[section], { ownApproval, resendEdit, mp })
+                  toast.success(t.title, { description: t.description })
                 }}
               />
-              {/* Unsupported claims already show on the bullet and in the claim card. */}
-              {otherFindings.length ? <FindingsCard findings={otherFindings} productId={listing.product_id} /> : null}
+              {/* Unsupported claims already show on the bullet and in the claim card; section findings on their field. */}
+              {generalFindings.length ? <FindingsCard findings={generalFindings} productId={listing.product_id} /> : null}
             </div>
             {/* What Kuinn did, the gates and the photo facts stay in view while the listing scrolls. */}
             <div className={cn('flex min-w-0 flex-col gap-4', STICKY_ASIDE)}>
@@ -543,7 +547,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
                 gates={checks.gates}
                 ready={checks.gatesReady && !fixesQ.isPending && !resolutionPending}
                 neverChecked={!checks.current.checked}
-                listed={otherFindings}
+                listed={generalFindings}
                 rulesCount={checks.rules?.length ?? null}
                 listing={listing}
                 validateState={actions.validate}
@@ -780,6 +784,8 @@ function ReadsAs({
   const [open, setOpen] = useState(false)
   const bodyId = useId()
   const [removedOpen, setRemovedOpen] = useState(false)
+  // Client feedback 16: the complete listing, laid out like the marketplace's page.
+  const [looks, setLooks] = useState(false)
   const mp = mpName(listing.marketplace)
   const preview = checks.preview
   const items = preview.data?.items ?? []
@@ -818,12 +824,19 @@ function ReadsAs({
           )
         }
         action={
-          <Button size="sm" variant="ghost" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen((o) => !o)} data-testid="reads-as-toggle">
-            {open ? 'Hide the preview' : 'Show the preview'}
-            <Icon name="chev" size={14} aria-hidden className={cn('motion-safe:transition-transform motion-safe:duration-150', open && 'rotate-180')} />
-          </Button>
+          <span className="flex flex-wrap items-center justify-end gap-1">
+            <Button size="sm" variant="secondary" onClick={() => setLooks(true)} data-testid="mp-preview-open">
+              <Icon name="eye" size={14} aria-hidden />
+              Preview on {mp}
+            </Button>
+            <Button size="sm" variant="ghost" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen((o) => !o)} data-testid="reads-as-toggle">
+              {open ? 'Hide the summary' : 'Show the summary'}
+              <Icon name="chev" size={14} aria-hidden className={cn('motion-safe:transition-transform motion-safe:duration-150', open && 'rotate-180')} />
+            </Button>
+          </span>
         }
       />
+      <MarketplacePreviewDialog open={looks} onOpenChange={setLooks} listing={listing} product={product} />
       <div className="mt-4 flex flex-col items-start gap-4 sm:flex-row">
         <div className="flex shrink-0 flex-col items-center gap-2">
           {imageCount && leadView ? (
@@ -1009,6 +1022,8 @@ function GatesCard({
             <ul className="m-0 mt-2 flex list-none flex-col gap-1.5 p-0" data-testid="gates-needs">
               {needs.map((g) => {
                 const n = g.findings.filter((f) => listedSet.has(f)).length
+                // A finding on a section's field is shown on that card (client feedback 16).
+                const onCard = n ? null : (g.findings.map((f) => sectionOf(f.field)).find((x) => x !== null) ?? null)
                 return (
                   <li key={g.id} className="flex items-start gap-2 text-small text-ink">
                     <StatusChip status={GATE_CHIP[g.state]} iconOnly label={`${g.label}: ${NEEDS_WORD[g.state as keyof typeof NEEDS_WORD]}`} className="mt-px" />
@@ -1019,6 +1034,13 @@ function GatesCard({
                           {' '}
                           <a href="#findings" className="focus-ring rounded-sm font-semibold whitespace-nowrap text-brand hover:underline">
                             See {plural(n, 'finding')}
+                          </a>
+                        </>
+                      ) : onCard ? (
+                        <>
+                          {' '}
+                          <a href={`#section-${onCard}`} className="focus-ring rounded-sm font-semibold whitespace-nowrap text-brand hover:underline">
+                            See it on {SECTION_LABEL[onCard]}
                           </a>
                         </>
                       ) : null}
@@ -1044,7 +1066,7 @@ function GatesCard({
               {counts.recommended ? (
                 <>
                   {' '}
-                  <a href="#findings" className="focus-ring rounded-sm font-semibold whitespace-nowrap text-brand hover:underline" data-testid="gates-recommended">
+                  <a href="#section-attributes" className="focus-ring rounded-sm font-semibold whitespace-nowrap text-brand hover:underline" data-testid="gates-recommended">
                     See {counts.recommended} recommended
                   </a>
                 </>

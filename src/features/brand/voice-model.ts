@@ -5,8 +5,13 @@
  * GET /brand-profile; backend app/services/brand_voice.py `BrandVoice` owns the caps mirrored
  * here). An absent answer is empty; every answer empty saves as no voice. The voice shapes tone
  * and emphasis only: product facts always win.
+ *
+ * Tone (client feedback item 19, bullet 2) is one of the questions, bound to the brand's existing
+ * tone field (`Tenant.tone`, the "Tone of voice" box on the Brand page): it is read from GET
+ * /tenants/me and saved with PATCH /tenants/me `{ tone }`, never copied into the voice.
  */
 import type { Schema } from '@/api/types'
+import { TONE_MAX } from './profile-model'
 
 export type BrandVoiceOut = Schema<'BrandVoiceOut'>
 export type BrandVoiceIn = Schema<'BrandVoice'>
@@ -29,8 +34,13 @@ export const PRICE_SEGMENTS: readonly { value: PriceSegment; label: string; hint
   { value: 'luxury', label: 'Luxury', hint: 'Top price, rare or crafted' },
 ]
 
+/** Quick picks for the tone question; a pick adds its word to the tone text. */
+export const TONE_PICKS = ['Warm', 'Calm', 'Confident', 'Playful', 'Elegant', 'Simple and clear', 'Expert'] as const
+
 export interface VoiceDraft {
   description: string
+  /** Tenant.tone (PATCH /tenants/me), not part of the brand voice body. */
+  tone: string
   audience: string
   price_segment: PriceSegment | null
   positioning: string
@@ -42,7 +52,7 @@ export interface VoiceDraft {
 }
 
 export type ListKey = 'differentiators' | 'words_to_use' | 'words_to_avoid' | 'claim_limits'
-export type TextKey = 'description' | 'audience' | 'positioning' | 'example_copy'
+export type TextKey = 'description' | 'audience' | 'tone' | 'positioning' | 'example_copy'
 
 export const LIST_CAP: Record<ListKey, { items: number; length: number }> = {
   differentiators: { items: DIFFERENTIATORS_MAX, length: PHRASE_MAX },
@@ -53,6 +63,7 @@ export const LIST_CAP: Record<ListKey, { items: number; length: number }> = {
 export const TEXT_CAP: Record<TextKey, number> = {
   description: DESCRIPTION_MAX,
   audience: AUDIENCE_MAX,
+  tone: TONE_MAX,
   positioning: POSITIONING_MAX,
   example_copy: EXAMPLE_MAX,
 }
@@ -62,6 +73,7 @@ export const VOICE_STEPS = [
   { id: 'about', title: 'What is your brand?', sub: 'A line or two, in your own words.' },
   { id: 'audience', title: 'Who buys it?', sub: 'Who you make it for, and when they wear it.' },
   { id: 'price', title: 'Where does your price sit?', sub: 'Kuinn matches the words to it. It never writes a price.' },
+  { id: 'tone', title: 'How should it sound?', sub: 'Pick a few words or write your own. This is your brand’s tone of voice.' },
   { id: 'different', title: 'What makes it different?', sub: 'How you want to be seen, and what sets you apart.' },
   { id: 'words', title: 'Which words fit, and which don’t?', sub: 'Kuinn uses the first and stays away from the second.' },
   { id: 'claims', title: 'Claims you never make', sub: 'For example “No organic claims” or “Never say handmade”.' },
@@ -73,6 +85,7 @@ export type VoiceStepId = (typeof VOICE_STEPS)[number]['id']
 
 export const emptyVoiceDraft = (): VoiceDraft => ({
   description: '',
+  tone: '',
   audience: '',
   price_segment: null,
   positioning: '',
@@ -83,10 +96,14 @@ export const emptyVoiceDraft = (): VoiceDraft => ({
   example_copy: '',
 })
 
-export function toVoiceDraft(profile: { brand_description?: string | null; brand_voice?: BrandVoiceOut | null } | undefined): VoiceDraft {
+export function toVoiceDraft(
+  profile: { brand_description?: string | null; brand_voice?: BrandVoiceOut | null } | undefined,
+  tone?: string | null,
+): VoiceDraft {
   const v = profile?.brand_voice
   return {
     description: profile?.brand_description ?? '',
+    tone: tone ?? '',
     audience: v?.audience ?? '',
     price_segment: v?.price_segment ?? null,
     positioning: v?.positioning ?? '',
@@ -147,13 +164,41 @@ export function isVoiceEmpty(v: BrandVoiceIn | BrandVoiceOut | null | undefined)
   )
 }
 
-/** Nothing answered at all (description included): the questionnaire was never done or was cleared. */
-export const isDraftEmpty = (d: VoiceDraft) => !textOrNull(d.description) && toVoiceBody(d).brand_voice === null
+/** The tone to save: trimmed, blank clears it (PATCH /tenants/me `tone: null`). */
+export const toneBody = (d: VoiceDraft): string | null => textOrNull(d.tone)
 
-/** The same answers as the saved profile (so Save has nothing to send). */
+/** Nothing answered at all (description and tone included): never done, or cleared. */
+export const isDraftEmpty = (d: VoiceDraft) => !textOrNull(d.description) && !toneBody(d) && toVoiceBody(d).brand_voice === null
+
+/** The voice answers (PATCH /brand-profile) differ from the saved ones. */
+export const voiceChanged = (d: VoiceDraft, saved: VoiceDraft) => JSON.stringify(toVoiceBody(d)) !== JSON.stringify(toVoiceBody(saved))
+
+/** The tone (PATCH /tenants/me) differs from the saved one. */
+export const toneChanged = (d: VoiceDraft, saved: VoiceDraft) => toneBody(d) !== toneBody(saved)
+
+/** The same answers as the saved profile and tone (so Save has nothing to send). */
 export function sameAsSaved(d: VoiceDraft, saved: VoiceDraft): boolean {
-  return JSON.stringify(toVoiceBody(d)) === JSON.stringify(toVoiceBody(saved))
+  return !voiceChanged(d, saved) && !toneChanged(d, saved)
 }
+
+/** The tone text with `pick` added (or taken out when it is there already, any case). */
+export function togglePick(tone: string, pick: string): string {
+  const parts = tone
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)
+  const at = parts.findIndex((p) => p.toLocaleLowerCase() === pick.toLocaleLowerCase())
+  if (at >= 0) parts.splice(at, 1)
+  else parts.push(pick)
+  return parts.join(', ')
+}
+
+/** Whether the tone text names `pick` as one of its comma-separated parts. */
+export const hasPick = (tone: string, pick: string) =>
+  tone
+    .split(',')
+    .map((p) => p.trim().toLocaleLowerCase())
+    .includes(pick.toLocaleLowerCase())
 
 /** Per-field problems the backend would refuse, in the seller's words. */
 export function voiceProblems(d: VoiceDraft): Partial<Record<TextKey | ListKey, string>> {
@@ -175,6 +220,7 @@ export function voiceProblems(d: VoiceDraft): Partial<Record<TextKey | ListKey, 
 export const STEP_OF: Record<TextKey | ListKey | 'price_segment', VoiceStepId> = {
   description: 'about',
   audience: 'audience',
+  tone: 'tone',
   price_segment: 'price',
   positioning: 'different',
   differentiators: 'different',
@@ -200,12 +246,17 @@ export function voiceSummary(d: VoiceDraft): SummaryLine[] {
   const v = body.brand_voice
   const lines: SummaryLine[] = []
   if (body.brand_description) lines.push({ step: 'about', label: 'Your brand', text: body.brand_description })
-  if (!v) return lines
+  const tone = toneBody(d)
+  if (!v) {
+    if (tone) lines.push({ step: 'tone', label: 'Tone', text: tone })
+    return lines
+  }
   if (v.audience) lines.push({ step: 'audience', label: 'Writes for', text: v.audience })
   if (v.price_segment) {
     const seg = PRICE_SEGMENTS.find((s) => s.value === v.price_segment)!
     lines.push({ step: 'price', label: 'Price', text: `${seg.label}: ${seg.hint.toLowerCase()}` })
   }
+  if (tone) lines.push({ step: 'tone', label: 'Tone', text: tone })
   if (v.positioning) lines.push({ step: 'different', label: 'Presents it as', text: v.positioning })
   if (v.differentiators?.length) lines.push({ step: 'different', label: 'Brings out', text: join(v.differentiators) })
   if (v.words_to_use?.length) lines.push({ step: 'words', label: 'Uses words like', text: quoted(v.words_to_use) })
