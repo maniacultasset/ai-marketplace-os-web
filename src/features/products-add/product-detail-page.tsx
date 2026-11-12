@@ -57,6 +57,8 @@ import { comingSoon, comingSoonReason, draftOpen } from '@/features/marketplaces
 import { useProduct, type ProductDetail } from '@/features/products/api'
 import { RelativeTime } from '@/features/products/format'
 import { ProductMoreMenu } from '@/features/products/product-more-menu'
+import { ARCHIVED_NOTE } from '@/features/products/archive'
+import { Banner } from '@/components/la/banner'
 import { mainView, useRefreshProductViews } from '@/features/products/image-views'
 import { Can, OP_ACTION, useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
@@ -494,6 +496,12 @@ function LoadedDetail({
           />
         </div>
       </header>
+
+      {p.archived_at ? (
+        <Banner tone="neutral" icon="info" role="status" title="Archived" data-testid="product-archived">
+          <span className="text-small text-ink-2">{ARCHIVED_NOTE} Unarchive it from the More menu (owners and admins).</span>
+        </Banner>
+      ) : null}
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList ref={tabsRef} variant="line" aria-label="Product sections">

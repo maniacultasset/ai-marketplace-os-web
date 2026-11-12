@@ -2283,6 +2283,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/products/{product_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive a product and its sizes without deleting it: it leaves the list, its listings are archived (409 when a listing was sent to a marketplace) */
+        post: operations["products_archive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{product_id}/unarchive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bring an archived product and its listings back */
+        post: operations["products_unarchive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/products/{product_id}/recategorize": {
         parameters: {
             query?: never;
@@ -6412,6 +6446,11 @@ export interface components {
              * Created At
              * Format: date-time
              */
+            /**
+             * Archived At
+             * @description When the product was archived (`POST /products/{product_id}/archive`), else null.
+             */
+            archived_at?: string | null;
             created_at: string;
             /** Currency */
             currency?: string | null;
@@ -42194,6 +42233,8 @@ export interface operations {
     products_list: {
         parameters: {
             query?: {
+                /** @description true: only the archived products (`POST /products/{product_id}/archive`). Default false: archived products are left out. */
+                archived?: boolean;
                 /** @description Only products owning a listing in this Home bucket (`HomeSummaryOut.listings`, the same definition; with `marketplace`, a listing on that marketplace), so the list a Home count opens is filtered on the server. `any_live` is live or partly live. */
                 listing?: ("live" | "partly_live" | "any_live" | "in_progress" | "problem" | "ready_to_approve" | "ready_to_publish" | "draft" | "inactive") | null;
                 /** @description Only products owning a listing on this marketplace. */
@@ -46107,6 +46148,68 @@ export interface operations {
                      *       }
                      *     }
                      */
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    products_archive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductOut"];
+                };
+            };
+            /** @description Refused: 401, 403, 404, 409 (`INVALID_STATUS_TRANSITION`, `SUBMISSION_IN_FLIGHT`, `LISTING_BUSY`), 422. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    products_unarchive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductOut"];
+                };
+            };
+            /** @description Refused: 401, 403, 404, 409 (`INVALID_STATUS_TRANSITION`, `SUBMISSION_IN_FLIGHT`, `LISTING_BUSY`), 422. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
