@@ -38,6 +38,14 @@ describe('ListOnButton', () => {
     s.flipkart = null
   })
 
+  it('says it only drafts: "Draft for Amazon", and nothing is sent until you approve', () => {
+    view('amazon')
+    const b = screen.getByTestId('list-on-amazon')
+    expect(b.textContent).toBe('Draft for Amazon')
+    expect(b.textContent).not.toMatch(/List on/)
+    expect(b.getAttribute('title')).toBe('Nothing is sent until you approve.')
+  })
+
   it('Amazon can start a draft before it is connected', () => {
     view('amazon')
     expect((screen.getByTestId('list-on-amazon') as HTMLButtonElement).disabled).toBe(false)

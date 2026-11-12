@@ -111,7 +111,7 @@ export function useProductListings(productId: string | null | undefined) {
 }
 
 /**
- * "List on <marketplace>": POST /listings/generate for a product that has no listing there yet,
+ * "Draft for <marketplace>": POST /listings/generate for a product that has no listing there yet,
  * then open the agent run (/runs/<job id>). One intent key per click so a retry is safe.
  */
 export function useListOn() {

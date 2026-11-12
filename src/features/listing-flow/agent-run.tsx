@@ -3,7 +3,7 @@
  * the run id is the job id (GET /jobs/{id}) and everything else hangs off its listing:
  *   - Progress: run-steps.ts from the job stage and the listing status (never a fake bar);
  *   - Marketplaces: the product's listings (GET /listings?product_id=), the job's progress_pct on
- *     its own lane; supported marketplaces with no listing offer "List on <marketplace>";
+ *     its own lane; supported marketplaces with no listing offer "Draft for <marketplace>";
  *   - Agent log: GET /listings/{id}/history plus the job's own start and finish.
  * Pause has no API and is not shown.
  */
@@ -64,7 +64,7 @@ import { useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
 import { toast, toastError } from '@/lib/toast'
 import { useProductListings } from './api'
-import { clock, mpName } from './format'
+import { clock, DRAFT_HINT, mpName } from './format'
 import { ListOnButton } from './list-on'
 import { liveProof } from './proof'
 import { useChipContext, usePublishGate } from './publishing'
@@ -541,7 +541,7 @@ function LaneAction({ l, quiet = false }: { l: Listing; quiet?: boolean }) {
 const LANE_ROW = 'flex min-h-[72px] flex-wrap items-center gap-3 border-b border-line py-3.5 sm:flex-nowrap first:pt-0 last:border-b-0 last:pb-0'
 /**
  * Chip and action in a fixed grid: chips end on the same line across lanes and an empty action
- * cell keeps its width. The action column fits the longest label, "List on Flipkart".
+ * cell keeps its width. The action column fits the longest label, "Draft for Flipkart".
  */
 const LANE_TRAIL = 'ml-auto grid shrink-0 grid-cols-[auto_9rem] items-center justify-items-end gap-3'
 
@@ -590,7 +590,7 @@ function Lanes({
           <MarketplaceTile id={m.id} />
           <div className="min-w-0 flex-1 basis-[calc(100%-60px)] sm:basis-0">
             <b className="font-semibold text-ink">{m.name}</b>
-            <div className="text-caption text-ink-3">Not listed yet. Uses the same product record.</div>
+            <div className="text-caption text-ink-3">Not listed yet. Uses the same product record. {DRAFT_HINT}</div>
           </div>
           <div className={LANE_TRAIL}>
             <StatusChip status="not-listed" />

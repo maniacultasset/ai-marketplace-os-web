@@ -45,6 +45,37 @@ export function defaultSelection(current: CurrentAccounts | undefined): Marketpl
   return (rows.find((r) => r.kind === 'reconnect') ?? rows.find((r) => r.kind === 'connected') ?? rows[0]!).marketplace
 }
 
+/**
+ * The account's region in words (Chrome pass 2: Region read "—"). The API's `region`, else the
+ * deployment's one marketplace for it: Kuinn connects Amazon India (marketplace A21TJRUUN4KGV)
+ * and Flipkart India only. With the API's `marketplace_id`, the id follows ("India · A21TJRUUN4KGV").
+ */
+export const DEFAULT_REGION: Record<Marketplace, string> = { amazon: 'India', flipkart: 'India' }
+
+export function regionText(account: Pick<MarketplaceAccount, 'marketplace' | 'region' | 'marketplace_id'>): string {
+  const region = account.region?.trim() || DEFAULT_REGION[account.marketplace]
+  const id = account.marketplace_id?.trim()
+  return id ? `${region} · ${id}` : region
+}
+
+export const PUBLISHING_PAUSED_NOTE = (name: string) =>
+  `Publishing to ${name} is paused by Kuinn for now. You can still draft, fix and approve listings; approved listings wait here and nothing is sent.`
+
+/**
+ * What the seller does next on a connected marketplace (Chrome pass 2: "no next step"). An
+ * account that needs reconnecting has its own banner, so it gets none here.
+ */
+export function connectedNext(account: Pick<MarketplaceAccount, 'status' | 'publishing_enabled'>, name: string): {
+  paused: string | null
+  text: string
+} | null {
+  if (account.status !== 'active') return null
+  return {
+    paused: account.publishing_enabled === false ? PUBLISHING_PAUSED_NOTE(name) : null,
+    text: `Next: add a product, or open one and choose “Draft for ${name}”. Kuinn writes the listing and checks it; nothing is sent until you approve.`,
+  }
+}
+
 /** An active account whose token time has passed (refresh is due or failed silently). */
 export function isTokenExpired(account: MarketplaceAccount | null, now: number): boolean {
   return !!account && account.status === 'active' && !!account.expires_at && new Date(account.expires_at).getTime() <= now

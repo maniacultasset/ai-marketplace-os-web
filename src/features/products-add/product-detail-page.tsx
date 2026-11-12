@@ -9,7 +9,7 @@
  *   GET /listings/{id}                       validation summary (Validation tab)
  *   GET /listings/{id}/history               per-listing history (Activity tab)
  *   GET /listings/{id}/versions              who made, edited and approved each version (Activity tab)
- * Writes: POST /listings/generate ("List on …", AddMarketplaceDialog); image upload in the Media tab.
+ * Writes: POST /listings/generate ("Draft for …", AddMarketplaceDialog); image upload in the Media tab.
  */
 import { useQueries } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
@@ -46,6 +46,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ProductImagesCard } from '@/features/analytics-images/images/images-card'
 import { useFixCounts } from '@/features/home-inbox/api'
 import { AutoFixedChip } from '@/features/listing-flow/auto-fix'
+import { DRAFT_HINT, draftLabel } from '@/features/listing-flow/format'
 import { currentFindings, dedupeFindings, type ErrorItem } from '@/features/listing-flow/gates'
 import { listingDetailQuery, listingPreviewQuery, useListingHistory, useListingVersions } from '@/features/listings/api'
 import { recallJob } from '@/features/listings/job-memory'
@@ -586,8 +587,8 @@ function HeaderListOn({ data, variant = 'primary' }: { data: DetailData; variant
   if (!first) return null
   return (
     <>
-      <Button variant={variant} onClick={() => setOpen(true)} data-testid="header-list-on">
-        List on {first.name}
+      <Button variant={variant} onClick={() => setOpen(true)} title={DRAFT_HINT} data-testid="header-list-on">
+        {draftLabel(first.name)}
       </Button>
       {open ? (
         <AddMarketplaceDialog
@@ -642,7 +643,7 @@ function MarketplaceCards({ data, detailed }: { data: DetailData; detailed?: boo
   )
 }
 
-/** The listings read failed: one error with Retry, never "Not listed" or a "List on" offer. */
+/** The listings read failed: one error with Retry, never "Not listed" or a "Draft for" offer. */
 function ListingsFailed({ data }: { data: DetailData }) {
   return (
     <LaCard pad="none" data-testid="listings-failed">
@@ -748,18 +749,18 @@ function MarketplaceCard({
           <StatusChip status="not-listed" />
         </div>
         <p className="mt-3 text-small text-ink-2">
-          {data.isVariant ? 'Variants are listed through their style.' : 'No listing drafted for this product yet.'}
+          {data.isVariant ? 'Variants are listed through their style.' : `No listing drafted for this product yet. ${DRAFT_HINT}`}
         </p>
         {onList ? (
           <div className={CARD_ACTIONS}>
             {draftOpen(id, connected) ? (
-              <Button variant="secondary" size="sm" onClick={() => onList(id)} data-testid={`list-on-${id}`}>
-                List on {m.name}
+              <Button variant="secondary" size="sm" onClick={() => onList(id)} title={DRAFT_HINT} data-testid={`list-on-${id}`}>
+                {draftLabel(m.name)}
               </Button>
             ) : (
               // Accounts still loading: same button, held, so the card never changes size.
               <Button variant="secondary" size="sm" disabled data-testid={`list-on-${id}`}>
-                List on {m.name}
+                {draftLabel(m.name)}
               </Button>
             )}
           </div>
@@ -1130,7 +1131,7 @@ function NoListings({ data }: { data: DetailData }) {
       <EmptyState
         icon="store"
         title={data.isVariant ? 'Listed through its style' : 'No listings yet'}
-        description={data.isVariant ? 'Open the style to see its listings.' : 'Start a draft with “List on …” on the Overview tab.'}
+        description={data.isVariant ? 'Open the style to see its listings.' : 'Start a draft with “Draft for …” on the Overview tab.'}
         compact
       />
     </LaCard>

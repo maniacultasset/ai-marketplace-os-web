@@ -9,6 +9,8 @@ import {
   mergeActivity,
   submissionEvents,
   connectionFor,
+  connectedNext,
+  regionText,
   defaultSelection,
   isSupported,
   isTokenExpired,
@@ -132,5 +134,31 @@ describe('Activity: what the marketplace said', () => {
   })
   it('a send with no answer yet is only the send', () => {
     expect(submissionEvents([sub({ outcome: 'pending', responded_at: null })], 'Amazon').map((r) => r.label)).toEqual(['Sent to Amazon'])
+  })
+})
+
+describe('regionText (Chrome pass 2: Region read "—")', () => {
+  it('names the API region and marketplace id', () => {
+    expect(regionText({ marketplace: 'amazon', region: 'India', marketplace_id: 'A21TJRUUN4KGV' })).toBe('India · A21TJRUUN4KGV')
+  })
+  it('falls back to the one region Kuinn connects when the API has none', () => {
+    expect(regionText({ marketplace: 'amazon', region: null })).toBe('India')
+    expect(regionText({ marketplace: 'flipkart', region: '  ', marketplace_id: null })).toBe('India')
+  })
+})
+
+describe('connectedNext (Chrome pass 2: no paused note, no next step)', () => {
+  it('says publishing is paused while the kill switch is off, and the next step', () => {
+    const next = connectedNext({ status: 'active', publishing_enabled: false }, 'Amazon')
+    expect(next?.paused).toMatch(/^Publishing to Amazon is paused by Kuinn for now\./)
+    expect(next?.paused).toContain('nothing is sent')
+    expect(next?.text).toContain('“Draft for Amazon”')
+    expect(next?.text).toContain('nothing is sent until you approve')
+  })
+  it('has no paused note when publishing is on', () => {
+    expect(connectedNext({ status: 'active', publishing_enabled: true }, 'Amazon')?.paused).toBeNull()
+  })
+  it('gives a reconnect account no next step (its banner says what to do)', () => {
+    expect(connectedNext({ status: 'needs_reconnect', publishing_enabled: false }, 'Amazon')).toBeNull()
   })
 })

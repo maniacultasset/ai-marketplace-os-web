@@ -1,5 +1,6 @@
 /**
- * "List on <marketplace>" (p14 Next, p12 lanes, product detail): POST /listings/generate with an
+ * "Draft for <marketplace>" (p14 Next, p12 lanes, product detail; "List on" until the 11 Nov Chrome
+ * pass read it as a send): POST /listings/generate with an
  * Idempotency-Key, then the agent run for the returned job. Shown only to roles that hold
  * `listing:generate` (owner, operator) and only for a marketplace the API supports. Flipkart stays
  * an honest "not yet" button until the brand has it connected (marketplaces/meta `draftOpen`).
@@ -17,7 +18,7 @@ import { AI_PAUSED_REASON, isAiPausedError } from '@/features/ai-credit/model'
 import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
 import { toastError } from '@/lib/toast'
 import { useListOn } from './api'
-import { mpName } from './format'
+import { DRAFT_HINT, draftLabel, mpName } from './format'
 
 /** One sentence for a refused generate, or null to fall back to the generic error toast. */
 export function generateRefusal(error: unknown): string | null {
@@ -46,7 +47,7 @@ export function ListOnButton({
     const { size, variant, className } = props
     return (
       <UnavailableButton size={size} variant={variant} className={className} reason={AI_PAUSED_REASON} data-testid={`list-on-${marketplace}`}>
-        {`List on ${mpName(marketplace)}`}
+        {draftLabel(mpName(marketplace))}
       </UnavailableButton>
     )
   }
@@ -55,14 +56,14 @@ export function ListOnButton({
     // While the accounts load the button keeps its place, but can't start anything yet.
     if (!accounts.data && !accounts.isError)
       return (
-        <Button {...props} disabled data-testid={`list-on-${marketplace}`}>
-          {`List on ${mpName(marketplace)}`}
+        <Button {...props} disabled title={DRAFT_HINT} data-testid={`list-on-${marketplace}`}>
+          {draftLabel(mpName(marketplace))}
         </Button>
       )
     const { size, variant, className } = props
     return (
       <UnavailableButton size={size} variant={variant} className={className} reason={draftClosedReason(marketplace)} data-testid={`list-on-${marketplace}`}>
-        {`List on ${mpName(marketplace)}`}
+        {draftLabel(mpName(marketplace))}
       </UnavailableButton>
     )
   }
@@ -70,6 +71,7 @@ export function ListOnButton({
     <Button
       {...props}
       data-testid={`list-on-${marketplace}`}
+      title={DRAFT_HINT}
       disabled={listOn.isPending || props.disabled}
       onClick={() =>
         listOn.start(productId, marketplace, {
@@ -78,12 +80,12 @@ export function ListOnButton({
             if (isAiPausedError(e)) return
             const msg = generateRefusal(e)
             if (msg) toastError(e, msg)
-            else toastError(e, `Couldn’t start the listing on ${mpName(marketplace)}`)
+            else toastError(e, `Couldn’t start the ${mpName(marketplace)} draft`)
           },
         })
       }
     >
-      {listOn.isPending ? 'Starting…' : `List on ${mpName(marketplace)}`}
+      {listOn.isPending ? 'Starting…' : draftLabel(mpName(marketplace))}
     </Button>
   )
 }
