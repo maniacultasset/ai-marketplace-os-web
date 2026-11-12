@@ -8,6 +8,7 @@ import {
   isAiOff,
   isCacheHit,
   keptOriginals,
+  noFixCopy,
   openCandidates,
   candidatesUnsupported,
   originBadge,
@@ -180,3 +181,16 @@ describe('applied', () => {
     }
   })
 })
+
+describe('noFixCopy (B2)', () => {
+  it('always gives a reason and a next step', () => {
+    for (const r of ['ai_off', 'not_fixable', null, undefined] as const) {
+      const c = noFixCopy(r)
+      expect(c.reason.length).toBeGreaterThan(0)
+      expect(c.next.length).toBeGreaterThan(0)
+    }
+    expect(noFixCopy('ai_off').reason).toContain('switched off')
+    expect(noFixCopy('not_fixable').reason).toContain('failed a check')
+  })
+})
+
