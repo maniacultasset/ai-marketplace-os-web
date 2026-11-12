@@ -310,13 +310,26 @@ export const attrText = (p: Product, key: string): string | null => {
   return typeof v === 'string' && v.trim() ? v.trim() : typeof v === 'number' ? String(v) : null
 }
 
+/** Letter sizes a seller means in capitals (`m`, `xl`, `2xl`, `xxxl`, `free size`). */
+const LETTER_SIZE = /^(?:xxs|xs|s|m|l|x{1,4}l|[2-6]xl|free\s*size)$/i
+
+/** A size as the seller sees it: standard letter sizes in capitals, anything else as entered. */
+export const sizeLabel = (size: string): string => (LETTER_SIZE.test(size.trim()) ? size.trim().toUpperCase() : size.trim())
+
 /**
  * A variant's colour or size: its own axis (SI8 `variant_attributes`) first, then the fact of the
- * same name (older backends send only `attributes.size`).
+ * same name (older backends send only `attributes.size`). The size axis is the lower-cased matrix
+ * key (`m`), so a size reads the seller's own spelling from the fact when it is the same size, and
+ * standard letter sizes show in capitals (prod Chrome pass 12 Nov, B8: "m" and "l" headers).
  */
 export const variantAxis = (p: Product, key: 'color' | 'size'): string | null => {
-  const own = p.variant_attributes?.[key]
-  return typeof own === 'string' && own.trim() ? own.trim() : attrText(p, key)
+  const raw = p.variant_attributes?.[key]
+  const own = typeof raw === 'string' && raw.trim() ? raw.trim() : null
+  const fact = attrText(p, key)
+  if (key === 'color') return own ?? fact
+  const seller = fact && (!own || fact.toLowerCase() === own.toLowerCase()) ? fact : null
+  const size = seller ?? own ?? fact
+  return size === null ? null : sizeLabel(size)
 }
 
 export const matrixKey = (colour: string | null, size: string) => `${colour ?? ''}\u0000${size}`

@@ -98,7 +98,7 @@ import { approveThenPublish, isResend, resendView, TEAMMATE_TEXT } from './resen
 import { hasResolution, resolutionView } from './resolution-model'
 import { ListingIssuesAndFixes } from './issues-and-fixes'
 import { ResolutionActionLink, ResolutionCard } from './resolution-timeline'
-import { approveAllTargets, approveBlockers } from './review-model'
+import { approveAllTargets, approveBlockers, reviewApproveState } from './review-model'
 import { STAGE_SUB } from './run-steps'
 import { ActionButton, CardSkeleton, GATE_CHIP, GateLegend, GateList, GateListSkeleton, ReadsAsSkeleton, ReviewTopSkeleton } from './ui'
 import { useListingChecks } from './use-listing-checks'
@@ -213,13 +213,11 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
   // The server is the authority on maker-checker; until the history is read, say so instead of guessing.
   // The reviewer sees what Kuinn fixed before approving: Approve waits for that read too.
   // With the server's own answer (SI10 can_approve) there is nothing to wait for in the history.
-  const serverDecides = listing.can_approve === true || listing.can_approve === false
-  const approveState: ActionState =
-    history.isPending && actions.approve.enabled && !serverDecides
-      ? { show: true, enabled: false, reason: 'Checking who worked on this version…' }
-      : fixesQ.isPending && actions.approve.enabled
-        ? { show: true, enabled: false, reason: 'Checking what Kuinn fixed…' }
-        : actions.approve
+  const approveState = reviewApproveState(actions.approve, {
+    canApprove: listing.can_approve,
+    historySettled: !history.isPending && !history.isFetching,
+    fixesPending: fixesQ.isPending,
+  })
   // The product line and tabs land together, once the product and its listings are read.
   const siblingsPending = checks.siblings.isPending
   const approver = useApproverState()

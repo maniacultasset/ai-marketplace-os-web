@@ -10,7 +10,7 @@
  *   - Approve all: the product's other listings that a multi-item approve accepts (`validated`).
  */
 import type { Schema } from '@/api/types'
-import { approveEligibility, type ApproveItem, type Listing, type RejectReason } from '@/features/listings/model'
+import { approveEligibility, type ActionState, type ApproveItem, type Listing, type RejectReason } from '@/features/listings/model'
 import { codePoints, CONTROL_MSG, hasStrayControlChars } from '@/lib/validation'
 
 type BatchResult = Schema<'BatchResult'>
@@ -135,4 +135,21 @@ export function answeredAfter(
   const since = versionCreatedAt ? Date.parse(versionCreatedAt) : NaN
   if (Number.isNaN(since)) return false
   return tasks.some((t) => FACT_TASKS.has(t.kind) && t.product_id === productId && !!t.answered_at && Date.parse(t.answered_at) > since)
+}
+
+/**
+ * The review page's Approve before its own checks land. The server's `can_approve` decides when it
+ * is there; without it, the maker comes from the history, so Approve waits while the history is
+ * read or re-read (a saved edit re-reads it: the stale one names the old maker and showed Approve
+ * as allowed for a moment, prod Chrome pass 12 Nov, B10). It also waits for what Kuinn fixed.
+ */
+export function reviewApproveState(
+  approve: ActionState,
+  { canApprove, historySettled, fixesPending }: { canApprove: boolean | null | undefined; historySettled: boolean; fixesPending: boolean },
+): ActionState {
+  if (!approve.enabled) return approve
+  const serverDecides = canApprove === true || canApprove === false
+  if (!serverDecides && !historySettled) return { show: true, enabled: false, reason: 'Checking who worked on this version…' }
+  if (fixesPending) return { show: true, enabled: false, reason: 'Checking what Kuinn fixed…' }
+  return approve
 }

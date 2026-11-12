@@ -127,6 +127,28 @@ describe('what the agent did', () => {
     expect(feedSummary(summary().activity)).toBe('1 in progress · 1 failed')
     expect(feedSummary([])).toBeNull()
   })
+
+  it('says an import that imported nothing as failed, and opens its failed rows (B3)', () => {
+    const IMP = '0b1c2d3e-0000-4000-8000-0000000000aa'
+    const at = '2026-11-12T13:00:00Z'
+    const rows = feedRows([
+      { kind: 'import', state: 'failed', text: 'Could not import your spreadsheet: none of its 7 rows imported', at, import_id: IMP, needs_fix: 7 },
+      { kind: 'import', state: 'completed', text: 'Imported 3 of 7 rows from your spreadsheet. 4 rows need a fix', at, import_id: IMP, needs_fix: 4 },
+      { kind: 'import', state: 'completed', text: 'Imported 5 rows from your spreadsheet', at, import_id: IMP, needs_fix: 0 },
+    ])
+    expect(rows.map((r) => [r.word, r.icon.tone])).toEqual([
+      ['Failed', 'fail'],
+      ['Partly done', 'warn'],
+      ['Done', 'ok'],
+    ])
+    expect(rows[0]!.target).toEqual({ to: '/imports/$importId', params: { importId: IMP }, search: { rows: 'failed' } })
+    expect(rows[1]!.target).toEqual({ to: '/imports/$importId', params: { importId: IMP }, search: { rows: 'failed' } })
+    expect(rows[2]!.target).toEqual({ to: '/imports/$importId', params: { importId: IMP } })
+    expect(feedSummary([
+      { kind: 'import', state: 'failed', text: 'x', at, import_id: IMP, needs_fix: 7 },
+      { kind: 'import', state: 'completed', text: 'y', at, import_id: IMP, needs_fix: 4 },
+    ])).toBe('1 failed · 1 needs a fix')
+  })
 })
 
 describe('marketplace cards', () => {
