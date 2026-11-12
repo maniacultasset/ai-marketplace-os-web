@@ -109,6 +109,7 @@ export const OP_ACTION = {
   'POST /images/upload': 'product:import',
   'GET /images/{image_id}/report': 'tenant:read',
   'DELETE /images/{image_id}': 'product:import',
+  'PATCH /images/{image_id}': 'product:import',
   'POST /images/{image_id}/photo-match/keep': 'product:import',
   'GET /products/{product_id}/image-candidates': 'tenant:read',
   'POST /products/{product_id}/image-candidates': 'product:import',

@@ -26,6 +26,8 @@ export interface TileState {
   warnings?: readonly PhotoQaWarning[]
   /** Feedback 8: the view is met without a photo (a size chart the seller saved), so no level chip. */
   satisfied?: boolean
+  /** The saved photo in the tile, once the product read lists it. */
+  imageId?: string
 }
 
 /**
@@ -78,7 +80,10 @@ export function PhotoTile({
   large,
   onPreviewError,
   showLevel,
+  action,
 }: {
+  /** Feedback 7: a control over the photo's top corner (the saved photo's "Change view" menu). */
+  action?: ReactNode
   def: PhotoSlotDef
   state: TileState
   onFiles: (files: File[]) => void
@@ -178,7 +183,8 @@ export function PhotoTile({
         </span>
       </div>
 
-      {onRemove && state.filled ? (
+      {action ? <div className="absolute top-2 right-2">{action}</div> : null}
+      {onRemove && state.filled && !action ? (
         <Button
           type="button"
           variant="secondary"

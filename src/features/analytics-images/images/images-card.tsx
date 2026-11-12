@@ -18,11 +18,12 @@ import { BUILT } from '@/api/capabilities'
 import { useCapability, useCapabilityProbe } from '@/hooks/use-capabilities'
 import { useJobPolling } from '@/hooks/use-job-polling'
 import { MARKETPLACE_META } from '@/features/marketplaces/meta'
-import { useDeleteImage, useKeepPhoto } from '@/features/products/api'
+import { useChangeImageView, useDeleteImage, useKeepPhoto } from '@/features/products/api'
 import { useRefreshProductViews } from '@/features/products/image-views'
 import { SavedPhoto } from '@/components/la/saved-photo'
 import { useKeys } from '@/lib/query-keys'
 import { OP_ACTION, useCan } from '@/lib/permissions'
+import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import {
   checkRows,
@@ -56,8 +57,10 @@ import {
   neededForApproval,
   recommendedGaps,
   tilesFor,
+  viewChoices,
   viewGaps,
   type PhotoViewState,
+  type ViewChoice,
   type SizeChartCheck,
 } from './photo-views'
 import { ALL_COLOURS, colourGroups, type ColourGroup, type ColourSource } from './colour-groups'
@@ -68,6 +71,7 @@ import { AppliedNote, CandidateBlock, OriginBadges } from './candidate-review'
 import { useCandidateSession } from './candidate-session'
 import { matchTile, openQuestions, type PhotoMatch } from './photo-match'
 import { PhotoMatchNote } from './photo-match-note'
+import { ChangeViewMenu } from './change-view-menu'
 
 interface ProductLike extends ColourSource {
   id: string
@@ -154,6 +158,57 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
   // Client feedback item 9: the seller keeps a photo the colour check questioned.
   const keepPhoto = useKeepPhoto(product.id)
   const canKeep = live && can(OP_ACTION['POST /images/{image_id}/photo-match/keep'])
+  // Client feedback 7: move a saved photo to another view, no new upload.
+  const changeView = useChangeImageView(product.id)
+  const canMove = live && can(OP_ACTION['PATCH /images/{image_id}'])
+  const [moving, setMoving] = useState<string | null>(null)
+  /** The re-check job of each photo whose slot a move changed (followed like an upload's check). */
+  const [rechecks, setRechecks] = useState<ReadonlyMap<string, string>>(new Map())
+  const move = (imageId: string, choice: ViewChoice) => {
+    setMoving(imageId)
+    changeView
+      .mutateAsync({ imageId, body: { slot: choice.slot, role: choice.role } })
+      .then((out) => {
+        const moved = [out, ...(out.swapped ? [out.swapped] : [])]
+        // This visit's uploads keep their view in step, so the tiles follow at once.
+        setUploads((list) =>
+          list.map((u) => {
+            const id = u.stage.kind === 'accepted' ? u.stage.imageId : null
+            const m = id ? moved.find((x) => x.image_id === id) : undefined
+            return m ? { ...u, slot: m.slot, role: m.role ?? null } : u
+          }),
+        )
+        setRechecks((prev) => {
+          const next = new Map(prev)
+          for (const m of moved) if (m.job_id) next.set(m.image_id, m.job_id)
+          return next
+        })
+        toast.success(`Moved to ${choice.label}`, {
+          description: out.swapped
+            ? 'The photo that was there took its old place. Both are checked again where needed.'
+            : out.job_id
+              ? 'It is checked again for its new place.'
+              : undefined,
+        })
+      })
+      .catch(() => undefined) // the error toast names it
+      .finally(() => setMoving(null))
+  }
+  /** The "Change view" menu of a saved photo the product read lists; none while it is not listed yet. */
+  const viewMenu = (imageId: string | undefined, variant: 'ghost' | 'secondary' = 'ghost', className?: string) => {
+    const d = imageId && canMove ? detailById.get(imageId) : undefined
+    if (!d) return null
+    return (
+      <ChangeViewMenu
+        label={imageLabel(d.slot, d.role ?? null)}
+        choices={viewChoices(d, details, tiles)}
+        onChoose={(choice) => move(d.image_id, choice)}
+        busy={moving === d.image_id}
+        variant={variant}
+        className={className}
+      />
+    )
+  }
   const onDelete = async (imageId: string) => {
     await del.mutateAsync(imageId)
     setUploads((list) => list.filter((u) => !(u.stage.kind === 'accepted' && u.stage.imageId === imageId)))
@@ -222,9 +277,10 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
       if (st.kind === 'failed') return { filled: false, status: describeError(st.error), tone: 'bad' }
       // Accepted: once the product read has this image's verdict, the tile says it (no reload).
       const known = st.kind === 'accepted' ? details.find((d) => d.image_id === st.imageId) : undefined
-      if (known?.compliance_status === 'passed') return { filled: true, previewUrl: mine.previewUrl, ...passedTile(known) }
-      if (known?.compliance_status === 'failed') return { filled: true, previewUrl: mine.previewUrl, status: 'Needs a fix, see below', tone: 'bad' }
-      return { filled: true, previewUrl: mine.previewUrl, status: 'Uploaded, checking…', tone: 'busy' }
+      const imageId = known?.image_id
+      if (known?.compliance_status === 'passed') return { filled: true, imageId, previewUrl: mine.previewUrl, ...passedTile(known) }
+      if (known?.compliance_status === 'failed') return { filled: true, imageId, previewUrl: mine.previewUrl, status: 'Needs a fix, see below', tone: 'bad' }
+      return { filled: true, imageId, previewUrl: mine.previewUrl, status: 'Uploaded, checking…', tone: 'busy' }
     }
     const held = details.find((d) => photoSlotOf(d.slot, d.role) === def.id && (def.slot === 'size_chart' || (d.colourway_id ?? null) === cw))
     if (!held) {
@@ -236,9 +292,10 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
     }
     const previewUrl = held.view_url ?? undefined
     const warnings = qaById.get(held.image_id)
-    if (held.compliance_status === 'passed') return { filled: true, previewUrl, ...passedTile(held), warnings }
-    if (held.compliance_status === 'failed') return { filled: true, previewUrl, status: 'Needs a fix, see below', tone: 'bad', warnings }
-    return { filled: true, previewUrl, status: 'Checking…', tone: 'busy' }
+    const imageId = held.image_id
+    if (held.compliance_status === 'passed') return { filled: true, imageId, previewUrl, ...passedTile(held), warnings }
+    if (held.compliance_status === 'failed') return { filled: true, imageId, previewUrl, status: 'Needs a fix, see below', tone: 'bad', warnings }
+    return { filled: true, imageId, previewUrl, status: 'Checking…', tone: 'busy' }
   }
 
   // Image candidates (SI7). The list call says whether the backend has them: a 404 or 405 means
@@ -287,7 +344,8 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
       // The product read is the truth for the slot: a demoted main's cached report may still say main.
       knownSlot: d?.slot,
       knownRole: d?.role ?? null,
-      acceptedJob: session.accepted.get(imageId),
+      acceptedJob: session.accepted.get(imageId) ?? rechecks.get(imageId),
+      viewMenu: viewMenu(imageId),
       badges: label || kept.has(imageId) ? <OriginBadges label={label} kept={kept.has(imageId)} /> : null,
       extra:
         d?.slot === 'main' ? (
@@ -384,7 +442,7 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
               {tiles.map((def) => (
                 <Fragment key={def.id}>
                   {def.id === 'back' && !checklist ? <PhotoSlotRowCaption /> : null}
-                  <PhotoTile def={def} large={def.id === 'front'} state={tileState(def)} onFiles={(files) => addAs(files, def.slot, def.role, null)} onPreviewError={refreshViews} showLevel={checklist} />
+                  <TileWithMenu def={def} state={tileState(def)} menu={viewMenu} onFiles={(files) => addAs(files, def.slot, def.role, null)} onPreviewError={refreshViews} showLevel={checklist} />
                 </Fragment>
               ))}
             </PhotoSlotGrid>
@@ -457,9 +515,9 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
                       {groupTiles.map((def) => (
                         <Fragment key={def.id}>
                           {def.id === 'back' && !checklist ? <PhotoSlotRowCaption /> : null}
-                          <PhotoTile
+                          <TileWithMenu
                             def={def}
-                            large={def.id === 'front'}
+                            menu={viewMenu}
                             state={tileState(def, g.key)}
                             onFiles={(files) => addAs(files, def.slot, def.role, g.colourwayId)}
                             onPreviewError={refreshViews}
@@ -492,7 +550,7 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         </ul>
       ) : null}
 
-      {[...session.accepted].map(([imageId, jobId]) => (
+      {[...session.accepted, ...rechecks].map(([imageId, jobId]) => (
         <AcceptedImageWatcher key={jobId} imageId={imageId} jobId={jobId} productId={product.id} />
       ))}
 
@@ -504,6 +562,23 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
       ) : null}
     </Card>
   )
+}
+
+/** A photo tile with its saved photo's "Change view" menu over the picture's top corner. */
+function TileWithMenu({
+  def,
+  state,
+  menu,
+  ...rest
+}: {
+  def: PhotoSlotDef
+  state: TileState
+  menu: (imageId: string | undefined, variant: 'ghost' | 'secondary', className?: string) => ReactNode
+  onFiles: (files: File[]) => void
+  onPreviewError?: () => void
+  showLevel?: boolean
+}) {
+  return <PhotoTile def={def} large={def.id === 'front'} state={state} action={state.filled ? menu(state.imageId, 'secondary') : null} {...rest} />
 }
 
 /**
@@ -759,7 +834,10 @@ function ImageRow({
   acceptedJob,
   match,
   onKeep,
+  viewMenu,
 }: {
+  /** Client feedback 7: the saved photo's "Change view" menu; absent when the person may not move it. */
+  viewMenu?: ReactNode
   /** Client feedback item 9: does the photo show this product in its colour. */
   match?: PhotoMatch | null
   /** Keep a photo the colour check questioned; absent when the person may not. */
@@ -883,6 +961,7 @@ function ImageRow({
                 <Icon name="refresh" size={16} className={cn(report.isFetching && 'motion-safe:animate-spin')} />
               </Button>
             ) : null}
+            {viewMenu}
             {onDelete && !confirm ? (
               <Button variant="ghost" size="icon-sm" aria-label={`Delete ${title.toLowerCase()} image`} onClick={() => setConfirm(true)} data-testid="image-delete">
                 <Icon name="trash" size={16} />
