@@ -13,9 +13,11 @@
 import type { ErrorItem } from './gates'
 
 type Finding = Pick<ErrorItem, 'error_code' | 'severity' | 'source' | 'rule_id' | 'field'>
+/** What isRecommendation reads; loose, so a partial finding (sellerFinding's) is enough. */
+type FindingLike = { field: string; error_code?: string | null; severity?: string | null; source?: string | null; rule_id?: string | null }
 
 /** A missing recommended attribute: the template's own warning (backend `is_recommendation`). */
-export function isRecommendation(f: Finding): boolean {
+export function isRecommendation(f: FindingLike): boolean {
   return f.error_code === 'MISSING_ATTRIBUTE' && f.severity === 'warning' && f.source === 'rules_engine' && !f.rule_id && f.field.startsWith('attributes.')
 }
 

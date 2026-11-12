@@ -276,7 +276,7 @@ export function ProductDetailsCard({
             ) : isStyle ? (
               <StyleBarcode variants={variants} />
             ) : product.identifier_exemption ? (
-              <span data-testid="product-barcode">No barcode (exempt)</span>
+              <span data-testid="product-barcode">No barcode · Amazon GTIN exemption</span>
             ) : (
               <Missing needed={need('identifier')}>Needed for Amazon</Missing>
             )}

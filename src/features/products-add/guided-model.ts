@@ -152,7 +152,7 @@ export interface GuidedValues {
   /** This product has its own manufacturer (else the brand default applies). */
   ownManufacturer: boolean
   manufacturer: PartyDraft
-  /** EAN, UPC or GTIN, or "No barcode (exempt)" (features/products/barcode.ts). */
+  /** EAN, UPC or GTIN, or "No barcode" and the GTIN exemption answer (features/products/barcode.ts). */
   barcode: BarcodeDraft
   /** SI8 audience (`gender`); '' = not chosen. */
   gender: Gender | ''
@@ -244,6 +244,7 @@ export function isEmptyGuided(v: GuidedValues): boolean {
     !v.ownManufacturer &&
     !normalizeBarcode(v.barcode.value) &&
     !v.barcode.exempt &&
+    !v.barcode.none &&
     !v.gender &&
     !v.ownBrand &&
     (!v.hsn.trim() || v.hsnSuggested) &&
@@ -317,7 +318,7 @@ export function validateGuided(v: GuidedValues, listable?: readonly string[] | n
   if (price) e.selling_price = price
   else if (!mrp && priceAboveMrp(v.sellingPrice, v.mrp)) e.selling_price = SELLING_ABOVE_MRP
   if (v.ownManufacturer) for (const [k, msg] of Object.entries(partyProblems(v.manufacturer))) e[`manufacturer.${k}`] = msg
-  const barcode = v.barcode.exempt ? null : barcodeProblem(v.barcode.type, v.barcode.value)
+  const barcode = v.barcode.exempt || v.barcode.none ? null : barcodeProblem(v.barcode.type, v.barcode.value)
   if (barcode) e[BARCODE_KEY] = barcode
   const hsn = hsnProblem(v.hsn)
   if (hsn) e.hsn_code = hsn
@@ -486,7 +487,7 @@ export function sectionStates(v: GuidedValues, ctx: GuidedContext = noContext, s
   const errs = validateGuided(v, ctx.listable)
   const missing = missingCriticalBy(v, ctx)
   const content: Record<SectionId, boolean> = {
-    identity: !!(v.sku.trim() || v.title.trim() || v.styleNumber.trim() || normalizeBarcode(v.barcode.value) || v.barcode.exempt),
+    identity: !!(v.sku.trim() || v.title.trim() || v.styleNumber.trim() || normalizeBarcode(v.barcode.value) || v.barcode.none || v.barcode.exempt),
     category: !!v.category.trim() || v.kuinnSuggests,
     fabric:
       ATTR_FIELDS.some((f) => f.section === 'fabric' && (v.attrs[f.key] ?? '').trim()) ||

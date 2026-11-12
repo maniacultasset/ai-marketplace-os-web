@@ -95,12 +95,15 @@ describe('Guided form identity: required marks and the barcode', () => {
     expect(screen.getByTestId('g-barcode-field').textContent).not.toMatch(/Amazon/)
   })
 
-  it('offers the exemption as an explicit choice next to the barcode', async () => {
+  it('"No barcode" asks whether Amazon granted a GTIN exemption, and never assumes it (Chrome pass B5)', async () => {
     setup(['amazon'])
     expect(screen.getByRole('radiogroup', { name: 'Barcode' })).toBeTruthy()
     expect(screen.getByRole('radio', { name: 'Has a barcode' })).toHaveProperty('checked', true)
-    await userEvent.click(screen.getByRole('radio', { name: 'No barcode: my brand has an Amazon GTIN exemption' }))
+    await userEvent.click(screen.getByRole('radio', { name: 'No barcode' }))
     expect(document.getElementById('g-barcode-value')).toBeNull()
-    expect(screen.getByText('Amazon approves GTIN exemptions per brand and category. Choose this only if yours is approved.')).toBeTruthy()
+    expect(screen.getByRole('radiogroup', { name: 'Has Amazon granted your brand a GTIN exemption?' })).toBeTruthy()
+    expect(screen.getByRole('radio', { name: 'Yes, it is approved' })).toHaveProperty('checked', false)
+    expect(screen.getByText(/Amazon will not create the listing without a barcode or an approved exemption/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: /How to get a GTIN exemption/ })).toBeTruthy()
   })
 })
