@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { toast } from '@/lib/toast'
+import { mappingText, useCatalogCategories } from './catalog-categories'
 import { categoryChoices, categoryLabel } from './categories'
 import { recategorizeRefusal, useRecategorize, type RecategorizeState } from './recategorize'
 
@@ -43,6 +44,9 @@ function ChangeCategoryDialog({ productId, current, onClose }: { productId: stri
   const [value, setValue] = useState(choices[0]?.value ?? '')
   const [refusal, setRefusal] = useState<string | null>(null)
   const change = useRecategorize(productId)
+  const catalog = useCatalogCategories()
+  // Client feedback item 5: the product type each marketplace is sent for the new category.
+  const mapping = mappingText(catalog.data?.items?.find((c) => c.category === value))
 
   const submit = () => {
     if (!value) return
@@ -69,7 +73,11 @@ function ChangeCategoryDialog({ productId, current, onClose }: { productId: stri
           </AlertDialogDescription>
         </AlertDialogHeader>
         {choices.length ? (
-          <LaField label="New category" htmlFor="recategorize">
+          <LaField
+            label="New category"
+            htmlFor="recategorize"
+            hint={mapping ? <span data-testid="change-category-mapping">{mapping}</span> : undefined}
+          >
             <Select value={value} onValueChange={setValue} disabled={change.isPending}>
               <SelectTrigger id="recategorize" className="w-full" aria-describedby={fieldHintId('recategorize')}>
                 <SelectValue placeholder="Choose" />

@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { AI_PAUSED_TEXT, isAiPausedError, markAiPaused } from '@/features/ai-credit/model'
 import { categoryLabel } from '@/features/products/categories'
+import { CategoryMappingLine } from '@/features/products/category-mapping'
 import { CategorySelect } from '@/features/products/category-select'
 import { useCatalogCategories } from '@/features/products/catalog-categories'
 import { productQuery, useUpdateProduct, type ProductDetail } from '@/features/products/api'
@@ -49,6 +50,7 @@ export function CategorySuggestionCard({ product, className }: { product: Produc
   const update = useUpdateProduct(product.id)
   const lamps = useLampsEnabled()
   const catalog = useCatalogCategories()
+  const catalogItems = catalog.data?.items ?? null
   /** The suggestion's `at` when the seller asked (undefined: not asking). A new `at` means it landed. */
   const [askedFrom, setAskedFrom] = useState<string | null | undefined>(undefined)
   const currentAt = product.suggestions?.category?.at ?? null
@@ -181,6 +183,7 @@ export function CategorySuggestionCard({ product, className }: { product: Produc
                     </span>
                   </span>
                   {c.rationale ? <span className="mt-0.5 block text-small break-words text-ink-2">{c.rationale}</span> : null}
+                  <CategoryMappingLine category={c.category} catalog={catalogItems} className="mt-1" data-testid="category-candidate-mapping" />
                 </span>
               </label>
             )
@@ -190,16 +193,19 @@ export function CategorySuggestionCard({ product, className }: { product: Produc
 
       {canChoose && (view.kind === 'candidates' || view.kind === 'none' || (view.kind === 'ask' && !asking)) ? (
         <div className="grid gap-3 md:grid-cols-2">
-          <CategorySelect
-            id={`suggest-other-${product.id}`}
-            value={other}
-            onChange={(slug) => setOther(slug)}
-            lampsEnabled={lamps.enabled}
-            catalog={catalog.data?.items ?? null}
-            required={false}
-            disabled={busy}
-            hint={view.kind === 'candidates' ? 'Or pick another category.' : 'Decides which marketplace template the agent fills.'}
-          />
+          <div className="flex flex-col gap-1.5">
+            <CategorySelect
+              id={`suggest-other-${product.id}`}
+              value={other}
+              onChange={(slug) => setOther(slug)}
+              lampsEnabled={lamps.enabled}
+              catalog={catalogItems}
+              required={false}
+              disabled={busy}
+              hint={view.kind === 'candidates' ? 'Or pick another category.' : 'Decides which marketplace template the agent fills.'}
+            />
+            {other ? <CategoryMappingLine category={other} catalog={catalogItems} data-testid="category-other-mapping" /> : null}
+          </div>
         </div>
       ) : null}
 
