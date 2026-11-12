@@ -93,4 +93,30 @@ describe('Bulk upload duplicate SKU check (client feedback 11 Nov, item 3)', () 
     await screen.findByTestId('csv-sku-unknown')
     await waitFor(() => expect(screen.getByTestId('csv-sku-fails').textContent).toContain('KS-1 is on rows 2, 3'))
   })
+
+  it('reads the SKU column Kuinn matched in the column map, and flags a family’s style sent alone', async () => {
+    const map = {
+      id: 'map-1',
+      status: 'ready',
+      needs_review_count: 0,
+      created_at: '2026-11-12T00:00:00Z',
+      mappings: [
+        { position: 1, header_shown: 'Item code', key: 'seller_sku', method: 'ai', confidence: 0.95, needs_review: false },
+        { position: 2, header_shown: 'product_name', key: 'product_name', method: 'exact', confidence: 1, needs_review: false },
+        { position: 3, header_shown: 'category', key: 'category', method: 'exact', confidence: 1, needs_review: false },
+      ],
+    }
+    post.mockImplementation((path: string) => {
+      if (path === '/imports/column-maps') return ok(map, 201)
+      if (path === '/skus/availability-check')
+        return ok({ checked: 2, taken: [{ sku: 'ST-1', available: false, product_id: 'p1', title: 'Linen set', is_variant: false, deleted: false, family_role: 'style' }] })
+      return refuse(404)
+    })
+    get.mockImplementation(() => ok(map))
+    await open('Item code,product_name,category\nST-1,Linen set,tshirts\nNEW-1,Tee,tshirts\n')
+    const fails = await screen.findByTestId('csv-sku-fails')
+    expect(checks()[0]![1].body).toEqual({ skus: ['ST-1', 'NEW-1'] })
+    expect(fails.textContent).toContain('Row 2: ST-1 is “Linen set”, a style with sizes or colours. Send it with its variants')
+    expect(screen.getByText('1 row will fail for the SKU')).toBeTruthy()
+  })
 })

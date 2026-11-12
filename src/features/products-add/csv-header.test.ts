@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeCsv, analyzeHeader, linkProblem, parseCsv } from './csv-header'
+import { analyzeCsv, analyzeHeader, csvSkuRows, linkProblem, parseCsv } from './csv-header'
 
 describe('parseCsv', () => {
   it('handles quotes, commas, CRLF and embedded line breaks', () => {
@@ -63,12 +63,24 @@ describe('analyzeCsv skuRows (client feedback 11 Nov, item 3)', () => {
   it('reads each row’s trimmed seller_sku with its record number and whether it names a style', () => {
     const a = analyzeCsv('product_name,seller_sku,category,parent_sku\nKurta, KS-1 ,tshirts,\nKurta S,KS-1-S,tshirts,KS-1\nNo sku,,tshirts,\n')
     expect(a.skuRows).toEqual([
-      { row: 2, sku: 'KS-1', hasParent: false },
-      { row: 3, sku: 'KS-1-S', hasParent: true },
+      { row: 2, sku: 'KS-1', parent: null },
+      { row: 3, sku: 'KS-1-S', parent: 'KS-1' },
     ])
   })
 
   it('has no SKU rows without a seller_sku column', () => {
     expect(analyzeCsv('product_name,category\nKurta,tshirts\n').skuRows).toEqual([])
+  })
+})
+
+describe('csvSkuRows (client feedback 11 Nov, item 3)', () => {
+  it('reads the SKU and style from the given 1-based positions, as a column map names them', () => {
+    const records = parseCsv('Item code,Name,Style of\n A-1 ,Kurta,\nA-1-S,Small, A-1 \n,Blank,\n')
+    expect(csvSkuRows(records, 1, 3)).toEqual([
+      { row: 2, sku: 'A-1', parent: null },
+      { row: 3, sku: 'A-1-S', parent: 'A-1' },
+    ])
+    expect(csvSkuRows(records, 1, undefined).map((r) => r.parent)).toEqual([null, null])
+    expect(csvSkuRows(records, undefined, 3)).toEqual([])
   })
 })

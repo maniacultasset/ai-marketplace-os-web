@@ -9,8 +9,11 @@
  * What a clash means differs by screen, as the import treats it (backend services/imports/runner.py):
  * - variants grid: a SKU held by this style's own variant updates it; one held by any other product
  *   is a clash; a deleted product's SKU brings that product back as this variant (a note).
- * - bulk upload: any existing SKU updates that product (a note); one held by a variant, on a row
- *   with no parent_style_id, fails the row; every repeat after the first row fails.
+ * - bulk upload: any existing SKU updates that product (a note), except where the runner refuses
+ *   the row: a variant's SKU on a row with no parent_style_id; a family style's SKU on a plain
+ *   row (no parent_style_id, and no row names it as its style); a parent_style_id that names a
+ *   variant. Every repeat after the first row fails. `family_role` covers deleted rows too: an
+ *   upsert revives them in the same shape.
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
@@ -85,9 +88,11 @@ export function useTakenSkus(skus: readonly string[], enabled = true) {
   }
 }
 
+const isVariant = (t: SkuAvailability) => t.is_variant || t.family_role === 'variant'
+
 const holder = (t: SkuAvailability) => {
-  const name = t.title ? `“${t.title}”` : 'another product'
-  return t.is_variant ? `a size or colour of ${name}` : name
+  const name = t.deleted ? 'a deleted product' : t.title ? `“${t.title}”` : 'another product'
+  return isVariant(t) ? `a size or colour of ${name}` : name
 }
 
 export interface VariantSkuCheck {
@@ -117,9 +122,12 @@ export interface CsvSkuRow {
   /** The CSV record number, header = 1 (the import report's `row_number`). */
   row: number
   sku: string
-  /** The row names a style in parent_style_id. */
-  hasParent: boolean
+  /** The style the row names in parent_style_id, or null. */
+  parent: string | null
 }
+
+/** The SKUs a file's rows send: each row's own and the styles they name (pure). */
+export const csvSkus = (rows: readonly CsvSkuRow[]): string[] => rows.flatMap((r) => (r.parent ? [r.sku, r.parent] : [r.sku]))
 
 export interface SkuRepeat {
   sku: string
@@ -151,16 +159,24 @@ export interface CsvSkuFindings {
 export function csvSkuFindings(rows: readonly CsvSkuRow[], taken: TakenSkus): CsvSkuFindings {
   const fails: CsvSkuFinding[] = []
   const updates: CsvSkuFinding[] = []
+  const styles = new Set(rows.flatMap((r) => (r.parent ? [r.parent] : [])))
   const seen = new Set<string>()
   for (const r of rows) {
     if (seen.has(r.sku)) continue
     seen.add(r.sku)
+    const parent = r.parent ? taken.get(r.parent) : undefined
+    if (parent && isVariant(parent)) {
+      fails.push({ row: r.row, sku: r.sku, message: `${r.parent} in parent_style_id is ${holder(parent)}, not a style. Name the style’s SKU there.` })
+      continue
+    }
     const t = taken.get(r.sku)
     if (!t) continue
-    if (t.deleted) updates.push({ row: r.row, sku: r.sku, message: `${r.sku} belonged to a deleted product. This row brings it back.` })
-    else if (t.is_variant && !r.hasParent)
+    if (isVariant(t) && !r.parent)
       fails.push({ row: r.row, sku: r.sku, message: `${r.sku} is ${holder(t)}. Add its style in parent_style_id, or use a new SKU.` })
-    else updates.push({ row: r.row, sku: r.sku, message: `${r.sku} updates ${t.is_variant ? holder(t) : (t.title ? `“${t.title}”` : 'the product that has it')}.` })
+    else if (t.family_role === 'style' && !r.parent && !styles.has(r.sku))
+      fails.push({ row: r.row, sku: r.sku, message: `${r.sku} is ${holder(t)}, a style with sizes or colours. Send it with its variants (rows whose parent_style_id is ${r.sku}), or use a new SKU.` })
+    else if (t.deleted) updates.push({ row: r.row, sku: r.sku, message: `${r.sku} belonged to a deleted product. This row brings it back.` })
+    else updates.push({ row: r.row, sku: r.sku, message: `${r.sku} updates ${t.is_variant ? holder(t) : t.title ? `“${t.title}”` : 'the product that has it'}.` })
   }
   return { fails, updates }
 }

@@ -201,15 +201,23 @@ export function analyzeCsv(text: string): HeaderAnalysis {
       if (p) linkProblems.push({ row: i + 2, ...p })
     })
   const at = (field: string) => analysis.columns.find((c) => c.field === field && (c.match === 'ok' || c.match === 'alias'))?.position
-  const skuAt = at('seller_sku')
-  const parentAt = at('parent_style_id')
-  const skuRows: CsvSkuRow[] = []
-  if (skuAt !== undefined)
-    records.slice(1).forEach((r, i) => {
-      const sku = (r[skuAt - 1] ?? '').trim()
-      if (sku) skuRows.push({ row: i + 2, sku, hasParent: parentAt !== undefined && (r[parentAt - 1] ?? '').trim() !== '' })
-    })
+  const skuRows = csvSkuRows(records, at('seller_sku'), at('parent_style_id'))
   return { ...analysis, rows: Math.max(0, records.length - 1), photoLinkRows, linkProblems, skuRows }
+}
+
+/**
+ * Each record's trimmed seller_sku and parent_style_id (blank SKUs left out), from the 1-based
+ * column positions: the header's own match, or the confirmed column map's (pure).
+ */
+export function csvSkuRows(records: readonly (readonly string[])[], skuAt: number | undefined, parentAt: number | undefined): CsvSkuRow[] {
+  const out: CsvSkuRow[] = []
+  if (skuAt === undefined) return out
+  records.slice(1).forEach((r, i) => {
+    const sku = (r[skuAt - 1] ?? '').trim()
+    const parent = parentAt === undefined ? '' : (r[parentAt - 1] ?? '').trim()
+    if (sku) out.push({ row: i + 2, sku, parent: parent || null })
+  })
+  return out
 }
 
 export const MATCH_COPY: Record<ColumnMatch, string> = {

@@ -6953,6 +6953,11 @@ export interface components {
              */
             deleted: boolean;
             /**
+             * Family Role
+             * @description Set when the SKU belongs to a family, deleted or not: `style` (the style of a family with sizes or colours) or `variant` (one of its sizes or colours). A CSV row with a variant's SKU needs its `parent_style_id`; a family's style is sent with its variants. Null for a standalone product or a free SKU.
+             */
+            family_role?: ("style" | "variant") | null;
+            /**
              * Is Variant
              * @default false
              */

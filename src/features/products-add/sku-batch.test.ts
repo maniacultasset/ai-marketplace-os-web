@@ -6,7 +6,7 @@ vi.mock('@/api/client', async (orig) => ({
   api: { POST: (...a: unknown[]) => post(...a) },
 }))
 
-const { SKU_BATCH_MAX, checkable, chunks, csvSkuFindings, fetchTakenSkus, repeatedSkus, variantSkuClashes } = await import('./sku-batch')
+const { SKU_BATCH_MAX, checkable, chunks, csvSkuFindings, csvSkus, fetchTakenSkus, repeatedSkus, variantSkuClashes } = await import('./sku-batch')
 
 const ok = (body: unknown) => Promise.resolve({ data: body, error: undefined, response: new Response(JSON.stringify(body), { status: 200 }) })
 const taken = (sku: string, over: Record<string, unknown> = {}) => ({ sku, available: false, product_id: `id-${sku}`, title: 'Kurta set', is_variant: false, deleted: false, ...over })
@@ -59,19 +59,20 @@ describe('the batch SKU check (client feedback 11 Nov, item 3)', () => {
 
   it('bulk upload: repeats name every row; each SKU’s first row is judged against the brand', () => {
     const rows = [
-      { row: 2, sku: 'A-1', hasParent: false },
-      { row: 3, sku: 'V-1', hasParent: false },
-      { row: 4, sku: 'V-2', hasParent: true },
-      { row: 5, sku: 'A-1', hasParent: false },
-      { row: 6, sku: 'OLD', hasParent: false },
-      { row: 7, sku: 'NEW', hasParent: false },
-      { row: 8, sku: 'A-1', hasParent: false },
+      { row: 2, sku: 'A-1', parent: null },
+      { row: 3, sku: 'V-1', parent: null },
+      { row: 4, sku: 'V-2', parent: 'ST-1' },
+      { row: 5, sku: 'A-1', parent: null },
+      { row: 6, sku: 'OLD', parent: null },
+      { row: 7, sku: 'NEW', parent: null },
+      { row: 8, sku: 'A-1', parent: null },
     ]
     expect(repeatedSkus(rows)).toEqual([{ sku: 'A-1', rows: [2, 5, 8] }])
+    expect(csvSkus(rows)).toEqual(['A-1', 'V-1', 'V-2', 'ST-1', 'A-1', 'OLD', 'NEW', 'A-1'])
     const map = new Map([
       ['A-1', taken('A-1', { title: 'Cotton kurta' })],
-      ['V-1', taken('V-1', { is_variant: true })],
-      ['V-2', taken('V-2', { is_variant: true })],
+      ['V-1', taken('V-1', { is_variant: true, family_role: 'variant' })],
+      ['V-2', taken('V-2', { is_variant: true, family_role: 'variant' })],
       ['OLD', taken('OLD', { product_id: null, title: null, deleted: true })],
     ])
     const out = csvSkuFindings(rows, map)
@@ -81,5 +82,32 @@ describe('the batch SKU check (client feedback 11 Nov, item 3)', () => {
       [4, 'V-2 updates a size or colour of “Kurta set”.'],
       [6, 'OLD belonged to a deleted product. This row brings it back.'],
     ])
+  })
+
+  it('bulk upload: a family’s style sent alone, a deleted variant without its style and a parent that is a variant fail', () => {
+    const rows = [
+      { row: 2, sku: 'ST-1', parent: null },
+      { row: 3, sku: 'ST-2', parent: null },
+      { row: 4, sku: 'ST-2-S', parent: 'ST-2' },
+      { row: 5, sku: 'GONE-S', parent: null },
+      { row: 6, sku: 'NEW-S', parent: 'V-9' },
+      { row: 7, sku: 'GONE-ST', parent: null },
+    ]
+    const map = new Map([
+      ['ST-1', taken('ST-1', { title: 'Linen set', family_role: 'style' })],
+      ['ST-2', taken('ST-2', { title: 'Silk set', family_role: 'style' })],
+      ['GONE-S', taken('GONE-S', { product_id: null, title: null, deleted: true, family_role: 'variant' })],
+      ['V-9', taken('V-9', { title: 'Scarf', is_variant: true, family_role: 'variant' })],
+      ['GONE-ST', taken('GONE-ST', { product_id: null, title: null, deleted: true, family_role: 'style' })],
+    ])
+    const out = csvSkuFindings(rows, map)
+    expect(out.fails).toEqual([
+      { row: 2, sku: 'ST-1', message: 'ST-1 is “Linen set”, a style with sizes or colours. Send it with its variants (rows whose parent_style_id is ST-1), or use a new SKU.' },
+      { row: 5, sku: 'GONE-S', message: 'GONE-S is a size or colour of a deleted product. Add its style in parent_style_id, or use a new SKU.' },
+      { row: 6, sku: 'NEW-S', message: 'V-9 in parent_style_id is a size or colour of “Scarf”, not a style. Name the style’s SKU there.' },
+      { row: 7, sku: 'GONE-ST', message: 'GONE-ST is a deleted product, a style with sizes or colours. Send it with its variants (rows whose parent_style_id is GONE-ST), or use a new SKU.' },
+    ])
+    // The style sent with its own variant row is a family update, not a failure.
+    expect(out.updates.map((u) => u.row)).toEqual([3])
   })
 })
