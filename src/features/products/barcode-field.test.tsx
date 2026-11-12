@@ -101,4 +101,17 @@ describe('BarcodeField', () => {
     expect(input.getAttribute('aria-invalid')).toBe('true')
     expect(screen.getByText('The last digit doesn’t match.')).toBeTruthy()
   })
+  it("with Amazon chosen, links to Amazon India's GTIN exemption page next to the choice", () => {
+    render(<Harness amazon />)
+    const link = screen.getByRole('link', { name: /How to get a GTIN exemption/ })
+    expect(link.getAttribute('href')).toBe('https://sellercentral.amazon.in/help/hub/reference/G200426310')
+    expect(screen.getByTestId('b-exemption-help').textContent).toContain('Amazon asks for the brand name, the category and photos of the product and its pack.')
+    fireEvent.click(screen.getByRole('radio', { name: 'No barcode: my brand has an Amazon GTIN exemption' }))
+    expect(screen.getByRole('link', { name: /How to get a GTIN exemption/ })).toBeTruthy()
+  })
+
+  it('without Amazon shows no exemption link', () => {
+    render(<Harness />)
+    expect(screen.queryByRole('link', { name: /GTIN exemption/ })).toBeNull()
+  })
 })

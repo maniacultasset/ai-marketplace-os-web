@@ -59,6 +59,7 @@ import {
   type InboxItem,
   type InboxSearch,
 } from './model'
+import { answerApprovalLine, useOwnerMayApproveOwn } from '@/features/team-account/approver'
 import { AccountTask } from './account-task'
 import type { ProductsById, ProductSummary } from './api'
 import { Ago, CodeBlock, FixTrail, KeyValues } from './parts'
@@ -294,8 +295,8 @@ function TaskDetail({
                 ? 'This holds your listing back. Regenerate the listing after you add it.'
                 : fact && refusal
                   ? publishingPaused
-                    ? 'Kuinn adds your answer to a new version and checks it. A teammate then approves it. Publishing to Amazon is paused for now.'
-                    : 'Kuinn adds your answer to a new version and checks it. A teammate then approves the resend.'
+                    ? <>Kuinn adds your answer to a new version and checks it. <AnswerApproval resend={false} /> Publishing to Amazon is paused for now.</>
+                    : <>Kuinn adds your answer to a new version and checks it. <AnswerApproval resend /></>
                   : fact
                     ? `${photo ? 'This holds your listing back. ' : ''}Regenerate the listing after you answer to use it.`
                     : `The agent resumes from ${RESUME_LABEL[task.resume_from]} once this is answered.`}
@@ -572,13 +573,19 @@ function TaskLinks({ task, photoFixes }: { task: Task; photoFixes: boolean }) {
   )
 }
 
+/** Item 17: who approves the new version an answer makes; an owner under owner approval does it. */
+function AnswerApproval({ resend }: { resend: boolean }) {
+  return answerApprovalLine({ ownApproval: useOwnerMayApproveOwn(), resend })
+}
+
 function IssuePane({ issue, position, product }: { issue: Issue; position: string | null; product?: ProductSummary & { id: string } }) {
   const can = useCan()
+  const ownApproval = useOwnerMayApproveOwn()
   // A closed Kuinn fix needs the listing's attempts to say "Fixed for you" (SI11 lanes).
   const closedFix = issue.status !== 'open' && !!issue.lane
   const listing = useListing(issue.listing_id, { enabled: closedFix })
   const resolution = useListingResolution(issue.listing_id, { enabled: closedFix && issue.marketplace === 'amazon' })
-  const fix = fixContext(resolution.data, listing.data?.data)
+  const fix = fixContext(resolution.data, listing.data?.data, ownApproval)
   const chip = issueChip(issue, fix)
   const marketplace = MARKETPLACE_LABEL[issue.marketplace]
   const fromMarketplace = issue.source === 'amazon_adapter' || issue.source === 'flipkart_adapter'

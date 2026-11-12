@@ -52,6 +52,13 @@ describe('resolutionHeadline: one calm line per state', () => {
     expect(h.working).toBe(false)
   })
 
+  it('fix_ready never asks for a teammate when the viewer may approve it (owner approval on)', () => {
+    const h = resolutionHeadline(resolution({ state: 'fix_ready' }), { marketplace: 'amazon', ownApproval: true })
+    expect(h.line).toBe('Kuinn changed the text. You can approve it, then it is sent again.')
+    const paused = resolutionHeadline(resolution({ state: 'fix_ready' }), { marketplace: 'amazon', ownApproval: true, publishingPaused: true })
+    expect(paused.line).toBe('Kuinn changed the text. You can approve it. Publishing to Amazon is paused for now, so nothing is sent.')
+  })
+
   it('needs_you', () => {
     expect(headline({ state: 'needs_you' }).title).toBe('Needs you')
   })
@@ -180,6 +187,10 @@ describe('resolutionAction and helpers', () => {
     expect(resolutionAction(resolution({ next_step: { kind: 'resume', task_ids: [], text: '' } }))).toEqual({ kind: 'change' })
     expect(resolutionAction(resolution({ next_step: { kind: 'regenerate', task_ids: [], text: '' } }))).toEqual({ kind: 'regenerate' })
     expect(resolutionAction(resolution({ next_step: { kind: 'wait', task_ids: [], text: '' } }))).toEqual({ kind: 'none' })
+  })
+
+  it('sends a refused barcode or exemption back to the barcode choice', () => {
+    expect(resolutionAction(resolution({ state: 'needs_you', next_step: { kind: 'edit_identifier', task_ids: [], text: '' } }))).toEqual({ kind: 'edit_identifier' })
   })
 
   it('hasResolution hides an idle listing Kuinn never worked on', () => {

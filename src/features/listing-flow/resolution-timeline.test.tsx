@@ -109,6 +109,26 @@ describe('ResolutionActionLink', () => {
     expect(screen.getByTestId('resolution-marketplace').textContent).toBe('See the Amazon step')
   })
 
+  it('opens the product editor at the barcode choice, with Amazon\'s exemption help', () => {
+    render(<ResolutionActionLink action={{ kind: 'edit_identifier' }} listingId="l1" marketplace="amazon" productId="p1" />)
+    const link = screen.getByTestId('resolution-edit-identifier')
+    expect(link.getAttribute('href')).toBe('/products/p1?edit=barcode')
+    expect(link.textContent).toBe('Fix the barcode or exemption')
+    expect(screen.getByTestId('resolution-exemption-help-link').getAttribute('href')).toBe('https://sellercentral.amazon.in/help/hub/reference/G200426310')
+  })
+
+  it('keeps the exemption help but no editor link for someone who cannot edit the product', () => {
+    render(<ResolutionActionLink action={{ kind: 'edit_identifier' }} listingId="l1" marketplace="amazon" productId={null} />)
+    expect(screen.queryByTestId('resolution-edit-identifier')).toBeNull()
+    expect(screen.getByTestId('resolution-exemption-help')).toBeTruthy()
+  })
+
+  it('shows no Amazon exemption help on Flipkart', () => {
+    render(<ResolutionActionLink action={{ kind: 'edit_identifier' }} listingId="l1" marketplace="flipkart" productId="p1" />)
+    expect(screen.getByTestId('resolution-edit-identifier')).toBeTruthy()
+    expect(screen.queryByTestId('resolution-exemption-help')).toBeNull()
+  })
+
   it('renders nothing for no action', () => {
     const { container } = render(<ResolutionActionLink action={{ kind: 'none' }} listingId="l1" marketplace="amazon" />)
     expect(container.innerHTML).toBe('')

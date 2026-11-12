@@ -30,12 +30,12 @@ import {
 import { clearStatusHandle, readStatusHandle, saveStatusHandle, type StatusHandleEntry } from '@/features/signup-admin/status-handle'
 import { TimeAgo } from '@/features/signup-admin/time'
 import { useCountdown } from '@/features/signup-admin/use-countdown'
+import { approvedSignIn } from '@/lib/sign-in-state'
 import { FORM_VALIDATION_MODE } from '@/lib/validation'
 import { AsideLink, AuthFootnote, AuthFrame, FormAlert } from './auth-frame'
-import { signupChip } from './model'
 import { useDocumentTitle } from './use-document-title'
-import { pollErrorMessage, pollErrorRef, useWaitingStatus, WAITING_TITLE, waitingCopy, type StatusView } from './waiting'
-import { WaitingActions } from './waiting-status'
+import { pollErrorMessage, pollErrorRef, useWaitingStatus, viewChip, viewCopy, waitingTitle, type StatusView } from './waiting'
+import { QuestionBlock, WaitingActions } from './waiting-status'
 
 export function SignupStatusPage({ initialEmail }: { initialEmail?: string }) {
   useDocumentTitle('Check a request')
@@ -122,6 +122,7 @@ function SignupStatusCheck({ initialEmail }: { initialEmail?: string }) {
         view={waiting.view}
         entry={entry}
         email={creds?.email ?? ''}
+        signInEmail={creds?.email ?? initialEmail}
         remembered={remembered}
         onReset={() => reset(creds?.email ?? initialEmail ?? '')}
       />
@@ -240,12 +241,15 @@ function PolledResult({
   view,
   entry,
   email,
+  signInEmail,
   remembered,
   onReset,
 }: {
   view: StatusView
   entry: StatusHandleEntry
   email: string
+  /** For the sign-in after approval: the email typed here, or the one this page was opened with. */
+  signInEmail?: string
   remembered: boolean
   onReset: () => void
 }) {
@@ -253,14 +257,16 @@ function PolledResult({
     <StatusResult
       result={view}
       email={email}
-      title={WAITING_TITLE[view.status]}
-      description={waitingCopy(view.status, entry.via, remembered)}
+      title={waitingTitle(view)}
+      description={viewCopy(view, entry.via, remembered)}
+      extra={<QuestionBlock view={view} handle={entry.handle} via={entry.via} />}
       actions={
         <WaitingActions
           status={view.status}
           via={entry.via}
           returnTo={entry.returnTo}
           email={email}
+          signInEmail={signInEmail}
           secondary={
             <Button size="lg" variant="ghost" className="w-full" onClick={onReset} data-testid="signup-status-another">
               Use another email
@@ -285,6 +291,7 @@ export function StatusResult({
   actions,
   description,
   title,
+  extra,
 }: {
   result: StatusView
   email: string
@@ -297,9 +304,11 @@ export function StatusResult({
   description?: string
   /** Replaces the status's default title. */
   title?: string
+  /** Under the reason, above the details: the reviewer's question and the reply box. */
+  extra?: ReactNode
 }) {
   const meta = SIGNUP_STATUS_META[result.status]
-  const chip = signupChip(result.status)
+  const chip = viewChip(result)
   return (
     <div className="flex flex-col gap-4" data-testid="signup-status-result">
       <div>
@@ -320,6 +329,7 @@ export function StatusResult({
             </blockquote>
           </figure>
         ) : null}
+        {extra}
         <dl className="divide-y divide-line rounded-card border border-line bg-surface text-body shadow-raised-md">
           <Row label="Brand">
             <span className="truncate font-semibold text-ink">{result.brand_name}</span>
@@ -348,7 +358,7 @@ export function StatusResult({
       <div className="flex flex-col gap-2 sm:flex-row">
         {result.status === 'approved' ? (
           <Button asChild size="lg" className="flex-1">
-            <Link to="/login" data-testid="signup-status-signin">
+            <Link to="/login" state={approvedSignIn(email)} data-testid="signup-status-signin">
               Sign in
               <Icon name="arrow" size={16} />
             </Link>

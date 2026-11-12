@@ -39,6 +39,8 @@ vi.mock('@/features/listings/api', () => ({
   useListingSubmissions: () => empty,
   useRefreshStatus: () => ({ mutate: vi.fn(), isPending: false }),
 }))
+// Item 17: owner approval off (the brand read is mocked above without a QueryClient).
+vi.mock('@/features/team-account/approver', async (orig) => ({ ...(await orig<object>()), useOwnerMayApproveOwn: () => false }))
 vi.mock('./list-on', () => ({ ListOnButton: () => null }))
 vi.mock('@/features/listings/job-memory', () => ({ recallJob: () => 'job-1' }))
 vi.mock('@/features/products/api', () => ({ useProduct: () => ({ isPending: false, data: { title: 'Kurta set', sku: 'K1' } }) }))

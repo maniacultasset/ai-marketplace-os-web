@@ -7,6 +7,7 @@ import {
   initials,
   QUEUE_TABS,
   retryAfterSeconds,
+  reviewState,
   SIGNUP_STATUS_META,
   signupSubmitError,
   statusCheckError,
@@ -16,6 +17,9 @@ import {
   normalizeWebsite,
   parseTrialDays,
   rejectFormSchema,
+  replyFormSchema,
+  askFormSchema,
+  toAskBody,
   SIGNUP_FORM_DEFAULTS,
   signupFormSchema,
   statusFormSchema,
@@ -203,5 +207,27 @@ describe('format', () => {
     expect(initials('Meera  Iyer')).toBe('MI')
     expect(initials('Meera')).toBe('M')
     expect(initials('', 'founder@x.in')).toBe('F')
+  })
+})
+
+describe('the reviewer’s one question (client item 2)', () => {
+  it('a pending request is awaiting review, waiting for the reply, or replied; decided ones are none', () => {
+    expect(reviewState({ status: 'pending', question: null, reply: null })).toBe('review')
+    expect(reviewState({ status: 'pending', question: 'Which marketplaces?', reply: null })).toBe('waiting')
+    expect(reviewState({ status: 'pending', question: 'Which marketplaces?', reply: 'Amazon.' })).toBe('replied')
+    expect(reviewState({ status: 'approved', question: 'Which marketplaces?', reply: 'Amazon.' })).toBeNull()
+  })
+
+  it('the question and the reply are non-blank, at most 1000 characters, sent trimmed', () => {
+    expect(askFormSchema.safeParse({ question: '   ' }).success).toBe(false)
+    expect(askFormSchema.safeParse({ question: 'x'.repeat(1001) }).success).toBe(false)
+    expect(toAskBody({ question: '  Which marketplaces?  ' })).toEqual({ question: 'Which marketplaces?' })
+    expect(replyFormSchema.safeParse({ reply: '' }).success).toBe(false)
+    expect(replyFormSchema.safeParse({ reply: 'x'.repeat(1000) }).success).toBe(true)
+    expect(replyFormSchema.safeParse({ reply: 'x'.repeat(1001) }).success).toBe(false)
+  })
+
+  it('a 409 on ask names the right reason', () => {
+    expect(decisionError(err(409, 'INVALID_STATUS_TRANSITION'), 'ask')).toMatch(/already decided or already has a question/)
   })
 })

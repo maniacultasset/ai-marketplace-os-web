@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { useReviewListings, useSaveContent } from '@/features/listings/api'
 import { REJECT_REASONS, summarizeBatch, type BatchItemResult, type ListingDetail, type RejectReason } from '@/features/listings/model'
-import { OWN_EDIT_COPY, useOwnerMayApproveOwn } from '@/features/team-account/approver'
+import { OWN_EDIT_COPY, sendBackRewriteLine, useOwnerMayApproveOwn } from '@/features/team-account/approver'
 import { codePoints, focusFirstInvalid } from '@/lib/validation'
 import { mpName } from './format'
 import {
@@ -65,6 +65,8 @@ export function SendBackDialog({
 }) {
   const review = useReviewListings()
   const key = useIntentKey()
+  // Item 17: the rewrite's maker is this viewer; an owner under owner approval approves it.
+  const ownApproval = useOwnerMayApproveOwn()
   const [v, setV] = useState<SendBackInput>({ reason: '', note: '', rewrite: true })
   const [touched, setTouched] = useState<Touched<'reason' | 'note'>>({})
   const [submits, setSubmits] = useState(0)
@@ -154,7 +156,7 @@ export function SendBackDialog({
             <span>
               Ask the agent to rewrite it with this note
               <span className="block text-small text-ink-2">
-                {v.rewrite ? 'A new version comes back for review. You become its maker, so someone else approves it.' : 'The listing stays blocked until someone edits or regenerates it.'}
+                {v.rewrite ? sendBackRewriteLine(ownApproval) : 'The listing stays blocked until someone edits or regenerates it.'}
               </span>
             </span>
           </label>

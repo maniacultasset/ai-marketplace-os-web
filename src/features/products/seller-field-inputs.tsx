@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { chipFor, type ChipProps } from './field-sources'
-import { COUNTRIES, countryName, DIM_LABEL, DIMS, packageHasWeight, type Dim, type PackageDraft } from './seller-fields'
+import { COUNTRIES, countryName, DIM_LABEL, DIMS, packageHasWeight, packageWarnings, type Dim, type PackageDraft } from './seller-fields'
 import type { Source } from '@/components/la'
 
 type Errors = Partial<Record<string, string>>
@@ -112,7 +112,9 @@ function UnitInput({
 /**
  * Package size (length × breadth × height, cm) and weight (g): the packed box as shipped, never the
  * product itself; Amazon needs them for shipping and fees. Errors keyed
- * `package`, `package.length|breadth|height|weight`.
+ * `package`, `package.length|breadth|height|weight`. With a `category`, a box that looks wrong for
+ * it (item 15: "This box weighs 500 kg. Did you mean 500 g?") shows a calm warning under the
+ * hint; it never blocks saving.
  */
 export function PackageFields({
   id,
@@ -124,6 +126,7 @@ export function PackageFields({
   source,
   neededSize,
   neededWeight,
+  category,
   className,
 }: {
   id: string
@@ -136,8 +139,11 @@ export function PackageFields({
   source?: Source | null
   neededSize?: string
   neededWeight?: string
+  /** The product's category, for the plausibility warning. */
+  category?: string | null
   className?: string
 }) {
+  const warn = category === undefined ? {} : packageWarnings(value, category)
   const sizeError = errors.package ?? DIMS.map((d) => errors[`package.${d}`]).find(Boolean)
   const weightError = errors['package.weight']
   const set = (k: Dim | 'weight', v: string) => onChange({ ...value, [k]: v })
@@ -149,7 +155,12 @@ export function PackageFields({
         label="Package size"
         htmlFor={`${id}-length`}
         error={sizeError}
-        hint="The packed box as you ship it, not the product itself. Length, breadth and height in cm. Amazon uses it for shipping and fees."
+        hint={
+          <PackageHint
+            text="The packed box as you ship it, not the product itself. Length, breadth and height in cm. Amazon uses it for shipping and fees."
+            warning={warn.size}
+          />
+        }
         {...sizeChip}
         submitCount={submitCount}
         confirmFix
@@ -171,7 +182,7 @@ export function PackageFields({
           ))}
         </div>
       </LaField>
-      <LaField label="Package weight" htmlFor={`${id}-weight`} error={weightError} hint="The packed box with the product inside, in grams. Amazon uses it for shipping and fees." {...weightChip} submitCount={submitCount} confirmFix>
+      <LaField label="Package weight" htmlFor={`${id}-weight`} error={weightError} hint={<PackageHint text="The packed box with the product inside, in grams. Amazon uses it for shipping and fees." warning={warn.weight} />} {...weightChip} submitCount={submitCount} confirmFix>
         <UnitInput
           id={`${id}-weight`}
           label="Package weight in grams"
@@ -186,6 +197,20 @@ export function PackageFields({
         />
       </LaField>
     </div>
+  )
+}
+
+/** The field hint, and under it a plausibility warning when there is one. */
+function PackageHint({ text, warning }: { text: string; warning?: string }) {
+  return (
+    <>
+      <span className="block">{text}</span>
+      {warning ? (
+        <span className="mt-1 block text-attention-ink" data-package-warning>
+          {warning}
+        </span>
+      ) : null}
+    </>
   )
 }
 

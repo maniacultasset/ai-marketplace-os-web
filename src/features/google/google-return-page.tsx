@@ -36,8 +36,8 @@ import { AccountChip, AsideLink, AuthCard, AuthColumn, AuthFrame, FormAlert } fr
 import { SignInSteps } from '@/features/public/sign-in-steps'
 import { useSignInFlow } from '@/features/public/use-sign-in-flow'
 import { StatusResult } from '@/features/public/signup-status'
-import { useWaitingStatus, WAITING_TITLE, waitingCopy } from '@/features/public/waiting'
-import { WaitingActions } from '@/features/public/waiting-status'
+import { useWaitingStatus, viewCopy, waitingTitle, type StatusView } from '@/features/public/waiting'
+import { QuestionBlock, WaitingActions } from '@/features/public/waiting-status'
 import { useDocumentTitle } from '@/features/public/use-document-title'
 import type { SignupStatusOut } from '@/features/signup-admin/format'
 import { PasswordInput } from '@/features/signup-admin/password-input'
@@ -715,19 +715,20 @@ function GoogleStatus({
   returnTo: string | null
 }) {
   const waiting = useWaitingStatus(handle, status)
-  const view = waiting.view ?? status
+  const view: StatusView = waiting.view ?? status
   // Only a handle that still names the request is polled; otherwise checking again is another
   // Google sign-in, so pending offers that button.
   const live = !!handle && !waiting.gone
-  const copy = waitingCopy(view.status, 'google', remembered && live, live)
+  const copy = viewCopy(view, 'google', remembered && live, live)
   return (
     <AuthFrame>
       <div className="mx-auto flex w-full max-w-[448px] flex-1 flex-col gap-4 px-4 pt-8 pb-6 sm:pt-12" data-testid={sent ? 'google-sent' : 'google-pending'}>
         <StatusResult
           result={view}
           email={email}
-          title={WAITING_TITLE[view.status]}
-          description={sent && view.status === 'pending' ? `Request sent. ${copy}` : copy}
+          title={waitingTitle(view)}
+          description={sent && view.status === 'pending' && !view.question ? `Request sent. ${copy}` : copy}
+          extra={<QuestionBlock view={view} handle={live ? handle : null} via="google" />}
           actions={
             <WaitingActions
               status={view.status}

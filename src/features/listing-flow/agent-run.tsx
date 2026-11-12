@@ -625,7 +625,9 @@ export function eventTone(action: string): DotTone {
 function actorPhrase(e: AuditEvent, meId: string | undefined): string {
   if (e.actor_type === 'system') return 'by the agent'
   if (e.actor_type === 'staff') return 'by support'
-  return e.actor_user_id && e.actor_user_id === meId ? 'by you' : 'by a teammate'
+  if (e.actor_user_id && e.actor_user_id === meId) return 'by you'
+  // Item 17: the API names a member of this brand; older backends do not.
+  return e.actor_name?.trim() ? `by ${e.actor_name.trim()}` : 'by a teammate'
 }
 
 export function logEntries(events: readonly AuditEvent[], job: Pick<JobEnvelope, 'job_id' | 'kind' | 'status' | 'started_at' | 'finished_at' | 'error'>, meId?: string): LogEntry[] {

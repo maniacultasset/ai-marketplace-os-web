@@ -8,14 +8,20 @@ import { envelope, installFetch, json, type Call, type Handler } from '@/test/fa
 import { readStatusHandle, saveStatusHandle } from '@/features/signup-admin/status-handle'
 import { SignupPage } from './signup-page'
 import { SignupStatusPage } from './signup-status'
+import { viewCopy } from './waiting'
+import { QuestionBlock } from './waiting-status'
 
 vi.hoisted(() => {
   vi.stubEnv('VITE_API_ORIGIN', 'http://localhost:3000')
 })
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ to, search, children, ...rest }: { to: string; search?: Record<string, string>; children: ReactNode }) => (
-    <a href={search && Object.keys(search).length ? `${to}?${new URLSearchParams(search).toString()}` : to} {...rest}>
+  Link: ({ to, search, state, children, ...rest }: { to: string; search?: Record<string, string>; state?: unknown; children: ReactNode }) => (
+    <a
+      href={search && Object.keys(search).length ? `${to}?${new URLSearchParams(search).toString()}` : to}
+      data-state={state ? JSON.stringify(state) : undefined}
+      {...rest}
+    >
       {children}
     </a>
   ),
@@ -125,6 +131,53 @@ describe('the password waiting screens', () => {
     const go = screen.getByTestId('waiting-continue')
     expect(go.textContent).toBe('Continue to your workspace')
     expect(go.getAttribute('href')).toBe('/login?redirect=%2Fproducts')
+    expect(screen.getByText(/This page can only show your status, so sign in once/)).toBeTruthy()
+    // no email known on this page: the sign-in opens as approved, with nothing filled in
+    expect(JSON.parse(go.getAttribute('data-state')!)).toEqual({ approvedSignIn: {} })
+  })
+
+  it('approved: the email this page was opened with is filled in on the sign-in, never in the URL', async () => {
+    saveStatusHandle({ handle: HANDLE, via: 'password', returnTo: null })
+    mount(<SignupStatusPage initialEmail={EMAIL} />, { 'POST /signup/status/poll': poll('approved', { decided_at: '2026-11-11T10:00:00Z' }) })
+    const go = await screen.findByTestId('waiting-continue')
+    expect(go.getAttribute('href')).toBe('/login')
+    expect(JSON.parse(go.getAttribute('data-state')!)).toEqual({ approvedSignIn: { email: EMAIL } })
+  })
+
+  it('a question from the reviewer: read it, send one reply with the handle, then see it sent', async () => {
+    saveStatusHandle({ handle: HANDLE, via: 'password', returnTo: null })
+    const question = { question: 'Which marketplaces do you sell on?', asked_at: '2026-11-11T10:00:00Z' }
+    const { calls, user } = mount(<SignupStatusPage />, {
+      'POST /signup/status/poll': poll('pending', question),
+      'POST /signup/status/reply': poll('pending', { ...question, reply: 'Amazon India.', replied_at: '2026-11-11T11:00:00Z' }),
+    })
+    expect((await screen.findByTestId('signup-status-title')).textContent).toBe('One question for you')
+    expect(screen.getByTestId('signup-question-text').textContent).toBe('Which marketplaces do you sell on?')
+    expect(screen.getByTestId('signup-status-badge').textContent).toBe('Needs your reply')
+    await user.click(screen.getByTestId('signup-reply-send'))
+    expect(await screen.findByText('Write your reply.')).toBeTruthy()
+    expect(calls.some((c) => c.path === '/signup/status/reply')).toBe(false)
+    await user.type(screen.getByTestId('signup-reply'), '  Amazon India.  ')
+    await user.click(screen.getByTestId('signup-reply-send'))
+    expect(await screen.findByTestId('signup-reply-sent')).toBeTruthy()
+    const sent = calls.find((c) => c.path === '/signup/status/reply')
+    expect(sent).toMatchObject({ body: { status_handle: HANDLE, reply: 'Amazon India.' }, auth: null })
+    expect(calls.every((c) => !c.path.includes(HANDLE))).toBe(true)
+    expect(screen.queryByTestId('signup-reply')).toBeNull()
+    expect(screen.getByTestId('signup-status-title').textContent).toBe('Waiting for approval')
+  })
+
+  it('a reply refused as stale says so and reads the status again', async () => {
+    saveStatusHandle({ handle: HANDLE, via: 'password', returnTo: null })
+    const question = { question: 'Which marketplaces?', asked_at: '2026-11-11T10:00:00Z' }
+    const { calls, user } = mount(<SignupStatusPage />, {
+      'POST /signup/status/poll': poll('pending', question),
+      'POST /signup/status/reply': () => envelope(409, 'INVALID_STATUS_TRANSITION'),
+    })
+    await user.type(await screen.findByTestId('signup-reply'), 'Amazon India.')
+    await user.click(screen.getByTestId('signup-reply-send'))
+    expect((await screen.findByTestId('signup-reply-error')).textContent).toMatch(/This request has changed, so the reply was not sent/)
+    await waitFor(() => expect(polled(calls).length).toBeGreaterThan(1))
   })
 
   it('rejected: the reason, then support and apply again', async () => {
@@ -197,5 +250,25 @@ describe('the password waiting screens', () => {
     await user.click(screen.getByTestId('signup-status-submit'))
     expect(await screen.findByText(/updates by itself while it stays open/)).toBeTruthy()
     await waitFor(() => expect(polled(calls)).toHaveLength(1))
+  })
+})
+
+describe('a question with no live handle', () => {
+  afterEach(() => cleanup())
+  const view = { status: 'pending' as const, brand_name: 'Kalakar Weaves', created_at: '2026-11-11T09:00:00Z', question: 'Which marketplaces?', asked_at: '2026-11-11T10:00:00Z' }
+
+  it('Google: points back to Continue with Google, never to the password check', () => {
+    render(<QuestionBlock view={view} handle={null} via="google" />)
+    const hint = screen.getByTestId('signup-question-hint').textContent
+    expect(hint).toBe('To reply, use Continue with Google again.')
+    expect(screen.queryByTestId('signup-reply')).toBeNull()
+    expect(viewCopy(view, 'google', false, false)).toBe('Our team has one question for you. To reply, use Continue with Google again.')
+  })
+
+  it('password: points to Check your request', () => {
+    render(<QuestionBlock view={view} handle={null} via="password" />)
+    expect(screen.getByTestId('signup-question-hint').textContent).toBe('To reply, open Check your request on the sign-in page.')
+    expect(viewCopy(view, 'password', false, false)).toBe('Our team has one question for you. To reply, open Check your request on the sign-in page.')
+    expect(viewCopy(view, 'password', false)).toMatch(/Reply below/)
   })
 })

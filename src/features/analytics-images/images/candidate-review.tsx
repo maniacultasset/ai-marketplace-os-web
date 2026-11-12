@@ -72,15 +72,19 @@ export function CandidateBlock({
 }) {
   const create = useCreateCandidate(productId)
   const [createError, setCreateError] = useState<{ kind: CandidateKind; error: unknown } | null>(null)
-  // The API said the result already took this place: which kind, and its image.
-  const [answered, setAnswered] = useState<{ kind: CandidateKind; imageId: string | null } | null>(null)
+  // The API said the result already took this place: which kind, its image, and a signed view of
+  // it (this page's product read may not hold the new main yet).
+  const [answered, setAnswered] = useState<Applied | null>(null)
   // One call per click: React disables the button a render later than a fast double click.
   const creating = useRef(false)
   const open = openCandidates(candidates, sourceId, session.hidden)
   const busy = open.some((c) => c.status === 'queued')
   // A used photo offers no fix while its result is still the main; the backend answers the same.
   const used = appliedFrom(candidates, sourceId, isLiveMain ?? (() => false))
-  const applied = answered ?? (used ? { kind: used.kind, imageId: used.accepted_image_id ?? null } : null)
+  const applied: Applied | null =
+    answered ?? (used ? { kind: used.kind, imageId: used.accepted_image_id ?? null, preview: used.preview_url ?? null } : null)
+  // The product read's view once it has the image, else the signed view the answer carried.
+  const appliedSrc = applied ? ((applied.imageId ? imageUrlOf?.(applied.imageId) : null) ?? applied.preview) : null
   // A photo that was replaced offers no fix; a size chart keeps its button (its chart may change).
   const replaced = applied !== null && applied.kind !== 'size_chart'
   const shown = canAct && !replaced ? kinds : []
@@ -108,7 +112,7 @@ export function CandidateBlock({
           // A cached failure answers again: show its reason even if it was closed.
           if (a.status === 'failed') session.unhide(a.candidate_id)
           if (a.status === 'accepted') {
-            setAnswered({ kind, imageId: a.accepted_image_id ?? null })
+            setAnswered({ kind, imageId: a.accepted_image_id ?? null, preview: a.applied_preview_url ?? null })
             if (a.accepted_image_id) session.markApplied(a.accepted_image_id, kind)
           }
         },
@@ -165,7 +169,7 @@ export function CandidateBlock({
         </div>
       ) : null}
 
-      {applied ? <AppliedNote kind={applied.kind} src={applied.imageId ? imageUrlOf?.(applied.imageId) : null} /> : null}
+      {applied ? <AppliedNote key={appliedSrc ?? 'none'} kind={applied.kind} src={appliedSrc} /> : null}
 
       {createError ? (
         <div role="alert" className="flex flex-col gap-0.5 text-small text-danger-ink" data-testid="candidate-create-error">
@@ -192,12 +196,26 @@ export function CandidateBlock({
   )
 }
 
-/** The result already took this place: say so, with the image when the product read has it. */
+interface Applied {
+  kind: CandidateKind
+  imageId: string | null
+  /** A signed view of the result (10 minutes), from the create answer or the candidate list. */
+  preview: string | null
+}
+
+/** The result already took this place: say so, with its image when there is a view of it. A
+ * view that no longer opens (expired) falls back to the check. */
 export function AppliedNote({ kind, src }: { kind: CandidateKind; src?: string | null }) {
+  const [broken, setBroken] = useState(false)
   return (
     <div role="status" className="flex items-center gap-3 text-small text-ink-2" data-testid="candidate-applied" data-kind={kind}>
-      {src ? (
-        <img src={src} alt={RESULT_LABEL[kind]} className="size-12 shrink-0 rounded-md border border-line bg-subtle object-contain" />
+      {src && !broken ? (
+        <img
+          src={src}
+          alt={RESULT_LABEL[kind]}
+          onError={() => setBroken(true)}
+          className="size-12 shrink-0 rounded-md border border-line bg-subtle object-contain"
+        />
       ) : (
         <Icon name="check" size={16} className="shrink-0 text-success" />
       )}

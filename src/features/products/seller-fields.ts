@@ -80,6 +80,84 @@ export function packageProblems(p: PackageDraft): Record<string, string> {
   return e
 }
 
+/* ------------------------------------------------------------------------ Package plausibility */
+
+/**
+ * Client item 15: does the packed box look right for its category? The same per-category ranges as
+ * the backend (`services/package_sense.py`; keep the two in step). Outside the range is a warning,
+ * never an error: an odd but true box still saves. A likely unit slip (grams typed for kilograms,
+ * millimetres or metres for centimetres) names what the seller probably meant.
+ */
+interface PackageRange {
+  minCm: number
+  maxCm: number
+  minG: number
+  maxG: number
+  /** What the box holds, for "heavy for clothing". */
+  noun: string | null
+}
+
+const APPAREL: PackageRange = { minCm: 0.3, maxCm: 100, minG: 20, maxG: 5_000, noun: 'clothing' }
+const LAMPS: PackageRange = { minCm: 1, maxCm: 200, minG: 50, maxG: 30_000, noun: 'a lamp' }
+const ANY_BOX: PackageRange = { minCm: 0.1, maxCm: 300, minG: 5, maxG: 100_000, noun: null }
+export const PACKAGE_RANGES: Readonly<Record<string, PackageRange>> = {
+  tshirts: APPAREL,
+  ethnic_wear_kurta_sets: APPAREL,
+  home_decor_lamps: LAMPS,
+}
+
+/** 12, 12.5, 0.25: at most 2 decimals, Indian digit grouping. */
+const num = (n: number) => (Math.round(n * 100) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })
+const forNoun = (r: PackageRange) => (r.noun ? ` for ${r.noun}` : '')
+
+function weightWarning(g: number, r: PackageRange): string | null {
+  if (g >= r.minG && g <= r.maxG) return null
+  if (g > r.maxG) {
+    const kg = g / 1000
+    if (g % 1000 === 0 && kg >= r.minG && kg <= r.maxG) return `This box weighs ${num(kg)} kg. Did you mean ${num(kg)} g?`
+    return `This box weighs ${num(kg)} kg, which is heavy${forNoun(r)}. Check the weight.`
+  }
+  if (g * 1000 >= r.minG && g * 1000 <= r.maxG) return `This box weighs ${num(g)} g. Did you mean ${num(g)} kg (${num(g * 1000)} g)?`
+  return `This box weighs only ${num(g)} g, which is light${forNoun(r)}. Check the weight.`
+}
+
+function sizeWarning(sides: readonly number[], r: PackageRange): string | null {
+  const big = Math.max(...sides)
+  const small = Math.min(...sides)
+  const inRange = (n: number) => n >= r.minCm && n <= r.maxCm
+  if (big > r.maxCm) {
+    if (sides.every((s) => inRange(s / 10))) return `A ${num(big)} cm side is ${num(big / 100)} m long. Did you mean ${num(big)} mm (${num(big / 10)} cm)?`
+    return `A ${num(big)} cm side is ${num(big / 100)} m long, which is large${forNoun(r)}. Check the size.`
+  }
+  if (small < r.minCm) {
+    if (sides.every((s) => inRange(s * 100))) return `A ${num(small)} cm side is very thin. Did you mean ${num(small)} m (${num(small * 100)} cm)?`
+    return `A ${num(small)} cm side is very thin${forNoun(r)}. Check the size is in cm.`
+  }
+  return null
+}
+
+export interface PackageWarnings {
+  size?: string
+  weight?: string
+}
+
+/** Plausibility warnings for a draft whose values pass `packageProblems` (an invalid value gets none). */
+export function packageWarnings(p: PackageDraft, category: string | null | undefined): PackageWarnings {
+  const r = PACKAGE_RANGES[(category ?? '').trim()] ?? ANY_BOX
+  const problems = packageProblems(p)
+  const out: PackageWarnings = {}
+  const sizeBad = problems.package !== undefined || DIMS.some((d) => problems[`package.${d}`] !== undefined)
+  if (packageHasSize(p) && !sizeBad) {
+    const size = sizeWarning(DIMS.map((d) => Number(p[d].trim())), r)
+    if (size) out.size = size
+  }
+  if (packageHasWeight(p) && !problems['package.weight']) {
+    const weight = weightWarning(Number(p.weight.trim()), r)
+    if (weight) out.weight = weight
+  }
+  return out
+}
+
 const dimNumber = (v: string) => Number(v.trim())
 
 /** The PackageIn for a complete draft, or null when nothing is filled. Call after `packageProblems` is empty. */

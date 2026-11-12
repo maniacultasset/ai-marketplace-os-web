@@ -6,6 +6,8 @@
  *   GET  /admin/signup-requests                    routers/admin.py  list (oldest first, cursor, ?status)
  *   POST /admin/signup-requests/{id}/approve       routers/admin.py  → SignupRequestOut (tenant_id set) | 404 | 409
  *   POST /admin/signup-requests/{id}/reject        routers/admin.py  → SignupRequestOut | 404 | 409
+ *   POST /admin/signup-requests/{id}/ask           routers/admin.py  → SignupRequestOut (still pending) | 404 | 409
+ *   POST /signup/status/reply                      routers/signup.py → SignupPollOut | 404 | 409 (poll.ts)
  * None of these take an Idempotency-Key (approve and reject are idempotent on the server; handover §7).
  * The public ops never carry a bearer token and their 401 never ends a session (src/api/client.ts).
  */
@@ -14,7 +16,7 @@ import { api, unwrap } from '@/api/client'
 import { PAGE_SIZE, useCursorList } from '@/hooks/use-cursor-list'
 import { useKeys } from '@/lib/query-keys'
 import { decisionNeedsRefresh, tabToStatus, type QueueTab, type SignupRequest } from './format'
-import type { SignupCreateBody, SignupStatusBody, SignupApproveBody, SignupRejectBody } from './schema'
+import type { SignupApproveBody, SignupAskBody, SignupCreateBody, SignupRejectBody, SignupStatusBody } from './schema'
 
 export function useCreateSignup() {
   return useMutation({
@@ -69,6 +71,20 @@ export function useRejectSignup() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: SignupRejectBody }) =>
       unwrap(api.POST('/admin/signup-requests/{request_id}/reject', { params: { path: { request_id: id } }, body })),
+    onSuccess: () => invalidate(),
+    onError: (e) => {
+      if (decisionNeedsRefresh(e)) void invalidate()
+    },
+    meta: { toast: false },
+  })
+}
+
+/** One question to the applicant instead of a decision; the request stays pending. */
+export function useAskSignup() {
+  const invalidate = useInvalidateQueue()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: SignupAskBody }) =>
+      unwrap(api.POST('/admin/signup-requests/{request_id}/ask', { params: { path: { request_id: id } }, body })),
     onSuccess: () => invalidate(),
     onError: (e) => {
       if (decisionNeedsRefresh(e)) void invalidate()

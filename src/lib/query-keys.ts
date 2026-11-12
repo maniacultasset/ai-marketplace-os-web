@@ -120,6 +120,8 @@ export function keysFor(tid: string) {
       /** GET /listings/{id} (value: Versioned<ListingDetail> — body + ETag, see src/api/etag.ts). */
       detail: (listingId: string) => [...T, 'listings', 'detail', listingId] as const,
       history: (listingId: string) => [...T, 'listings', 'detail', listingId, 'history'] as const,
+      /** GET /listings/{id}/versions (item 17: who made, edited and approved each version). */
+      versions: (listingId: string) => [...T, 'listings', 'detail', listingId, 'versions'] as const,
       preview: (listingId: string) => [...T, 'listings', 'detail', listingId, 'preview'] as const,
       status: (listingId: string) => [...T, 'listings', 'detail', listingId, 'status'] as const,
       submissions: (listingId: string) => [...T, 'listings', 'detail', listingId, 'submissions'] as const,

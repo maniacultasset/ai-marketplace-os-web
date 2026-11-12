@@ -34,6 +34,22 @@ export const SIGNUP_STATUS_META: Record<
   },
 }
 
+/**
+ * Where a pending request's one question stands, for the queue: asked and waiting for the
+ * applicant, or replied (back with the reviewer). The status stays `pending` throughout.
+ */
+export function reviewState(r: Pick<SignupRequest, 'status' | 'question' | 'reply'>): 'review' | 'waiting' | 'replied' | null {
+  if (r.status !== 'pending') return null
+  if (!r.question) return 'review'
+  return r.reply ? 'replied' : 'waiting'
+}
+
+export const REVIEW_STATE_LABEL = {
+  review: 'Awaiting review',
+  waiting: 'Waiting for their reply',
+  replied: 'Replied',
+} as const
+
 /** Queue filter tabs: the review queue first, then the decided requests, then everything. */
 export const QUEUE_TABS = ['pending', 'approved', 'rejected', 'all'] as const
 export type QueueTab = (typeof QUEUE_TABS)[number]
@@ -67,7 +83,7 @@ export function statusCheckError(e: unknown): string {
   return describeError(e)
 }
 
-export type Decision = 'approve' | 'reject'
+export type Decision = 'approve' | 'reject' | 'ask'
 
 /** Approve / reject failure, shown inside the dialog with its reference id. */
 export function decisionError(e: unknown, decision: Decision): string {
@@ -75,7 +91,9 @@ export function decisionError(e: unknown, decision: Decision): string {
   if (e.status === 409 && e.type === 'INVALID_STATUS_TRANSITION')
     return decision === 'approve'
       ? 'This request was already rejected, so it can no longer be approved. The list has been refreshed.'
-      : 'This request was already approved, so it can no longer be rejected. The list has been refreshed.'
+      : decision === 'reject'
+        ? 'This request was already approved, so it can no longer be rejected. The list has been refreshed.'
+        : 'This request was already decided or already has a question. The list has been refreshed.'
   if (e.status === 404) return 'This request no longer exists. The list has been refreshed.'
   if (isMfaRequired(e)) return describeError(e)
   if (e.status === 403) return 'Only platform admins can decide sign-up requests.'

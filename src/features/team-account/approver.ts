@@ -104,6 +104,29 @@ export const OWN_EDIT_COPY = {
   toastResend: (mp: string) => `The checks ran again. You can approve it yourself and send it to ${mp} again.`,
 } as const
 
+/**
+ * Item 17 (client feedback, 11 Nov 2026): lines written before the server answers for a version,
+ * so they never say a teammate must approve while this viewer may approve it (useOwnerMayApproveOwn).
+ */
+export function sendBackRewriteLine(ownApproval: boolean): string {
+  return ownApproval
+    ? 'A new version comes back for review. Owner approval is on, so you can approve it yourself. This is recorded.'
+    : 'A new version comes back for review. You become its maker, so someone else approves it.'
+}
+
+/** After an answer Kuinn adds to a new version: who approves it (or its resend). */
+export function answerApprovalLine({ ownApproval, resend }: { ownApproval: boolean; resend: boolean }): string {
+  if (ownApproval) return resend ? 'You can then approve the resend yourself.' : 'You can then approve it yourself.'
+  return resend ? 'A teammate then approves the resend.' : 'A teammate then approves it.'
+}
+
+/** The Team page's note on approvals, from the brand setting (`owner_self_approval`). */
+export function approvalsNote(ownerSelfApproval: boolean): string {
+  return ownerSelfApproval
+    ? 'Owner approval is on: an owner can approve their own listings, and each one is recorded. Reviewers never approve their own work.'
+    : 'Approvals need a second person: the person who generated or edited a listing cannot approve it.'
+}
+
 /** Whether this brand has a second person who can approve, or lets its owner approve alone. */
 export function useApproverState(): ApproverState {
   const can = useCan()

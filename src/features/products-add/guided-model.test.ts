@@ -56,6 +56,20 @@ describe('guided form', () => {
     expect(sectionStates(filled(), ctx).media).toEqual({ kind: 'done' })
   })
 
+  it('makes the packed box critical when Amazon is ticked (item 15)', () => {
+    const ctx = { brandManufacturer: true, hasMain: true, imageCount: 1 }
+    expect(missingCritical(filled(), ctx)).not.toContain('Package size')
+    const amazon = { ...ctx, amazon: true }
+    expect(missingCritical(filled(), amazon)).toEqual(expect.arrayContaining(['Package size', 'Package weight']))
+    expect(sectionStates(filled(), amazon).shipping).toEqual({ kind: 'missing', count: 2 })
+    const boxed = { ...filled(), pkg: { length: '30', breadth: '25', height: '3', weight: '' } }
+    expect(missingCritical(boxed, amazon)).not.toContain('Package size')
+    expect(missingCritical(boxed, amazon)).toContain('Package weight')
+    expect(missingCritical({ ...boxed, pkg: { ...boxed.pkg, weight: '250' } }, amazon)).not.toContain('Package weight')
+    // Never a save error: the seller can save and add it later.
+    expect(validateGuided(filled())).toEqual({})
+  })
+
   it('maps server errors onto fields', () => {
     const v = { ...filled(), extra: [{ key: 'not_a_fact', value: 'x' }] }
     expect(mapCreateErrors({ status: 409, type: 'SKU_CONFLICT', details: [] }, v).fields.sku).toMatch(/already exists/)

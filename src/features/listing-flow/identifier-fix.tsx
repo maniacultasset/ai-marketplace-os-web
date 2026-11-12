@@ -8,6 +8,7 @@
  */
 import { Link } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
+import { GtinExemptionHelp } from '@/features/products/gtin-exemption'
 import { mpName } from './format'
 import { identifierMissing, type GateResult } from './gates'
 
@@ -47,6 +48,8 @@ export function IdentifierFix({
           </>
         ) : null}
       </span>
+      {/* Amazon's own page on applying, for a seller with no barcode and no exemption yet. */}
+      {marketplace === 'amazon' ? <GtinExemptionHelp testId="identity-fix-exemption-help" /> : null}
       {skus.length ? (
         canEditVariants ? (
           <Button size="sm" variant="secondary" asChild>
