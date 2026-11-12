@@ -112,6 +112,14 @@ describe('B5: the Identity gate reads the preview identifier check', () => {
     expect(g.state).toBe('unchecked')
   })
 
+  it('reads the identifiers where the backend puts them: under the payload\'s `attributes`', () => {
+    // adapters/amazon/mapping.py item_payload: {productType, requirements, attributes: {...}}
+    const wrap = (attributes: Record<string, unknown>) => ({ productType: 'KURTA', requirements: 'LISTING', attributes })
+    expect(previewIdentity([item('parent', wrap({})), item('child', wrap(barcode)), item('child', wrap(exemption))])).toEqual({ sellable: 2, barcodes: 1, exempt: 1 })
+    const g = identity({ errors: [], productType: 'KURTA', identity: previewIdentity([item('standalone', wrap(exemption))]) })
+    expect(g).toMatchObject({ state: 'passed', note: 'No barcode: GTIN exemption confirmed. It is sent with the listing.' })
+  })
+
   it('stays unchecked with no mapped product type', () => {
     expect(identity({ errors: [], productType: null, identity: previewIdentity([item('standalone', barcode)]) }).state).toBe('unchecked')
   })

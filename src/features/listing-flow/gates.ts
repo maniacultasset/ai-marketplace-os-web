@@ -217,11 +217,20 @@ export interface PreviewIdentity {
 
 type PreviewItemLike = { item_role: string; payload?: Record<string, unknown> | null }
 
-/** Null when the preview has no sellable item, or its marketplace sends neither attribute. */
+/** Null when the preview has no sellable item. */
 export function previewIdentity(items: readonly PreviewItemLike[] | null | undefined): PreviewIdentity | null {
   const sellable = (items ?? []).filter((i) => i.item_role !== 'parent')
   if (!sellable.length) return null
-  const has = (i: PreviewItemLike, key: string) => Array.isArray(i.payload?.[key]) && (i.payload![key] as unknown[]).length > 0
+  // The backend nests them under `attributes` (adapters/amazon/mapping.py item_payload:
+  // {productType, requirements, attributes}); a flat payload is read too, as payloadField does.
+  const attrsOf = (i: PreviewItemLike): Record<string, unknown> => {
+    const nested = i.payload?.['attributes']
+    return nested && typeof nested === 'object' && !Array.isArray(nested) ? (nested as Record<string, unknown>) : (i.payload ?? {})
+  }
+  const has = (i: PreviewItemLike, key: string) => {
+    const v = attrsOf(i)[key]
+    return Array.isArray(v) && v.length > 0
+  }
   const barcodes = sellable.filter((i) => has(i, BARCODE_ATTR)).length
   const exempt = sellable.filter((i) => !has(i, BARCODE_ATTR) && has(i, EXEMPTION_ATTR)).length
   return { sellable: sellable.length, barcodes, exempt }
