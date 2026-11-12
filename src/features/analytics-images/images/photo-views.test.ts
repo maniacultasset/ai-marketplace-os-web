@@ -10,6 +10,8 @@ import {
   sizeFlags,
   sizeList,
   tilesFor,
+  viewChoices,
+  viewKeyOf,
   variantSizes,
   viewGaps,
   type PhotoViewRule,
@@ -144,5 +146,48 @@ describe('size flags', () => {
     expect(sizeList(['L'])).toBe('L')
     expect(sizeList(['S', 'M', 'L'])).toBe('S, M and L')
     expect(sizeList(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])).toBe('1, 2, 3, 4, 5, 6, 7, 8 and 2 more')
+  })
+})
+
+describe('viewChoices (feedback 7)', () => {
+  const front = { image_id: 'f', slot: 'main' as const }
+  const back = { image_id: 'b', slot: 'secondary' as const, role: 'back' as const }
+  const extra = { image_id: 'e', slot: 'secondary' as const }
+  const redExtra = { image_id: 'r', slot: 'secondary' as const, colourway_id: 'red' }
+  const all = [front, back, extra, redExtra]
+
+  it('names each view by its tile, else its slot', () => {
+    expect(viewKeyOf('main')).toBe('front')
+    expect(viewKeyOf('secondary', 'close_up')).toBe('close_up')
+    expect(viewKeyOf('secondary')).toBe('secondary')
+    expect(viewKeyOf('lifestyle')).toBe('lifestyle')
+  })
+
+  it('lists the tiles, then the More photos kinds, marks the current view and the swaps', () => {
+    const choices = viewChoices(extra, all, PHOTO_SLOTS)
+    expect(choices.map((c) => [c.key, c.group])).toEqual([
+      ['front', 'tile'],
+      ['back', 'tile'],
+      ['close_up', 'tile'],
+      ['size_chart', 'tile'],
+      ['secondary', 'more'],
+      ['lifestyle', 'more'],
+      ['packaging_label', 'more'],
+    ])
+    expect(choices.filter((c) => c.current).map((c) => c.key)).toEqual(['secondary'])
+    expect(choices.filter((c) => c.swaps).map((c) => c.key)).toEqual(['front', 'back'])
+    expect(choices.find((c) => c.key === 'close_up')).toMatchObject({ slot: 'secondary', role: 'close_up' })
+  })
+
+  it('judges a taken view within the photo\'s own colour', () => {
+    const choices = viewChoices(redExtra, all, PHOTO_SLOTS)
+    expect(choices.some((c) => c.swaps)).toBe(false)
+  })
+
+  it('follows the category checklist, and keeps a view the list leaves out', () => {
+    const tiles = tilesFor([{ view: 'front', label: 'Front', slot: 'main', role: null, requirement: 'required', why: 'w' }] as never, { isVariant: false })
+    const choices = viewChoices(back, all, tiles)
+    expect(choices.map((c) => c.key)).toEqual(['back', 'front', 'secondary', 'lifestyle', 'packaging_label'])
+    expect(choices[0]).toMatchObject({ current: true, swaps: false })
   })
 })

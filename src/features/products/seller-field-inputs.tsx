@@ -109,12 +109,34 @@ function UnitInput({
   )
 }
 
+/** Client item 15: the two size groups, side by side and never confused. */
+const SIZE_KINDS = {
+  package: {
+    size: 'Packed box: size',
+    weight: 'Packed box: weight',
+    sizeHint: 'The packed box as you ship it, not the product itself. Length, breadth and height in cm. Amazon uses it for shipping and fees.',
+    weightHint: 'The packed box with the product inside, in grams. Amazon uses it for shipping and fees.',
+    group: 'Packed box size in cm',
+    weightAria: 'Packed box weight in grams',
+  },
+  item: {
+    size: 'Product itself: size',
+    weight: 'Product itself: weight',
+    sizeHint: 'The product out of its box. Length, breadth and height in cm.',
+    weightHint: 'The product on its own, without the box, in grams.',
+    group: 'Product size in cm',
+    weightAria: 'Product weight in grams',
+  },
+} as const
+
 /**
  * Package size (length × breadth × height, cm) and weight (g): the packed box as shipped, never the
  * product itself; Amazon needs them for shipping and fees. Errors keyed
  * `package`, `package.length|breadth|height|weight`. With a `category`, a box that looks wrong for
- * it (item 15: "This box weighs 500 kg. Did you mean 500 g?") shows a calm warning under the
- * hint; it never blocks saving.
+ * it (item 15: "This box weighs 25 kg. Did you mean 25 g?") shows a calm warning under the
+ * hint; it never blocks saving (a box past the category's hard limit is an error instead).
+ * `kind="item"` is the product itself (item 15 bullet 1): the same inputs, keyed `item.*`, its own
+ * labels, and no box warnings.
  */
 export function PackageFields({
   id,
@@ -128,6 +150,7 @@ export function PackageFields({
   neededWeight,
   category,
   className,
+  kind = 'package',
 }: {
   id: string
   value: PackageDraft
@@ -142,30 +165,28 @@ export function PackageFields({
   /** The product's category, for the plausibility warning. */
   category?: string | null
   className?: string
+  /** `package` (the packed box) or `item` (the product itself). */
+  kind?: 'package' | 'item'
 }) {
-  const warn = category === undefined ? {} : packageWarnings(value, category)
-  const sizeError = errors.package ?? DIMS.map((d) => errors[`package.${d}`]).find(Boolean)
-  const weightError = errors['package.weight']
+  const words = SIZE_KINDS[kind]
+  const warn = category === undefined || kind === 'item' ? {} : packageWarnings(value, category)
+  const sizeError = errors[kind] ?? DIMS.map((d) => errors[`${kind}.${d}`]).find(Boolean)
+  const weightError = errors[`${kind}.weight`]
   const set = (k: Dim | 'weight', v: string) => onChange({ ...value, [k]: v })
   const sizeChip = chipFor(DIMS.some((d) => value[d].trim() !== ''), { source, needed: neededSize }, false, sizeError)
   const weightChip = chipFor(packageHasWeight(value), { source, needed: neededWeight }, false, weightError)
   return (
     <div className={cn('grid gap-x-5 gap-y-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]', className)}>
       <LaField
-        label="Package size"
+        label={words.size}
         htmlFor={`${id}-length`}
         error={sizeError}
-        hint={
-          <PackageHint
-            text="The packed box as you ship it, not the product itself. Length, breadth and height in cm. Amazon uses it for shipping and fees."
-            warning={warn.size}
-          />
-        }
+        hint={<PackageHint text={words.sizeHint} warning={warn.size} />}
         {...sizeChip}
         submitCount={submitCount}
         confirmFix
       >
-        <div className="grid grid-cols-3 gap-2" role="group" aria-label="Package size in cm">
+        <div className="grid grid-cols-3 gap-2" role="group" aria-label={words.group}>
           {DIMS.map((d) => (
             <UnitInput
               key={d}
@@ -175,22 +196,22 @@ export function PackageFields({
               unit="cm"
               value={value[d]}
               onChange={(v) => set(d, v)}
-              onBlur={() => onBlur?.(`package.${d}`)}
-              invalid={!!errors[`package.${d}`] || !!errors.package}
+              onBlur={() => onBlur?.(`${kind}.${d}`)}
+              invalid={!!errors[`${kind}.${d}`] || !!errors[kind]}
               describedBy={fieldHintId(`${id}-length`)}
             />
           ))}
         </div>
       </LaField>
-      <LaField label="Package weight" htmlFor={`${id}-weight`} error={weightError} hint={<PackageHint text="The packed box with the product inside, in grams. Amazon uses it for shipping and fees." warning={warn.weight} />} {...weightChip} submitCount={submitCount} confirmFix>
+      <LaField label={words.weight} htmlFor={`${id}-weight`} error={weightError} hint={<PackageHint text={words.weightHint} warning={warn.weight} />} {...weightChip} submitCount={submitCount} confirmFix>
         <UnitInput
           id={`${id}-weight`}
-          label="Package weight in grams"
+          label={words.weightAria}
           placeholder="Weight"
           unit="g"
           value={value.weight}
           onChange={(v) => set('weight', v)}
-          onBlur={() => onBlur?.('package.weight')}
+          onBlur={() => onBlur?.(`${kind}.weight`)}
           invalid={!!weightError}
           describedBy={fieldHintId(`${id}-weight`)}
           inputMode="numeric"

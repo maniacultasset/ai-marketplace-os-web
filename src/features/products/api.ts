@@ -1,6 +1,7 @@
 /**
  * Products data layer. Live ops: products_list, products_get (with ETag), products_create,
- * products_update (PATCH, If-Match), brand_profile_get / brand_profile_update and images_delete.
+ * products_update (PATCH, If-Match), brand_profile_get / brand_profile_update, images_delete and
+ * images_update (move a saved photo to another view).
  * No product delete, search or sort exists on the backend, so none is offered here.
  */
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -187,6 +188,27 @@ export function useDeleteImage(productId: string) {
   return useMutation({
     meta: { toast: false },
     mutationFn: (imageId: string) => unwrap(api.DELETE('/images/{image_id}', { params: { path: { image_id: imageId } } })),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.products.detail(productId) }),
+  })
+}
+
+export type ImageViewBody = Schema<'ImageViewIn'>
+export type ImageViewMoved = Schema<'ImageViewOut'>
+
+/**
+ * PATCH /images/{id} (product:import), client feedback 7: move a saved photo to another view. A
+ * taken Front, Back or Close-up swaps (`swapped`); a changed slot is checked again (`job_id`).
+ */
+export function useChangeImageView(productId: string) {
+  const keys = useKeys()
+  const qc = useQueryClient()
+  return useMutation({
+    meta: { errorTitle: 'Could not change the view' },
+    mutationFn: ({ imageId, body }: { imageId: string; body: ImageViewBody }) =>
+      unwrap(api.PATCH('/images/{image_id}', { params: { path: { image_id: imageId } }, body })),
+    onSuccess: (out) => {
+      for (const id of [out.image_id, out.swapped?.image_id]) if (id) void qc.invalidateQueries({ queryKey: keys.images.report(id) })
+    },
     onSettled: () => qc.invalidateQueries({ queryKey: keys.products.detail(productId) }),
   })
 }

@@ -109,8 +109,10 @@ import { neededForApproval, newProductGaps } from '@/features/analytics-images/i
 import { newPendingImage, placePending, type PendingImage } from './new-images-model'
 import { CountryField, HsnField, PackageFields } from '@/features/products/seller-field-inputs'
 import { packageHasSize, packageHasWeight, suggestHsn } from '@/features/products/seller-fields'
-import { missingNeeds, missingSummary, needText, useRequirements, type Filled, type NeedFieldId } from '@/features/products/needs'
+import { missingNeeds, missingSummary, needText, requirementsCategory, useRequirements, type Filled, type NeedFieldId } from '@/features/products/needs'
 import { normalizeBarcode } from '@/features/products/barcode'
+import { IdGuide } from './id-guide'
+import { ID_HINT } from './identifiers'
 
 const DRAFT_PREFIX = 'la.guided-draft.'
 
@@ -407,8 +409,9 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
   const categoryMapping = catalogItem ? mappingText(catalogItem, listOn) : null
   const categoryUnmapped = catalogItem ? unmappedText(catalogItem, listOn) : null
 
-  // SI12: what the ticked marketplaces need for this category, while it is empty.
-  const requirements = useRequirements(values.category)
+  // SI12: what the ticked marketplaces need for this category, while it is empty. Item 4: with
+  // "Let Kuinn suggest" on, the needs known without a category, so nothing surprises after save.
+  const requirements = useRequirements(requirementsCategory(values.category, values.kuinnSuggests))
   const filled: Filled = {
     brand_name: !values.ownBrand || !!values.brandName.trim(),
     identifier: values.barcode.exempt || normalizeBarcode(values.barcode.value) !== '',
@@ -419,6 +422,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
     selling_price: !!values.sellingPrice.trim(),
     hsn_code: !!values.hsn.trim(),
     package_size: packageHasSize(values.pkg),
+    product_size: packageHasSize(values.item),
     package_weight: packageHasWeight(values.pkg),
     country_of_origin: !!values.country.trim(),
     // Unknown while the brand loads: not counted until it is known.
@@ -733,7 +737,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               onChange={(styleNumber) => set({ styleNumber })}
               onBlur={() => touch('style_number')}
               error={errors.style_number}
-              hint="Your design or style code, like KS-1042. Optional."
+              hint={`Your design code, like KS-1042. ${ID_HINT.styleNumber} Optional.`}
               submitCount={submitCount}
               maxLength={64 + 8}
               code
@@ -759,6 +763,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               submitCount={submitCount}
               className="md:col-span-2"
             />
+            <IdGuide className="md:col-span-2" />
           </div>
         )
       case 'category':
@@ -776,7 +781,11 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
                 submitCount={submitCount}
                 required={!values.kuinnSuggests}
                 disabled={values.kuinnSuggests}
-                hint={values.kuinnSuggests ? 'Kuinn suggests a category after you save. You choose the one to use.' : undefined}
+                hint={
+                  values.kuinnSuggests
+                    ? `Kuinn suggests a category after you save. You choose the one to use.${listOn.length ? ' The Needed marks show what every category asks for; the category can add a few.' : ''}`
+                    : undefined
+                }
               />
               {categoryMapping ? (
                 <p className="text-caption text-ink-2" data-testid="g-category-mapping">
@@ -946,6 +955,16 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               neededSize={need('package_size')}
               neededWeight={need('package_weight')}
               category={values.category}
+              submitCount={submitCount}
+            />
+            <PackageFields
+              kind="item"
+              id="g-item"
+              value={values.item}
+              onChange={(item) => set({ item })}
+              onBlur={touch}
+              errors={errors}
+              neededSize={need('product_size')}
               submitCount={submitCount}
             />
             <p className="text-caption text-ink-3">Amazon and Flipkart both ask for the package and the country of origin. Flipkart also asks for the HSN code.</p>

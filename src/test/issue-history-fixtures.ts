@@ -21,6 +21,7 @@ export function issue(over: Partial<HistoryIssue> = {}): HistoryIssue {
     first_seen_at: AT,
     last_seen_at: AT,
     resolved_at: null,
+    suggested: false,
     ...over,
   }
 }
@@ -37,6 +38,7 @@ export function fix(over: Partial<Fix> = {}): Fix {
     reason: 'The marketplace accepts only values from its own list, so Kuinn sent the matching value from that list.',
     outcome: 'waiting',
     at: AT,
+    suggested: false,
     ...over,
   }
 }

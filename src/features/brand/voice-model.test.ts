@@ -4,7 +4,12 @@ import {
   cleanList,
   emptyVoiceDraft,
   isDraftEmpty,
+  hasPick,
   sameAsSaved,
+  togglePick,
+  toneBody,
+  toneChanged,
+  voiceChanged,
   toVoiceBody,
   toVoiceDraft,
   voiceProblems,
@@ -14,6 +19,7 @@ import {
 
 const full = (): VoiceDraft => ({
   description: ' Hand-block printed cotton wear from Jaipur. ',
+  tone: 'Warm, calm',
   audience: 'women 25 to 40 who want easy office wear',
   price_segment: 'mid',
   positioning: 'everyday handloom, made to last',
@@ -36,7 +42,7 @@ describe('voice model', () => {
 
   it('reads a saved profile back into a draft and round-trips', () => {
     const saved = toVoiceBody(full())
-    const draft = toVoiceDraft(saved)
+    const draft = toVoiceDraft(saved, 'Warm, calm')
     expect(toVoiceBody(draft)).toEqual(saved)
     expect(toVoiceDraft(undefined)).toEqual(emptyVoiceDraft())
     expect(isDraftEmpty(toVoiceDraft({ brand_description: null, brand_voice: null }))).toBe(true)
@@ -69,6 +75,7 @@ describe('voice model', () => {
       'Your brand',
       'Writes for',
       'Price',
+      'Tone',
       'Presents it as',
       'Brings out',
       'Uses words like',
@@ -83,5 +90,26 @@ describe('voice model', () => {
       { step: 'words', label: 'Never uses', text: '“cheap”' },
     ])
     expect(voiceSummary(emptyVoiceDraft())).toEqual([])
+    expect(voiceSummary({ ...emptyVoiceDraft(), tone: ' Calm ' })).toEqual([{ step: 'tone', label: 'Tone', text: 'Calm' }])
+  })
+
+  it('binds the tone question to the brand’s tone field, apart from the voice', () => {
+    const saved = toVoiceDraft({ brand_description: null, brand_voice: null }, 'Warm')
+    expect(saved.tone).toBe('Warm')
+    expect(isDraftEmpty(saved)).toBe(false)
+    expect('tone' in (toVoiceBody(full()).brand_voice ?? {})).toBe(false)
+    expect(toneBody({ ...saved, tone: '  ' })).toBeNull()
+    expect(toneChanged({ ...saved, tone: 'Warm, playful' }, saved)).toBe(true)
+    expect(voiceChanged({ ...saved, tone: 'Warm, playful' }, saved)).toBe(false)
+    expect(sameAsSaved({ ...saved, tone: ' Warm ' }, saved)).toBe(true)
+    expect(voiceProblems({ ...full(), tone: 'x'.repeat(2001) })).toEqual({ tone: 'Keep it to 2,000 characters.' })
+  })
+
+  it('adds and removes a tone quick pick in the text', () => {
+    expect(togglePick('', 'Warm')).toBe('Warm')
+    expect(togglePick('Warm', 'Calm')).toBe('Warm, Calm')
+    expect(togglePick('warm, Calm', 'Warm')).toBe('Calm')
+    expect(hasPick('Warm, calm', 'Calm')).toBe(true)
+    expect(hasPick('Warmly', 'Warm')).toBe(false)
   })
 })

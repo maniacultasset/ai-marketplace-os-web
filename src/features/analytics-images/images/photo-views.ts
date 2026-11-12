@@ -10,7 +10,7 @@
  * Backend reference: apps/api/app/services/photo_views.py.
  */
 import type { Schema } from '@/api/types'
-import { PHOTO_SLOTS, photoSlotsFor, type PhotoSlotDef, type PhotoSlotId } from './report'
+import { PHOTO_SLOTS, photoSlotOf, photoSlotsFor, SLOT_LABEL, type ImageRole, type ImageSlot, type PhotoSlotDef, type PhotoSlotId } from './report'
 
 export type PhotoViewRule = Schema<'PhotoViewRuleOut'>
 export type PhotoViewState = Schema<'PhotoViewOut'>
@@ -200,4 +200,67 @@ export function sizeList(sizes: readonly string[]): string {
   if (more > 0) return `${shown.join(', ')} and ${more} more`
   if (shown.length <= 1) return shown.join('')
   return `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}`
+}
+
+/** A saved photo as the product read lists it, for "Change view". */
+export interface PlacedPhoto {
+  image_id: string
+  slot: ImageSlot
+  role?: ImageRole | null
+  colourway_id?: string | null
+}
+
+export interface ViewChoice {
+  /** The tile id (`front`, `back`, ...), or the slot for the views under "More photos". */
+  key: string
+  label: string
+  slot: ImageSlot
+  role: ImageRole | null
+  /** A tile, or one of the kinds under "More photos". */
+  group: 'tile' | 'more'
+  /** The photo's own view now. */
+  current: boolean
+  /** Front, Back and Close-up hold one photo per colour: the photo there now swaps into this one's view. */
+  swaps: boolean
+}
+
+/** The views beyond the tiles, under "More photos": an extra angle, lifestyle, packaging label. */
+const MORE_CHOICES: readonly { slot: ImageSlot; label: string }[] = [
+  { slot: 'secondary', label: 'Other angle' },
+  { slot: 'lifestyle', label: SLOT_LABEL.lifestyle },
+  { slot: 'packaging_label', label: SLOT_LABEL.packaging_label },
+]
+
+/** The key of the view a saved photo fills: its tile id, else its slot. */
+export function viewKeyOf(slot: ImageSlot, role?: ImageRole | null): string {
+  return photoSlotOf(slot, role) ?? slot
+}
+
+/**
+ * Client feedback 7: where a saved photo can move without a new upload. The category's tiles (the
+ * checklist, else the four fixed ones; a variant has no size chart), then the "More photos" kinds.
+ * A tile whose one photo is taken (same colour) swaps; the photo's own view is marked current.
+ */
+export function viewChoices(photo: PlacedPhoto, others: readonly PlacedPhoto[], tiles: readonly PhotoSlotDef[]): ViewChoice[] {
+  const own = viewKeyOf(photo.slot, photo.role)
+  const colour = photo.colourway_id ?? null
+  const taken = (key: string) =>
+    others.some((o) => o.image_id !== photo.image_id && (o.colourway_id ?? null) === colour && viewKeyOf(o.slot, o.role) === key)
+  const single = (slot: ImageSlot, role: ImageRole | null) => slot === 'main' || (slot === 'secondary' && !!role)
+  const choices: ViewChoice[] = tiles.map((t) => ({
+    key: t.id,
+    label: t.label,
+    slot: t.slot,
+    role: t.role,
+    group: 'tile',
+    current: t.id === own,
+    swaps: t.id !== own && single(t.slot, t.role) && taken(t.id),
+  }))
+  for (const m of MORE_CHOICES) choices.push({ key: m.slot, label: m.label, slot: m.slot, role: null, group: 'more', current: m.slot === own, swaps: false })
+  // A photo in a view this category's list leaves out still shows where it is.
+  if (!choices.some((c) => c.current)) {
+    const fixed = PHOTO_SLOTS.find((d) => d.id === own)
+    if (fixed) choices.unshift({ key: fixed.id, label: fixed.label, slot: fixed.slot, role: fixed.role, group: 'tile', current: true, swaps: false })
+  }
+  return choices
 }

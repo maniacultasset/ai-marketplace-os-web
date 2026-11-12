@@ -9,6 +9,8 @@ export interface Call {
   path: string
   body: unknown
   auth: string | null
+  /** The query string, without the `?`. */
+  query: string
 }
 
 export type Handler = (call: Call) => Response | Promise<Response>
@@ -41,7 +43,7 @@ export function installFetch(routes: Record<string, Handler | Handler[]>) {
     const url = new URL(req.url, 'http://localhost')
     const path = url.pathname.replace(/^\/api\/v1/, '')
     const text = req.method === 'GET' || req.method === 'HEAD' ? '' : await req.text()
-    const call: Call = { method: req.method, path, body: text ? JSON.parse(text) : null, auth: req.headers.get('Authorization') }
+    const call: Call = { method: req.method, path, body: text ? JSON.parse(text) : null, auth: req.headers.get('Authorization'), query: url.search.replace(/^\?/, '') }
     calls.push(call)
     const key = `${req.method} ${path}`
     const route = routes[key]

@@ -129,6 +129,8 @@ export function keysFor(tid: string) {
       resolution: (listingId: string) => [...T, 'listings', 'detail', listingId, 'resolution'] as const,
       /** GET /listings/{id}/issue-history (feedback item 20 "Issues and fixes"). */
       issueHistory: (listingId: string) => [...T, 'listings', 'detail', listingId, 'issue-history'] as const,
+      /** GET /listings/{id}/requirements (feedback item 16: each field's marketplace limits and rules). */
+      requirements: (listingId: string) => [...T, 'listings', 'detail', listingId, 'requirements'] as const,
     },
     issues: {
       all: () => [...T, 'issues'] as const,

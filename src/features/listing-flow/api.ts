@@ -12,8 +12,11 @@
  *                                 404 on a backend without it, read as "nothing to show"
  *   GET  /listings/{id}/issue-history IssueHistoryOut (feedback item 20): each marketplace issue and
  *                                 each fix Kuinn made; 404 on a backend without it, read as nothing
+ *   GET  /listings/{id}/requirements ListingRequirementsOut (feedback item 16): each field's
+ *                                 marketplace limits and rules; 404 on a backend without it, read as
+ *                                 null (the cards then show counts without a limit)
  */
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { api, unwrap } from '@/api/client'
 import { isNetworkError, isNotFound } from '@/api/errors'
@@ -95,6 +98,21 @@ export function useIssueHistory(listingId: string, opts: { enabled?: boolean; po
   })
 }
 
+/**
+ * Client item 20: apply the fixes Kuinn suggested while the brand's automatic fixes are off
+ * (POST /listings/{id}/fixes/apply). The listing (its history, resolution and issue history) is
+ * read again afterwards, so the card shows the fix as Kuinn's and the re-check as running.
+ */
+export function useApplyFixes(listingId: string) {
+  const keys = useKeys()
+  const qc = useQueryClient()
+  return useMutation({
+    meta: { toast: false },
+    mutationFn: () => unwrap(api.POST('/listings/{listing_id}/fixes/apply', { params: { path: { listing_id: listingId } } })),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.listings.detail(listingId) }),
+  })
+}
+
 /** Every listing of one product (one per marketplace, so one page is the whole set). */
 export function useProductListings(productId: string | null | undefined) {
   const keys = useKeys()
@@ -138,4 +156,29 @@ export function useListOn() {
       },
     )
   return { start, ...generate }
+}
+
+/** The marketplace's rules change with a rules release, not while a page is open. */
+const REQUIREMENTS_STALE_MS = 5 * 60_000
+
+/**
+ * Each field's marketplace limits and rules (GET /listings/{id}/requirements). A backend without
+ * the route answers 404: the hook then resolves to null, so the cards show no limit instead of a
+ * guessed one. `data` is undefined while it loads.
+ */
+export function useListingRequirements(listingId: string) {
+  const keys = useKeys()
+  return useQuery({
+    queryKey: keys.listings.requirements(listingId),
+    queryFn: async () => {
+      try {
+        return await unwrap(api.GET('/listings/{listing_id}/requirements', { params: { path: { listing_id: listingId } } }))
+      } catch (e) {
+        if (isNotFound(e)) return null
+        throw e
+      }
+    },
+    staleTime: REQUIREMENTS_STALE_MS,
+    retry: (n, e) => !isNotFound(e) && n < 2,
+  })
 }

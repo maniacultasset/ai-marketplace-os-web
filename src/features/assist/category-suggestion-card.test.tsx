@@ -5,7 +5,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProductDetail } from '@/features/products/api'
 
 const post = vi.fn()
-vi.mock('@/api/client', async (orig) => ({ ...(await orig<typeof import('@/api/client')>()), api: { POST: (...a: unknown[]) => post(...a) } }))
+const get = vi.fn((_path: string): Promise<unknown> => new Promise(() => {}))
+vi.mock('@/api/client', async (orig) => ({
+  ...(await orig<typeof import('@/api/client')>()),
+  api: { POST: (...a: unknown[]) => post(...a), GET: (path: string) => get(path) },
+}))
+
+const mapped = (marketplace: 'amazon' | 'flipkart', product_type: string, product_type_name: string) => ({
+  marketplace,
+  product_type,
+  product_type_name,
+  external_category_id: null,
+  template_version: 1,
+})
+const CATALOG = {
+  items: [
+    { category: 'ethnic_wear_kurta_sets', label: 'Kurta sets', enabled: true, marketplaces: [mapped('amazon', 'KURTA', 'Kurta'), mapped('flipkart', 'kurta', 'Kurta')] },
+    { category: 'tshirts', label: 'T-shirts', enabled: true, marketplaces: [mapped('amazon', 'SHIRT', 'Shirt'), mapped('flipkart', 't_shirt', 'T-shirt')] },
+  ],
+}
 const mutate = vi.fn()
 vi.mock('@/features/products/api', async (orig) => ({ ...(await orig<object>()), useUpdateProduct: () => ({ mutate, isPending: false }) }))
 vi.mock('@/lib/auth', async (orig) => ({ ...(await orig<typeof import('@/lib/auth')>()), useSession: () => ({ tenantId: 't1' }) }))
@@ -53,6 +71,8 @@ function setup(p: ProductDetail) {
 beforeEach(() => {
   post.mockReset()
   mutate.mockReset()
+  get.mockReset()
+  get.mockImplementation(() => new Promise(() => {}))
   Element.prototype.hasPointerCapture ??= () => false
   Element.prototype.releasePointerCapture ??= () => {}
   Element.prototype.scrollIntoView ??= () => {}
@@ -81,6 +101,26 @@ describe('CategorySuggestionCard (SI14)', () => {
     await userEvent.click(screen.getByTestId('category-choose'))
     expect(screen.getByTestId('category-choose').textContent).toBe('Use T-shirts')
     expect(mutate.mock.calls[0]![0]).toEqual({ body: { category: 'tshirts' }, etag: '"e1"' })
+  })
+
+  it('client item 5: names the marketplace product type of each candidate and of another pick', async () => {
+    get.mockImplementation((path: string) =>
+      path === '/catalog/categories' ? Promise.resolve({ data: CATALOG, error: undefined, response: new Response(null, { status: 200 }) }) : new Promise(() => {}),
+    )
+    setup(product({ suggestions: suggested }))
+    await waitFor(() => expect(screen.getAllByTestId('category-candidate-mapping')).toHaveLength(2))
+    const [kurta, tees] = screen.getAllByTestId('category-candidate-mapping')
+    expect(kurta!.textContent).toBe('On Amazon: Kurta (KURTA) · On Flipkart: Kurta')
+    expect(tees!.textContent).toBe('On Amazon: Shirt (SHIRT) · On Flipkart: T-shirt')
+    expect(screen.queryByTestId('category-other-mapping')).toBeNull()
+    await userEvent.click(screen.getByTestId('suggest-other-p1-trigger'))
+    await userEvent.click(screen.getByRole('option', { name: 'T-shirts' }))
+    expect(screen.getByTestId('category-other-mapping').textContent).toBe('On Amazon: Shirt (SHIRT) · On Flipkart: T-shirt')
+  })
+
+  it('client item 5: shows no product type line while the catalog has not loaded', () => {
+    setup(product({ suggestions: suggested }))
+    expect(screen.queryByTestId('category-candidate-mapping')).toBeNull()
   })
 
   it('asks Kuinn on request and follows the product while it reads', async () => {

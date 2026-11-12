@@ -9,6 +9,7 @@
  * no mapping API, so the screen shows what the server will do with each column before upload,
  * and never offers a mapping it cannot honour.
  */
+import type { CsvSkuRow } from './sku-batch'
 import { COLUMN_ALIASES, COLUMN_GROUPS, PHOTO_LINK_COLUMNS, REQUIRED_COLUMNS } from '@/features/imports/csv-template'
 
 export type ColumnMatch = 'ok' | 'alias' | 'not-stored' | 'photo-link' | 'unknown' | 'duplicate'
@@ -33,6 +34,8 @@ export interface HeaderAnalysis {
   linkProblems: LinkProblem[]
   /** The server would refuse the file because of its header. */
   refused: boolean
+  /** Each row's seller_sku (blank cells left out), for the duplicate SKU check before upload. */
+  skuRows: CsvSkuRow[]
 }
 
 const BULLET = /^bullet_[1-9][0-9]?$/
@@ -142,7 +145,7 @@ function rowLinkProblem(cells: { column: string; value: string; split: boolean }
   return null
 }
 
-export function analyzeHeader(header: readonly string[]): Omit<HeaderAnalysis, 'rows' | 'photoLinkRows' | 'linkProblems'> {
+export function analyzeHeader(header: readonly string[]): Omit<HeaderAnalysis, 'rows' | 'photoLinkRows' | 'linkProblems' | 'skuRows'> {
   const columns: ColumnResult[] = []
   const seen = new Set<string>()
   const present = new Set<string>()
@@ -197,7 +200,24 @@ export function analyzeCsv(text: string): HeaderAnalysis {
       const p = rowLinkProblem(cells)
       if (p) linkProblems.push({ row: i + 2, ...p })
     })
-  return { ...analysis, rows: Math.max(0, records.length - 1), photoLinkRows, linkProblems }
+  const at = (field: string) => analysis.columns.find((c) => c.field === field && (c.match === 'ok' || c.match === 'alias'))?.position
+  const skuRows = csvSkuRows(records, at('seller_sku'), at('parent_style_id'))
+  return { ...analysis, rows: Math.max(0, records.length - 1), photoLinkRows, linkProblems, skuRows }
+}
+
+/**
+ * Each record's trimmed seller_sku and parent_style_id (blank SKUs left out), from the 1-based
+ * column positions: the header's own match, or the confirmed column map's (pure).
+ */
+export function csvSkuRows(records: readonly (readonly string[])[], skuAt: number | undefined, parentAt: number | undefined): CsvSkuRow[] {
+  const out: CsvSkuRow[] = []
+  if (skuAt === undefined) return out
+  records.slice(1).forEach((r, i) => {
+    const sku = (r[skuAt - 1] ?? '').trim()
+    const parent = parentAt === undefined ? '' : (r[parentAt - 1] ?? '').trim()
+    if (sku) out.push({ row: i + 2, sku, parent: parent || null })
+  })
+  return out
 }
 
 export const MATCH_COPY: Record<ColumnMatch, string> = {

@@ -3,7 +3,7 @@ import { ApiError } from '@/api/errors'
 import type { ActionState, BatchAccepted, BatchResult } from '@/features/listings/model'
 import type { Action } from '@/lib/permissions'
 import { attempt, resolution } from '@/test/resolution-fixtures'
-import { approveThenPublish, isResend, resendView, type ResendInput } from './resend'
+import { approveThenPublish, isResend, resendView, sectionSavedToast, type ResendInput } from './resend'
 
 const on: ActionState = { show: true, enabled: true }
 const all = () => true
@@ -119,5 +119,21 @@ describe('approveThenPublish', () => {
       publish: async () => ({ batch_id: 'b', poll_url: '/x', items: [item({ http_status: 409, error: report('SUBMISSION_IN_FLIGHT') })] }) as BatchAccepted,
     })
     expect(out).toMatchObject({ step: 'publish_failed', message: 'A submission of this listing is still open.' })
+  })
+})
+
+describe('section save toast (item 17)', () => {
+  it('never says a teammate approves while owner approval is on', () => {
+    const own = sectionSavedToast('Title', { ownApproval: true, resendEdit: false, mp: 'Amazon' })
+    expect(own).toEqual({ title: 'Title saved', description: 'Kept as your edit and locked. The checks ran again. You can approve it yourself.' })
+    expect(own.description).not.toMatch(/teammate|Someone else/)
+    const ownResend = sectionSavedToast('Title', { ownApproval: true, resendEdit: true, mp: 'Amazon' })
+    expect(ownResend.title).toBe('Title saved')
+    expect(ownResend.description).toContain('You can approve it yourself and send it to Amazon again.')
+  })
+
+  it('names the teammate or someone else when owner approval is off', () => {
+    expect(sectionSavedToast('Title', { ownApproval: false, resendEdit: true, mp: 'Amazon' }).title).toBe('Sent to a teammate for approval')
+    expect(sectionSavedToast('Key features', { ownApproval: false, resendEdit: false, mp: 'Amazon' }).description).toContain('Someone else approves it.')
   })
 })

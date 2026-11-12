@@ -104,3 +104,52 @@ describe('words', () => {
     expect(fixKindLabel('ai_correction')).toBe('Rewritten by the agent')
   })
 })
+
+describe('suggested fixes (client item 20)', () => {
+  it('keeps a suggestion apart from Kuinn’s fixes and lists its issue once', () => {
+    const v = issueHistoryView(
+      history({
+        issues: [issue({ id: 'i1', handler: 'you', lane: 'seller' }), issue({ id: 'i2', handler: 'you', lane: 'seller' })],
+        fixes: [fix({ id: 's1', issue_id: 'i1', suggested: true }), fix({ id: 'f1', outcome: 'accepted' })],
+      }),
+      'amazon',
+    )
+    expect(v.suggested.map((f) => f.id)).toEqual(['s1'])
+    expect(v.fixed.map((f) => f.id)).toEqual(['f1'])
+    expect(v.needsYou.map((i) => i.id)).toEqual(['i2'])
+    expect(v.summary).toContain('1 suggested fix waits for you')
+    expect(v.empty).toBe(false)
+  })
+})
+
+describe('a suggested content fix or AI rewrite (client item 20)', () => {
+  it('waits under "Kuinn suggests" with no value change, not under "Needs you"', () => {
+    const v = issueHistoryView(
+      history({
+        issues: [
+          issue({ id: 'i1', field: 'content.title', handler: 'you', lane: 'seller', suggested: true }),
+          issue({ id: 'i2', handler: 'you', lane: 'seller' }),
+          issue({ id: 'i3', handler: 'you', lane: 'seller', suggested: true, status: 'resolved' }),
+        ],
+      }),
+      'amazon',
+    )
+    expect(v.suggestedIssues.map((i) => i.id)).toEqual(['i1'])
+    expect(v.suggested).toEqual([])
+    expect(v.needsYou.map((i) => i.id)).toEqual(['i2'])
+    expect(v.summary).toContain('1 suggested fix waits for you')
+  })
+
+  it('lists an issue with a suggested value change once, under its fix', () => {
+    const v = issueHistoryView(
+      history({
+        issues: [issue({ id: 'i1', handler: 'you', lane: 'seller', suggested: true })],
+        fixes: [fix({ id: 's1', issue_id: 'i1', suggested: true })],
+      }),
+      'amazon',
+    )
+    expect(v.suggested.map((f) => f.id)).toEqual(['s1'])
+    expect(v.suggestedIssues).toEqual([])
+    expect(v.summary).toContain('1 suggested fix waits for you')
+  })
+})

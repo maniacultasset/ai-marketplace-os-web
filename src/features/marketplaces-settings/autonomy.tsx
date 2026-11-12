@@ -8,20 +8,20 @@
  *   task notifications are planned, each with its reason;
  * - the real rule for each supported marketplace is one caption line inside the Approval mode tile;
  * - the planned cards sit together under one "Planned for a later version" heading;
- * - "Owners may approve their own listings" (ADR-0031, `#owner-approval`) is the one real setting:
- *   it saves on its own (team-account/owner-approval-setting), so there is still no "Save changes"
- *   footer.
+ * - "Owners may approve their own listings" (ADR-0031, `#owner-approval`) and "Let Kuinn fix safe
+ *   listing errors automatically" (client item 20, `#auto-fix`, `./auto-fix-setting`) are the real
+ *   settings: each saves on its own, so there is still no "Save changes" footer.
  */
 import { PageHeader } from '@/components/app/page-header'
 import { Banner } from '@/components/la/banner'
-import { CardHead, LaCard } from '@/components/la/cards'
+import { LaCard } from '@/components/la/cards'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
 import { MARKETPLACES } from '@/components/la/marketplace'
-import { StatusChip, TagChip, type ChipStatus } from '@/components/la/status-chip'
+import { TagChip } from '@/components/la/status-chip'
 import { ComingSoon, UnavailableHint } from '@/components/la/unavailable'
 import { OwnerApprovalSetting } from '@/features/team-account/owner-approval-setting'
-import { cn } from '@/lib/utils'
-import { AUTO_FIX_SCOPE, AUTO_FIX_TRIES, AUTONOMY_REASON, NEVER_GUESSED, SUPPORTED, type AutoFixMode } from './model'
+import { AutoFixSetting } from './auto-fix-setting'
+import { AUTO_FIX_TRIES, AUTONOMY_REASON, SUPPORTED } from './model'
 
 export function AutonomySettings() {
   return (
@@ -70,23 +70,10 @@ export function AutonomySettings() {
 
       <OwnerApprovalSetting />
 
-      {/* What runs today (SI11, live): data fixes resend on their own, content waits for a
-          person, three automatic tries at most. Prod QA 9 Nov: this read "Coming soon". */}
-      <LaCard data-testid="autonomy-auto-fix">
-        <CardHead title="The agent may fix these on its own" />
-        <ul className="mt-1">
-          {AUTO_FIX_SCOPE.map((row) => (
-            <li key={row.label} className="mt-3 flex items-center justify-between gap-3 text-body text-ink" data-mode={row.mode}>
-              <span className={cn(row.mode === 'planned' && 'text-ink-3')}>{row.label}</span>
-              <ModeChip mode={row.mode} />
-            </li>
-          ))}
-        </ul>
-        <p className="mt-4 text-caption text-ink-3">
-          A data fix is checked again, or sent again after a failed submission, without asking you. A change to the title,
-          bullets or description becomes a new version that a person approves. {NEVER_GUESSED}
-        </p>
-      </LaCard>
+      {/* What runs today (SI11, live), and the brand's switch for it (client item 20): data fixes
+          resend on their own or wait for the seller, content waits for a person, three automatic
+          tries at most. Prod QA 9 Nov: this read "Coming soon". */}
+      <AutoFixSetting />
 
       <LaCard data-testid="autonomy-retry">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -132,20 +119,5 @@ export function AutonomySettings() {
         </LaCard>
       </section>
     </div>
-  )
-}
-
-const MODE_CHIP: Record<AutoFixMode, { status: ChipStatus; label: string }> = {
-  auto: { status: 'live', label: 'On its own' },
-  approval: { status: 'ready', label: 'You approve' },
-  planned: { status: 'not-listed', label: 'Planned' },
-}
-
-function ModeChip({ mode }: { mode: AutoFixMode }) {
-  const m = MODE_CHIP[mode]
-  return (
-    <StatusChip status={m.status} className="shrink-0">
-      {m.label}
-    </StatusChip>
   )
 }

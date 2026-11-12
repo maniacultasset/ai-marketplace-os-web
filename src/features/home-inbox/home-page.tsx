@@ -27,15 +27,16 @@ import { useMe } from '@/lib/auth'
 import { useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { useHomeSummary } from './api'
+import { BrandScopeSelect, BrandsOverview } from './brands-overview'
+import { showBrandScope, type BrandScope } from './brands-model'
 import { FirstRun } from './first-run'
-import { API_MARKETPLACES, greeting, marketplaceCard } from './model'
+import { API_MARKETPLACES, greeting } from './model'
 import { Ago } from './parts'
 import {
-  cardInputs,
-  cardNext,
   feedRows,
   feedSummary,
   liveTile,
+  marketCard,
   needsYouTile,
   progressTile,
   STATE_WORD,
@@ -49,34 +50,64 @@ import {
 /** A summary link target as router Link props (the targets are this app's own routes). */
 const linkTo = (t: Target) => t as unknown as LinkProps
 
-export function HomePage() {
+/**
+ * `scope` is the URL's brand scope (`/home?brands=all`, `./brands-model`); `onScope` changes it.
+ * Without a router (tests) the page keeps it itself.
+ */
+export function HomePage({ scope, onScope }: { scope?: BrandScope; onScope?: (s: BrandScope) => void } = {}) {
   const { data: me } = useMe()
   const brand = useBrandName(me)
+  const [local, setLocal] = useState<BrandScope>(undefined)
+  const current = onScope ? scope : local
+  const setScope = onScope ?? setLocal
+  const all = current === 'all' && showBrandScope(me)
   const summary = useHomeSummary()
+  const picker = <BrandScopeSelect scope={all ? 'all' : undefined} onScope={setScope} />
 
+  if (all) {
+    return (
+      <Page>
+        <PageHeader title={greeting(me?.display_name ?? null)} description="All my brands" actions={picker} />
+        <BrandsOverview onScope={setScope} />
+      </Page>
+    )
+  }
   // p05 "Checklist and routes are shown until the first listing exists" (no listings at all).
   // FirstRun mounts its own Page; every other state swaps inside one shared Page so the page-in
   // rise plays once (skeleton → dashboard does not rise twice).
-  if (summary.isSuccess && summary.data.listings.total === 0) return <FirstRun brand={brand} />
+  if (summary.isSuccess && summary.data.listings.total === 0) return <FirstRun brand={brand} actions={picker} />
   return (
     <Page>
       {summary.isPending ? (
         <HomeSkeletonBody />
       ) : summary.isError ? (
         <>
-          <PageHeader title={greeting(me?.display_name ?? null)} description={brand || undefined} />
+          <PageHeader title={greeting(me?.display_name ?? null)} description={brand || undefined} actions={picker} />
           <LaCard className="mx-auto w-full max-w-xl py-10">
             <ErrorState error={summary.error} title="Couldn't load Home" onRetry={() => void summary.refetch()} />
           </LaCard>
         </>
       ) : (
-        <DashboardBody brand={brand} name={me?.display_name ?? null} summary={summary.data} updatedAt={summary.dataUpdatedAt} />
+        <DashboardBody brand={brand} name={me?.display_name ?? null} summary={summary.data} updatedAt={summary.dataUpdatedAt} picker={picker} />
       )}
     </Page>
   )
 }
 
-export function DashboardBody({ brand, name, summary, updatedAt }: { brand: string; name: string | null; summary: HomeSummary; updatedAt: number }) {
+export function DashboardBody({
+  brand,
+  name,
+  summary,
+  updatedAt,
+  picker,
+}: {
+  brand: string
+  name: string | null
+  summary: HomeSummary
+  updatedAt: number
+  /** The brand selector (2+ brands only). */
+  picker?: ReactNode
+}) {
   const can = useCan()
   const live = liveTile(summary)
   const working = progressTile(summary)
@@ -94,6 +125,7 @@ export function DashboardBody({ brand, name, summary, updatedAt }: { brand: stri
         }
         actions={
           <>
+            {picker}
             {can('analytics:read') ? (
               <Button asChild variant="ghost" className="max-sm:flex-1" data-testid="home-reports">
                 <Link to="/analytics">
@@ -229,6 +261,8 @@ const MARKETPLACE_ROW = 'mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3'
 const LINK_ATTENTION =
   'inline-flex min-h-10 items-center gap-1 font-semibold text-attention-ink underline decoration-attention-line underline-offset-4 hover:decoration-attention pointer-fine:min-h-0'
 const LINK_QUIET = 'inline-flex min-h-10 items-center gap-1 font-semibold text-brand underline-offset-4 hover:underline pointer-fine:min-h-0'
+const LINK_COUNT =
+  'inline-flex min-h-10 items-center tabular-nums text-ink-2 underline decoration-line underline-offset-4 hover:text-ink hover:decoration-ink-3 pointer-fine:min-h-0'
 
 function MarketplaceRow({ summary }: { summary: HomeSummary }) {
   // Connecting is an owner or admin's job: other roles get the reason, not a dead-end link.
@@ -237,57 +271,111 @@ function MarketplaceRow({ summary }: { summary: HomeSummary }) {
   return (
     <div className={cn('stagger-children [--stagger-base:80ms]', MARKETPLACE_ROW)} data-testid="home-marketplaces">
       {SUPPORTED_CARDS.map((m) => {
-        const { account, totals, status } = cardInputs(summary, m)
         const soon = comingSoon(m, connected) ? { reason: comingSoonReason(m) } : null
-        const view = marketplaceCard(account, totals, true, soon)
-        const next = view.action || view.problem || soon ? null : cardNext(m, status, totals)
+        const view = marketCard(summary, m, soon)
+        const next = view.action || view.problem || soon ? null : view.next
+        const line = view.action || view.problem || view.sub || next
         return (
-          // Solid once anything is live on it; dashed only while nothing is listed and nothing to fix.
-          <LaCard key={m} pad="sm" emphasis={view.chip.status === 'not-listed' && !view.action && !next ? 'dashed' : 'default'} data-testid={`home-mp-${m}`}>
+          // Solid once anything is live, counted or to do on it; dashed only while it is empty.
+          <LaCard
+            key={m}
+            pad="sm"
+            emphasis={view.chip.status === 'not-listed' && !view.action && !next && !view.stats.length && !view.paused ? 'dashed' : 'default'}
+            data-testid={`home-mp-${m}`}
+          >
             <div className="flex items-center gap-3 font-semibold text-ink">
               <MarketplaceTile id={m} />
               {MARKETPLACE_LABEL[m]}
             </div>
             <div className="mt-3">
-              <StatusChip status={view.chip.status} className="tabular-nums">
-                <span data-testid="mp-chip">{view.chip.label}</span>
-              </StatusChip>
+              {view.chip.target && view.chip.definition ? (
+                <CountLink target={view.chip.target} definition={view.chip.definition} testId="mp-chip-link" className="inline-flex rounded-full">
+                  <StatusChip status={view.chip.status} className="tabular-nums">
+                    <span data-testid="mp-chip">{view.chip.label}</span>
+                  </StatusChip>
+                </CountLink>
+              ) : (
+                <StatusChip status={view.chip.status} className="tabular-nums">
+                  <span data-testid="mp-chip">{view.chip.label}</span>
+                </StatusChip>
+              )}
             </div>
-            <p className="mt-2 text-caption text-ink-2">
-              {view.action && !canConnect ? (
-                <span data-testid="mp-connect-who">
-                  {view.action === 'reconnect' ? 'Access expired. An owner or admin can reconnect it.' : 'Not connected. An owner or admin can connect it.'}
-                </span>
-              ) : view.problem ? (
-                <>
-                  {view.sub ? `${view.sub} · ` : null}
+            {view.stats.length ? (
+              <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-caption text-ink-2" data-testid="mp-stats">
+                {view.stats.map((st, i) => (
+                  <span key={st.key} className="inline-flex items-center gap-x-1.5">
+                    {i > 0 ? <span aria-hidden className="text-ink-3">·</span> : null}
+                    <CountLink target={st.target} definition={st.definition} testId={`mp-stat-${st.key}`} className={st.attention ? LINK_ATTENTION : LINK_COUNT}>
+                      {st.label}
+                    </CountLink>
+                  </span>
+                ))}
+              </p>
+            ) : null}
+            {line ? (
+              <p className="mt-2 text-caption text-ink-2">
+                {view.action && !canConnect ? (
+                  <span data-testid="mp-connect-who">
+                    {view.action === 'reconnect' ? 'Access expired. An owner or admin can reconnect it.' : 'Not connected. An owner or admin can connect it.'}
+                  </span>
+                ) : view.problem ? (
                   <Link to="/products/$productId" params={{ productId: view.problem.productId }} className={LINK_ATTENTION} data-testid="mp-problem">
                     {view.problem.text}
                   </Link>
-                </>
-              ) : view.action ? (
-                <Link to="/marketplaces" search={{ mp: m }} className={LINK_ATTENTION} data-testid="mp-connect">
-                  {view.sub}
-                </Link>
-              ) : (
-                <>
-                  {view.sub && !(next && totals.listings === 0) ? <span>{view.sub}</span> : null}
-                  {next ? (
-                    <>
-                      {view.sub && totals.listings > 0 ? ' · ' : null}
-                      <Link {...linkTo(next.target)} className={LINK_QUIET} data-testid="mp-next">
-                        {next.label}
-                      </Link>
-                    </>
-                  ) : null}
-                </>
-              )}
-            </p>
+                ) : view.action ? (
+                  <Link to="/marketplaces" search={{ mp: m }} className={LINK_ATTENTION} data-testid="mp-connect">
+                    {view.sub}
+                  </Link>
+                ) : (
+                  <>
+                    {view.sub && !(next && view.sub === 'Connected. No listings yet.') ? <span>{view.sub}</span> : null}
+                    {next ? (
+                      <>
+                        {view.sub && view.sub !== 'Connected. No listings yet.' ? ' · ' : null}
+                        {next.definition ? (
+                          <CountLink target={next.target} definition={next.definition} testId="mp-next" className={LINK_QUIET}>
+                            {next.label}
+                          </CountLink>
+                        ) : (
+                          <Link {...linkTo(next.target)} className={LINK_QUIET} data-testid="mp-next">
+                            {next.label}
+                          </Link>
+                        )}
+                      </>
+                    ) : null}
+                  </>
+                )}
+              </p>
+            ) : null}
+            {view.paused ? (
+              <p className="mt-2 flex items-start gap-1.5 text-caption text-ink-3" data-testid="mp-paused">
+                <Icon name="info" size={14} className="mt-px shrink-0" aria-hidden />
+                <span>{view.paused}</span>
+              </p>
+            ) : null}
           </LaCard>
         )
       })}
       <UnsupportedMarketplaces />
     </div>
+  )
+}
+
+/**
+ * A number on a marketplace card: it opens its filtered list, and says what it counts on hover or
+ * focus (the tooltip) and to a screen reader (the hidden sentence in the link's name).
+ */
+function CountLink({ target, definition, testId, className, children }: { target: Target; definition: string; testId: string; className?: string; children: ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link {...linkTo(target)} className={cn('focus-ring', className)} data-testid={testId}>
+          {children}
+          <span className="sr-only">. {definition}</span>
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-64">{definition}</TooltipContent>
+    </Tooltip>
   )
 }
 

@@ -11,9 +11,14 @@ vi.mock('@/hooks/use-capabilities', () => ({ useCapability: () => live, useCapab
 const answers = new Map<string, () => Promise<unknown>>()
 const get = vi.fn((path: string, ..._rest: unknown[]) => answers.get(path)?.() ?? new Promise(() => {}))
 const post = vi.fn()
+const patch = vi.fn()
 vi.mock('@/api/client', async (orig) => ({
   ...(await orig<typeof import('@/api/client')>()),
-  api: { GET: (path: string, ...rest: unknown[]) => get(path, ...rest), POST: (...a: unknown[]) => post(...a) },
+  api: {
+    GET: (path: string, ...rest: unknown[]) => get(path, ...rest),
+    POST: (...a: unknown[]) => post(...a),
+    PATCH: (...a: unknown[]) => patch(...a),
+  },
 }))
 const ok = (body: unknown, status = 200) => Promise.resolve({ data: body, error: undefined, response: new Response(JSON.stringify(body), { status }) })
 const refuse = (status: number) => {
@@ -61,6 +66,7 @@ beforeEach(() => {
   answers.clear()
   get.mockClear()
   post.mockReset()
+  patch.mockReset()
   uploadImage.mockReset()
   // Radix Select in jsdom.
   Element.prototype.hasPointerCapture ??= () => false
@@ -503,5 +509,89 @@ describe('ProductImagesCard colour check (client feedback item 9)', () => {
   it('shows nothing while the check is off', () => {
     setup(withMatch(null))
     expect(screen.queryByTestId('photo-match')).toBeNull()
+  })
+})
+
+describe('ProductImagesCard change view (feedback 7)', () => {
+  const EXTRA = '33333333-3333-4333-8333-333333333333'
+  const BACK = '33333333-3333-4333-8333-333333333334'
+  const flat = {
+    id: P,
+    images: [`${T}/${P}/images/${I1}`, `${T}/${P}/images/${EXTRA}`, `${T}/${P}/images/${BACK}`],
+    image_details: [
+      { image_id: I1, slot: 'main' as const, position: 0, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' as const },
+      { image_id: EXTRA, slot: 'secondary' as const, position: 0, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' as const },
+      { image_id: BACK, slot: 'secondary' as const, role: 'back' as const, position: 1, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' as const },
+    ],
+    colourways: [],
+  }
+  const row = (id: string) => document.querySelector<HTMLElement>(`[data-testid="image-row"][data-image-id="${id}"]`)!
+  beforeEach(() => {
+    live = true
+  })
+
+  it('marks a More photos extra as the Close-up from its row, with no new upload', async () => {
+    patch.mockReturnValue(ok({ image_id: EXTRA, slot: 'secondary', role: 'close_up', compliance_status: 'passed', job_id: null, swapped: null }))
+    setup(flat)
+    const trigger = within(row(EXTRA)).getByRole('button', { name: 'Change view of the secondary photo' })
+    await userEvent.click(trigger)
+    const items = screen.getAllByRole('menuitemradio')
+    expect(items.map((i) => i.textContent?.replace('Swaps with the photo there now', ''))).toEqual([
+      'Front',
+      'Back',
+      'Close-up',
+      'Size chart',
+      'Other angle',
+      'Lifestyle',
+      'Packaging label',
+    ])
+    expect(screen.getByRole('menuitemradio', { name: 'Other angle' }).getAttribute('aria-checked')).toBe('true')
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'Close-up' }))
+    await waitFor(() => expect(patch).toHaveBeenCalled())
+    expect(patch.mock.calls[0]).toEqual(['/images/{image_id}', { params: { path: { image_id: EXTRA } }, body: { slot: 'secondary', role: 'close_up' } }])
+    expect(uploadImage).not.toHaveBeenCalled()
+  })
+
+  it('says a taken Back swaps, and works from the keyboard', async () => {
+    patch.mockReturnValue(
+      ok({
+        image_id: EXTRA,
+        slot: 'secondary',
+        role: 'back',
+        compliance_status: 'passed',
+        job_id: null,
+        swapped: { image_id: BACK, slot: 'secondary', role: null, compliance_status: 'passed', job_id: null },
+      }),
+    )
+    setup(flat)
+    const trigger = within(row(EXTRA)).getByRole('button', { name: 'Change view of the secondary photo' })
+    trigger.focus()
+    await userEvent.keyboard('{Enter}')
+    const back = await screen.findByRole('menuitemradio', { name: /^Back/ })
+    expect(back.textContent).toContain('Swaps with the photo there now')
+    // Front is taken too; the size chart and the More photos kinds hold many photos.
+    expect(screen.getByRole('menuitemradio', { name: /^Front/ }).textContent).toContain('Swaps')
+    expect(screen.getByRole('menuitemradio', { name: 'Lifestyle' }).textContent).not.toContain('Swaps')
+    await waitFor(() => expect(document.activeElement?.getAttribute('role')).toBe('menuitemradio'))
+    await userEvent.keyboard('{ArrowDown}')
+    expect(document.activeElement?.textContent).toMatch(/^Back/)
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(patch).toHaveBeenCalled())
+    expect(patch.mock.calls[0]![1]).toMatchObject({ body: { slot: 'secondary', role: 'back' } })
+  })
+
+  it('puts the menu on a filled tile, and offers no size chart on a variant', async () => {
+    setup({ ...flat, parent_product_id: P })
+    const front = screen.getByTestId('photo-slot-front')
+    await userEvent.click(within(front).getByRole('button', { name: 'Change view of the front photo' }))
+    const labels = screen.getAllByRole('menuitemradio').map((i) => i.textContent)
+    expect(labels).not.toContain('Size chart')
+    expect(screen.getByRole('menuitemradio', { name: 'Front' }).getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('shows no menu to someone who may not move photos', () => {
+    live = false
+    setup(flat)
+    expect(screen.queryByTestId('change-view')).toBeNull()
   })
 })

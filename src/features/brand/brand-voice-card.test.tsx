@@ -21,10 +21,20 @@ const query: { data: { data: Profile; etag: string } | undefined; isPending: boo
   refetch: vi.fn(),
 }
 const mutateAsync = vi.fn()
+const tenant: { data: { data: { tone: string | null }; etag: string } | undefined; isPending: boolean; refetch: ReturnType<typeof vi.fn> } = {
+  data: undefined,
+  isPending: false,
+  refetch: vi.fn(),
+}
+const saveTone = vi.fn()
 
 vi.mock('@/features/products/api', () => ({
   useBrandManufacturer: () => query,
   useSaveBrandManufacturer: () => ({ mutateAsync, isPending: false }),
+}))
+vi.mock('./api', () => ({
+  useBrandProfile: () => tenant,
+  useSaveProfile: () => ({ mutateAsync: saveTone, isPending: false }),
 }))
 vi.mock('@/lib/toast', () => ({ toast: { success: vi.fn() } }))
 
@@ -34,6 +44,9 @@ beforeEach(() => {
   query.data = { data: { ...empty }, etag: '"v1"' }
   mutateAsync.mockReset().mockResolvedValue({ data: empty, etag: '"v2"' })
   query.refetch.mockReset()
+  tenant.data = { data: { tone: null }, etag: '"t1"' }
+  tenant.refetch.mockReset()
+  saveTone.mockReset().mockResolvedValue({ data: { tone: null }, etag: '"t2"' })
 })
 afterEach(cleanup)
 
@@ -44,7 +57,7 @@ describe('BrandVoiceCard', () => {
   it('walks the questions, reads the answers back, and saves them with the ETag it opened from', async () => {
     render(<BrandVoiceCard canEdit />)
     fireEvent.click(screen.getByTestId('voice-start'))
-    expect(within(dialog()).getByTestId('voice-progress').textContent).toBe('Question 1 of 7')
+    expect(within(dialog()).getByTestId('voice-progress').textContent).toBe('Question 1 of 8')
     // an empty question offers Skip; an answered one offers Next
     expect(within(dialog()).getByTestId('voice-next').textContent).toBe('Skip')
     fireEvent.change(screen.getByLabelText('About your brand'), { target: { value: 'Cotton wear from Jaipur.' } })
@@ -54,6 +67,7 @@ describe('BrandVoiceCard', () => {
     next()
     fireEvent.click(screen.getByRole('radio', { name: /Premium/ }))
     next()
+    next() // skip the tone
     next() // skip "what makes it different"
     const use = screen.getByLabelText('Words to use')
     fireEvent.change(use, { target: { value: 'breathable' } })
@@ -93,6 +107,43 @@ describe('BrandVoiceCard', () => {
       },
     })
     await waitFor(() => expect(screen.queryByTestId('voice-dialog')).toBeNull())
+    expect(saveTone).not.toHaveBeenCalled() // the tone was not changed
+  })
+
+  it('asks for the tone and saves it to the brand’s tone field, apart from the voice', async () => {
+    render(<BrandVoiceCard canEdit variant="setup" />)
+    fireEvent.click(screen.getByTestId('voice-start'))
+    next()
+    next()
+    next()
+    expect(within(dialog()).getByTestId('voice-step-tone')).toBeTruthy()
+    expect(within(dialog()).getByText('How should it sound?')).toBeTruthy()
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Warm' }))
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Calm' }))
+    expect((screen.getByLabelText('Tone of voice') as HTMLTextAreaElement).value).toBe('Warm, Calm')
+    expect(within(dialog()).getByRole('button', { name: 'Warm' }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(within(dialog()).getByTestId('voice-to-summary'))
+    expect(within(dialog()).getByTestId('voice-summary').textContent).toContain('Warm, Calm')
+    fireEvent.click(within(dialog()).getByTestId('voice-save'))
+    await waitFor(() => expect(saveTone).toHaveBeenCalledTimes(1))
+    expect(saveTone.mock.calls[0]![0]).toEqual({ body: { tone: 'Warm, Calm' }, etag: '"t1"' })
+    expect(mutateAsync).not.toHaveBeenCalled() // only the tone changed
+  })
+
+  it('reads the saved tone back and keeps a stale tone save', async () => {
+    tenant.data = { data: { tone: 'Calm and clear' }, etag: '"t3"' }
+    saveTone.mockRejectedValueOnce(new ApiError({ type: 'STALE_VERSION', status: 409, message: 'stale' }))
+    tenant.refetch.mockResolvedValue({ data: { data: { tone: 'Bold' }, etag: '"t4"' } })
+    render(<BrandVoiceCard canEdit />)
+    expect(screen.getByTestId('voice-summary').textContent).toContain('Calm and clear')
+    fireEvent.click(screen.getByRole('button', { name: 'Change tone' }))
+    fireEvent.change(screen.getByLabelText('Tone of voice'), { target: { value: 'Warm' } })
+    fireEvent.click(within(dialog()).getByTestId('voice-to-summary'))
+    fireEvent.click(within(dialog()).getByTestId('voice-save'))
+    await waitFor(() => expect(within(dialog()).getByText('Someone saved a newer version')).toBeTruthy())
+    fireEvent.click(within(dialog()).getByTestId('voice-save'))
+    await waitFor(() => expect(saveTone).toHaveBeenCalledTimes(2))
+    expect(saveTone.mock.calls[1]![0]).toEqual({ body: { tone: 'Warm' }, etag: '"t4"' })
   })
 
   it('setup: "Do this later" folds the card to one line and saves nothing', () => {
