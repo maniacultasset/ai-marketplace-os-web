@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { missingNeeds, missingSummary, needText, neededText, productFilled, type Requirements } from './needs'
+import { missingNeeds, missingSummary, needText, neededText, NO_CATEGORY, productFilled, requirementsCategory, type Requirements } from './needs'
 import type { Product } from './api'
 
 const req: Requirements = {
@@ -64,5 +64,19 @@ describe('Needed chips', () => {
     expect(productFilled(p, { isVariant: true, isStyle: false }).size_chart).toBe(true)
     const withChart = { ...p, size_chart: { unit: 'cm', basis: 'garment', rows: [{ size: 'M' }] } } as unknown as Product
     expect(productFilled(withChart, { isVariant: false, isStyle: false }).size_chart).toBe(true)
+  })
+})
+
+describe('client item 4: needs before a category', () => {
+  it('asks for the uncategorized needs only while Kuinn suggests and nothing is chosen', () => {
+    expect(NO_CATEGORY).toBe('uncategorized')
+    expect(requirementsCategory('', true)).toBe('uncategorized')
+    expect(requirementsCategory('  ', true)).toBe('uncategorized')
+    expect(requirementsCategory(null, true)).toBe('uncategorized')
+    expect(requirementsCategory('', false)).toBe('')
+    expect(requirementsCategory(undefined, false)).toBe('')
+    // an accepted suggestion sets the category: its own needs are asked for
+    expect(requirementsCategory('tshirts', true)).toBe('tshirts')
+    expect(requirementsCategory(' tshirts ', false)).toBe('tshirts')
   })
 })

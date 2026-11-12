@@ -60,6 +60,23 @@ export const NEED_FIELDS: readonly NeedField[] = [
 const NAME: Record<Marketplace, string> = { amazon: 'Amazon', flipkart: 'Flipkart' }
 const ORDER: readonly Marketplace[] = ['amazon', 'flipkart']
 
+/**
+ * Client feedback item 4: the backend's slug for "no category yet". It answers each marketplace's
+ * facts and extras (brand, prices, barcode, package, country, manufacturer; Flipkart's HSN), the
+ * needs known before any category, with empty template levels.
+ */
+export const NO_CATEGORY = 'uncategorized'
+
+/**
+ * The category to ask the requirements for (pure): the chosen one; while "Let Kuinn suggest" is on
+ * and none is chosen yet, NO_CATEGORY, so the seller sees what is needed before saving. Accepting a
+ * suggestion sets the category, which asks again for that category's needs.
+ */
+export function requirementsCategory(category: string | null | undefined, kuinnSuggests: boolean): string {
+  const c = (category ?? '').trim()
+  return c || (kuinnSuggests ? NO_CATEGORY : '')
+}
+
 /** GET /catalog/requirements for one category; off while no category is chosen. */
 export function useRequirements(category: string | null | undefined) {
   const keys = useKeys()
