@@ -825,6 +825,7 @@ export function ProductDetailsEditor({
             source={samePackage(d.pkg, b.pkg) ? fieldSource(product, 'package') : undefined}
             neededSize={need('package_size')}
             neededWeight={need('package_weight')}
+            category={d.category}
             submitCount={submitted}
           />
         </Group>

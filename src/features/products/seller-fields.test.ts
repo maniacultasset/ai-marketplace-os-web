@@ -9,6 +9,7 @@ import {
   packagePatch,
   packageProblems,
   packageText,
+  packageWarnings,
   suggestHsn,
   toPackageIn,
 } from './seller-fields'
@@ -82,5 +83,30 @@ describe('country', () => {
     expect(countryName('fr')).toBe('France')
     expect(countryProblem('fr')).toBeNull()
     for (const bad of ['XX', 'UK', 'EU']) expect(countryProblem(bad)).toMatch(/Choose a country/)
+  })
+})
+
+describe('package plausibility (item 15)', () => {
+  it('stays quiet for a sensible box and for an empty or invalid one', () => {
+    expect(packageWarnings(pkg('30', '25', '3', '250'), 'tshirts')).toEqual({})
+    expect(packageWarnings(pkg('35', '28', '0.5', '600'), 'ethnic_wear_kurta_sets')).toEqual({})
+    expect(packageWarnings(pkg('40', '40', '60', '3500'), 'home_decor_lamps')).toEqual({})
+    expect(packageWarnings(emptyPackage(), 'tshirts')).toEqual({})
+    expect(packageWarnings(pkg('300', '', '3', '2.5'), 'tshirts')).toEqual({})
+  })
+  it('names the likely meaning of a unit slip', () => {
+    expect(packageWarnings(pkg('', '', '', '500000'), 'tshirts')).toEqual({ weight: 'This box weighs 500 kg. Did you mean 500 g?' })
+    expect(packageWarnings(pkg('', '', '', '3'), 'home_decor_lamps')).toEqual({ weight: 'This box weighs 3 g. Did you mean 3 kg (3,000 g)?' })
+    expect(packageWarnings(pkg('300', '250', '30'), 'tshirts')).toEqual({ size: 'A 300 cm side is 3 m long. Did you mean 300 mm (30 cm)?' })
+    expect(packageWarnings(pkg('0.4', '0.4', '0.6'), 'home_decor_lamps')).toEqual({ size: 'A 0.4 cm side is very thin. Did you mean 0.4 m (40 cm)?' })
+  })
+  it('asks to check an absurd box with no likely slip', () => {
+    expect(packageWarnings(pkg('', '', '', '1234567'), 'tshirts').weight).toBe('This box weighs 1,234.57 kg, which is heavy for clothing. Check the weight.')
+    expect(packageWarnings(pkg('', '', '', '40'), 'home_decor_lamps').weight).toBe('This box weighs only 40 g, which is light for a lamp. Check the weight.')
+    expect(packageWarnings(pkg('99999.99', '20', '2'), 'tshirts').size).toBe('A 99,999.99 cm side is 1,000 m long, which is large for clothing. Check the size.')
+  })
+  it('uses a wide range for any other category', () => {
+    expect(packageWarnings(pkg('250', '40', '40', '60000'), 'kitchen')).toEqual({})
+    expect(Object.keys(packageWarnings(pkg('2000', '40', '40', '500000'), ''))).toEqual(['size', 'weight'])
   })
 })
