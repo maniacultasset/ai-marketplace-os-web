@@ -12,7 +12,7 @@
  * with the brand's connected marketplaces chosen.
  */
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Page, PageHeader } from '@/components/app/page-header'
 import { CardHead, LaCard } from '@/components/la/cards'
 import { CONCEPT_ICON } from '@/components/la/concept-icons'
@@ -58,7 +58,7 @@ const afterSteps = (selfApproval: boolean) =>
 /** The approver step's label when the owner can settle it with the owner approval setting. */
 const CHOOSE_APPROVER_LABEL = 'Choose who approves'
 
-export function FirstRun({ brand }: { brand: string }) {
+export function FirstRun({ brand, actions }: { brand: string; actions?: ReactNode }) {
   const can = useCan()
   const navigate = useNavigate()
   const profile = useBrandProfile()
@@ -99,6 +99,7 @@ export function FirstRun({ brand }: { brand: string }) {
       <PageHeader
         title={brand ? `Welcome to ${brand}` : 'Welcome'}
         description={setupDone ? 'Setup is done. Let us list your first product.' : 'Finish setting up, then add your first product.'}
+        actions={actions}
       />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
         <LaCard data-testid="setup-card">

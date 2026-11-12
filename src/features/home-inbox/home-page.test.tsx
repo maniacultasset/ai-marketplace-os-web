@@ -90,6 +90,8 @@ describe('Home from the summary', () => {
     expect(href(within(amazon).getByTestId('mp-problem'))).toBe(`/products/${P1}`)
     const flipkart = screen.getByTestId('home-mp-flipkart')
     expect(href(within(flipkart).getByTestId('mp-next'))).toBe('/products?marketplace=flipkart')
+    // the "See N listings" number says what it counts, as every other card number does
+    expect(within(flipkart).getByTestId('mp-next').textContent).toContain('Every listing on this marketplace, in any state.')
   })
 
   it('a connected marketplace with nothing listed offers to add a product', () => {
@@ -116,6 +118,38 @@ describe('Home from the summary', () => {
     can.all = false
     view(missing)
     expect(within(screen.getByTestId('home-mp-amazon')).getByTestId('mp-connect-who').textContent).toMatch(/owner or admin/)
+  })
+})
+
+describe('marketplace card numbers (client feedback item 6)', () => {
+  it('each number opens its filtered list and carries its definition', () => {
+    view()
+    const amazon = screen.getByTestId('home-mp-amazon')
+    expect(href(within(amazon).getByTestId('mp-chip-link'))).toBe('/products?listing=fully_live&marketplace=amazon')
+    expect(href(within(amazon).getByTestId('mp-stat-partly'))).toBe('/products?listing=partly_live&marketplace=amazon')
+    const working = within(amazon).getByTestId('mp-stat-working')
+    expect(href(working)).toBe('/products?listing=in_progress&marketplace=amazon')
+    expect(working.textContent).toMatch(/^1 processing\. Being written or sent/)
+    expect(href(within(amazon).getByTestId('mp-stat-approve'))).toBe('/products?listing=ready_to_approve&marketplace=amazon')
+  })
+
+  it('a paused marketplace says so, with its approved listings linked', () => {
+    const s = summary()
+    view({ ...s, by_marketplace: [{ ...s.by_marketplace[0]!, ready_to_publish: 2 }, s.by_marketplace[1]!] })
+    const amazon = screen.getByTestId('home-mp-amazon')
+    expect(within(amazon).getByTestId('mp-paused').textContent).toBe('Publishing is paused by Kuinn for now; approved listings are ready.')
+    expect(href(within(amazon).getByTestId('mp-stat-approved'))).toBe('/products?listing=approved&marketplace=amazon')
+    expect(within(screen.getByTestId('home-mp-flipkart')).queryByTestId('mp-paused')).toBeNull()
+  })
+
+  it('several listings to fix link to the list of them', () => {
+    const s = summary()
+    view({ ...s, by_marketplace: [{ ...s.by_marketplace[0]!, problem: 3 }, s.by_marketplace[1]!] })
+    const amazon = screen.getByTestId('home-mp-amazon')
+    expect(within(amazon).queryByTestId('mp-problem')).toBeNull()
+    const fix = within(amazon).getByTestId('mp-stat-fix')
+    expect(fix.textContent).toMatch(/^3 to fix/)
+    expect(href(fix)).toBe('/products?listing=problem&marketplace=amazon')
   })
 })
 

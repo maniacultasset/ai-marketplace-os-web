@@ -14,6 +14,8 @@
  *
  *   GET /home/summary                      home.py home_summary        (tenant:read; exact counts,
  *                                          the caller's work, agent activity, marketplace next steps)
+ *   GET /home/brands                       home.py home_brands         (tenant:read; each of the
+ *                                          caller's brands, counted inside that brand)
  *
  * Home reads GET /home/summary. The API has no GET /issues/{id}; the issue reads here walk pages
  * with a hard cap.
@@ -62,6 +64,21 @@ export function useHomeSummary() {
   return useQuery({
     queryKey: [...keys.listings.lists(), 'home-summary'] as const,
     queryFn: () => unwrap(api.GET('/home/summary')),
+    refetchInterval: HOME_REFRESH_MS,
+    refetchIntervalInBackground: false,
+  })
+}
+
+/**
+ * Every brand of the caller side by side (client feedback item 18): GET /home/brands, each brand
+ * counted by the backend inside that brand. Read only while the all-brands view is open.
+ */
+export function useHomeBrands(enabled: boolean) {
+  const keys = useKeys()
+  return useQuery({
+    queryKey: [...keys.listings.lists(), 'home-brands'] as const,
+    queryFn: () => unwrap(api.GET('/home/brands')),
+    enabled,
     refetchInterval: HOME_REFRESH_MS,
     refetchIntervalInBackground: false,
   })

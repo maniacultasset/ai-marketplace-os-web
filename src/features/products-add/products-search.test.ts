@@ -14,6 +14,10 @@ describe('Products filters in the URL', () => {
   it('reads the listing bucket a Home tile opens', () => {
     expect(productsSearchSchema.parse({ listing: 'ready_to_approve' })).toEqual({ listing: 'ready_to_approve' })
     expect(productsSearchSchema.parse({ listing: 'draft' })).toEqual({})
+    // the marketplace cards' own numbers
+    for (const listing of ['fully_live', 'partly_live', 'approved'] as const) {
+      expect(productsSearchSchema.parse({ listing, marketplace: 'amazon' })).toEqual({ listing, marketplace: 'amazon' })
+    }
     expect(cleanProductsSearch({ listing: 'live', status: undefined })).toEqual({ listing: 'live' })
   })
 
