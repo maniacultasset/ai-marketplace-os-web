@@ -46,7 +46,8 @@ import { useKeys } from '@/lib/query-keys'
 import { cn } from '@/lib/utils'
 import { useAllListings, useAllProducts, walkPages } from './catalog'
 import type { Marketplace } from './catalog-model'
-import { analyzeCsv, MATCH_COPY, type ColumnMatch, type HeaderAnalysis } from './csv-header'
+import { analyzeCsv, csvSkuRows, MATCH_COPY, parseCsv, type ColumnMatch, type HeaderAnalysis } from './csv-header'
+import { csvSkuFindings, csvSkus, repeatedSkus, useTakenSkus, type CsvSkuRow } from './sku-batch'
 import { generateMany, planGenerate, type ItemOutcome } from './generate'
 import { ListOnPicker, serializeListOn, useConnectedMarketplaces } from './list-on'
 import { NeedsPhotosCard } from './needs-photos-card'
@@ -56,6 +57,7 @@ import {
   confirmBody,
   duplicatePositions,
   mappableHeaders,
+  resolvedKey,
   unanswered,
   useColumnMap,
   useConfirmColumnMap,
@@ -134,6 +136,7 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
   const [step, setStep] = useState<0 | 1>(0)
   const [file, setFile] = useState<File | null>(null)
   const [analysis, setAnalysis] = useState<HeaderAnalysis | null>(null)
+  const [text, setText] = useState<string | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
   const lamps = useLampsEnabled()
 
@@ -146,6 +149,15 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
   const [answers, setAnswers] = useState<Answers>({})
   const confirmMap = useConfirmColumnMap()
   const confirmIntent = useIntentKey()
+  // Item 3: the SKU check reads the columns the upload will use, the column map's when there is one.
+  const hasMap = map !== null
+  const records = useMemo(() => (hasMap && text !== null ? parseCsv(text) : null), [hasMap, text])
+  const skuRows = useMemo(() => {
+    if (!analysis) return []
+    const at = (k: string) => map?.mappings.find((e) => resolvedKey(e, answers) === k)?.position
+    const skuAt = at('seller_sku')
+    return records && skuAt !== undefined ? csvSkuRows(records, skuAt, at('parent_style_id')) : analysis.skuRows
+  }, [analysis, map, answers, records])
   const mapWaiting = map ? map.status === 'mapping' || unanswered(map, answers).length > 0 || duplicatePositions(map, answers).size > 0 : false
 
   const upload = useMutation({
@@ -183,6 +195,7 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
     upload.reset()
     setProblem(null)
     setAnalysis(null)
+    setText(null)
     setFile(null)
     setMapSeed(null)
     setAnswers({})
@@ -195,13 +208,16 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
     if (f.size > MAX_FILE_BYTES) return setProblem(`The file is larger than 10 MB (${formatBytes(f.size)}).`)
     setFile(f)
     let next: HeaderAnalysis
+    let raw: string
     try {
-      next = analyzeCsv(await f.text())
+      raw = await f.text()
+      next = analyzeCsv(raw)
     } catch {
       setProblem('This file could not be read as text.')
       return
     }
     setAnalysis(next)
+    setText(raw)
     const headers = next.columns.map((c) => c.raw)
     if (mappableHeaders(headers)) {
       // A refusal (an older backend, a header it rejects), or a map Kuinn was not asked about (its
@@ -351,6 +367,8 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
           </Banner>
         ) : null}
 
+        {step === 1 && skuRows.length ? <SkuCheck rows={skuRows} /> : null}
+
         {confirmMap.error && !upload.isPending ? (
           <Banner tone="danger" role="alert" className="mt-4" title="The columns could not be confirmed">
             {isApiError(confirmMap.error) && confirmMap.error.type === 'IMPORT_FAILED'
@@ -411,6 +429,66 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
         )}
       </FooterBar>
     </div>
+  )
+}
+
+/** The file's SKUs, checked against the brand and against each other before the upload (item 3). */
+function SkuCheck({ rows }: { rows: readonly CsvSkuRow[] }) {
+  const skus = useMemo(() => csvSkus(rows), [rows])
+  const check = useTakenSkus(skus)
+  const repeats = useMemo(() => repeatedSkus(rows), [rows])
+  const found = useMemo(() => (check.taken ? csvSkuFindings(rows, check.taken) : null), [rows, check.taken])
+  const fails = [
+    ...repeats.map((r) => ({ row: r.rows[1]!, sku: r.sku, message: `${r.sku} is on rows ${listRows(r.rows)}. Every row after the first fails, so change or remove them.` })),
+    ...(found?.fails ?? []),
+  ].sort((a, b) => a.row - b.row)
+  // A row is counted once, whether it repeats a SKU, fails against the brand, or both.
+  const failing = new Set([...repeats.flatMap((r) => r.rows.slice(1)), ...(found?.fails ?? []).map((p) => p.row)]).size
+  const updates = found?.updates ?? []
+  return (
+    <div className="mt-4 flex flex-col gap-3" data-testid="csv-sku-check">
+      {fails.length ? (
+        <Banner tone="danger" role="status" title={`${rowsLabel(failing)} will fail for the SKU`}>
+          <SkuList items={fails} label="Rows that will fail for the SKU" testId="csv-sku-fails" />
+        </Banner>
+      ) : null}
+      {updates.length ? (
+        <Banner tone="info" role="status" title={`${rowsLabel(updates.length)} use a SKU already in this brand`}>
+          <p>These rows update the product that has the SKU. For a new product, give the row a new SKU.</p>
+          <SkuList items={updates} label="Rows that update a product" testId="csv-sku-updates" />
+        </Banner>
+      ) : null}
+      {check.failed ? (
+        <p className="text-small text-ink-2" role="status" data-testid="csv-sku-unknown">
+          Couldn’t check the SKUs against your products now. The import still checks each row.
+        </p>
+      ) : !check.taken ? (
+        <p className="flex items-center gap-1.5 text-small text-ink-2" role="status" data-testid="csv-sku-checking">
+          <Spinner className="size-3.5" aria-hidden />
+          Checking the SKUs against your products
+        </p>
+      ) : !fails.length && !updates.length ? (
+        <p className="flex items-center gap-1.5 text-small text-ink-2" role="status" data-testid="csv-sku-clear">
+          <Icon name="check" size={14} className="text-success" aria-hidden />
+          Every SKU is new to this brand and used once.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+const listRows = (rows: readonly number[]) => (rows.length > 4 ? `${rows.slice(0, 3).join(', ')} and ${rows.length - 3} more` : rows.join(', '))
+
+function SkuList({ items, label, testId }: { items: readonly { row: number; sku: string; message: string }[]; label: string; testId: string }) {
+  return (
+    <ul className="mt-1.5 flex flex-col gap-0.5 text-small" aria-label={label} data-testid={testId}>
+      {items.slice(0, 5).map((p) => (
+        <li key={`${p.row}-${p.sku}`}>
+          Row {p.row}: {p.message}
+        </li>
+      ))}
+      {items.length > 5 ? <li>{items.length - 5} more like this.</li> : null}
+    </ul>
   )
 }
 

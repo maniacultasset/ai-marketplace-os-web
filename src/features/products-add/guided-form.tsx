@@ -111,6 +111,8 @@ import { CountryField, HsnField, PackageFields } from '@/features/products/selle
 import { packageHasSize, packageHasWeight, suggestHsn } from '@/features/products/seller-fields'
 import { missingNeeds, missingSummary, needText, useRequirements, type Filled, type NeedFieldId } from '@/features/products/needs'
 import { normalizeBarcode } from '@/features/products/barcode'
+import { IdGuide } from './id-guide'
+import { ID_HINT } from './identifiers'
 
 const DRAFT_PREFIX = 'la.guided-draft.'
 
@@ -733,7 +735,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               onChange={(styleNumber) => set({ styleNumber })}
               onBlur={() => touch('style_number')}
               error={errors.style_number}
-              hint="Your design or style code, like KS-1042. Optional."
+              hint={`Your design code, like KS-1042. ${ID_HINT.styleNumber} Optional.`}
               submitCount={submitCount}
               maxLength={64 + 8}
               code
@@ -759,6 +761,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               submitCount={submitCount}
               className="md:col-span-2"
             />
+            <IdGuide className="md:col-span-2" />
           </div>
         )
       case 'category':
