@@ -286,6 +286,18 @@ describe('marketplace cards (client feedback item 6, bullets 1 and 4)', () => {
     expect(card.sub).toBe('Access expired')
   })
 
+  it('says Connected for a working account (Chrome pass 2), never for a missing or expired one', () => {
+    const s = summary()
+    expect(marketCard(s, 'amazon').connected).toBe(true)
+    const card = marketCard({ ...s, by_marketplace: [{ ...s.by_marketplace[0]!, live: 0, problem: 4 }, s.by_marketplace[1]!] }, 'amazon')
+    expect(card).toMatchObject({ connected: true, chip: { label: 'None live yet' } })
+    expect(card.stats.find((x) => x.key === 'fix')).toMatchObject({ label: '4 to fix', target: at('problem') })
+    const expired = { ...s, marketplaces: [{ ...s.marketplaces[0]!, account: 'needs_reconnect' as const, next_step: 'reconnect' as const }, s.marketplaces[1]!] }
+    expect(marketCard(expired, 'amazon').connected).toBe(false)
+    const none = { ...s, marketplaces: [{ ...s.marketplaces[0]!, account: 'not_connected' as const, next_step: 'connect' as const }, s.marketplaces[1]!] }
+    expect(marketCard(none, 'amazon').connected).toBe(false)
+  })
+
   it('a missing account offers to connect, and a closed marketplace is coming soon', () => {
     const s = summary()
     const none = { ...s, marketplaces: [{ ...s.marketplaces[0]!, account: 'not_connected' as const, next_step: 'connect' as const }, s.marketplaces[1]!] }
