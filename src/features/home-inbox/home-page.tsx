@@ -285,6 +285,18 @@ function MarketplaceRow({ summary }: { summary: HomeSummary }) {
             <div className="flex items-center gap-3 font-semibold text-ink">
               <MarketplaceTile id={m} />
               {MARKETPLACE_LABEL[m]}
+              {view.connected ? (
+                // Connected is a fact about the account, not a count: it opens the account page.
+                <Link
+                  to="/marketplaces"
+                  search={{ mp: m }}
+                  className="focus-ring ml-auto inline-flex min-h-10 items-center gap-1 rounded-control text-caption font-medium text-success-ink underline-offset-4 hover:underline pointer-fine:min-h-0"
+                  data-testid="mp-connected"
+                >
+                  <Icon name="check" size={14} aria-hidden />
+                  Connected
+                </Link>
+              ) : null}
             </div>
             <div className="mt-3">
               {view.chip.target && view.chip.definition ? (

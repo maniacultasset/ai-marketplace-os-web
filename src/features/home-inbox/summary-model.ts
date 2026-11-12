@@ -332,6 +332,8 @@ export interface MarketCardView {
   action: 'connect' | 'reconnect' | null
   /** The card's last step that is not a connect or a fix (add a product, see the listings). */
   next: { label: string; target: Target; definition?: string } | null
+  /** The account is connected and working (Chrome pass 2: the card never said so). */
+  connected: boolean
 }
 
 /** Products filtered to this marketplace's listings in `bucket`. */
@@ -345,7 +347,7 @@ const marketTarget = (bucket: ListingFilter, m: Marketplace): Target => ({ to: '
 export function marketCard(s: HomeSummary, m: Marketplace, soon: { reason: string } | null = null): MarketCardView {
   const { account, totals: t, status } = cardInputs(s, m)
   const c = s.by_marketplace.find((x) => x.marketplace === m)
-  const view: MarketCardView = { chip: { status: 'not-listed', label: 'Not connected' }, stats: [], sub: null, paused: null, problem: null, action: null, next: null }
+  const view: MarketCardView = { chip: { status: 'not-listed', label: 'Not connected' }, stats: [], sub: null, paused: null, problem: null, action: null, next: null, connected: false }
   const live = t.live ? { status: 'live' as const, label: `${n(t.live)} live`, definition: CARD_DEFINITION.live, target: marketTarget('fully_live', m) } : null
   const stat = (key: CardStat['key'], count: number, words: string, definition: string, bucket: ListingFilter, attention = false) => {
     if (count > 0) view.stats.push({ key, label: `${n(count)} ${words}`, definition, target: marketTarget(bucket, m), attention })
@@ -358,6 +360,7 @@ export function marketCard(s: HomeSummary, m: Marketplace, soon: { reason: strin
     stat('live', t.live, 'live', CARD_DEFINITION.live, 'fully_live')
     return { ...view, chip: { status: 'needs-you', label: 'Reconnect' }, sub: 'Access expired', action: 'reconnect' }
   }
+  view.connected = true
   const publishing = status?.publishing_enabled !== false
   const approved = c?.ready_to_publish ?? 0
   stat('partly', t.partly, 'partly live', CARD_DEFINITION.partly, 'partly_live')
