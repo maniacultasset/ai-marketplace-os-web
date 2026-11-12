@@ -48,6 +48,7 @@ export type Target =
   | { to: '/listings/$listingId/review'; params: { listingId: string } }
   | { to: '/marketplaces'; search: { mp: Marketplace } }
   | { to: '/add' }
+  | { to: '/imports/$importId'; params: { importId: string }; search?: { rows: 'failed' } }
 
 export interface SummaryTile {
   value: string
@@ -203,33 +204,52 @@ const STATE_ICON: Record<ActivityItem['state'], { icon: 'check' | 'alert' | 'clo
   failed: { icon: 'alert', tone: 'fail' },
   pending: { icon: 'clock', tone: 'brand' },
 }
+const NEEDS_FIX_ICON = { icon: 'alert', tone: 'warn' } as const satisfies { icon: 'alert'; tone: TileTone }
 
 export interface FeedRow {
   key: string
   text: string
   state: ActivityItem['state']
+  /** A finished import with rows that failed: done, but not all of it (prod Chrome pass 12 Nov, B3). */
+  needsFix: boolean
+  /** What the screen reader hears before the text: "Done", "Failed", "Partly done", "In progress". */
+  word: string
   at: string
-  icon: (typeof STATE_ICON)[ActivityItem['state']]
-  /** The product the action was about, when there is one. */
+  icon: { icon: 'check' | 'alert' | 'clock'; tone: TileTone }
+  /** The import's rows (an import with failed rows opens on them), else the product, when there is one. */
   target: Target | null
 }
 
-export function feedRows(items: readonly ActivityItem[]): FeedRow[] {
-  return items.map((a, i) => ({
-    key: `${a.at}-${a.kind}-${i}`,
-    text: a.text,
-    state: a.state,
-    at: a.at,
-    icon: STATE_ICON[a.state],
-    target: a.product_id ? { to: '/products/$productId', params: { productId: a.product_id } } : null,
-  }))
+function feedTarget(a: ActivityItem): Target | null {
+  if (a.kind === 'import' && a.import_id) {
+    const failed = a.state === 'failed' || a.needs_fix > 0
+    return { to: '/imports/$importId', params: { importId: a.import_id }, ...(failed ? { search: { rows: 'failed' as const } } : {}) }
+  }
+  return a.product_id ? { to: '/products/$productId', params: { productId: a.product_id } } : null
 }
 
-/** "2 pending · 1 failed" over the feed, or null when every action finished well. */
+export function feedRows(items: readonly ActivityItem[]): FeedRow[] {
+  return items.map((a, i) => {
+    const needsFix = a.state === 'completed' && a.needs_fix > 0
+    return {
+      key: `${a.at}-${a.kind}-${i}`,
+      text: a.text,
+      state: a.state,
+      needsFix,
+      word: needsFix ? 'Partly done' : STATE_WORD[a.state],
+      at: a.at,
+      icon: needsFix ? NEEDS_FIX_ICON : STATE_ICON[a.state],
+      target: feedTarget(a),
+    }
+  })
+}
+
+/** "2 pending · 1 failed · 1 needs a fix" over the feed, or null when every action finished well. */
 export function feedSummary(items: readonly ActivityItem[]): string | null {
   const pending = items.filter((a) => a.state === 'pending').length
   const failed = items.filter((a) => a.state === 'failed').length
-  const out = [pending ? `${pending} in progress` : null, failed ? `${failed} failed` : null].filter(Boolean)
+  const fix = items.filter((a) => a.state === 'completed' && a.needs_fix > 0).length
+  const out = [pending ? `${pending} in progress` : null, failed ? `${failed} failed` : null, fix ? `${fix} ${fix === 1 ? 'needs' : 'need'} a fix` : null].filter(Boolean)
   return out.length ? out.join(' · ') : null
 }
 

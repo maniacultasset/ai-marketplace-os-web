@@ -15,6 +15,8 @@ import {
   OVERALL_CHIP,
   overallStatus,
   shortId,
+  sizeLabel,
+  variantAxis,
   variantMatrix,
   type Issue,
   type Listing,
@@ -167,8 +169,34 @@ describe('helpers', () => {
   it('draws a single size row for a size-only family (real import shape: attributes.size only)', () => {
     const m = variantMatrix([product({ attributes: { size: 's' } }), product({ attributes: { size: 'm' } })])
     expect(m.colours).toEqual([null])
-    expect(m.sizes).toEqual(['s', 'm'])
+    expect(m.sizes).toEqual(['S', 'M'])
     expect(m.cells.size).toBe(2)
+  })
+  it('heads a size run with the seller\'s spelling, not the lower-cased axis key (B8)', () => {
+    // prod Chrome pass 12 Nov: a size run stores `variant_attributes.size` = "m" and the fact "M"
+    const m = variantMatrix([
+      product({ variant_attributes: { size: 'm' }, attributes: { size: 'M' } }),
+      product({ variant_attributes: { size: 'l' }, attributes: { size: 'L' } }),
+    ])
+    expect(m.sizes).toEqual(['M', 'L'])
+  })
+  it('capitalises standard letter sizes and keeps other labels as entered', () => {
+    expect(['m', 'xl', '2xl', 'xxxl', 'free size', '28', '32W', 'Petite S', '3-4y'].map(sizeLabel)).toEqual([
+      'M',
+      'XL',
+      '2XL',
+      'XXXL',
+      'Free size',
+      '28',
+      '32W',
+      'Petite S',
+      '3-4y',
+    ])
+    expect(variantAxis(product({ variant_attributes: { size: 'xl' } }), 'size')).toBe('XL')
+    // the seller's own spelling of a size in words stays as entered
+    expect(['Free Size', 'FREE SIZE', 'Free size'].map(sizeLabel)).toEqual(['Free Size', 'FREE SIZE', 'Free size'])
+    expect(variantAxis(product({ variant_attributes: { size: 'free size' }, attributes: { size: 'Free Size' } }), 'size')).toBe('Free Size')
+    expect(variantAxis(product({ variant_attributes: { size: '3-4y' }, attributes: { size: '3-4Y' } }), 'size')).toBe('3-4Y')
   })
   it('never collapses variants that would share a cell (colour not exposed by the API)', () => {
     // Off-white S/M/L and Black S/M/L/XL: the backend returns only `size` for each child.

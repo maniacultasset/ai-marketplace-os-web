@@ -39,7 +39,6 @@ import {
   marketCard,
   needsYouTile,
   progressTile,
-  STATE_WORD,
   waitingEmpty,
   waitingRow,
   type HomeSummary,
@@ -550,7 +549,7 @@ function AgentFeed({ summary }: { summary: HomeSummary }) {
             <li key={r.key} className="flex items-start gap-3 border-b border-line py-2.5 last:border-b-0" data-testid="agent-feed-row" data-state={r.state}>
               <IconTile icon={r.icon.icon} tone={r.icon.tone} size="sm" className="mt-0.5" />
               <div className="min-w-0 flex-1 text-small">
-                <span className="sr-only">{STATE_WORD[r.state]}: </span>
+                <span className="sr-only">{r.word}: </span>
                 {r.target ? (
                   <Link {...linkTo(r.target)} className="font-semibold text-ink underline-offset-4 hover:underline">
                     {r.text}
@@ -559,7 +558,7 @@ function AgentFeed({ summary }: { summary: HomeSummary }) {
                   <span className="font-semibold text-ink">{r.text}</span>
                 )}
                 <span className="block text-caption text-ink-3">
-                  {r.state === 'failed' ? 'Failed · ' : r.state === 'pending' ? 'In progress · ' : null}
+                  {r.state === 'failed' ? 'Failed · ' : r.needsFix ? 'Needs a fix · ' : r.state === 'pending' ? 'In progress · ' : null}
                   <Ago iso={r.at} />
                 </span>
               </div>
