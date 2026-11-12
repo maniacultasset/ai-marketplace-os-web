@@ -1,7 +1,8 @@
 /**
  * "Tell Kuinn about your brand": a short guided questionnaire in a dialog, one question at a time,
  * every question skippable, ending on the read-back "How Kuinn will write for you" where any line
- * can be changed before saving. Saving is the caller's (BrandVoiceCard: PATCH /brand-profile).
+ * can be changed before saving. Saving is the caller's (BrandVoiceCard: PATCH /brand-profile, and
+ * PATCH /tenants/me for the tone question, which is the brand's own tone field).
  *
  * The dialog is portaled, so on the Brand page it never sits inside the profile <form>: Enter in a
  * field here never saves the profile.
@@ -20,10 +21,13 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import {
   addToList,
+  hasPick,
   LIST_CAP,
   PRICE_SEGMENTS,
   STEP_OF,
   TEXT_CAP,
+  togglePick,
+  TONE_PICKS,
   VOICE_STEPS,
   voiceProblems,
   voiceSummary,
@@ -115,6 +119,11 @@ function Steps({
           <TextAnswer id="voice-audience" field="audience" label="Who buys it" draft={draft} set={set} rows={3} placeholder="e.g. Women 25 to 40 who want easy office wear." />
         ) : step.id === 'price' ? (
           <PriceAnswer value={draft.price_segment} onChange={(price_segment) => set({ price_segment })} />
+        ) : step.id === 'tone' ? (
+          <>
+            <TonePicks tone={draft.tone} onChange={(tone) => set({ tone })} />
+            <TextAnswer id="voice-tone" field="tone" label="Tone of voice" draft={draft} set={set} rows={3} placeholder="e.g. Warm and calm. Short sentences. No hype." />
+          </>
         ) : step.id === 'different' ? (
           <>
             <TextAnswer id="voice-positioning" field="positioning" label="How you want to be seen" draft={draft} set={set} rows={2} placeholder="e.g. Everyday handloom, made to last." />
@@ -201,6 +210,8 @@ function stepHasAnswer(step: VoiceStepId, d: VoiceDraft): boolean {
       return !!d.audience.trim()
     case 'price':
       return d.price_segment !== null
+    case 'tone':
+      return !!d.tone.trim()
     case 'different':
       return !!d.positioning.trim() || d.differentiators.length > 0
     case 'words':
@@ -277,6 +288,30 @@ function PriceAnswer({ value, onChange }: { value: VoiceDraft['price_segment']; 
           >
             <span className="block text-small font-semibold text-ink">{s.label}</span>
             <span className="block text-caption text-ink-2">{s.hint}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function TonePicks({ tone, onChange }: { tone: string; onChange: (tone: string) => void }) {
+  return (
+    <div role="group" aria-label="Tone quick picks" className="flex flex-wrap gap-1.5" data-testid="voice-tone-picks">
+      {TONE_PICKS.map((p) => {
+        const on = hasPick(tone, p)
+        return (
+          <button
+            key={p}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onChange(togglePick(tone, p))}
+            className={cn(
+              'rounded-full border px-3 py-1 text-small transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand',
+              on ? 'border-brand bg-[var(--tile-brand-bg)] font-semibold text-ink' : 'border-line bg-surface text-ink-2 hover:bg-hover',
+            )}
+          >
+            {p}
           </button>
         )
       })}

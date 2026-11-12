@@ -12,6 +12,9 @@
  *                                 404 on a backend without it, read as "nothing to show"
  *   GET  /listings/{id}/issue-history IssueHistoryOut (feedback item 20): each marketplace issue and
  *                                 each fix Kuinn made; 404 on a backend without it, read as nothing
+ *   GET  /listings/{id}/requirements ListingRequirementsOut (feedback item 16): each field's
+ *                                 marketplace limits and rules; 404 on a backend without it, read as
+ *                                 null (the cards then show counts without a limit)
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -138,4 +141,29 @@ export function useListOn() {
       },
     )
   return { start, ...generate }
+}
+
+/** The marketplace's rules change with a rules release, not while a page is open. */
+const REQUIREMENTS_STALE_MS = 5 * 60_000
+
+/**
+ * Each field's marketplace limits and rules (GET /listings/{id}/requirements). A backend without
+ * the route answers 404: the hook then resolves to null, so the cards show no limit instead of a
+ * guessed one. `data` is undefined while it loads.
+ */
+export function useListingRequirements(listingId: string) {
+  const keys = useKeys()
+  return useQuery({
+    queryKey: keys.listings.requirements(listingId),
+    queryFn: async () => {
+      try {
+        return await unwrap(api.GET('/listings/{listing_id}/requirements', { params: { path: { listing_id: listingId } } }))
+      } catch (e) {
+        if (isNotFound(e)) return null
+        throw e
+      }
+    },
+    staleTime: REQUIREMENTS_STALE_MS,
+    retry: (n, e) => !isNotFound(e) && n < 2,
+  })
 }

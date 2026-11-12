@@ -11,6 +11,7 @@
 import type { Action } from '@/lib/permissions'
 import { describeError } from '@/api/errors'
 import { approveItems, publishItems, summarizeBatch, type ActionState, type BatchAccepted, type BatchResult, type Listing, type ListingDetail } from '@/features/listings/model'
+import { OWN_EDIT_COPY } from '@/features/team-account/approver'
 import { wasSent, type Resolution } from './resolution-model'
 
 export type ResendView =
@@ -92,4 +93,19 @@ export async function approveThenPublish(listing: Row, calls: ResendCalls): Prom
   if (ok) return { step: 'sent', jobId: ok.job_id ?? null }
   const f = p.failed[0]
   return { step: 'publish_failed', message: f?.message ?? 'The send was not accepted.', requestId: f?.requestId ?? null }
+}
+
+/**
+ * The toast after one section's inline save (client feedback 16 and item 17). With owner approval
+ * on, the owner is told they may approve it themselves (as the full edit dialog says), never that
+ * a teammate must; on a resend, that approving sends it again.
+ */
+export function sectionSavedToast(
+  label: string,
+  { ownApproval, resendEdit, mp }: { ownApproval: boolean; resendEdit: boolean; mp: string },
+): { title: string; description: string } {
+  if (ownApproval)
+    return { title: `${label} saved`, description: `Kept as your edit and locked. ${resendEdit ? OWN_EDIT_COPY.toastResend(mp) : OWN_EDIT_COPY.toast}` }
+  if (resendEdit) return { title: TEAMMATE_TEXT, description: `Saved as a new version. A teammate approves it and sends it to ${mp} again.` }
+  return { title: `${label} saved`, description: 'Kept as your edit and locked. The checks ran again. Someone else approves it.' }
 }

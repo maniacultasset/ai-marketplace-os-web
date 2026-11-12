@@ -1,9 +1,11 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { ActionState, ListingDetail } from '@/features/listings/model'
 import type { ErrorItem } from './gates'
+import type { ListingRequirements } from './sections-model'
 
 const save = vi.fn()
 const regenerate = vi.fn()
@@ -11,6 +13,16 @@ let paused = false
 vi.mock('@/features/listings/api', () => ({
   useSaveContent: () => ({ mutate: save, isPending: false }),
   useRegenerateListing: () => ({ mutate: regenerate, isPending: false }),
+}))
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ to, children, ...rest }: { to: string; params?: unknown; search?: unknown; children: ReactNode }) => {
+    const { params: _p, search: _s, ...attrs } = rest as Record<string, unknown>
+    return (
+      <a href={to} {...(attrs as object)}>
+        {children}
+      </a>
+    )
+  },
 }))
 vi.mock('@/features/ai-credit/use-ai-paused', () => ({ useAiPaused: () => paused }))
 vi.mock('@/features/listings/job-memory', () => ({ rememberJob: vi.fn() }))
@@ -55,11 +67,46 @@ function listing(over: Partial<ListingDetail> = {}, content: Partial<NonNullable
   } as ListingDetail
 }
 
-function show(l: ListingDetail, findings: ErrorItem[] = [], states: { edit?: ActionState; regenerate?: ActionState } = {}) {
+const REQ: ListingRequirements = {
+  listing_id: 'l1',
+  marketplace: 'amazon',
+  category: 'ethnic_wear_kurta_sets',
+  rules_version: 3,
+  has_template: true,
+  fields: [
+    { path: 'content.title', max_chars: 200, min_chars: 5, banned_terms: ['best', 'guaranteed', 'free shipping', 'cheap', 'sale', 'offer'], banned_count: 9, rules: [] },
+    { path: 'content.bullets', max_items: 5, banned_count: 0 },
+    { path: 'content.bullets[*]', max_chars: 500, banned_count: 0 },
+    { path: 'content.description', max_chars: 2000, banned_count: 0 },
+    { path: 'keywords.hidden_terms', max_bytes: 250, banned_count: 0 },
+    { path: '*', banned_count: 0, rules: ['No links, web addresses, emails or phone numbers.'] },
+  ],
+  attributes: [
+    { key: 'color', level: 'required', allowed_count: 0 },
+    { key: 'fabric_type', level: 'required', value_type: 'enum', allowed_values: ['Cotton', 'Silk'], allowed_count: 2 },
+    { key: 'pattern', level: 'optional', value_type: 'enum', allowed_values: ['Solid', 'Printed'], allowed_count: 2 },
+    { key: 'fit', level: 'recommended', allowed_count: 0 },
+  ],
+}
+
+function show(
+  l: ListingDetail,
+  findings: ErrorItem[] = [],
+  states: { edit?: ActionState; regenerate?: ActionState } = {},
+  requirements: ListingRequirements | null | 'loading' = REQ,
+) {
   const onSaved = vi.fn()
   render(
     <TooltipProvider>
-      <SectionCards listing={l} etag='"v1"' findings={findings} editState={states.edit ?? ON} regenerateState={states.regenerate ?? ON} onSaved={onSaved} />
+      <SectionCards
+        listing={l}
+        etag='"v1"'
+        findings={findings}
+        editState={states.edit ?? ON}
+        regenerateState={states.regenerate ?? ON}
+        onSaved={onSaved}
+        requirements={requirements === 'loading' ? undefined : requirements}
+      />
     </TooltipProvider>,
   )
   return { onSaved }
@@ -75,7 +122,42 @@ describe('Section cards', () => {
     expect(screen.getByTestId('section-title-count').textContent).toBe('16 / 200')
     expect(screen.getByTestId('section-bullets-count').textContent).toBe('2 / 5')
     expect(screen.getByTestId('section-keywords-count').textContent).toBe('12 / 250 bytes')
-    expect(screen.getByTestId('section-attributes-count').textContent).toBe('3 values')
+    expect(screen.getByTestId('section-attributes-count').textContent).toBe('3 values · 1 required missing')
+  })
+
+  it('shows each section’s marketplace rules read from the backend, and no limit without them', async () => {
+    show(listing())
+    expect(card('title').getByTestId('section-title-rules').textContent).toContain('Up to 200 characters, at least 5 characters.')
+    expect(card('title').getByTestId('section-title-rules').textContent).toContain('“best”, “guaranteed”, “free shipping”, “cheap”, “sale” and 4 more')
+    expect(card('title').getByTestId('section-title-rules').textContent).toContain('No links, web addresses')
+    expect(card('bullets').getByTestId('section-bullets-rules').textContent).toContain('Up to 5 key features, each up to 500 characters.')
+    expect(card('keywords').getByTestId('section-keywords-rules').textContent).toContain('up to 250 bytes in all')
+    expect(card('attributes').getByTestId('section-attributes-rules').textContent).toBe('Amazon needs color, fabric type for this category.')
+    await userEvent.click(card('title').getByRole('button', { name: 'Show all' }))
+    expect(card('title').getByTestId('section-title-rules').textContent).toContain('“offer” and 3 more')
+    cleanup()
+    show(listing({ marketplace: 'flipkart' }), [], {}, null)
+    expect(screen.getByTestId('section-title-count').textContent).toBe('16 characters')
+    expect(screen.getByTestId('section-bullets-count').textContent).toBe('2 key features')
+    expect(screen.queryByTestId('section-title-rules')).toBeNull()
+  })
+
+  it('holds the counters while the rules load', () => {
+    show(listing(), [], {}, 'loading')
+    expect(screen.getByTestId('section-title-count').textContent).toBe('')
+    expect(screen.queryByTestId('section-title-warning')).toBeNull()
+  })
+
+  it('shows each attribute’s level, its allowed values, and the required ones the listing lacks', () => {
+    show(listing())
+    const pattern = within(screen.getByTestId('section-attributes-row-pattern'))
+    expect(pattern.getByText('Allowed: Solid, Printed.')).toBeTruthy()
+    const color = within(screen.getByTestId('section-attributes-row-color'))
+    expect(color.getByText('Required')).toBeTruthy()
+    const fabric = within(screen.getByTestId('section-attributes-row-fabric_type'))
+    expect(fabric.getByText(/Not set/)).toBeTruthy()
+    expect(fabric.getByTestId('section-attributes-add-fabric_type')).toBeTruthy()
+    expect(within(screen.getByTestId('section-attributes-row-fit')).getByText('Recommended')).toBeTruthy()
   })
 
   it('saves only the title, with the rest of the content as it is', async () => {
@@ -211,11 +293,41 @@ describe('Section cards', () => {
     expect(screen.getByTestId('section-keywords-regenerate').getAttribute('aria-disabled')).toBeNull()
   })
 
-  it('lists the checks’ findings in the card they belong to', () => {
-    const finding = { field: 'content.bullets[1]', error_code: 'FIELD_TOO_LONG', message: 'Bullet 2 is too long.', severity: 'error' } as ErrorItem
-    show(listing(), [finding])
-    expect(card('bullets').getByTestId('section-bullets-findings').textContent).toContain('too long')
-    expect(card('title').queryByTestId('section-title-findings')).toBeNull()
+  it('shows each finding beside its field, and keeps it there while editing', async () => {
+    const bullet = { field: 'content.bullets[1]', error_code: 'FIELD_TOO_LONG', message: 'Bullet 2 is too long.', severity: 'error' } as ErrorItem
+    const title = { field: 'content.title', error_code: 'BANNED_TERM', message: 'Title contains the banned term best.', severity: 'error' } as ErrorItem
+    const hidden = { field: 'keywords.hidden_terms', error_code: 'BYTE_BUDGET_EXCEEDED', message: 'Backend keywords are over 250 bytes.', severity: 'error' } as ErrorItem
+    const attr = { field: 'attributes.fabric_type', error_code: 'MISSING_ATTRIBUTE', message: 'missing', severity: 'error' } as ErrorItem
+    const general = { field: 'keywords.language', error_code: 'PATTERN_MISMATCH', message: 'Keywords look odd.', severity: 'warning' } as ErrorItem
+    show(listing(), [bullet, title, hidden, attr, general])
+    expect(screen.getByTestId('section-bullets-notes-1').textContent).toContain('too long')
+    expect(screen.queryByTestId('section-bullets-notes-0')).toBeNull()
+    expect(screen.getByTestId('section-title-notes').textContent).toContain('banned term')
+    expect(screen.getByTestId('section-keywords-hidden-notes').textContent).toContain('over 250 bytes')
+    expect(screen.queryByTestId('section-keywords-search-notes')).toBeNull()
+    expect(screen.getByTestId('section-attributes-notes-fabric_type').textContent).toContain('Fabric type is required')
+    // only what no field shows is listed on the card
+    expect(card('bullets').queryByTestId('section-bullets-findings')).toBeNull()
+    expect(card('keywords').getByTestId('section-keywords-findings').textContent).toContain('Keywords look odd.')
+    await userEvent.click(screen.getByTestId('section-title-edit'))
+    expect(screen.getByTestId('section-title-input')).toBeTruthy()
+    expect(screen.getByTestId('section-title-notes').textContent).toContain('banned term')
+    await userEvent.click(screen.getByTestId('section-bullets-edit'))
+    expect(screen.getByTestId('section-bullets-notes-1').textContent).toContain('too long')
+  })
+
+  it('puts a 422 refusal on the field it names', async () => {
+    const { ApiError } = await import('@/api/errors')
+    show(listing())
+    await userEvent.click(screen.getByTestId('section-bullets-edit'))
+    await userEvent.click(screen.getByTestId('section-bullets-save'))
+    save.mock.calls[0]![1].onError(
+      new ApiError({ type: 'VALIDATION_FAILED', status: 422, message: 'Invalid', details: [{ loc: ['body', 'content', 'bullets', 1], msg: 'too long' }] }),
+    )
+    const notes = await screen.findByTestId('section-bullets-notes-1')
+    expect(within(notes).getByRole('alert')).toBeTruthy()
+    expect(screen.getByTestId('section-bullets-input-1').getAttribute('aria-invalid')).toBe('true')
+    expect(screen.getByTestId('section-bullets-input-0').getAttribute('aria-invalid')).toBe('false')
   })
 
   it('holds the rewrite while AI is paused and hides it for a role without the right', () => {

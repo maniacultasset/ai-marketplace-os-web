@@ -8,6 +8,11 @@
  * STALE_VERSION: the latest is loaded, the answers in the dialog are kept, and Save sends them
  * again. Owners and admins edit (settings:manage); everyone else reads.
  *
+ * Item 19: the tone question is the brand's own tone field. It is read from GET /tenants/me (the
+ * cache the Brand page's profile editor shares) and saved with PATCH /tenants/me `{ tone }`, with
+ * If-Match = that read's ETag at opening; only a changed part is sent. A stale tone is handled
+ * like a stale voice: the latest is loaded and the answers are kept.
+ *
  * `variant="section"`: a section inside the Brand page's Voice card. `variant="setup"`: a card in
  * setup step 1 with "Do this later", which folds it to one line (it stays on the Brand page).
  */
@@ -17,31 +22,37 @@ import { Banner, CardHead, LaCard } from '@/components/la'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useBrandManufacturer, useSaveBrandManufacturer } from '@/features/products/api'
+import { useBrandProfile, useSaveProfile } from './api'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { FACTS_WIN_COPY, VoiceQuestionnaire, VoiceSummaryList } from './voice-questionnaire'
-import { isDraftEmpty, sameAsSaved, toVoiceBody, toVoiceDraft, voiceSummary, type VoiceDraft, type VoiceStepId } from './voice-model'
+import { isDraftEmpty, sameAsSaved, toneBody, toneChanged, toVoiceBody, toVoiceDraft, voiceChanged, voiceSummary, type VoiceDraft, type VoiceStepId } from './voice-model'
 
 export const VOICE_TITLE = 'Tell Kuinn about your brand'
 
 export function BrandVoiceCard({ canEdit, variant = 'section' }: { canEdit: boolean; variant?: 'section' | 'setup' }) {
   const q = useBrandManufacturer()
   const save = useSaveBrandManufacturer()
+  const tenant = useBrandProfile()
+  const saveTone = useSaveProfile()
   const [open, setOpen] = useState(false)
   const [startAt, setStartAt] = useState<VoiceStepId>('about')
   const [etag, setEtag] = useState<string | null>(null)
+  const [toneEtag, setToneEtag] = useState<string | null>(null)
   const [error, setError] = useState<unknown>(null)
-  const [stale, setStale] = useState(false)
+  // Which save was refused as stale: that part is sent again even if it now matches the latest.
+  const [stale, setStale] = useState<'voice' | 'tone' | false>(false)
   const [later, setLater] = useState(false)
   // The answers the dialog holds across a stale reload (the dialog re-mounts from this).
   const [pending, setPending] = useState<VoiceDraft | null>(null)
 
-  const saved = toVoiceDraft(q.data?.data)
+  const saved = toVoiceDraft(q.data?.data, tenant.data?.data.tone)
   const lines = voiceSummary(saved)
   const empty = isDraftEmpty(saved)
 
   const start = (at: VoiceStepId = 'about') => {
     setEtag(q.data?.etag ?? null)
+    setToneEtag(tenant.data?.etag ?? null)
     setStartAt(at)
     setError(null)
     setStale(false)
@@ -56,21 +67,33 @@ export function BrandVoiceCard({ canEdit, variant = 'section' }: { canEdit: bool
       setOpen(false)
       return
     }
+    const sendVoice = stale === 'voice' || voiceChanged(draft, saved)
+    const sendTone = stale === 'tone' || toneChanged(draft, saved)
+    let part: 'voice' | 'tone' = 'voice'
     try {
-      await save.mutateAsync({ body: toVoiceBody(draft), etag })
+      if (sendVoice) {
+        const next = await save.mutateAsync({ body: toVoiceBody(draft), etag })
+        setEtag(next.etag)
+      }
+      part = 'tone'
+      if (sendTone) {
+        const next = await saveTone.mutateAsync({ body: { tone: toneBody(draft) }, etag: toneEtag })
+        setToneEtag(next.etag)
+      }
       setOpen(false)
       setStale(false)
       setLater(false)
       toast.success('Brand answers saved', { description: 'Product facts always win.' })
     } catch (err) {
       if (isStaleVersion(err)) {
-        const fresh = await q.refetch()
+        const fresh = part === 'voice' ? await q.refetch() : await tenant.refetch()
         if (!fresh.data) {
           setError(fresh.error ?? err)
           return
         }
-        setEtag(fresh.data.etag)
-        setStale(true)
+        if (part === 'voice') setEtag(fresh.data.etag)
+        else setToneEtag(fresh.data.etag)
+        setStale(part)
         setStartAt('summary')
         return
       }
@@ -78,7 +101,7 @@ export function BrandVoiceCard({ canEdit, variant = 'section' }: { canEdit: bool
     }
   }
 
-  const body = q.isPending ? (
+  const body = q.isPending || tenant.isPending ? (
     <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading your brand answers">
       <Skeleton className="h-4 w-56" />
       <Skeleton className="h-4 w-72 max-w-full" />
@@ -91,7 +114,7 @@ export function BrandVoiceCard({ canEdit, variant = 'section' }: { canEdit: bool
     <div className="flex flex-col gap-3">
       <p className="text-small text-ink-2">
         {canEdit
-          ? 'A few short questions: who buys it, your price level, what sets you apart, and the words and claims to stay away from. Each one is optional.'
+          ? 'A few short questions: who buys it, your price level, how it should sound, what sets you apart, and the words and claims to stay away from. Each one is optional.'
           : 'Not answered yet. An owner or admin can fill it in.'}
       </p>
       {canEdit ? (
@@ -121,9 +144,9 @@ export function BrandVoiceCard({ canEdit, variant = 'section' }: { canEdit: bool
       open={open}
       initial={pending ?? saved}
       startAt={startAt}
-      saving={save.isPending}
+      saving={save.isPending || saveTone.isPending}
       error={error}
-      stale={stale}
+      stale={stale !== false}
       onSave={(d) => void onSave(d)}
       onClose={() => setOpen(false)}
     />

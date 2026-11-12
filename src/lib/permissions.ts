@@ -126,6 +126,7 @@ export const OP_ACTION = {
   'GET /listings': 'tenant:read',
   'GET /listings/{listing_id}': 'tenant:read',
   'GET /listings/{listing_id}/preview': 'tenant:read',
+  'GET /listings/{listing_id}/requirements': 'tenant:read',
   'GET /listings/{listing_id}/status': 'tenant:read',
   'GET /listings/{listing_id}/history': 'tenant:read',
   'GET /listings/{listing_id}/versions': 'tenant:read',
