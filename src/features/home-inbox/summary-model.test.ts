@@ -44,17 +44,17 @@ describe('tiles', () => {
   it('needs you splits the work and links to the Inbox and to Products', () => {
     const t = needsYouTile(summary())
     expect(t.value).toBe('4')
-    expect(t.caption).toBe('1 blocked, 1 question, 1 to approve, 1 to publish')
+    expect(t.caption).toBe('1 blocked listing, 1 blocking question, 1 to approve, 1 to publish')
     expect(t.link).toEqual({ label: 'Open Inbox', target: { to: '/inbox' } })
     expect(t.listings).toEqual({ label: 'Approve in Products', target: { to: '/products', search: { listing: 'ready_to_approve' } } })
-    expect(t.aside).toBe('2 more questions would improve a listing.')
+    expect(t.aside).toBe('2 more questions would improve a listing. The Inbox has 4 open items.')
   })
 
   it('with only listings to publish, the main link goes to Products', () => {
     const t = needsYouTile(summary({ needs_you: { total: 1, blocked: 0, blocked_without_issue: 0, own_work: 0, waiting_on_account: 0, questions: 0, ready_to_approve: 0, ready_to_publish: 1, publishing_paused: 2, improve: 0 } }))
     expect(t.link).toEqual({ label: 'Publish in Products', target: { to: '/products', search: { listing: 'ready_to_publish' } } })
     expect(t.listings).toBeNull()
-    expect(t.aside).toBe('2 listings wait while publishing is paused.')
+    expect(t.aside).toBe('2 listings wait while publishing is paused. The Inbox has 4 open items.')
   })
 
   it('a stopped listing with no Inbox row opens Products, never an empty Inbox', () => {
@@ -71,7 +71,7 @@ describe('tiles', () => {
   it('says why listings wait: own work (maker-checker) and the marketplace account', () => {
     const none = summary().needs_you
     const t = needsYouTile(summary({ needs_you: { ...none, improve: 0, own_work: 1, waiting_on_account: 3 } }))
-    expect(t.aside).toBe('1 listing waits for someone else to approve, since you made or edited it. 3 listings wait for the marketplace to be connected.')
+    expect(t.aside).toBe('1 listing waits for someone else to approve, since you made or edited it. 3 listings wait for the marketplace to be connected. The Inbox has 4 open items.')
   })
 
   it('an empty needs you says so', () => {
@@ -268,7 +268,7 @@ describe('marketplace cards (client feedback item 6, bullets 1 and 4)', () => {
     ])
     expect(amazon.stats.every((x) => x.definition.length > 0)).toBe(true)
     // the one listing to fix is named and opens its product
-    expect(amazon.problem).toEqual({ productId: P1, text: '1 to fix: The title is longer than Amazon allows.' })
+    expect(amazon.problem).toEqual({ productId: P1, text: '1 listing to fix: The title is longer than Amazon allows.' })
   })
 
   it('a paused marketplace says so plainly and shows its approved listings', () => {
@@ -293,10 +293,10 @@ describe('marketplace cards (client feedback item 6, bullets 1 and 4)', () => {
     const s = summary()
     const card = marketCard({ ...s, by_marketplace: [{ ...s.by_marketplace[0]!, problem: 4 }, s.by_marketplace[1]!] }, 'amazon')
     expect(card.problem).toBeNull()
-    expect(card.stats.find((x) => x.key === 'fix')).toMatchObject({ label: '4 to fix', attention: true, target: at('problem'), definition: CARD_DEFINITION.fix })
+    expect(card.stats.find((x) => x.key === 'fix')).toMatchObject({ label: '4 listings to fix', attention: true, target: at('problem'), definition: CARD_DEFINITION.fix })
     // one to fix that is not among the top items: the count still links to it
     const unnamed = marketCard({ ...s, needs_you_items: [] }, 'flipkart')
-    expect(unnamed.stats.find((x) => x.key === 'fix')).toMatchObject({ label: '1 to fix', target: at('problem', 'flipkart') })
+    expect(unnamed.stats.find((x) => x.key === 'fix')).toMatchObject({ label: '1 listing to fix', target: at('problem', 'flipkart') })
   })
 
   it('an expired account keeps its live number linked, and says how to go on', () => {
@@ -313,7 +313,7 @@ describe('marketplace cards (client feedback item 6, bullets 1 and 4)', () => {
     expect(marketCard(s, 'amazon').connected).toBe(true)
     const card = marketCard({ ...s, by_marketplace: [{ ...s.by_marketplace[0]!, live: 0, problem: 4 }, s.by_marketplace[1]!] }, 'amazon')
     expect(card).toMatchObject({ connected: true, chip: { label: 'None live yet' } })
-    expect(card.stats.find((x) => x.key === 'fix')).toMatchObject({ label: '4 to fix', target: at('problem') })
+    expect(card.stats.find((x) => x.key === 'fix')).toMatchObject({ label: '4 listings to fix', target: at('problem') })
     const expired = { ...s, marketplaces: [{ ...s.marketplaces[0]!, account: 'needs_reconnect' as const, next_step: 'reconnect' as const }, s.marketplaces[1]!] }
     expect(marketCard(expired, 'amazon').connected).toBe(false)
     const none = { ...s, marketplaces: [{ ...s.marketplaces[0]!, account: 'not_connected' as const, next_step: 'connect' as const }, s.marketplaces[1]!] }
@@ -327,5 +327,16 @@ describe('marketplace cards (client feedback item 6, bullets 1 and 4)', () => {
     const empty = { ...none, by_marketplace: [{ ...s.by_marketplace[0]!, live: 0 }, s.by_marketplace[1]!] }
     expect(marketCard(empty, 'amazon')).toMatchObject({ action: 'connect', sub: 'Connect to list here', chip: { label: 'Not connected' } })
     expect(marketCard(empty, 'amazon', { reason: 'Soon.' })).toMatchObject({ chip: { label: 'Coming soon' }, sub: 'Soon.', action: null })
+  })
+})
+
+describe('Home drops stored API text (client pass 2, B13 review)', () => {
+  const old = "gender is required to list apparel on Amazon; set the product's gender (PATCH /api/v1/products/{product_id})."
+  it('the waiting row and the marketplace card', () => {
+    const s = summary()
+    const blocked = { ...s.needs_you_items[0]!, issue: old }
+    expect(waitingRow(blocked).issue).toBe("gender is required to list apparel on Amazon; set the product's gender.")
+    const card = marketCard({ ...s, needs_you_items: [blocked] }, 'amazon')
+    expect(card.problem?.text).not.toMatch(/\/api\/|PATCH \//)
   })
 })

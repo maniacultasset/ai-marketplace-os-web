@@ -51,6 +51,7 @@ import {
   itemKey,
   parseItemKey,
   isIdentifierTask,
+  isMarketplaceResponse,
   rawMarketplaceText,
   sentenceCase,
   taskReason,
@@ -63,6 +64,7 @@ import { answerApprovalLine, useOwnerMayApproveOwn } from '@/features/team-accou
 import { AccountTask } from './account-task'
 import type { ProductsById, ProductSummary } from './api'
 import { Ago, CodeBlock, FixTrail, KeyValues } from './parts'
+import { withoutApiText } from '@/lib/seller-text'
 
 /** The sentence the brief asks for, shown next to the disabled answer controls. */
 export const ANSWER_SOON = 'Answering from here is coming soon.'
@@ -588,7 +590,9 @@ function IssuePane({ issue, position, product }: { issue: Issue; position: strin
   const fix = fixContext(resolution.data, listing.data?.data, ownApproval)
   const chip = issueChip(issue, fix)
   const marketplace = MARKETPLACE_LABEL[issue.marketplace]
-  const fromMarketplace = issue.source === 'amazon_adapter' || issue.source === 'flipkart_adapter'
+  // B13 review: only a real marketplace response (it carries the marketplace's code) is shown as
+  // its words; Kuinn's own preflight check of the same adapter speaks in plain language.
+  const fromMarketplace = isMarketplaceResponse(issue)
   const plain = issue.plain_message?.trim()
   const trail = issueFixTrail(issue)
   return (
@@ -621,7 +625,7 @@ function IssuePane({ issue, position, product }: { issue: Issue; position: strin
         {showSuggestion(issue) ? (
           <div>
             <div className="text-caption text-ink-3">Suggested fix</div>
-            <p className="mt-1 text-body text-ink">{issue.suggestion}</p>
+            <p className="mt-1 text-body text-ink">{withoutApiText(issue.suggestion ?? '')}</p>
           </div>
         ) : null}
         <KeyValues

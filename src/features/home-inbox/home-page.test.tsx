@@ -51,7 +51,7 @@ describe('Home from the summary', () => {
     for (const id of ['tile-live', 'tile-working', 'tile-needs']) {
       expect(screen.getByTestId(`${id}-definition`).getAttribute('aria-label')).toMatch(/^What this counts: /)
     }
-    expect(screen.getByTestId('tile-needs-caption').textContent).toBe('1 blocked, 1 question, 1 to approve, 1 to publish')
+    expect(screen.getByTestId('tile-needs-caption').textContent).toBe('1 blocked listing, 1 blocking question, 1 to approve, 1 to publish')
   })
 
   it('each waiting row names the product, the issue and the action, and opens the right place', () => {
@@ -155,7 +155,7 @@ describe('marketplace card numbers (client feedback item 6)', () => {
     const amazon = screen.getByTestId('home-mp-amazon')
     expect(within(amazon).queryByTestId('mp-problem')).toBeNull()
     const fix = within(amazon).getByTestId('mp-stat-fix')
-    expect(fix.textContent).toMatch(/^3 to fix/)
+    expect(fix.textContent).toMatch(/^3 listings to fix/)
     expect(href(fix)).toBe('/products?listing=problem&marketplace=amazon')
   })
 })

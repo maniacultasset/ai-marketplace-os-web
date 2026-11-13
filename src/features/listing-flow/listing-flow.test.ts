@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { failedJobRemedy, logEntries } from './agent-run'
-import { clock, fieldLabel, findingText, plainMessage, sellerFinding } from './format'
+import { clock, fieldLabel, findingText, isProductField, plainMessage, sellerFinding, withoutApiText } from './format'
 import { applicableRules, claimFindings, dedupeFindings, currentFindings, fieldGate, findingGate, gateCounts, issueFindings, rollUpGates, ruleGate, type ErrorItem } from './gates'
 import { mappingRows, payloadField } from './mapping'
 import { externalIdFromUrl, liveProof, maskId } from './proof'
@@ -609,5 +609,28 @@ describe('sellerFinding (prod QA 9 Nov, item 25)', () => {
       message: 'Title is too long.',
       action: 'Keep it under 200 characters.',
     })
+  })
+})
+
+describe('no API text for the seller (client pass 2, B13)', () => {
+  const API = /\/api\/|\b(?:GET|POST|PUT|PATCH|DELETE)\s+\//
+  it('a stored finding drops its API path and verb', () => {
+    const old = "gender is required to list apparel on Amazon; set the product's gender (PATCH /api/v1/products/{product_id})."
+    expect(withoutApiText(old)).toBe("gender is required to list apparel on Amazon; set the product's gender.")
+    const t = findingText({ message: old, suggestion: 'Call POST /api/v1/listings/x/validate', source: 'amazon_adapter' })
+    expect(t.message).not.toMatch(API)
+    expect(t.message).toBe("Gender is required to list apparel on Amazon; set the product's gender.")
+    expect(t.suggestion ?? '').not.toMatch(API)
+    expect(plainMessage('set it (PATCH /api/v1/products/{product_id})')).toBe('set it')
+    expect(sellerFinding({ field: 'facts.gender', message: old }).message).not.toMatch(API)
+  })
+  it('plain text is left as it is', () => {
+    for (const s of ['Add the gender on the product page, then check again.', 'Sleeve 3/4 , cotton', 'POSTER size']) expect(withoutApiText(s)).toBe(s)
+  })
+  it('a product fact links to the product page', () => {
+    expect(isProductField('facts.gender')).toBe(true)
+    expect(isProductField('variants[SKU-1].facts.size')).toBe(true)
+    expect(isProductField('attributes.fit')).toBe(false)
+    expect(isProductField(null)).toBe(false)
   })
 })

@@ -19,7 +19,7 @@ import { listingChip } from '@/lib/listing-chip'
 import { useChipContext } from './publishing'
 import { cn } from '@/lib/utils'
 import { STICKY_ASIDE } from '@/components/app/split-layout'
-import { categoryLabel, clock, fieldLabel, findingText, mpName, sentenceCase } from './format'
+import { categoryLabel, clock, fieldLabel, findingText, isProductField, mpName } from './format'
 import { plural, type ErrorItem } from './gates'
 import { attrLabel, mappingRows, otherFindings, type MappingRow, type RowState } from './mapping'
 import { CardSkeleton, GATE_CHIP, GateLegend, GateList, GateListSkeleton, HeadSkeleton, ScreenHead } from './ui'
@@ -140,7 +140,7 @@ function MappingBody({ checks, listing }: { checks: ReturnType<typeof useListing
       >
         <div className="flex min-w-0 flex-col gap-4">
           <MappingTable rows={rows} mp={mp} loading={!checks.rules && checks.rulesQ.isPending} />
-          {others.length ? <OtherFindings items={others} /> : null}
+          {others.length ? <OtherFindings items={others} productId={listing.product_id ?? null} /> : null}
           <p className="text-caption text-ink-3">
             {mp} field names come from the preview of what would be sent. A field the preview does not name the same way shows as not matched; nothing is guessed.
           </p>
@@ -311,24 +311,40 @@ function MappingTable({ rows, mp, loading }: { rows: readonly MappingRow[]; mp: 
   )
 }
 
-function OtherFindings({ items }: { items: readonly ErrorItem[] }) {
+function OtherFindings({ items, productId }: { items: readonly ErrorItem[]; productId: string | null }) {
   return (
     <LaCard data-testid="other-findings">
       <CardHead title="Other findings" sub="Not about one attribute: text, images or the listing as a whole." />
       <ul className="m-0 mt-3 flex list-none flex-col p-0">
-        {items.map((f, i) => (
-          <li key={i} className="flex items-start gap-3 border-b border-line py-3 last:border-b-0 last:pb-0">
-            <StatusChip status={f.severity === 'error' ? 'blocked' : 'needs-you'} iconOnly label={f.severity === 'error' ? 'Blocking' : 'Warning'} />
-            <div className="min-w-0">
-              <p className="text-body text-ink">{sentenceCase(f.message)}</p>
-              {f.field ? (
-                <p className="text-caption text-ink-3" title={f.field}>
-                  {fieldLabel(f.field)}
-                </p>
-              ) : null}
-            </div>
-          </li>
-        ))}
+        {items.map((f, i) => {
+          const text = findingText(f)
+          // B13: a product fact is fixed on the product page; say so and link there.
+          const onProduct = !!productId && isProductField(f.field)
+          return (
+            <li key={i} className="flex items-start gap-3 border-b border-line py-3 last:border-b-0 last:pb-0">
+              <StatusChip status={f.severity === 'error' ? 'blocked' : 'needs-you'} iconOnly label={f.severity === 'error' ? 'Blocking' : 'Warning'} />
+              <div className="min-w-0">
+                <p className="text-body text-ink">{text.message}</p>
+                {text.suggestion ? <p className="text-small text-ink-2">{text.suggestion}</p> : null}
+                {f.field ? (
+                  <p className="text-caption text-ink-3" title={f.field}>
+                    {fieldLabel(f.field)}
+                  </p>
+                ) : null}
+                {onProduct ? (
+                  <Link
+                    to="/products/$productId"
+                    params={{ productId: productId! }}
+                    className="mt-1 inline-flex min-h-10 items-center text-small font-bold text-brand underline-offset-4 hover:underline"
+                    data-testid="finding-product-link"
+                  >
+                    Open the product page
+                  </Link>
+                ) : null}
+              </div>
+            </li>
+          )
+        })}
       </ul>
     </LaCard>
   )

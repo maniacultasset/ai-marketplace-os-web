@@ -16,6 +16,7 @@ import type { ListingFilter } from '@/features/products-add/catalog-model'
 import type { ProductsSearch } from '@/features/products-add/products-search'
 import type { MarketplaceTotals } from './model'
 import { plural } from './model'
+import { withoutApiText } from '@/lib/seller-text'
 
 export type HomeSummary = Schema<'HomeSummaryOut'>
 export type NeedsYouItem = Schema<'NeedsYouItem'>
@@ -82,11 +83,15 @@ export function progressTile(s: HomeSummary): SummaryTile {
   }
 }
 
-/** "1 blocked, 2 questions, 1 to approve". Empty parts are left out. */
+/**
+ * "1 blocked listing, 2 blocking questions, 1 to approve". Empty parts are left out. Client pass
+ * 2, B16: each part names what it counts, so "16 blocking questions" never reads as the Inbox's
+ * Questions tab (19: these plus the ones that only improve a listing).
+ */
 export function needsYouCaption(y: HomeSummary['needs_you']): string {
   const out: string[] = []
-  if (y.blocked) out.push(`${n(y.blocked)} blocked`)
-  if (y.questions) out.push(`${n(y.questions)} ${plural(y.questions, 'question')}`)
+  if (y.blocked) out.push(`${n(y.blocked)} blocked ${plural(y.blocked, 'listing')}`)
+  if (y.questions) out.push(`${n(y.questions)} blocking ${plural(y.questions, 'question')}`)
   if (y.ready_to_approve) out.push(`${n(y.ready_to_approve)} to approve`)
   if (y.ready_to_publish) out.push(`${n(y.ready_to_publish)} to publish`)
   if (out.length) return out.join(', ')
@@ -103,6 +108,9 @@ export function needsYouTile(s: HomeSummary): SummaryTile & { inbox: boolean; li
   if (y.own_work) asides.push(`${wait(y.own_work)} for someone else to approve, since you made or edited ${y.own_work === 1 ? 'it' : 'them'}.`)
   if (y.publishing_paused) asides.push(`${wait(y.publishing_paused)} while publishing is paused.`)
   if (y.waiting_on_account) asides.push(`${wait(y.waiting_on_account)} for the marketplace to be connected.`)
+  // B16: the Inbox's own number, named as the Inbox names it, so the two screens reconcile.
+  const box = s.inbox?.open_items ?? 0
+  if (box) asides.push(`The Inbox has ${n(box)} open ${plural(box, 'item')}.`)
   // Fixes with an issue and answers are in the Inbox. A listing stopped with no issue row (a failed
   // step, a marketplace rejection) and listings to approve or publish are on Products.
   const inbox = y.blocked - y.blocked_without_issue + y.questions > 0
@@ -176,7 +184,7 @@ export function waitingRow(i: NeedsYouItem): WaitingRow {
   return {
     key: `${i.kind}:${i.task_id ?? i.issue_id ?? i.listing_id ?? i.product_id ?? i.at}`,
     title,
-    issue: i.issue,
+    issue: withoutApiText(i.issue),
     meta,
     action: ACTION_LABEL[i.action],
     target: itemTarget(i),
@@ -272,7 +280,7 @@ export function cardInputs(
     partly: c?.partly_live ?? 0,
     working: c?.in_progress ?? 0,
     problem: c?.problem ?? 0,
-    ...(first?.product_id ? { firstProblem: { productId: first.product_id, label: first.issue } } : {}),
+    ...(first?.product_id ? { firstProblem: { productId: first.product_id, label: withoutApiText(first.issue) } } : {}),
   }
   return { account, totals, status }
 }
@@ -302,7 +310,7 @@ export const CARD_DEFINITION = {
   approve: 'Written and checked with no blocking issue. A person approves next.',
   approved: 'Approved and ready to send to this marketplace.',
   approvedPaused: 'Approved and ready. They wait here while publishing is paused.',
-  fix: 'Stopped by a check, a failed step or the marketplace. Each needs a fix.',
+  fix: 'Listings stopped by a check, a failed step or the marketplace, including ones that wait on your answer to a question.',
   all: 'Every listing on this marketplace, in any state.',
 } as const
 
@@ -369,8 +377,9 @@ export function marketCard(s: HomeSummary, m: Marketplace, soon: { reason: strin
   stat('approved', approved, publishing ? 'ready to publish' : 'approved', publishing ? CARD_DEFINITION.approved : CARD_DEFINITION.approvedPaused, publishing ? 'ready_to_publish' : 'approved')
   // One listing to fix: name it and open its product; more: the count opens all of them.
   const one = t.problem === 1 && t.firstProblem ? t.firstProblem : null
-  if (one) view.problem = { productId: one.productId, text: `1 to fix: ${one.label}` }
-  else stat('fix', t.problem, 'to fix', CARD_DEFINITION.fix, 'problem', true)
+  // B16: "listings to fix", not "to fix": the card counts listings, Home's tile counts work.
+  if (one) view.problem = { productId: one.productId, text: `1 listing to fix: ${one.label}` }
+  else stat('fix', t.problem, plural(t.problem, 'listing to fix', 'listings to fix'), CARD_DEFINITION.fix, 'problem', true)
   view.chip = live ?? { status: 'not-listed', label: 'None live yet' }
   if (!publishing) view.paused = approved ? `${PUBLISHING_PAUSED}; approved listings are ready.` : `${PUBLISHING_PAUSED}.`
   if (!t.listings) view.sub = 'Connected. No listings yet.'

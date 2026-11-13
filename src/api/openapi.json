@@ -4048,6 +4048,9 @@
           "needs_you": {
             "$ref": "#/components/schemas/NeedsYouCounts"
           },
+          "inbox": {
+            "$ref": "#/components/schemas/InboxCounts"
+          },
           "needs_you_items": {
             "items": {
               "$ref": "#/components/schemas/NeedsYouItem"
@@ -4068,6 +4071,7 @@
           "listings",
           "by_marketplace",
           "needs_you",
+          "inbox",
           "needs_you_items",
           "activity",
           "marketplaces",
@@ -5028,6 +5032,50 @@
           "status"
         ],
         "title": "ImportRowResult",
+        "type": "object"
+      },
+      "InboxCounts": {
+        "description": "Client pass 2, B16: the Inbox's numbers, for every role (the Inbox lists are the same for\nevery member). Each reads the same rows as its list, so the sidebar, the Inbox and Home agree.",
+        "properties": {
+          "blocking_questions": {
+            "description": "Of `questions`, those an open blocking issue waits on (`TaskOut.blocking`).",
+            "minimum": 0.0,
+            "title": "Blocking Questions",
+            "type": "integer"
+          },
+          "issues": {
+            "description": "Open issues (the Issues list), with or without a question.",
+            "minimum": 0.0,
+            "title": "Issues",
+            "type": "integer"
+          },
+          "issues_without_question": {
+            "description": "Of `issues`, those no open question stands for: listed on their own in All.",
+            "minimum": 0.0,
+            "title": "Issues Without Question",
+            "type": "integer"
+          },
+          "open_items": {
+            "description": "The Inbox's All view and the sidebar badge: `questions + issues_without_question` (an issue an open question stands for is listed once, as its question).",
+            "minimum": 0.0,
+            "title": "Open Items",
+            "type": "integer"
+          },
+          "questions": {
+            "description": "Open questions (the Questions list): `blocking_questions` plus the ones that only improve a listing. For a role that answers, `needs_you.questions + needs_you.improve`.",
+            "minimum": 0.0,
+            "title": "Questions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "open_items",
+          "questions",
+          "blocking_questions",
+          "issues",
+          "issues_without_question"
+        ],
+        "title": "InboxCounts",
         "type": "object"
       },
       "InviteAccept": {

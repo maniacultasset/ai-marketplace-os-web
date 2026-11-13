@@ -630,6 +630,15 @@ export function isIdentifierTask(task: Pick<Task, 'product_id' | 'target_path'>)
 }
 
 /** A marketplace's own words, verbatim, with its code when there is one. No internal field path. */
+/**
+ * The issue is the marketplace's own answer (a submission or a read): it carries the
+ * marketplace's error code. Kuinn's preflight check runs in the same adapter (`amazon_adapter`)
+ * but has no code, and its text is Kuinn's, never "What Amazon said".
+ */
+export function isMarketplaceResponse(i: Pick<Issue, 'source' | 'marketplace_code'>): boolean {
+  return (i.source === 'amazon_adapter' || i.source === 'flipkart_adapter') && !!i.marketplace_code?.trim()
+}
+
 export function rawMarketplaceText(i: Pick<Issue, 'marketplace_code' | 'raw_message' | 'message'>): string {
   return [i.marketplace_code ? `code ${i.marketplace_code}` : null, i.raw_message ?? i.message].filter(Boolean).join(' · ')
 }

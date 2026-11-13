@@ -2,6 +2,9 @@ import { categoryLabel as productCategoryName } from '@/features/products/catego
 import { NEED_FIELDS } from '@/features/products/needs'
 import { attrLabel } from './mapping'
 import { isRecommendation } from './recommended'
+import { withoutApiText } from '@/lib/seller-text'
+
+export { withoutApiText }
 
 /** Times as the hi-fi writes them: "10:42" today, "14 Oct, 10:42" otherwise. Local time. */
 export function clock(iso: string | null | undefined, now: Date = new Date()): string {
@@ -61,10 +64,15 @@ export function fieldLabel(path: string | null | undefined): string {
 
 /** A message in sentence case: rule messages start lowercase ("title longer than 200 characters"). */
 export function sentenceCase(text: string | null | undefined): string {
-  const t = (text ?? '').trim()
+  const t = withoutApiText(text ?? '').trim()
   if (!t) return ''
   const s = t[0]!.toUpperCase() + t.slice(1)
   return /[.!?]$/.test(s) ? s : `${s}.`
+}
+
+/** A finding about a product fact (`facts.gender`, `variants[SKU].facts.size`): fixed on the product page. */
+export function isProductField(field: string | null | undefined): boolean {
+  return !!field && /^(?:variants\[[^\]]+\]\.)?facts\./.test(field)
 }
 
 /** Text written for the agent or a developer: an internal path, or the "flag the row" guidance. */
@@ -80,7 +88,7 @@ export function findingText(f: FindingText): { message: string; suggestion: stri
   const sent = f.source === 'amazon_adapter' || f.source === 'flipkart_adapter'
   return {
     message: sentenceCase(f.message),
-    suggestion: f.suggestion && !isAgentText(f.suggestion) ? f.suggestion : null,
+    suggestion: f.suggestion && !isAgentText(f.suggestion) ? withoutApiText(f.suggestion) || null : null,
     value: f.value_submitted ? `${sent ? 'sent' : 'value'} “${f.value_submitted}”` : null,
   }
 }
@@ -96,7 +104,7 @@ const PLAIN_KEY: Readonly<Record<string, string>> = Object.fromEntries(
  * the product form's label, else attrLabel's. Other words are left as they are.
  */
 export function plainMessage(message: string): string {
-  return message
+  return withoutApiText(message)
     .replace(/\battributes\.([a-z][a-z0-9_]*)\b/g, (_, key: string) => PLAIN_KEY[key] ?? attrLabel(key))
     .replace(/\b([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\b/g, (_, key: string) => PLAIN_KEY[key] ?? attrLabel(key))
 }

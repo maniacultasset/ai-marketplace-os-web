@@ -48,6 +48,7 @@ import {
   issueAffects,
   issueChip,
   issueClassLine,
+  isMarketplaceResponse,
   rawMarketplaceText,
   sentenceCase,
   showSuggestion,
@@ -63,6 +64,7 @@ import {
   retriesStopped,
 } from './model'
 import { CodeBlock, FixTrail, KeyValues, Timeline } from './parts'
+import { withoutApiText } from '@/lib/seller-text'
 
 export function IssueDetailPage({ issueId, listingId }: { issueId: string; listingId: string | undefined }) {
   const find = useFindIssueListing(issueId, !listingId)
@@ -283,7 +285,9 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
 function IssueBody({ issue, fix }: { issue: Issue; fix: FixContext | null }) {
   const chip = issueChip(issue, fix)
   const marketplace = MARKETPLACE_LABEL[issue.marketplace]
-  const fromMarketplace = issue.source === 'amazon_adapter' || issue.source === 'flipkart_adapter'
+  // B13 review: only a real marketplace response (it carries the marketplace's code) is shown as
+  // its words; Kuinn's own preflight check of the same adapter speaks in plain language.
+  const fromMarketplace = isMarketplaceResponse(issue)
   const plain = issue.plain_message?.trim()
   const trail = issueFixTrail(issue)
   return (
@@ -307,7 +311,7 @@ function IssueBody({ issue, fix }: { issue: Issue; fix: FixContext | null }) {
       {showSuggestion(issue) ? (
         <div>
           <div className="text-caption text-ink-3">Suggested fix</div>
-          <p className="mt-1 text-body text-ink">{issue.suggestion}</p>
+          <p className="mt-1 text-body text-ink">{withoutApiText(issue.suggestion ?? '')}</p>
         </div>
       ) : null}
       <KeyValues

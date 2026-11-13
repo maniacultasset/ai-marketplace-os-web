@@ -10,7 +10,7 @@ import { api, unwrap } from '@/api/client'
 import { isApiError } from '@/api/errors'
 import { idempotencyHeader, useIntentKey } from '@/api/idempotency'
 import { PAGE_SIZE, useCursorList } from '@/hooks/use-cursor-list'
-import { useKeys, type IssuesFilters, type TaskStatus } from '@/lib/query-keys'
+import { useKeys, type IssuesFilters, type QueryKeys, type TaskStatus } from '@/lib/query-keys'
 import type { Issue, Task } from './model'
 
 /** Sidebar badge refresh: cheap first-page refetch while the tab is visible. */
@@ -37,6 +37,11 @@ export function fetchIssuesPage(f: IssuesFilters, cursor: string | undefined) {
 export function fetchTasksPage(status: TaskStatus, cursor: string | undefined) {
   return unwrap(api.GET('/tasks', { params: { query: { limit: PAGE_SIZE, cursor, status } } }))
 }
+
+/** GET /home/summary's cache entry (under `listings.lists()`, so listing mutations refresh it). Its
+ * `inbox` counts back the sidebar badge and the Inbox tabs (B16): an issue or task mutation
+ * refreshes it too. */
+export const homeSummaryKey = (keys: QueryKeys) => [...keys.listings.lists(), 'home-summary'] as const
 
 export function useIssuesList(f: IssuesFilters, opts: { enabled?: boolean; refetchInterval?: number | false } = {}) {
   const keys = useKeys()
@@ -83,6 +88,7 @@ export function useDismissIssue(issue: Pick<Issue, 'id' | 'listing_id'>) {
       Promise.all([
         qc.invalidateQueries({ queryKey: keys.issues.all() }),
         qc.invalidateQueries({ queryKey: keys.listings.detail(issue.listing_id) }),
+        qc.invalidateQueries({ queryKey: homeSummaryKey(keys) }),
       ]),
   })
 }

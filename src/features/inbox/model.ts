@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { isApiError, isNotFound } from '@/api/errors'
 import type { ErrorCode, Page, Schema } from '@/api/types'
 import type { IssuesFilters, IssueStatus, Marketplace, TaskStatus } from '@/lib/query-keys'
+import { withoutApiText } from '@/lib/seller-text'
 
 export type Issue = Schema<'IssueOut'>
 export type Task = Schema<'TaskOut'>
@@ -151,21 +152,86 @@ export function countLabel(loaded: number, hasMore: boolean): string {
 }
 
 /**
- * Sidebar badge from the first page of open issues and open tasks. Null hides the badge. An issue
- * linked to a listed open question is the same thing to do and counts once (Inbox All, Home).
+ * Sidebar badge from the first page of open issues and open tasks, or the backend's exact counts
+ * once either has more (`inboxCounts`). Null hides the badge. An issue linked to a listed open
+ * question is the same thing to do and counts once (Inbox All).
  */
 export function badgeLabel(
   issues: Pick<Page<{ human_task_id?: string | null }>, 'data' | 'page'> | undefined,
   tasks: Pick<Page<{ id?: string }>, 'data' | 'page'> | undefined,
+  exact?: InboxCounts | null,
 ): string | null {
   if (!issues && !tasks) return null
-  const open = new Set((tasks?.data ?? []).map((t) => t.id).filter(Boolean))
-  const standalone = (issues?.data ?? []).filter((i) => !i.human_task_id || !open.has(i.human_task_id)).length
-  const n = standalone + (tasks?.data.length ?? 0)
-  const more = !!issues?.page.has_more || !!tasks?.page.has_more
-  if (n === 0 && !more) return null
-  if (n > 99) return '99+'
-  return countLabel(n, more)
+  const taskRows = (tasks?.data ?? []).map((t) => ({ id: t.id ?? '' }))
+  const issueRows = (issues?.data ?? []).map((i) => ({ human_task_id: i.human_task_id ?? null }))
+  return badgeFromCounts(inboxCounts(taskRows, !!tasks?.page.has_more, issueRows, !!issues?.page.has_more, exact))
+}
+
+export type InboxCounts = Schema<'InboxCounts'>
+
+/** A count, "+" when more rows exist than were read. */
+export interface InboxCount {
+  n: number
+  more: boolean
+}
+
+/** The Inbox's numbers: All (`open`), Questions, Issues, and the issues no question stands for. */
+export interface InboxCountsView {
+  open: InboxCount
+  questions: InboxCount
+  issues: InboxCount
+  alone: InboxCount
+}
+
+/**
+ * Client pass 2, B16: the one set of Inbox numbers the sidebar badge and the Inbox tabs show.
+ * From the loaded open lists while they are complete (they refresh on every mutation); once
+ * either has more pages, the backend's exact counts (`GET /home/summary` `inbox`, the same rows
+ * by the same definition) instead of "50+".
+ */
+export function inboxCounts(
+  tasks: readonly Pick<Task, 'id'>[],
+  tasksMore: boolean,
+  issues: readonly Pick<Issue, 'human_task_id'>[],
+  issuesMore: boolean,
+  exact?: InboxCounts | null,
+): InboxCountsView {
+  if ((tasksMore || issuesMore) && exact) {
+    const c = (n: number) => ({ n, more: false })
+    return { open: c(exact.open_items), questions: c(exact.questions), issues: c(exact.issues), alone: c(exact.issues_without_question) }
+  }
+  const open = new Set(tasks.map((t) => t.id).filter(Boolean))
+  const alone = issues.filter((i) => !i.human_task_id || !open.has(i.human_task_id)).length
+  const more = tasksMore || issuesMore
+  return {
+    open: { n: tasks.length + alone, more },
+    questions: { n: tasks.length, more: tasksMore },
+    issues: { n: issues.length, more: issuesMore },
+    // an issue may stand for a question on a page not read yet: uncertain while either has more
+    alone: { n: alone, more },
+  }
+}
+
+const num = (c: InboxCount) => `${c.n.toLocaleString('en-IN')}${c.more ? '+' : ''}`
+const many = (c: InboxCount, one: string, several: string) => `${num(c)} ${c.n === 1 && !c.more ? one : several}`
+
+/**
+ * "21 open items: 19 questions, 2 issues without a question". Says what All counts, so it never
+ * reads as the Issues tab's number (which also has the issues a question stands for). Null at zero.
+ */
+export function inboxCaption(c: InboxCountsView): string | null {
+  if (c.open.n === 0 && !c.open.more) return null
+  const parts: string[] = []
+  if (c.questions.n || c.questions.more) parts.push(many(c.questions, 'question', 'questions'))
+  if (c.alone.n || c.alone.more) parts.push(many(c.alone, 'issue without a question', 'issues without a question'))
+  return `${many(c.open, 'open item', 'open items')}: ${parts.join(', ')}`
+}
+
+/** The sidebar badge from the Inbox numbers: the All count, "99+" past 99, null at zero. */
+export function badgeFromCounts(c: InboxCountsView): string | null {
+  if (c.open.n === 0 && !c.open.more) return null
+  if (c.open.n > 99) return '99+'
+  return countLabel(c.open.n, c.open.more)
 }
 
 export interface SeveritySplit {
@@ -213,7 +279,7 @@ export function isAutoFix(i: Pick<Issue, 'status' | 'resolution'>): boolean {
 
 /** The sentence to lead with: the plain-language version when the backend has one. */
 export function issueHeadline(issue: Pick<Issue, 'message' | 'plain_message'>): string {
-  return issue.plain_message?.trim() || issue.message
+  return withoutApiText(issue.plain_message?.trim() || issue.message)
 }
 
 /** TaskOut.suggestions is `list[Any]`: show scalars as text, skip objects we cannot render honestly. */
