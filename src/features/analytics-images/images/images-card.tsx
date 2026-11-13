@@ -42,6 +42,7 @@ import {
   checkImageReadable,
   hasWarnings,
   backgroundFlagged,
+  imageFileName,
   type CheckOutcome,
   type ImageReport,
   type ImageRole,
@@ -397,7 +398,6 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
       <ImageRow
         key={key}
         imageId={id}
-        storageKey={key}
         upload={sessionById.get(id)}
         live={live}
         productId={product.id}
@@ -406,8 +406,9 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         {...rowExtras(id)}
       />
     ) : (
-      <li key={key} className="truncate px-5 py-3 font-mono text-xs text-muted-foreground" title={key}>
-        {key}
+      // An unreadable key: say it is a photo, never print the storage path.
+      <li key={key} className="truncate px-5 py-3 text-xs text-muted-foreground" data-testid="image-file-name">
+        {imageFileName(null)}
       </li>
     )
   }
@@ -818,7 +819,6 @@ function UploadRow({ upload, onRetry, onDismiss }: { upload: SessionUpload; onRe
 
 function ImageRow({
   imageId,
-  storageKey,
   upload,
   viewUrl,
   onViewError,
@@ -843,7 +843,6 @@ function ImageRow({
   onKeep?: (key: string) => Promise<unknown>
   knownRole?: ImageRole | null
   imageId: string
-  storageKey?: string
   upload?: SessionUpload
   /** The saved photo's signed view from the product read (shown when this visit has no local preview). */
   viewUrl?: string | null
@@ -892,7 +891,9 @@ function ImageRow({
   const reports = report.data ? marketplaceReports(report.data) : []
   const slot = knownSlot ?? reports[0]?.slot ?? upload?.slot
   // The product read knows the image's role now (a replaced Back is a plain "Secondary").
-  const title = slot ? imageLabel(slot, knownSlot !== undefined ? knownRole : upload?.role) : 'Image'
+  const role = knownSlot !== undefined ? knownRole : upload?.role
+  const title = slot ? imageLabel(slot, role) : 'Image'
+  const fileName = imageFileName(upload?.file.name, slot, role)
 
   return (
     <li data-testid="image-row" data-image-id={imageId} data-compliance={report.data?.compliance_status}>
@@ -907,16 +908,14 @@ function ImageRow({
             {report.isPending && live && !slot ? (
               <Skeleton className="my-0.5 h-4 w-24" />
             ) : (
-              <p className="truncate text-sm font-medium" data-testid="image-title" title={storageKey ?? imageId}>
+              <p className="truncate text-sm font-medium" data-testid="image-title" title={title}>
                 {title}
               </p>
             )}
-            {/* The file name while it is this visit's upload; the internal id stays in the tooltip only. */}
-            {upload ? (
-              <p className="truncate text-xs text-muted-foreground" title={storageKey ?? imageId}>
-                {upload.file.name}
-              </p>
-            ) : null}
+            {/* The original file name while it is this visit's upload, else the view: never the storage key. */}
+            <p className="truncate text-xs text-muted-foreground" title={fileName} data-testid="image-file-name">
+              {fileName}
+            </p>
             {badges ? <div className="mt-1.5 flex flex-wrap gap-1.5">{badges}</div> : null}
             <PhotoQaChips warnings={photoQaWarnings(report.data)} className="mt-1.5" />
             {/* One keep key per check: a later re-check asks again with a fresh key. */}

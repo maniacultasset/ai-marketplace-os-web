@@ -11,7 +11,7 @@ vi.mock('@/api/client', async (orig) => ({
 }))
 vi.mock('@/lib/auth', async (orig) => ({ ...(await orig<typeof import('@/lib/auth')>()), useSession: () => ({ tenantId: 't1' }) }))
 
-const { useListingFilter } = await import('./catalog')
+const { useArchivedProducts, useListingFilter } = await import('./catalog')
 
 const page = (data: unknown[], next: string | null = null) => ({
   data: { data, page: { has_more: !!next, next_cursor: next, limit: 200 } },
@@ -64,5 +64,25 @@ describe('useListingFilter (client feedback item 6)', () => {
     get.mockImplementation(() => Promise.resolve({ data: undefined, error: { error: { type: 'INTERNAL_ERROR', message: 'm', status: 500 } }, response: new Response(null, { status: 500 }) }))
     const { result } = renderHook(() => useListingFilter('problem', null), { wrapper })
     await waitFor(() => expect(result.current.state).toBe('error'))
+  })
+})
+
+describe('useArchivedProducts (the Archived view, prod Chrome check 13 Nov)', () => {
+  it('walks GET /products?archived=true, every page', async () => {
+    get.mockReset()
+    get.mockImplementation((_path, { params }) => Promise.resolve(params.query.cursor ? page([{ id: 'v1', parent_product_id: 'p1' }]) : page([{ id: 'p1' }], 'c1')))
+    const { result } = renderHook(() => useArchivedProducts(), { wrapper })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data?.rows.map((p) => p.id)).toEqual(['p1', 'v1'])
+    expect(get.mock.calls.map(([p, init]) => [p, init.params.query])).toEqual([
+      ['/products', { archived: true, limit: 200, cursor: undefined }],
+      ['/products', { archived: true, limit: 200, cursor: 'c1' }],
+    ])
+  })
+
+  it('asks nothing while off (a product that is not archived)', () => {
+    get.mockReset()
+    renderHook(() => useArchivedProducts(false), { wrapper })
+    expect(get).not.toHaveBeenCalled()
   })
 })

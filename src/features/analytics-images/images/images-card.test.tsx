@@ -85,6 +85,17 @@ describe('ProductImagesCard per colour', () => {
     expect(within(groups[2]!).getByText(/Uses the photos for all colours/)).toBeTruthy()
   })
 
+  it('names each saved photo by its view, never by its storage key (all colours and a colour\'s own)', () => {
+    setup()
+    const rows = screen.getAllByTestId('image-row')
+    expect(rows).toHaveLength(2)
+    for (const r of rows) {
+      expect(within(r).getByTestId('image-file-name').textContent).toBe('Front photo')
+      expect(r.textContent).not.toContain('/images/')
+      expect(r.innerHTML).not.toContain(`${T}/${P}`)
+    }
+  })
+
   it('shows a flat list for a product with no colours', () => {
     setup({ ...product, colourways: [] })
     expect(screen.queryAllByTestId('colour-group')).toHaveLength(0)
