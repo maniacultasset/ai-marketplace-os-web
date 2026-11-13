@@ -37,6 +37,17 @@ export function imageLabel(slot: ImageSlot, role?: ImageRole | null): string {
 }
 
 /**
+ * The file name a photo row shows: the original name when known (this visit's upload; the API
+ * keeps no original name), else the view, e.g. "Front photo". Never a storage path: a name with a
+ * slash, or one that is only an id, gives the view label instead.
+ */
+export function imageFileName(name: string | null | undefined, slot?: ImageSlot, role?: ImageRole | null): string {
+  const n = name?.trim()
+  if (n && !n.includes('/') && !new RegExp(`^${UUID}$`, 'i').test(n)) return n
+  return slot ? `${imageLabel(slot, role)} photo` : 'Photo'
+}
+
+/**
  * SI12 structured photos (client wireframe, 8 Nov): Front (required) and three recommended tiles,
  * Back, Close-up and Size chart. Each is its own drop zone and sends its slot and role.
  */

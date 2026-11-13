@@ -5,6 +5,7 @@
  * Flipkart reads "Coming soon" with no Connect while publishing there is not open; the other four
  * read "On the roadmap" with one disabled "Join waitlist". Reused by /setup/marketplaces.
  */
+import { Link } from '@tanstack/react-router'
 import { useRef, useState, type ReactNode } from 'react'
 import { Banner } from '@/components/la/banner'
 import { LaCard } from '@/components/la/cards'
@@ -25,7 +26,7 @@ import { useNow } from '@/features/marketplaces/use-now'
 import { useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { STICKY_ASIDE } from '@/components/app/split-layout'
-import { connectionFor, defaultSelection, SUPPORTED, WAITLIST, type Connection } from './model'
+import { connectedNext, connectionFor, defaultSelection, regionText, SUPPORTED, WAITLIST, type Connection } from './model'
 import { useStartConnect } from './use-start-connect'
 
 type Connector = ReturnType<typeof useStartConnect>
@@ -253,7 +254,7 @@ function ConnectionDetail({ connection, canConnect, connector }: { connection: C
               {account ? (
                 <>
                   Seller ID <span data-testid="detail-seller-id">{account.seller_id}</span>
-                  {account.region ? ` · ${account.region}` : ''}
+                  {` · ${regionText(account)}`}
                 </>
               ) : (
                 'Not connected'
@@ -291,6 +292,8 @@ function ConnectionDetail({ connection, canConnect, connector }: { connection: C
         </Banner>
       ) : null}
 
+      {account ? <ConnectedNext account={account} name={m.short} /> : null}
+
       {account ? (
         <>
           <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-small sm:grid-cols-[150px_minmax(0,1fr)]">
@@ -298,7 +301,9 @@ function ConnectionDetail({ connection, canConnect, connector }: { connection: C
               <AccountStatusBadge status={account.status} />
             </Kv>
             <Kv label="Seller ID">{account.seller_id}</Kv>
-            <Kv label="Region">{account.region ?? <Dash />}</Kv>
+            <Kv label="Region">
+              <span data-testid="detail-region">{regionText(account)}</span>
+            </Kv>
             <Kv label="Authorized">
               <time dateTime={account.created_at}>{formatDateTime(account.created_at)}</time>
             </Kv>
@@ -361,6 +366,38 @@ function ConnectionDetail({ connection, canConnect, connector }: { connection: C
   )
 }
 
+/** Connected: whether publishing is paused here, and the one next step (Chrome pass 2). */
+function ConnectedNext({ account, name }: { account: NonNullable<Connection['account']>; name: string }) {
+  const next = connectedNext(account, name)
+  if (!next) return null
+  return (
+    <div className="flex flex-col gap-3" data-testid="marketplace-next">
+      {next.paused ? (
+        <Banner tone="neutral" icon="clock" role="status" title="Publishing is paused">
+          <span className="text-small text-ink-2" data-testid="marketplace-paused">
+            {next.paused}
+          </span>
+        </Banner>
+      ) : null}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-small text-ink-2" data-testid="marketplace-next-text">
+          {next.text}
+        </p>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Button size="sm" asChild>
+            <Link to="/add">Add a product</Link>
+          </Button>
+          <Button size="sm" variant="secondary" asChild>
+            <Link to="/products" search={{ marketplace: account.marketplace }}>
+              See products
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Kv({ label, children }: { label: string; children: ReactNode }) {
   return (
     <>
@@ -368,10 +405,6 @@ function Kv({ label, children }: { label: string; children: ReactNode }) {
       <dd className="flex min-h-[22px] min-w-0 items-center text-ink">{children}</dd>
     </>
   )
-}
-
-function Dash() {
-  return <span className="text-ink-3">—</span>
 }
 
 function RowSkeleton() {

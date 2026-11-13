@@ -2283,6 +2283,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/products/{product_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive a product and its sizes without deleting it: it leaves the list, its listings are archived (409 when a listing was sent to a marketplace) */
+        post: operations["products_archive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{product_id}/unarchive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bring an archived product and its listings back */
+        post: operations["products_unarchive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/products/{product_id}/recategorize": {
         parameters: {
             query?: never;
@@ -2794,6 +2828,11 @@ export interface components {
              */
             at: string;
             /**
+             * Import Id
+             * @description A spreadsheet import (`kind` `import`): its import, to open its rows.
+             */
+            import_id?: string | null;
+            /**
              * Kind
              * @enum {string}
              */
@@ -2801,6 +2840,12 @@ export interface components {
             /** Listing Id */
             listing_id?: string | null;
             marketplace?: components["schemas"]["Marketplace"] | null;
+            /**
+             * Needs Fix
+             * @description A finished spreadsheet import: its rows that failed and need a fix. An import that imported none of its rows is `failed`.
+             * @default 0
+             */
+            needs_fix: number;
             /** Product Id */
             product_id?: string | null;
             /** Product Title */
@@ -5526,6 +5571,11 @@ export interface components {
              */
             id: string;
             marketplace: components["schemas"]["Marketplace"];
+            /**
+             * Marketplace Id
+             * @description The marketplace this account sells on: Amazon's marketplace id (`A21TJRUUN4KGV`, Amazon.in), or null when there is none to name.
+             */
+            marketplace_id?: string | null;
             /** Needs Reconnect Since */
             needs_reconnect_since?: string | null;
             /**
@@ -6347,6 +6397,11 @@ export interface components {
              * @enum {string}
              */
             compliance_status: "pending" | "passed" | "failed";
+            /**
+             * Fix Unavailable
+             * @description Why a main photo whose checks failed offers no fix: `ai_off` (the white background needs the AI edit, switched off on this server), `not_fixable` (a failed check no candidate can fix: re-export or upload the photo again). Null when `fixes` is not empty, nothing failed or the photo is not the main one.
+             */
+            fix_unavailable?: ("ai_off" | "not_fixable") | null;
             /** Fixes */
             fixes?: ("fix" | "white_background")[];
             /**
@@ -6424,6 +6479,11 @@ export interface components {
              * Created At
              * Format: date-time
              */
+            /**
+             * Archived At
+             * @description When the product was archived (`POST /products/{product_id}/archive`), else null.
+             */
+            archived_at?: string | null;
             created_at: string;
             /** Currency */
             currency?: string | null;
@@ -42206,6 +42266,8 @@ export interface operations {
     products_list: {
         parameters: {
             query?: {
+                /** @description true: only the archived products (`POST /products/{product_id}/archive`). Default false: archived products are left out. */
+                archived?: boolean;
                 /** @description Only products owning a listing in this Home bucket (`HomeSummaryOut.listings`, the same definition; with `marketplace`, a listing on that marketplace), so the list a Home count opens is filtered on the server. `any_live` is live or partly live. */
                 listing?: ("live" | "partly_live" | "any_live" | "in_progress" | "problem" | "ready_to_approve" | "ready_to_publish" | "draft" | "inactive") | null;
                 /** @description Only products owning a listing on this marketplace. */
@@ -46124,6 +46186,68 @@ export interface operations {
             };
         };
     };
+    products_archive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductOut"];
+                };
+            };
+            /** @description Refused: 401, 403, 404, 409 (`INVALID_STATUS_TRANSITION`, `SUBMISSION_IN_FLIGHT`, `LISTING_BUSY`), 422. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    products_unarchive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductOut"];
+                };
+            };
+            /** @description Refused: 401, 403, 404, 409 (`INVALID_STATUS_TRANSITION`, `SUBMISSION_IN_FLIGHT`, `LISTING_BUSY`), 422. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     products_recategorize: {
         parameters: {
             query?: never;
@@ -48947,7 +49071,9 @@ export interface operations {
                 content: {
                     /**
                      * @example {
+                     *       "asked_at": "2026-10-05T09:31:00Z",
                      *       "brand_name": "Kalakar Weaves",
+                     *       "question": "Which marketplaces do you sell on today, and under which store name?",
                      *       "requested_at": "2026-10-05T09:30:00Z",
                      *       "status": "pending"
                      *     }

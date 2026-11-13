@@ -64,7 +64,7 @@ test.describe('listing flow', () => {
     const { access_token } = await loginAs(page, USERS.acme.operator, '/home')
     const product = await createProduct(page.request, access_token)
     // Start on Flipkart through the API (the UI keeps Flipkart drafts closed until it is connected),
-    // then the Amazon lane offers "List on Amazon".
+    // then the Amazon lane offers "Draft for Amazon".
     const { job_id } = await generate(page.request, access_token, product.id, 'flipkart')
     await page.goto(`/runs/${job_id}`)
     const req = page.waitForRequest((r) => r.url().endsWith('/api/v1/listings/generate') && r.method() === 'POST')

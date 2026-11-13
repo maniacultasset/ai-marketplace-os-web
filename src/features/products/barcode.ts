@@ -1,7 +1,12 @@
 /**
  * Product barcodes (SI5): the EAN, UPC or GTIN of a variant or a standalone product, or the
- * seller's "No barcode (exempt)" declaration. Pure rules shared by the guided form (create), the
- * product editor (PATCH) and the detail card.
+ * seller's "No barcode" choice. Pure rules shared by the guided form (create), the product editor
+ * (PATCH) and the detail card.
+ *
+ * "No barcode" never means "exempt" on its own (client Chrome pass B5, 12 Nov): the field then asks
+ * "Has Amazon granted your brand a GTIN exemption?", and only a yes is saved as
+ * `identifier_exemption: true`. A no (or no answer) saves neither, so Amazon's own rule still
+ * applies: the marketplace check reports IDENTIFIER_MISSING and the review stops at Identity.
  *
  * Mirrors the backend:
  * - core/identifiers.py `gtin_valid`: ASCII digits, 8 or 12 to 14 of them, and the GS1 check
@@ -79,25 +84,30 @@ export function barcodeProblem(type: BarcodeType, raw: string): string | null {
 export interface BarcodeDraft {
   type: BarcodeType
   value: string
-  /** "No barcode (exempt)": the brand declares a GTIN exemption for this product. */
+  /** "No barcode" was chosen. Says nothing about an exemption. */
+  none: boolean
+  /** The seller confirmed Amazon granted the brand a GTIN exemption (only with `none`). */
   exempt: boolean
   /** A style's switch was set by the person: its value is sent even when it matches what was read. */
   touched?: boolean
 }
 
-export const emptyBarcode = (): BarcodeDraft => ({ type: 'ean', value: '', exempt: false })
+export const emptyBarcode = (): BarcodeDraft => ({ type: 'ean', value: '', none: false, exempt: false })
 
 export function barcodeFromProduct(p: Product): BarcodeDraft {
   const id = p.product_identifier
-  if (id) return { type: id.type, value: id.value, exempt: false }
-  return { ...emptyBarcode(), exempt: p.identifier_exemption === true }
+  if (id) return { type: id.type, value: id.value, none: false, exempt: false }
+  // Neither stored: "Has a barcode" with no digits, so "Add barcode" lands on the input.
+  const exempt = p.identifier_exemption === true
+  return { ...emptyBarcode(), none: exempt, exempt }
 }
 
 /** A draft read back from this browser, made whole (drafts saved before barcodes existed). */
 export function reviveBarcode(raw: unknown): BarcodeDraft {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<BarcodeDraft>
   const type = BARCODE_TYPES.some((t) => t.value === r.type) ? r.type! : 'ean'
-  return { type, value: typeof r.value === 'string' ? r.value : '', exempt: r.exempt === true }
+  const exempt = r.exempt === true
+  return { type, value: typeof r.value === 'string' ? r.value : '', none: r.none === true || exempt, exempt }
 }
 
 /**
@@ -112,14 +122,21 @@ export function styleExemption(variants: readonly Product[]): { exempt: boolean;
 }
 
 /** A style's barcode draft: only the exemption, read from its variants. */
-export const styleBarcode = (variants: readonly Product[]): BarcodeDraft => ({ ...emptyBarcode(), exempt: styleExemption(variants).exempt })
+export function styleBarcode(variants: readonly Product[]): BarcodeDraft {
+  const { exempt } = styleExemption(variants)
+  return { ...emptyBarcode(), none: exempt, exempt }
+}
 
 /** Where a draft's barcode lives: a style holds only the exemption (it reaches its variants). */
 export type BarcodeLevel = 'item' | 'style'
 
-/** `product_identifier` / `identifier_exemption` for POST /products: blank leaves both out. */
+/**
+ * `product_identifier` / `identifier_exemption` for POST /products: blank, or "No barcode" without
+ * a confirmed exemption, leaves both out.
+ */
 export function barcodeCreateFields(d: BarcodeDraft, level: BarcodeLevel = 'item'): Pick<ProductCreate, 'product_identifier' | 'identifier_exemption'> {
   if (d.exempt) return { identifier_exemption: true }
+  if (d.none) return {}
   const value = normalizeBarcode(d.value)
   if (level === 'item' && value) return { product_identifier: { type: d.type, value } }
   return {}
@@ -132,8 +149,10 @@ export function barcodeCreateFields(d: BarcodeDraft, level: BarcodeLevel = 'item
 export function barcodePatchFields(base: BarcodeDraft, d: BarcodeDraft, level: BarcodeLevel = 'item'): Pick<ProductPatch, 'product_identifier' | 'identifier_exemption'> {
   if (level === 'style') return d.touched ? { identifier_exemption: d.exempt } : {}
   if (d.exempt) return base.exempt ? {} : { identifier_exemption: true }
-  const value = normalizeBarcode(d.value)
   const was = base.exempt ? '' : normalizeBarcode(base.value)
+  // "No barcode" without an exemption: drop what is stored, set nothing.
+  if (d.none) return base.exempt ? { identifier_exemption: false } : was ? { product_identifier: null } : {}
+  const value = normalizeBarcode(d.value)
   if (value) return base.exempt || value !== was || d.type !== base.type ? { product_identifier: { type: d.type, value } } : {}
   if (base.exempt) return { identifier_exemption: false }
   return was ? { product_identifier: null } : {}
@@ -142,7 +161,8 @@ export function barcodePatchFields(base: BarcodeDraft, d: BarcodeDraft, level: B
 /** The same barcode state (for "changed" checks). */
 export const sameBarcode = (a: BarcodeDraft, b: BarcodeDraft) =>
   a.exempt === b.exempt &&
-  !!a.touched === !!b.touched && (a.exempt || (normalizeBarcode(a.value) === normalizeBarcode(b.value) && (!normalizeBarcode(a.value) || a.type === b.type)))
+  !!a.none === !!b.none &&
+  !!a.touched === !!b.touched && (a.exempt || a.none || (normalizeBarcode(a.value) === normalizeBarcode(b.value) && (!normalizeBarcode(a.value) || a.type === b.type)))
 
 /** The form key every barcode error lands on. */
 export const BARCODE_KEY = 'barcode'
@@ -153,11 +173,49 @@ export const isBarcodeErrorKey = (key: string) => key === 'identifier_exemption'
 /** The sentence for a barcode refused by the server. */
 export function barcodeServerMessage(errType: string, d: BarcodeDraft): string {
   if (errType === 'FACT_LEVEL_INVALID') return 'A style has no barcode of its own. Add one on each variant.'
-  const local = d.exempt ? null : barcodeProblem(d.type, d.value)
+  const local = d.exempt || d.none ? null : barcodeProblem(d.type, d.value)
   if (local) return local
-  if (!d.exempt && normalizeBarcode(d.value)) return 'Another product in this brand already has this barcode. Check the number.'
+  if (!d.exempt && !d.none && normalizeBarcode(d.value)) return 'Another product in this brand already has this barcode. Check the number.'
   return 'Check the barcode.'
 }
 
 /** "EAN 4006381333931" for the detail card. */
 export const formatBarcode = (id: { type: BarcodeType; value: string }) => `${BARCODE_LABEL[id.type]} ${id.value}`
+
+/* ---- the field's words (barcode-field.tsx) ---- */
+
+/** The barcode choice as the field holds it: "No barcode", and the answer to the exemption question. */
+export interface BarcodeChoiceValue {
+  none: boolean
+  exempt: boolean
+}
+
+/** The formats Amazon and Flipkart take, in seller words. */
+export const BARCODE_FORMATS = 'GTIN-8, 12, 13 or 14: an EAN, UPC or GTIN from the pack.'
+/** The question "No barcode" asks when Amazon is chosen. */
+export const EXEMPTION_QUESTION = 'Has Amazon granted your brand a GTIN exemption?'
+/** "No barcode" and no exemption: Amazon's rule, said before the review says it. */
+export const NO_EXEMPTION_HINT = 'Amazon will not create the listing without a barcode or an approved exemption. Add a barcode, or apply for an exemption first.'
+const EXEMPT_YES_HINT = 'Kuinn sends the exemption with the listing. Amazon approves GTIN exemptions per brand and category.'
+
+const ITEM_HINT = BARCODE_FORMATS
+const ITEM_HINT_AMAZON = `${BARCODE_FORMATS} Amazon needs one to create the listing.`
+const STYLE_HINT = 'Each variant has its own barcode. Add them on each variant, or choose "No barcodes" if Amazon granted your brand a GTIN exemption.'
+const STYLE_HINT_PLAIN = 'Each variant has its own barcode. Add them on each variant, or choose no barcodes for every variant without one.'
+const STYLE_EXEMPT_HINT = `Every variant without a barcode is sent as exempt. ${EXEMPT_YES_HINT}`
+const STYLE_NO_EXEMPTION_HINT = 'Amazon will not create variants without a barcode or an approved exemption. Add a barcode on each, or apply for an exemption first.'
+/** Without Amazon "No barcode" is just that: no marketplace rule to explain. */
+const ITEM_NONE_PLAIN = 'Saved without a barcode.'
+const STYLE_NONE_PLAIN = 'Every variant without a barcode is saved without one.'
+
+
+/** The field's hint: Amazon's rule only when Amazon is a chosen marketplace. */
+export function barcodeHint({ none, exempt, style, amazon }: BarcodeChoiceValue & { style: boolean; amazon: boolean }): string {
+  if (none || exempt) {
+    if (!amazon) return style ? STYLE_NONE_PLAIN : ITEM_NONE_PLAIN
+    if (exempt) return style ? STYLE_EXEMPT_HINT : EXEMPT_YES_HINT
+    return style ? STYLE_NO_EXEMPTION_HINT : NO_EXEMPTION_HINT
+  }
+  if (style) return amazon ? STYLE_HINT : STYLE_HINT_PLAIN
+  return amazon ? ITEM_HINT_AMAZON : ITEM_HINT
+}

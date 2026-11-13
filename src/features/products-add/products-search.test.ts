@@ -29,4 +29,9 @@ describe('Products filters in the URL', () => {
     expect(cleanProductsSearch({ status: undefined, marketplace: undefined, category: '', q: '  ' })).toEqual({})
     expect(cleanProductsSearch({ status: 'live', q: 'k' })).toEqual({ status: 'live', q: 'k' })
   })
+
+  it('reads the Archived view', () => {
+    expect(productsSearchSchema.parse({ status: 'archived' })).toEqual({ status: 'archived' })
+    expect(cleanProductsSearch({ status: 'archived', q: '' })).toEqual({ status: 'archived' })
+  })
 })

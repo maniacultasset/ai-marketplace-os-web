@@ -65,14 +65,17 @@ describe('barcodeProblem', () => {
 
 describe('reading a product', () => {
   it('reads a barcode, an exemption, or nothing', () => {
-    expect(barcodeFromProduct({ product_identifier: { type: 'upc', value: UPC }, identifier_exemption: false })).toEqual({ type: 'upc', value: UPC, exempt: false })
-    expect(barcodeFromProduct({ product_identifier: null, identifier_exemption: true })).toEqual({ type: 'ean', value: '', exempt: true })
+    expect(barcodeFromProduct({ product_identifier: { type: 'upc', value: UPC }, identifier_exemption: false })).toEqual({ type: 'upc', value: UPC, none: false, exempt: false })
+    expect(barcodeFromProduct({ product_identifier: null, identifier_exemption: true })).toEqual({ type: 'ean', value: '', none: true, exempt: true })
     expect(barcodeFromProduct({ product_identifier: null, identifier_exemption: false })).toEqual(emptyBarcode())
   })
   it('revives an old or broken draft', () => {
     expect(reviveBarcode(undefined)).toEqual(emptyBarcode())
     expect(reviveBarcode({ type: 'isbn', value: 7, exempt: 'yes' })).toEqual(emptyBarcode())
-    expect(reviveBarcode({ type: 'gtin', value: GTIN14, exempt: false })).toEqual({ type: 'gtin', value: GTIN14, exempt: false })
+    expect(reviveBarcode({ type: 'gtin', value: GTIN14, exempt: false })).toEqual({ type: 'gtin', value: GTIN14, none: false, exempt: false })
+    // A draft saved before the exemption question: its exemption was "No barcode" too.
+    expect(reviveBarcode({ type: 'ean', value: '', exempt: true })).toMatchObject({ none: true, exempt: true })
+    expect(reviveBarcode({ type: 'ean', value: '', none: true })).toMatchObject({ none: true, exempt: false })
   })
 })
 
@@ -81,6 +84,13 @@ describe('create body', () => {
     expect(barcodeCreateFields(draft())).toEqual({})
     expect(barcodeCreateFields(draft({ value: ' 4006381 333931' }))).toEqual({ product_identifier: { type: 'ean', value: EAN13 } })
     expect(barcodeCreateFields(draft({ value: EAN13, exempt: true }))).toEqual({ identifier_exemption: true })
+  })
+  it('"No barcode" sends no exemption until the seller confirms one (Chrome pass B5)', () => {
+    expect(barcodeCreateFields(draft({ none: true }))).toEqual({})
+    // Digits typed before choosing "No barcode" are not sent.
+    expect(barcodeCreateFields(draft({ none: true, value: EAN13 }))).toEqual({})
+    expect(barcodeCreateFields(draft({ none: true, exempt: true }))).toEqual({ identifier_exemption: true })
+    expect(barcodeCreateFields(draft({ none: true }), 'style')).toEqual({})
   })
   it('never sends a value for a style', () => {
     expect(barcodeCreateFields(draft({ value: EAN13 }), 'style')).toEqual({})
@@ -119,6 +129,14 @@ describe('patch body', () => {
       const body = barcodePatchFields(a, b)
       expect('product_identifier' in body && 'identifier_exemption' in body).toBe(false)
     }
+  })
+  it('"No barcode" without an exemption clears what is stored and sets nothing', () => {
+    const noneChosen = draft({ none: true })
+    expect(barcodePatchFields(ean, noneChosen)).toEqual({ product_identifier: null })
+    expect(barcodePatchFields(exempt, noneChosen)).toEqual({ identifier_exemption: false })
+    expect(barcodePatchFields(none, noneChosen)).toEqual({})
+    expect(barcodePatchFields(none, draft({ none: true, value: EAN13 }))).toEqual({})
+    expect(barcodePatchFields(none, draft({ none: true, exempt: true }))).toEqual({ identifier_exemption: true })
   })
   it('on a style sends only the exemption, which reaches its variants', () => {
     expect(barcodePatchFields(none, { ...exempt, touched: true }, 'style')).toEqual({ identifier_exemption: true })

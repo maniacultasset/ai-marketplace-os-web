@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   checkRows,
   defaultSlot,
+  imageFileName,
   imageIdFromKey,
   marketplaceReports,
   photoQaWarnings,
@@ -149,5 +150,19 @@ describe('signedStepUnavailable', () => {
     expect(signedStepUnavailable(err(422))).toBe(false)
     expect(signedStepUnavailable(err(404))).toBe(false)
     expect(signedStepUnavailable(new Error('x'))).toBe(false)
+  })
+})
+
+describe('imageFileName (Media tab rows, prod Chrome check 13 Nov)', () => {
+  const key = 'aa92b4c4-52e0-406a-9c20-47f74feaaecc/b76d0a67-0166-42f8-82b4-832c789ad956/images/ba8702db-b189-4cbd-9f43-5a1e2b3c4d5e'
+  it('shows the original file name when known', () => {
+    expect(imageFileName('ktest-grey-front.jpg', 'main')).toBe('ktest-grey-front.jpg')
+  })
+  it('shows the view label, never a storage path or an id', () => {
+    expect(imageFileName(undefined, 'main')).toBe('Front photo')
+    expect(imageFileName(key, 'main')).toBe('Front photo')
+    expect(imageFileName('ba8702db-b189-4cbd-9f43-5a1e2b3c4d5e', 'secondary', 'back')).toBe('Back photo')
+    expect(imageFileName(null, 'secondary', 'close_up')).toBe('Close-up photo')
+    expect(imageFileName(null)).toBe('Photo')
   })
 })

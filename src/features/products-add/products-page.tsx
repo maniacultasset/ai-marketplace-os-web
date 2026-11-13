@@ -43,7 +43,9 @@ import { useChipContext } from '@/features/listing-flow/publishing'
 import { APPROVED_PAUSED_LABEL, needsYourInfo } from '@/lib/listing-chip'
 import { cn } from '@/lib/utils'
 import { AddMarketplaceDialog } from './add-marketplace-dialog'
-import { useCatalog, useListingFilter, type LoadState } from './catalog'
+import { archivedRows } from './archived-model'
+import { ArchivedProducts } from './archived-products'
+import { useArchivedProducts, useCatalog, useListingFilter, type LoadState } from './catalog'
 import { cleanProductsSearch, type ProductsSearch } from './products-search'
 import {
   BUCKETS,
@@ -446,19 +448,25 @@ export function ProductsPage({ search, onSearch }: { search?: ProductsSearch; on
   const filters = search ?? local
   const setFilters = (patch: Partial<ProductsSearch>) => (onSearch ? onSearch(patch) : setLocal((s) => cleanProductsSearch({ ...s, ...patch })))
   const q = filters.q ?? ''
-  const bucket: Bucket | 'all' = filters.status ?? 'all'
+  const status: Bucket | 'all' | 'archived' = filters.status ?? 'all'
+  const showArchived = status === 'archived'
+  const bucket: Bucket | 'all' = status === 'archived' ? 'all' : status
   const category = filters.category ?? null
   const marketplace: Marketplace | null = filters.marketplace ?? null
   const listing = filters.listing ?? null
   const { amazonPublishingPaused } = useChipContext()
   const setQ = (v: string) => setFilters({ q: v })
-  const setBucket = (v: Bucket | 'all') => setFilters({ status: v === 'all' ? undefined : v })
+  const setBucket = (v: Bucket | 'all' | 'archived') => setFilters({ status: v === 'all' ? undefined : v })
   const setCategory = (v: string | null) => setFilters({ category: v ?? undefined })
   const setMarketplace = (v: Marketplace | null) => setFilters({ marketplace: v ?? undefined })
   const [selection, setSelection] = useState<RowSelectionState>({})
   const [adding, setAdding] = useState<CatalogRow[] | null>(null)
   const [deleting, setDeleting] = useState<{ rows: CatalogRow[]; clear: () => void } | null>(null)
 
+  // The Archived view (`GET /products?archived=true`); also read for the chip's count.
+  const archived = useArchivedProducts()
+  const archivedList = useMemo(() => archivedRows(archived.data?.rows ?? [], q), [archived.data, q])
+  const archivedTotal = useMemo(() => (archived.data ? archivedRows(archived.data.rows).length : undefined), [archived.data])
   const listingsReady = catalog.listingsState === 'ready'
   // Every count appears at once, when the whole catalog has answered.
   const countsReady = !catalog.isPending
@@ -497,7 +505,7 @@ export function ProductsPage({ search, onSearch }: { search?: ProductsSearch; on
   const byId = useMemo(() => new Map(catalog.rows.map((r) => [r.product.id, r])), [catalog.rows])
   const listingsOf = useCallback((id: string) => byId.get(id)?.listings ?? {}, [byId])
 
-  const filtered = q.trim() !== '' || bucket !== 'all' || !!category || !!marketplace || !!listing
+  const filtered = q.trim() !== '' || status !== 'all' || !!category || !!marketplace || !!listing
   const clear = () => setFilters({ q: undefined, status: undefined, category: undefined, marketplace: undefined, listing: undefined })
   const n = catalog.rows.length
 
@@ -511,6 +519,51 @@ export function ProductsPage({ search, onSearch }: { search?: ProductsSearch; on
 
   const canGenerate = can('listing:generate')
   const aiPaused = useAiPaused()
+
+  const statusFilter = (
+    <div className="max-w-full overflow-x-auto">
+      <Segmented
+        label="Overall status"
+        value={status}
+        onChange={setBucket}
+        options={[
+          { value: 'all', label: 'All', count: countsReady ? counts.all : undefined },
+          ...(catalog.listingsState === 'error'
+            ? []
+            : BUCKETS.map((b) => ({
+                value: b.value,
+                label: (
+                  <>
+                    <Glyph status={BUCKET_GLYPH[b.value].status} className={BUCKET_GLYPH[b.value].className} />
+                    {b.label}
+                  </>
+                ),
+                count: countsReady && listingsReady ? counts[b.value] : undefined,
+              }))),
+          { value: 'archived', label: 'Archived', count: archivedTotal },
+        ]}
+      />
+    </div>
+  )
+  const searchBox = (
+      <div className="relative w-full sm:w-[260px]">
+        <Icon name="search" size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-3" />
+        <Input
+          type="search"
+          name="q"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          autoComplete="off"
+          spellCheck={false}
+          enterKeyHint="search"
+          maxLength={200}
+          placeholder="Search name or SKU…"
+          aria-label="Search loaded products by name or SKU"
+          className="h-[34px] pl-9 text-small"
+          data-testid="products-filter"
+        />
+      </div>
+  )
 
   return (
     <Page>
@@ -532,6 +585,21 @@ export function ProductsPage({ search, onSearch }: { search?: ProductsSearch; on
       />
 
       <LoadCtx.Provider value={load}>
+      {showArchived ? (
+        <div className="flex flex-col gap-3" data-testid="products-archived-view">
+          <div className="flex flex-col gap-2">
+            {statusFilter}
+            <div className="flex flex-wrap items-center gap-2">{searchBox}</div>
+          </div>
+          <ArchivedProducts
+            rows={archivedList}
+            isPending={archived.isPending}
+            error={archived.data ? null : archived.error}
+            onRetry={() => void archived.refetch()}
+            filtered={q.trim() !== ''}
+          />
+        </div>
+      ) : (
       <DataTable<CatalogRow>
         label="Products"
         className="[&_tbody_tr]:relative [&_tbody_[role=checkbox]]:relative [&_tbody_[role=checkbox]]:z-10"
@@ -549,48 +617,11 @@ export function ProductsPage({ search, onSearch }: { search?: ProductsSearch; on
         renderCard={(row, s) => <ProductCard row={row} {...s} />}
         renderCardSkeleton={() => <ProductCardSkeleton />}
         toolbar={
-          n > 0 || catalog.isPending ? (
+          n > 0 || catalog.isPending || !!archivedTotal ? (
             <div className="flex flex-col gap-2">
-              <div className="max-w-full overflow-x-auto">
-                <Segmented
-                  label="Overall status"
-                  value={bucket}
-                  onChange={setBucket}
-                  options={[
-                    { value: 'all', label: 'All', count: countsReady ? counts.all : undefined },
-                    ...(catalog.listingsState === 'error'
-                      ? []
-                      : BUCKETS.map((b) => ({
-                          value: b.value,
-                          label: (
-                            <>
-                              <Glyph status={BUCKET_GLYPH[b.value].status} className={BUCKET_GLYPH[b.value].className} />
-                              {b.label}
-                            </>
-                          ),
-                          count: countsReady && listingsReady ? counts[b.value] : undefined,
-                        }))),
-                  ]}
-                />
-              </div>
+              {statusFilter}
               <div className="flex flex-wrap items-center gap-2">
-                <div className="relative w-full sm:w-[260px]">
-                  <Icon name="search" size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-3" />
-                  <Input
-                    type="search"
-                    name="q"
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
-                    autoComplete="off"
-                    spellCheck={false}
-                    enterKeyHint="search"
-                    maxLength={200}
-                    placeholder="Search name or SKU…"
-                    aria-label="Search loaded products by name or SKU"
-                    className="h-[34px] pl-9 text-small"
-                    data-testid="products-filter"
-                  />
-                </div>
+                {searchBox}
                 <FilterSelect
                   label="Category"
                   value={category}
@@ -702,6 +733,7 @@ export function ProductsPage({ search, onSearch }: { search?: ProductsSearch; on
           </BulkBar>
         )}
       />
+      )}
       </LoadCtx.Provider>
       {adding ? (
         <AddMarketplaceDialog

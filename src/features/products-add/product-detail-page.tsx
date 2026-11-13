@@ -9,7 +9,7 @@
  *   GET /listings/{id}                       validation summary (Validation tab)
  *   GET /listings/{id}/history               per-listing history (Activity tab)
  *   GET /listings/{id}/versions              who made, edited and approved each version (Activity tab)
- * Writes: POST /listings/generate ("List on …", AddMarketplaceDialog); image upload in the Media tab.
+ * Writes: POST /listings/generate ("Draft for …", AddMarketplaceDialog); image upload in the Media tab.
  */
 import { useQueries } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
@@ -30,6 +30,7 @@ import {
   RoadmapChip,
   StatusChip,
   TagChip,
+  UnavailableButton,
   VariantCell,
   WaitlistButton,
   type MarketplaceInfo,
@@ -46,6 +47,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ProductImagesCard } from '@/features/analytics-images/images/images-card'
 import { useFixCounts } from '@/features/home-inbox/api'
 import { AutoFixedChip } from '@/features/listing-flow/auto-fix'
+import { DRAFT_HINT, draftLabel } from '@/features/listing-flow/format'
 import { currentFindings, dedupeFindings, type ErrorItem } from '@/features/listing-flow/gates'
 import { listingDetailQuery, listingPreviewQuery, useListingHistory, useListingVersions } from '@/features/listings/api'
 import { recallJob } from '@/features/listings/job-memory'
@@ -56,19 +58,22 @@ import { comingSoon, comingSoonReason, draftOpen } from '@/features/marketplaces
 import { useProduct, type ProductDetail } from '@/features/products/api'
 import { RelativeTime } from '@/features/products/format'
 import { ProductMoreMenu } from '@/features/products/product-more-menu'
+import { ARCHIVED_DRAFT_REASON, ARCHIVED_NOTE, archivedFamilyNote } from '@/features/products/archive'
+import { Banner } from '@/components/la/banner'
 import { mainView, useRefreshProductViews } from '@/features/products/image-views'
 import { Can, OP_ACTION, useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
 import { useMe } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 import { AddMarketplaceDialog } from './add-marketplace-dialog'
-import { useAllListings, useAllProducts, useOpenIssues } from './catalog'
+import { useAllListings, useAllProducts, useArchivedProducts, useOpenIssues } from './catalog'
 import {
   cellChip,
   firstListable,
   productCategoryLabel,
   variantAxis,
   matrixKey,
+  mergeById,
   OVERALL_CHIP,
   overallStatus,
   variantMatrix,
@@ -278,11 +283,16 @@ const NO_LISTINGS: Listing[] = []
 export function ProductDetailPage({ productId, tab, edit }: { productId: string; tab: DetailTab; edit?: string }) {
   const q = useProduct(productId)
   const all = useAllProducts()
+  // An archived style's variants (and a variant's style) are archived with it and leave the
+  // default list: read the archived products too, so the family still shows.
+  const archivedQ = useArchivedProducts(!!q.data?.archived_at)
+  const withArchived = !!q.data?.archived_at
   const listingsQ = useAllListings({ productId })
   const issuesQ = useOpenIssues()
   // Fix counts per listing (current version); a listing re-read keeps the same rows array.
   const autoFix = useFixCounts(listingsQ.data?.rows ?? NO_LISTINGS)
   const refetchAll = all.refetch
+  const refetchArchived = archivedQ.refetch
   const refetchListings = listingsQ.refetch
   const tabsRef = useRef<HTMLDivElement>(null)
 
@@ -294,7 +304,7 @@ export function ProductDetailPage({ productId, tab, edit }: { productId: string;
   const data = useMemo<DetailData | null>(() => {
     if (!q.data) return null
     const p = q.data
-    const rows = all.data?.rows ?? []
+    const rows = withArchived ? mergeById(all.data?.rows ?? [], archivedQ.data?.rows ?? []) : (all.data?.rows ?? [])
     const listings: Partial<Record<Marketplace, Listing>> = {}
     for (const l of listingsQ.data?.rows ?? []) {
       const prev = listings[l.marketplace]
@@ -315,12 +325,15 @@ export function ProductDetailPage({ productId, tab, edit }: { productId: string;
       listingsError: listingsQ.data ? null : listingsQ.error,
       retryListings: () => void refetchListings(),
       issuesState: issuesQ.data ? 'ready' : issuesQ.error ? 'error' : 'pending',
-      variantsPending: all.isPending,
-      variantsError: all.data ? null : all.error,
-      retryVariants: () => void refetchAll(),
+      variantsPending: all.isPending || (withArchived && archivedQ.isPending),
+      variantsError: (all.data ? null : all.error) ?? (withArchived && !archivedQ.data ? archivedQ.error : null),
+      retryVariants: () => {
+        void refetchAll()
+        if (withArchived) void refetchArchived()
+      },
       isVariant: !!p.parent_product_id,
     }
-  }, [q.data, all.data, all.isPending, all.error, refetchAll, listingsQ.data, listingsQ.isPending, listingsQ.error, refetchListings, issuesQ.data, issuesQ.error, autoFix])
+  }, [q.data, all.data, all.isPending, all.error, refetchAll, withArchived, archivedQ.data, archivedQ.isPending, archivedQ.error, refetchArchived, listingsQ.data, listingsQ.isPending, listingsQ.error, refetchListings, issuesQ.data, issuesQ.error, autoFix])
 
   if (q.isPending) return <DetailSkeleton tab={tab} />
   if (q.error || !data) {
@@ -494,6 +507,12 @@ function LoadedDetail({
         </div>
       </header>
 
+      {p.archived_at ? (
+        <Banner tone="neutral" icon="info" role="status" title="Archived" data-testid="product-archived">
+          <span className="text-small text-ink-2">{ARCHIVED_NOTE} Unarchive it from the More menu (owners and admins).</span>
+        </Banner>
+      ) : null}
+
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList ref={tabsRef} variant="line" aria-label="Product sections">
           {DETAIL_TABS.map((t) => (
@@ -584,10 +603,16 @@ function HeaderListOn({ data, variant = 'primary' }: { data: DetailData; variant
   if (data.product.category === null) return null
   if (first === 'pending') return <Skeleton className="h-9 w-32 rounded-control" />
   if (!first) return null
+  if (data.product.archived_at)
+    return (
+      <UnavailableButton variant={variant} reason={ARCHIVED_DRAFT_REASON} data-testid="header-list-on">
+        {draftLabel(first.name)}
+      </UnavailableButton>
+    )
   return (
     <>
-      <Button variant={variant} onClick={() => setOpen(true)} data-testid="header-list-on">
-        List on {first.name}
+      <Button variant={variant} onClick={() => setOpen(true)} title={DRAFT_HINT} data-testid="header-list-on">
+        {draftLabel(first.name)}
       </Button>
       {open ? (
         <AddMarketplaceDialog
@@ -642,7 +667,7 @@ function MarketplaceCards({ data, detailed }: { data: DetailData; detailed?: boo
   )
 }
 
-/** The listings read failed: one error with Retry, never "Not listed" or a "List on" offer. */
+/** The listings read failed: one error with Retry, never "Not listed" or a "Draft for" offer. */
 function ListingsFailed({ data }: { data: DetailData }) {
   return (
     <LaCard pad="none" data-testid="listings-failed">
@@ -748,18 +773,26 @@ function MarketplaceCard({
           <StatusChip status="not-listed" />
         </div>
         <p className="mt-3 text-small text-ink-2">
-          {data.isVariant ? 'Variants are listed through their style.' : 'No listing drafted for this product yet.'}
+          {data.isVariant
+            ? 'Variants are listed through their style.'
+            : data.product.archived_at
+              ? `No listing drafted for this product. ${ARCHIVED_DRAFT_REASON}`
+              : `No listing drafted for this product yet. ${DRAFT_HINT}`}
         </p>
         {onList ? (
           <div className={CARD_ACTIONS}>
-            {draftOpen(id, connected) ? (
-              <Button variant="secondary" size="sm" onClick={() => onList(id)} data-testid={`list-on-${id}`}>
-                List on {m.name}
+            {data.product.archived_at ? (
+              <UnavailableButton variant="secondary" size="sm" reason={ARCHIVED_DRAFT_REASON} data-testid={`list-on-${id}`}>
+                {draftLabel(m.name)}
+              </UnavailableButton>
+            ) : draftOpen(id, connected) ? (
+              <Button variant="secondary" size="sm" onClick={() => onList(id)} title={DRAFT_HINT} data-testid={`list-on-${id}`}>
+                {draftLabel(m.name)}
               </Button>
             ) : (
               // Accounts still loading: same button, held, so the card never changes size.
               <Button variant="secondary" size="sm" disabled data-testid={`list-on-${id}`}>
-                List on {m.name}
+                {draftLabel(m.name)}
               </Button>
             )}
           </div>
@@ -994,7 +1027,7 @@ function VariantStatusCard({ data }: { data: DetailData }) {
         <ErrorState error={data.variantsError} title="Couldn’t load variants" compact onRetry={data.retryVariants} className="mt-2" />
       ) : data.variants.length === 0 ? (
         <p className="mt-4 text-small text-ink-2" data-testid="no-parent">
-          No variants. This product is listed as a single item.
+          {data.product.archived_at ? 'No variants.' : 'No variants. This product is listed as a single item.'}
         </p>
       ) : (
         <>
@@ -1057,8 +1090,10 @@ function VariantStatusCard({ data }: { data: DetailData }) {
               })}
             </ul>
           ) : null}
-          <p className="mt-3 text-caption text-ink-2">
-            {data.variants.length} {data.variants.length === 1 ? 'variant' : 'variants'}. Marketplace status per variant is not available yet; each listing covers the whole family.
+          <p className="mt-3 text-caption text-ink-2" data-testid="family-note">
+            {data.product.archived_at
+              ? archivedFamilyNote(data.variants.length)
+              : `${data.variants.length} ${data.variants.length === 1 ? 'variant' : 'variants'}. Marketplace status per variant is not available yet; each listing covers the whole family.`}
           </p>
         </>
       )}
@@ -1074,20 +1109,32 @@ function VariantsTab({ data }: { data: DetailData }) {
     <LaCard pad="none" className="overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 p-5">
         <CardHead title="Variants" sub={hasColour ? 'Each size and colour you make, as its own SKU.' : 'Each size and colour you make, as its own SKU. The colour is in each variant’s SKU.'} />
-        <Can action="product:import">
-          <Button variant="secondary" size="sm" asChild>
-            <Link to="/add/variants" search={{ product: data.product.id }}>
-              Add variants
-            </Link>
-          </Button>
-        </Can>
+        {data.product.archived_at ? null : (
+          <Can action="product:import">
+            <Button variant="secondary" size="sm" asChild>
+              <Link to="/add/variants" search={{ product: data.product.id }}>
+                Add variants
+              </Link>
+            </Button>
+          </Can>
+        )}
       </div>
+      {data.product.archived_at && data.variants.length ? (
+        <p className="border-t border-line px-5 py-3 text-small text-ink-2" data-testid="variants-archived">
+          {archivedFamilyNote(data.variants.length)}
+        </p>
+      ) : null}
       {data.variantsPending ? (
         <VariantRowsSkeleton />
       ) : data.variantsError ? (
         <ErrorState error={data.variantsError} title="Couldn’t load variants" compact onRetry={data.retryVariants} />
       ) : data.variants.length === 0 ? (
-        <EmptyState icon="grid" title="No variants" description="Add sizes and colours with the variants step." compact />
+        <EmptyState
+          icon="grid"
+          title="No variants"
+          description={data.product.archived_at ? 'This archived product has no sizes or colours.' : 'Add sizes and colours with the variants step.'}
+          compact
+        />
       ) : (
         <table className="w-full text-small" aria-label="Variants">
           <thead>
@@ -1130,7 +1177,7 @@ function NoListings({ data }: { data: DetailData }) {
       <EmptyState
         icon="store"
         title={data.isVariant ? 'Listed through its style' : 'No listings yet'}
-        description={data.isVariant ? 'Open the style to see its listings.' : 'Start a draft with “List on …” on the Overview tab.'}
+        description={data.isVariant ? 'Open the style to see its listings.' : 'Start a draft with “Draft for …” on the Overview tab.'}
         compact
       />
     </LaCard>

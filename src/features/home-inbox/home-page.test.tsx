@@ -133,6 +133,13 @@ describe('marketplace card numbers (client feedback item 6)', () => {
     expect(href(within(amazon).getByTestId('mp-stat-approve'))).toBe('/products?listing=ready_to_approve&marketplace=amazon')
   })
 
+  it('a connected marketplace says Connected and opens its account (Chrome pass 2)', () => {
+    view()
+    const link = within(screen.getByTestId('home-mp-amazon')).getByTestId('mp-connected')
+    expect(link.textContent).toBe('Connected')
+    expect(href(link)).toBe('/marketplaces?mp=amazon')
+  })
+
   it('a paused marketplace says so, with its approved listings linked', () => {
     const s = summary()
     view({ ...s, by_marketplace: [{ ...s.by_marketplace[0]!, ready_to_publish: 2 }, s.by_marketplace[1]!] })

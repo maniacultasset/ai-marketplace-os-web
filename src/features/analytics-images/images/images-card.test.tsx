@@ -85,6 +85,17 @@ describe('ProductImagesCard per colour', () => {
     expect(within(groups[2]!).getByText(/Uses the photos for all colours/)).toBeTruthy()
   })
 
+  it('names each saved photo by its view, never by its storage key (all colours and a colour\'s own)', () => {
+    setup()
+    const rows = screen.getAllByTestId('image-row')
+    expect(rows).toHaveLength(2)
+    for (const r of rows) {
+      expect(within(r).getByTestId('image-file-name').textContent).toBe('Front photo')
+      expect(r.textContent).not.toContain('/images/')
+      expect(r.innerHTML).not.toContain(`${T}/${P}`)
+    }
+  })
+
   it('shows a flat list for a product with no colours', () => {
     setup({ ...product, colourways: [] })
     expect(screen.queryAllByTestId('colour-group')).toHaveLength(0)
@@ -595,3 +606,64 @@ describe('ProductImagesCard change view (feedback 7)', () => {
     expect(screen.queryByTestId('change-view')).toBeNull()
   })
 })
+
+describe('ProductImagesCard no fix on a failed Front (B2)', () => {
+  const REPORT = '/images/{image_id}/report'
+  const greyReport = {
+    image_id: I1,
+    compliance_status: 'failed' as const,
+    reports: {
+      amazon: {
+        image_id: I1,
+        marketplace: 'amazon' as const,
+        slot: 'main' as const,
+        pass: false,
+        processed_at: '2026-11-12T10:00:00Z',
+        checks: [{ check: 'background' as const, method: 'deterministic' as const, passed: false }],
+        issues: [{ code: 'BACKGROUND_OFF' as const, check: 'background' as const, suggestion: 'Place the product on a plain white background' }],
+      },
+      flipkart: null,
+    },
+  }
+  const front = (extra: Record<string, unknown>) => ({
+    ...product,
+    colourways: [],
+    images: [`${T}/${P}/images/${I1}`],
+    image_details: [{ ...product.image_details[0]!, compliance_status: 'failed' as const, fixes: [], ...extra }],
+  })
+
+  beforeEach(() => {
+    live = true
+    answers.set(CANDIDATES, () => ok([]))
+    answers.set(REPORT, () => ok(greyReport))
+  })
+
+  it('says the AI white background is off, and what to do next', async () => {
+    setup(front({ fix_unavailable: 'ai_off' }))
+    const note = await screen.findByTestId('no-background-fix')
+    expect(note.dataset.reason).toBe('ai_off')
+    expect(note.textContent).toContain('switched off')
+    expect(note.textContent).toContain('Upload a version of this photo on plain white.')
+  })
+
+  it('says the file itself failed when no fix can run', async () => {
+    setup(front({ fix_unavailable: 'not_fixable' }))
+    const note = await screen.findByTestId('no-background-fix')
+    expect(note.textContent).toContain('The file itself failed a check')
+    expect(note.textContent).toContain('upload it')
+  })
+
+  it('still gives a reason and a next step against an older backend', async () => {
+    setup(front({}))
+    const note = await screen.findByTestId('no-background-fix')
+    expect(note.dataset.reason).toBe('unknown')
+    expect(note.textContent).toContain('Kuinn has no automatic fix for this photo.')
+  })
+
+  it('offers Make white background, not the note, when the backend offers it', async () => {
+    setup(front({ fixes: ['white_background'] }))
+    expect(await screen.findByTestId('make-white_background')).toBeTruthy()
+    expect(screen.queryByTestId('no-background-fix')).toBeNull()
+  })
+})
+

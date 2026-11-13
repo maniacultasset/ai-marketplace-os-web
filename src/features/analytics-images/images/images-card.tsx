@@ -42,6 +42,7 @@ import {
   checkImageReadable,
   hasWarnings,
   backgroundFlagged,
+  imageFileName,
   type CheckOutcome,
   type ImageReport,
   type ImageRole,
@@ -66,7 +67,7 @@ import {
 import { ALL_COLOURS, colourGroups, type ColourGroup, type ColourSource } from './colour-groups'
 import { uploadImage } from './upload'
 import { useImageCandidates } from './candidates-api'
-import { aiLimitHit, candidatesUnsupported, keptOriginals, openCandidates, originBadge, type CandidateKind } from './candidates-model'
+import { aiLimitHit, candidatesUnsupported, keptOriginals, noFixCopy, openCandidates, originBadge, type CandidateKind, type FixUnavailable } from './candidates-model'
 import { AppliedNote, CandidateBlock, OriginBadges } from './candidate-review'
 import { useCandidateSession } from './candidate-session'
 import { matchTile, openQuestions, type PhotoMatch } from './photo-match'
@@ -357,11 +358,10 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
               </div>
             ) : null}
             {fixesBlock(imageId, d.fixes ?? [])}
-            {/* The background check flagged the Front and no white-background fix is offered. */}
-            {(d.fixes ?? []).length === 0 && backgroundFlagged(tileReports[(product.image_details ?? []).indexOf(d)]?.data) ? (
-              <p className="px-5 pb-3 text-small text-ink-2" data-testid="no-background-fix">
-                Kuinn cannot make a white background for this photo right now. Upload a version on plain white.
-              </p>
+            {/* B2: the Front failed and no fix is offered: say why, and what to do next. */}
+            {(d.fixes ?? []).length === 0 &&
+            (d.fix_unavailable || backgroundFlagged(tileReports[(product.image_details ?? []).indexOf(d)]?.data)) ? (
+              <NoFixNote reason={d.fix_unavailable} />
             ) : null}
           </>
         ) : null,
@@ -398,7 +398,6 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
       <ImageRow
         key={key}
         imageId={id}
-        storageKey={key}
         upload={sessionById.get(id)}
         live={live}
         productId={product.id}
@@ -407,8 +406,9 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         {...rowExtras(id)}
       />
     ) : (
-      <li key={key} className="truncate px-5 py-3 font-mono text-xs text-muted-foreground" title={key}>
-        {key}
+      // An unreadable key: say it is a photo, never print the storage path.
+      <li key={key} className="truncate px-5 py-3 text-xs text-muted-foreground" data-testid="image-file-name">
+        {imageFileName(null)}
       </li>
     )
   }
@@ -819,7 +819,6 @@ function UploadRow({ upload, onRetry, onDismiss }: { upload: SessionUpload; onRe
 
 function ImageRow({
   imageId,
-  storageKey,
   upload,
   viewUrl,
   onViewError,
@@ -844,7 +843,6 @@ function ImageRow({
   onKeep?: (key: string) => Promise<unknown>
   knownRole?: ImageRole | null
   imageId: string
-  storageKey?: string
   upload?: SessionUpload
   /** The saved photo's signed view from the product read (shown when this visit has no local preview). */
   viewUrl?: string | null
@@ -893,7 +891,9 @@ function ImageRow({
   const reports = report.data ? marketplaceReports(report.data) : []
   const slot = knownSlot ?? reports[0]?.slot ?? upload?.slot
   // The product read knows the image's role now (a replaced Back is a plain "Secondary").
-  const title = slot ? imageLabel(slot, knownSlot !== undefined ? knownRole : upload?.role) : 'Image'
+  const role = knownSlot !== undefined ? knownRole : upload?.role
+  const title = slot ? imageLabel(slot, role) : 'Image'
+  const fileName = imageFileName(upload?.file.name, slot, role)
 
   return (
     <li data-testid="image-row" data-image-id={imageId} data-compliance={report.data?.compliance_status}>
@@ -908,16 +908,14 @@ function ImageRow({
             {report.isPending && live && !slot ? (
               <Skeleton className="my-0.5 h-4 w-24" />
             ) : (
-              <p className="truncate text-sm font-medium" data-testid="image-title" title={storageKey ?? imageId}>
+              <p className="truncate text-sm font-medium" data-testid="image-title" title={title}>
                 {title}
               </p>
             )}
-            {/* The file name while it is this visit's upload; the internal id stays in the tooltip only. */}
-            {upload ? (
-              <p className="truncate text-xs text-muted-foreground" title={storageKey ?? imageId}>
-                {upload.file.name}
-              </p>
-            ) : null}
+            {/* The original file name while it is this visit's upload, else the view: never the storage key. */}
+            <p className="truncate text-xs text-muted-foreground" title={fileName} data-testid="image-file-name">
+              {fileName}
+            </p>
             {badges ? <div className="mt-1.5 flex flex-wrap gap-1.5">{badges}</div> : null}
             <PhotoQaChips warnings={photoQaWarnings(report.data)} className="mt-1.5" />
             {/* One keep key per check: a later re-check asks again with a fresh key. */}
@@ -1124,5 +1122,15 @@ function MarketplaceReport({ report }: { report: ImageReport }) {
         <p className="px-3 py-3 text-sm text-muted-foreground">No checks recorded.</p>
       )}
     </section>
+  )
+}
+
+/** B2: a failed Front with no fix to offer, with the reason and the next step. */
+function NoFixNote({ reason }: { reason: FixUnavailable | null | undefined }) {
+  const copy = noFixCopy(reason)
+  return (
+    <p className="px-5 pb-3 text-small text-ink-2" data-testid="no-background-fix" data-reason={reason ?? 'unknown'}>
+      {copy.reason} {copy.next}
+    </p>
   )
 }

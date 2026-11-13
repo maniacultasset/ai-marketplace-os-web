@@ -33,7 +33,8 @@ import { uploadImage } from '@/features/analytics-images/images/upload'
 import { useImportHistory } from '@/features/imports/history'
 import { markJobLive } from '@/features/imports/use-import-job'
 import { useProduct } from '@/features/products/api'
-import { BARCODE_FORMATS, BarcodeChoice, EXEMPT_EXPLAINER } from '@/features/products/barcode-field'
+import { BarcodeChoice } from '@/features/products/barcode-field'
+import { barcodeHint } from '@/features/products/barcode'
 import { GtinExemptionHelp } from '@/features/products/gtin-exemption'
 import { formatMoney } from '@/features/products/intake-model'
 import { SKU_MAX } from '@/features/products/schema'
@@ -857,7 +858,7 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
                             id={`gtin-${r.sku}`}
                             name={`gtin-${r.sku}`}
                             aria-label={`Barcode for ${r.sku}`}
-                            placeholder={s.exempt ? 'Blank: exempt' : 'EAN, UPC or GTIN'}
+                            placeholder={s.exempt ? 'Blank: exempt' : s.noBarcodes ? 'Blank: no barcode' : 'EAN, UPC or GTIN'}
                             type="text"
                             inputMode="numeric"
                             autoComplete="off"
@@ -893,18 +894,13 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
                 level="style"
                 label="Barcodes"
                 amazon={amazon}
+                none={!!s.noBarcodes}
                 exempt={s.exempt}
-                onChange={(exempt) => change({ exempt })}
+                onChange={({ none, exempt }) => change({ noBarcodes: none, exempt })}
                 describedBy="v-exempt-hint"
               />
               <p id="v-exempt-hint" className="text-caption text-ink-3">
-                {s.exempt
-                  ? amazon
-                    ? `Variants left blank are marked exempt. ${EXEMPT_EXPLAINER}`
-                    : 'Variants left blank are saved without a barcode.'
-                  : amazon
-                    ? `${BARCODE_FORMATS} Amazon needs one for each variant unless your brand has a GTIN exemption.`
-                    : BARCODE_FORMATS}
+                {barcodeHint({ none: !!s.noBarcodes, exempt: s.exempt, style: true, amazon })}
               </p>
               {amazon ? <GtinExemptionHelp testId="variants-exemption-help" /> : null}
             </div>

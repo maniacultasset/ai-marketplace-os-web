@@ -70,7 +70,7 @@ describe('openForDrafts and firstListable', () => {
     expect(openForDrafts(['flipkart'], null)).toEqual([])
     expect(openForDrafts(['flipkart'], ['flipkart'])).toEqual(['flipkart'])
   })
-  it('the header "List on" never offers Flipkart before it is connected', () => {
+  it('the header "Draft for" never offers Flipkart before it is connected', () => {
     expect(firstListable({}, [])).toBe('amazon')
     expect(firstListable({ amazon: {} }, [])).toBeNull()
     expect(firstListable({ amazon: {} }, ['flipkart'])).toBe('flipkart')

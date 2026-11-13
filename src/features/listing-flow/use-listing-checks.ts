@@ -15,7 +15,7 @@ import { useProduct } from '@/features/products/api'
 import { useAllRules } from '@/features/rules/use-rules'
 import { useOpenListingIssues } from '@/features/home-inbox/api'
 import { useProductListings } from './api'
-import { applicableRules, currentFindings, issueFindings, rollUpGates } from './gates'
+import { applicableRules, currentFindings, issueFindings, previewIdentity, rollUpGates } from './gates'
 
 export function useListingChecks(listingId: string) {
   const listingQ = useListing(listingId)
@@ -31,7 +31,9 @@ export function useListingChecks(listingId: string) {
     () => (listing && rulesQ.complete ? applicableRules(rulesQ.rows, listing.marketplace, listing.category ?? listing.content?.category) : null),
     [listing, rulesQ.complete, rulesQ.rows],
   )
-  const previewView = preview.data ? { errors: preview.data.report.errors ?? [], productType: preview.data.product_type } : null
+  const previewView = preview.data
+    ? { errors: preview.data.report.errors ?? [], productType: preview.data.product_type, identity: previewIdentity(preview.data.items) }
+    : null
   const current = currentFindings(listing?.validation, listing?.current_version_id)
   // Images on the current version; null while there is no version to count (unknown, not zero).
   const imageCount = hasVersion && listing.content ? (listing.content.images?.length ?? 0) : null
