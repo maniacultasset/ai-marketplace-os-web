@@ -4,6 +4,8 @@ import { ApiError, type ApiErrorType } from '@/api/errors'
 import { OP_ACTION, allows } from '@/lib/permissions'
 import {
   badgeLabel,
+  inboxCaption,
+  inboxCounts,
   canDismiss,
   dismissFailure,
   countLabel,
@@ -155,5 +157,32 @@ describe('issuesFiltersFrom', () => {
       source: 'schema',
       marketplace: 'amazon',
     })
+  })
+})
+
+describe('Inbox counts (client pass 2, B16)', () => {
+  const tasks = Array.from({ length: 19 }, (_, i) => ({ id: `t${i}` }))
+  // 22 issues a listed question stands for (19, then 3 more on the same questions), 2 on their own: Issues 24, All 21
+  const issues = [...tasks.slice(0, 22).map((t) => ({ human_task_id: t.id })), ...tasks.slice(0, 3).map((t) => ({ human_task_id: t.id })), { human_task_id: null }, { human_task_id: 'gone' }]
+  it('All is questions plus the issues no question stands for; Issues lists every issue', () => {
+    const c = inboxCounts(tasks, false, issues, false)
+    expect(c.open).toEqual({ n: 21, more: false })
+    expect(c.questions).toEqual({ n: 19, more: false })
+    expect(c.issues).toEqual({ n: 24, more: false })
+    expect(inboxCaption(c)).toBe('21 open items: 19 questions, 2 issues without a question')
+    expect(badgeLabel({ data: issues, page: { has_more: false } } as never, { data: tasks, page: { has_more: false } } as never)).toBe('21')
+  })
+  it('past one page, the backend exact counts replace "50+" for the badge and every tab', () => {
+    const exact = { open_items: 130, questions: 70, blocking_questions: 40, issues: 90, issues_without_question: 60 }
+    const c = inboxCounts(tasks, true, issues, false, exact)
+    expect(c).toEqual({ open: { n: 130, more: false }, questions: { n: 70, more: false }, issues: { n: 90, more: false }, alone: { n: 60, more: false } })
+    expect(badgeLabel({ data: issues, page: { has_more: false } } as never, { data: tasks, page: { has_more: true } } as never, exact)).toBe('99+')
+    // without the exact counts yet: the loaded rows with "+"
+    expect(inboxCounts(tasks, true, issues, false).open).toEqual({ n: 21, more: true })
+  })
+  it('the caption names each part in the singular and hides at zero', () => {
+    expect(inboxCaption(inboxCounts([{ id: 'a' }], false, [{ human_task_id: 'a' }], false))).toBe('1 open item: 1 question')
+    expect(inboxCaption(inboxCounts([], false, [{ human_task_id: null }], false))).toBe('1 open item: 1 issue without a question')
+    expect(inboxCaption(inboxCounts([], false, [], false))).toBeNull()
   })
 })

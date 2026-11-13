@@ -113,7 +113,7 @@ function InboxNavRow(props: RowProps) {
 
 function NavRow({ item, active, collapsed, onNavigate, badge = null }: RowProps & { badge?: string | null }) {
   // In the rail the label is visually hidden, so the count goes into the name and the tooltip.
-  const name = collapsed && badge ? `${item.label}, ${badge} open` : undefined
+  const name = collapsed && badge ? `${item.label}, ${badge} open items` : undefined
   const link = (
     <Link
       to={item.to}

@@ -59,11 +59,12 @@ export async function walkListings(
  * agent's recent work and each marketplace's next step. Under `listings.lists()`, so every
  * listing mutation that invalidates lists refreshes Home.
  */
-export function useHomeSummary() {
+export function useHomeSummary({ enabled = true }: { enabled?: boolean } = {}) {
   const keys = useKeys()
   return useQuery({
     queryKey: [...keys.listings.lists(), 'home-summary'] as const,
     queryFn: () => unwrap(api.GET('/home/summary')),
+    enabled,
     refetchInterval: HOME_REFRESH_MS,
     refetchIntervalInBackground: false,
   })

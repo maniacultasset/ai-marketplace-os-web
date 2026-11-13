@@ -4284,6 +4284,7 @@ export interface components {
             /** Marketplaces */
             marketplaces: components["schemas"]["MarketplaceStatus"][];
             needs_you: components["schemas"]["NeedsYouCounts"];
+            inbox: components["schemas"]["InboxCounts"];
             /** Needs You Items */
             needs_you_items: components["schemas"]["NeedsYouItem"][];
             /**
@@ -4641,6 +4642,38 @@ export interface components {
              * @enum {string}
              */
             status: "imported" | "failed";
+        };
+        /**
+         * InboxCounts
+         * @description Client pass 2, B16: the Inbox's numbers, for every role (the Inbox lists are the same for
+         *     every member). Each reads the same rows as its list, so the sidebar, the Inbox and Home agree.
+         */
+        InboxCounts: {
+            /**
+             * Blocking Questions
+             * @description Of `questions`, those an open blocking issue waits on (`TaskOut.blocking`).
+             */
+            blocking_questions: number;
+            /**
+             * Issues
+             * @description Open issues (the Issues list), with or without a question.
+             */
+            issues: number;
+            /**
+             * Issues Without Question
+             * @description Of `issues`, those no open question stands for: listed on their own in All.
+             */
+            issues_without_question: number;
+            /**
+             * Open Items
+             * @description The Inbox's All view and the sidebar badge: `questions + issues_without_question` (an issue an open question stands for is listed once, as its question).
+             */
+            open_items: number;
+            /**
+             * Questions
+             * @description Open questions (the Questions list): `blocking_questions` plus the ones that only improve a listing. For a role that answers, `needs_you.questions + needs_you.improve`.
+             */
+            questions: number;
         };
         /**
          * InviteAccept
@@ -5239,11 +5272,6 @@ export interface components {
             data: components["schemas"]["ListingOut"][];
             page: components["schemas"]["PageInfo"];
         };
-        /**
-         * ListingStatus
-         * @enum {string}
-         */
-        ListingStatus: "created" | "generating" | "validated" | "needs_review" | "approved" | "publishing" | "published" | "blocked" | "failed";
         /** ListingRequirementsOut */
         ListingRequirementsOut: {
             /** Attributes */
@@ -5266,6 +5294,11 @@ export interface components {
             /** Rules Version */
             rules_version: number;
         };
+        /**
+         * ListingStatus
+         * @enum {string}
+         */
+        ListingStatus: "created" | "generating" | "validated" | "needs_review" | "approved" | "publishing" | "published" | "blocked" | "failed";
         /** ListingStatusOut */
         ListingStatusOut: {
             /**
@@ -6924,6 +6957,7 @@ export interface components {
              */
             trial_days?: number | null;
         };
+        /** SignupAsk */
         SignupAsk: {
             /**
              * Question
@@ -7007,6 +7041,10 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /**
+         * SignupReplyRequest
+         * @description Client item 2: the applicant's one reply, authorised by the status handle alone.
+         */
         SignupReplyRequest: {
             /**
              * Reply

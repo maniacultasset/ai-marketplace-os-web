@@ -18,12 +18,12 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useIssuesList, useTasksList } from '@/features/inbox/api'
-import { ISSUE_STATUS_LABEL, MARKETPLACE_LABEL, TASK_STATUS_LABEL, type Issue } from '@/features/inbox/model'
+import { inboxCaption, inboxCounts, ISSUE_STATUS_LABEL, MARKETPLACE_LABEL, TASK_STATUS_LABEL, type Issue } from '@/features/inbox/model'
 import { fieldLabel } from '@/features/listing-flow/format'
 import type { AnswerOutcome } from '@/features/photo-facts/answer-card'
 import { useMediaQuery } from '@/lib/use-media-query'
 import { cn } from '@/lib/utils'
-import { useListingProductIds, useProductsById } from './api'
+import { useHomeSummary, useListingProductIds, useProductsById } from './api'
 import { InboxDetail } from './inbox-detail'
 import {
   fmtCount,
@@ -33,7 +33,6 @@ import {
   issueTitle,
   itemKey,
   mergeInbox,
-  standaloneIssues,
   taskMeta,
   visibleItems,
   withAiRewrites,
@@ -75,11 +74,13 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
   const items = visibleItems(view, mergeInbox(showsTasks ? taskRows : [], showsIssues ? issueRows : [], openIssues.rows))
   const selectedKey = search.item ?? (items[0] ? itemKey(items[0]) : undefined)
 
-  const tCount = { n: openTasks.rows.length, more: !!openTasks.hasNextPage }
-  const iCount = { n: openIssues.rows.length, more: !!openIssues.hasNextPage }
+  // Client pass 2, B16: the sidebar badge's numbers (`inboxCounts`). An issue linked to an open
+  // question is the same thing to do: All counts it once. Past one page, the backend's exact counts.
+  const more = !!openTasks.hasNextPage || !!openIssues.hasNextPage
+  const exact = useHomeSummary({ enabled: more }).data?.inbox
+  const counts = inboxCounts(openTasks.rows, !!openTasks.hasNextPage, openIssues.rows, !!openIssues.hasNextPage, exact)
   const countsReady = !!openTasks.data && !!openIssues.data
-  // An issue linked to an open question is the same thing to do: All counts it once.
-  const openTotal = { n: tCount.n + standaloneIssues(openIssues.rows, openTasks.rows).length, more: tCount.more || iCount.more }
+  const caption = countsReady ? inboxCaption(counts) : null
   // An issue names its product too: its listing says which (IssueOut has listing_id only).
   const issueProducts = useListingProductIds(items.map((i) => (i.kind === 'issue' ? i.issue.listing_id : null)))
   const productOf = (i: InboxItem) => (i.kind === 'task' ? i.task.product_id : issueProducts.map.get(i.issue.listing_id))
@@ -103,19 +104,25 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
           Inbox
           {/* The count shows once, on the All segment; this copy is for screen readers only. */}
           <span className="sr-only" data-testid="inbox-open-count">
-            {countsReady ? `${fmtCount(openTotal)} open` : null}
+            {countsReady ? `${fmtCount(counts.open)} open` : null}
           </span>
         </h1>
+        {/* What All counts, in words, so it never reads as the Issues tab's number (B16). */}
+        {caption ? (
+          <p className="-mt-2 text-small text-ink-3 tabular-nums" data-testid="inbox-counts-caption">
+            {caption}
+          </p>
+        ) : null}
         <Segmented<InboxView>
           label="Show"
           className="w-full"
           value={view}
           onChange={(v) => onSearch({ view: v === 'all' ? undefined : v, item: undefined }, { replace: true })}
           options={[
-            { value: 'all', label: 'All', count: countsReady ? fmtCount(openTotal) : undefined },
+            { value: 'all', label: 'All', count: countsReady ? fmtCount(counts.open) : undefined },
             // All three counts appear together, once both open lists have answered.
-            { value: 'questions', label: 'Questions', count: countsReady ? fmtCount(tCount) : undefined },
-            { value: 'issues', label: 'Issues', count: countsReady ? fmtCount(iCount) : undefined },
+            { value: 'questions', label: 'Questions', count: countsReady ? fmtCount(counts.questions) : undefined },
+            { value: 'issues', label: 'Issues', count: countsReady ? fmtCount(counts.issues) : undefined },
           ]}
         />
         {view !== 'all' ? <StatusPicker view={view} search={search} onSearch={onSearch} /> : null}
