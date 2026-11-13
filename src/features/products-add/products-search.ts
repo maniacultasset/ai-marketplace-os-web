@@ -6,12 +6,13 @@
 import { z } from 'zod'
 import { BUCKETS, LISTING_FILTERS, type Bucket, type ListingFilter, type Marketplace } from './catalog-model'
 
-const BUCKET_VALUES = BUCKETS.map((b) => b.value) as [Bucket, ...Bucket[]]
+/** `archived` is the Archived view (`GET /products?archived=true`), not a listing bucket. */
+const STATUS_VALUES = [...BUCKETS.map((b) => b.value), 'archived'] as unknown as [Bucket | 'archived', ...(Bucket | 'archived')[]]
 const LISTING_VALUES = Object.keys(LISTING_FILTERS) as [ListingFilter, ...ListingFilter[]]
 
 export const productsSearchSchema = z.object({
-  /** The overall status bucket; absent is All. */
-  status: z.enum(BUCKET_VALUES).optional().catch(undefined),
+  /** The overall status bucket, or `archived` (the archived products); absent is All. */
+  status: z.enum(STATUS_VALUES).optional().catch(undefined),
   /** Rows with a listing in this Home bucket (`catalog-model` `listingBucket`): what a Home tile opens. */
   listing: z.enum(LISTING_VALUES).optional().catch(undefined),
   /** Rows with a listing on this marketplace. */

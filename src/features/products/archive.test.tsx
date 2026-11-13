@@ -12,7 +12,8 @@ vi.mock('@/lib/auth', async (orig) => ({ ...(await orig<typeof import('@/lib/aut
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), toastError: vi.fn() }))
 vi.mock('@/lib/toast', () => ({ toast: { success: toasts.success, error: toasts.error }, toastError: toasts.toastError }))
 
-const { archiveBlock, useArchiveProduct } = await import('./archive')
+const { archiveBlock, archivedDraftBlock, archivedFamilyNote, ARCHIVED_DRAFT_REASON, useArchiveProduct } = await import('./archive')
+const { productQuery } = await import('./api')
 const { keysFor } = await import('@/lib/query-keys')
 const keys = keysFor('t1')
 
@@ -21,7 +22,8 @@ const ok = (data: unknown) => ({ data, response: new Response(null, { status: 20
 
 function wrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  qc.setQueryData(keys.products.detail('p1'), { id: 'p1', sku: 'KTEST-1', archived_at: null })
+  // The detail page reads the product under productQuery's key (`detail(id)` + 'exact').
+  qc.setQueryData(productQuery(keys, 'p1').queryKey, { id: 'p1', sku: 'KTEST-1', archived_at: null, attribute_literals: {} } as never)
   const W = ({ children }: { children: ReactNode }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>
   return { qc, W }
 }
@@ -51,7 +53,10 @@ describe('useArchiveProduct (Chrome pass 2: archive apart from delete)', () => {
     act(() => result.current.mutate(true))
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(post).toHaveBeenCalledWith('/products/{product_id}/archive', { params: { path: { product_id: 'p1' } } })
-    expect((qc.getQueryData(keys.products.detail('p1')) as { archived_at: string }).archived_at).toBe('2026-11-12T10:00:00Z')
+    // The page's own entry changes at once (the banner and header update without a reload).
+    const cached = qc.getQueryData(productQuery(keys, 'p1').queryKey) as { archived_at: string; attribute_literals: object }
+    expect(cached.archived_at).toBe('2026-11-12T10:00:00Z')
+    expect(cached.attribute_literals).toEqual({})
     expect(toasts.success).toHaveBeenCalledWith('KTEST-1 archived', expect.anything())
   })
 
@@ -72,5 +77,45 @@ describe('useArchiveProduct (Chrome pass 2: archive apart from delete)', () => {
     act(() => result.current.mutate(true))
     await waitFor(() => expect(result.current.isError).toBe(true))
     expect(toasts.toastError).toHaveBeenCalledWith(expect.anything(), 'KTEST-1 wasn’t archived. A listing was sent to a marketplace.')
+  })
+})
+
+describe('archive refreshes every view it changes (prod Chrome check 13 Nov)', () => {
+  it.each([true, false])('archive=%s invalidates the product, its lists and variants, listings, issues, tasks and Home', async (archive) => {
+    post.mockResolvedValue(ok({ id: 'p1', sku: 'KTEST-1', archived_at: archive ? '2026-11-12T10:00:00Z' : null }))
+    const { qc, W } = wrapper()
+    const spy = vi.spyOn(qc, 'invalidateQueries')
+    const { result } = renderHook(() => useArchiveProduct('p1', 'KTEST-1'), { wrapper: W })
+    act(() => result.current.mutate(archive))
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const invalidated = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey))
+    for (const key of [keys.products.all(), keys.listings.all(), keys.issues.all(), keys.tasks.all(), keys.analytics.all()])
+      expect(invalidated).toContain(JSON.stringify(key))
+    // products.all() covers the detail ('exact'), every list and the archived walk (the variants).
+    for (const key of [productQuery(keys, 'p1').queryKey, [...keys.products.list(), 'all'], [...keys.products.list(), 'archived']])
+      expect(key.slice(0, keys.products.all().length)).toEqual([...keys.products.all()])
+  })
+
+  it('points the toast at the Archived view', async () => {
+    post.mockResolvedValue(ok({ id: 'p1', sku: 'KTEST-1', archived_at: '2026-11-12T10:00:00Z' }))
+    const { W } = wrapper()
+    const { result } = renderHook(() => useArchiveProduct('p1', 'KTEST-1'), { wrapper: W })
+    act(() => result.current.mutate(true))
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(toasts.success).toHaveBeenCalledWith('KTEST-1 archived', { description: expect.stringMatching(/under Archived in Products/) })
+  })
+})
+
+describe('archived product: draft off, variants kept', () => {
+  it('blocks every draft action with the reason while archived_at is set', () => {
+    expect(ARCHIVED_DRAFT_REASON).toBe('Archived. Unarchive it to draft.')
+    expect(archivedDraftBlock({ archived_at: '2026-11-12T10:00:00Z' })).toBe(ARCHIVED_DRAFT_REASON)
+    expect(archivedDraftBlock({ archived_at: null })).toBeNull()
+    expect(archivedDraftBlock({})).toBeNull()
+  })
+  it('notes the variants as archived with the style, never a single item', () => {
+    expect(archivedFamilyNote(8)).toBe('8 variants, archived with this product. Unarchive it to edit or draft them.')
+    expect(archivedFamilyNote(1)).toMatch(/^1 variant,/)
+    expect(archivedFamilyNote(8)).not.toMatch(/single item/)
   })
 })

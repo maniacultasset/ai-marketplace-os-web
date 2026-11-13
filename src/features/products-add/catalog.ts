@@ -58,6 +58,26 @@ export function useAllProducts() {
   })
 }
 
+/**
+ * The archived products (`GET /products?archived=true`): the Products "Archived" view, and an
+ * archived style's variants and parent, which archive with it and leave the default list.
+ * Off (no request) while `enabled` is false.
+ */
+export function useArchivedProducts(enabled = true) {
+  const keys = useKeys()
+  return useQuery({
+    queryKey: [...keys.products.list(), 'archived'] as const,
+    enabled,
+    staleTime: STALE_MS,
+    refetchInterval: (q) => viewRefreshDelay(q.state.data?.rows ?? []),
+    refetchIntervalInBackground: false,
+    queryFn: () =>
+      walkPages<Product>((cursor) =>
+        unwrap(api.GET('/products', { params: { query: { archived: true, limit: WALK_PAGE_SIZE, cursor } } })),
+      ),
+  })
+}
+
 export function useAllListings(opts: { productId?: string } = {}) {
   const keys = useKeys()
   return useQuery({
