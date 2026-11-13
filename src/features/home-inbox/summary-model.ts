@@ -16,6 +16,7 @@ import type { ListingFilter } from '@/features/products-add/catalog-model'
 import type { ProductsSearch } from '@/features/products-add/products-search'
 import type { MarketplaceTotals } from './model'
 import { plural } from './model'
+import { withoutApiText } from '@/lib/seller-text'
 
 export type HomeSummary = Schema<'HomeSummaryOut'>
 export type NeedsYouItem = Schema<'NeedsYouItem'>
@@ -182,7 +183,7 @@ export function waitingRow(i: NeedsYouItem): WaitingRow {
   return {
     key: `${i.kind}:${i.task_id ?? i.issue_id ?? i.listing_id ?? i.product_id ?? i.at}`,
     title,
-    issue: i.issue,
+    issue: withoutApiText(i.issue),
     meta,
     action: ACTION_LABEL[i.action],
     target: itemTarget(i),
@@ -259,7 +260,7 @@ export function cardInputs(
     partly: c?.partly_live ?? 0,
     working: c?.in_progress ?? 0,
     problem: c?.problem ?? 0,
-    ...(first?.product_id ? { firstProblem: { productId: first.product_id, label: first.issue } } : {}),
+    ...(first?.product_id ? { firstProblem: { productId: first.product_id, label: withoutApiText(first.issue) } } : {}),
   }
   return { account, totals, status }
 }

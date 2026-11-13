@@ -207,7 +207,8 @@ export function inboxCounts(
     open: { n: tasks.length + alone, more },
     questions: { n: tasks.length, more: tasksMore },
     issues: { n: issues.length, more: issuesMore },
-    alone: { n: alone, more: issuesMore },
+    // an issue may stand for a question on a page not read yet: uncertain while either has more
+    alone: { n: alone, more },
   }
 }
 

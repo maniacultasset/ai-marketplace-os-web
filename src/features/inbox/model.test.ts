@@ -186,3 +186,13 @@ describe('Inbox counts (client pass 2, B16)', () => {
     expect(inboxCaption(inboxCounts([], false, [], false))).toBeNull()
   })
 })
+
+describe('Inbox counts with more questions to read (B16 review)', () => {
+  it('the issues without a question are uncertain while the questions have more pages', () => {
+    const tasks = Array.from({ length: 50 }, (_, i) => ({ id: `t${i}` }))
+    const issues = Array.from({ length: 10 }, (_, i) => ({ human_task_id: `later${i}` }))
+    const c = inboxCounts(tasks, true, issues, false)
+    expect(c.alone).toEqual({ n: 10, more: true })
+    expect(inboxCaption(c)).toBe('60+ open items: 50+ questions, 10+ issues without a question')
+  })
+})

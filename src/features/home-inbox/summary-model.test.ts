@@ -295,3 +295,14 @@ describe('marketplace cards (client feedback item 6, bullets 1 and 4)', () => {
     expect(marketCard(empty, 'amazon', { reason: 'Soon.' })).toMatchObject({ chip: { label: 'Coming soon' }, sub: 'Soon.', action: null })
   })
 })
+
+describe('Home drops stored API text (client pass 2, B13 review)', () => {
+  const old = "gender is required to list apparel on Amazon; set the product's gender (PATCH /api/v1/products/{product_id})."
+  it('the waiting row and the marketplace card', () => {
+    const s = summary()
+    const blocked = { ...s.needs_you_items[0]!, issue: old }
+    expect(waitingRow(blocked).issue).toBe("gender is required to list apparel on Amazon; set the product's gender.")
+    const card = marketCard({ ...s, needs_you_items: [blocked] }, 'amazon')
+    expect(card.problem?.text).not.toMatch(/\/api\/|PATCH \//)
+  })
+})

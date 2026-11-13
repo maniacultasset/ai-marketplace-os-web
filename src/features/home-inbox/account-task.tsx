@@ -31,7 +31,7 @@ import { useKeys } from '@/lib/query-keys'
 import { useTaskIssues } from './api'
 import { CloseTaskActions } from './close-task'
 import { supportsClose } from './close-task-api'
-import { rawMarketplaceText } from './model'
+import { isMarketplaceResponse, rawMarketplaceText } from './model'
 import { CodeBlock } from './parts'
 
 export function AccountTask({ task, kind, remaining }: { task: Task; kind: AccountReviewKind; remaining: number }) {
@@ -95,12 +95,13 @@ function ListingBlock({ kind, issues, listing }: { kind: AccountReviewKind; issu
           <div className="text-caption text-ink-3">In plain language</div>
           <p className="mt-1 text-body text-ink">{issueHeadline(first)}</p>
         </div>
-        <div>
-          <div className="text-caption text-ink-3">What {MARKETPLACE_LABEL[first.marketplace]} said (unchanged)</div>
-          <CodeBlock>
-            {rawMarketplaceText(first)}
-          </CodeBlock>
-        </div>
+        {/* Only a real marketplace answer is labelled as its words (B13 review). */}
+        {isMarketplaceResponse(first) ? (
+          <div>
+            <div className="text-caption text-ink-3">What {MARKETPLACE_LABEL[first.marketplace]} said (unchanged)</div>
+            <CodeBlock>{rawMarketplaceText(first)}</CodeBlock>
+          </div>
+        ) : null}
         {issues.length > 1 ? (
           <p className="text-caption text-ink-3">
             {issues.length - 1} more {issues.length === 2 ? 'error' : 'errors'} on this listing. Open the issue to see them all.

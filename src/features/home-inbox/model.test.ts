@@ -41,6 +41,7 @@ import {
   issueClassLine,
   isIdentifierTask,
   showSuggestion,
+  isMarketplaceResponse,
   rawMarketplaceText,
   sentenceCase,
   summarizeListings,
@@ -725,5 +726,15 @@ describe('QA 2026-11-09: one problem, one item', () => {
     expect(isIdentifierTask({ product_id: U(9), target_path: 'facts.identifier' })).toBe(true)
     expect(isIdentifierTask({ product_id: U(9), target_path: 'variants[RS-1].facts.identifier' })).toBe(true)
     expect(isIdentifierTask({ product_id: U(9), target_path: 'facts.attributes.color' })).toBe(false)
+  })
+})
+
+describe('what the marketplace said (client pass 2, B13 review)', () => {
+  it('only a real marketplace answer, with its code, is shown as the marketplace words', () => {
+    expect(isMarketplaceResponse({ source: 'amazon_adapter', marketplace_code: '90244' })).toBe(true)
+    // Kuinn's own preflight check runs in the adapter but has no marketplace code
+    expect(isMarketplaceResponse({ source: 'amazon_adapter', marketplace_code: null })).toBe(false)
+    expect(isMarketplaceResponse({ source: 'amazon_adapter', marketplace_code: ' ' })).toBe(false)
+    expect(isMarketplaceResponse({ source: 'rules_engine', marketplace_code: '1' })).toBe(false)
   })
 })

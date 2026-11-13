@@ -24,7 +24,7 @@ import { queryOptions, useQueries, useQuery } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { api, unwrap } from '@/api/client'
 import type { Schema } from '@/api/types'
-import { fetchIssuesPage } from '@/features/inbox/api'
+import { fetchIssuesPage, homeSummaryKey } from '@/features/inbox/api'
 import { linkedIssues, type Issue } from '@/features/inbox/model'
 import { autoFixedOn, versionRef } from '@/features/listing-flow/auto-fix-model'
 import { listingDetailQuery } from '@/features/listings/api'
@@ -62,7 +62,7 @@ export async function walkListings(
 export function useHomeSummary({ enabled = true }: { enabled?: boolean } = {}) {
   const keys = useKeys()
   return useQuery({
-    queryKey: [...keys.listings.lists(), 'home-summary'] as const,
+    queryKey: homeSummaryKey(keys),
     queryFn: () => unwrap(api.GET('/home/summary')),
     enabled,
     refetchInterval: HOME_REFRESH_MS,

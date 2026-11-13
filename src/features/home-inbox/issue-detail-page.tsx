@@ -48,6 +48,7 @@ import {
   issueAffects,
   issueChip,
   issueClassLine,
+  isMarketplaceResponse,
   rawMarketplaceText,
   sentenceCase,
   showSuggestion,
@@ -284,7 +285,9 @@ function IssueForListing({ issueId, listingId }: { issueId: string; listingId: s
 function IssueBody({ issue, fix }: { issue: Issue; fix: FixContext | null }) {
   const chip = issueChip(issue, fix)
   const marketplace = MARKETPLACE_LABEL[issue.marketplace]
-  const fromMarketplace = issue.source === 'amazon_adapter' || issue.source === 'flipkart_adapter'
+  // B13 review: only a real marketplace response (it carries the marketplace's code) is shown as
+  // its words; Kuinn's own preflight check of the same adapter speaks in plain language.
+  const fromMarketplace = isMarketplaceResponse(issue)
   const plain = issue.plain_message?.trim()
   const trail = issueFixTrail(issue)
   return (

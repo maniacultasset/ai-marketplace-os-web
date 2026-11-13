@@ -12,6 +12,7 @@ import { useRef } from 'react'
 import { api, unwrap } from '@/api/client'
 import { describeError, isApiError } from '@/api/errors'
 import { idempotencyHeader, useIntentKey } from '@/api/idempotency'
+import { homeSummaryKey } from '@/features/inbox/api'
 import { useKeys } from '@/lib/query-keys'
 
 export type Resolution = 'done' | 'dismissed'
@@ -48,6 +49,7 @@ export function useCloseTask(taskId: string) {
     onError: (err) => {
       if (!isApiError(err) || err.status !== 0) intent.reset()
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: keys.tasks.all() }),
+    onSettled: () =>
+      Promise.all([qc.invalidateQueries({ queryKey: keys.tasks.all() }), qc.invalidateQueries({ queryKey: homeSummaryKey(keys) })]),
   })
 }
