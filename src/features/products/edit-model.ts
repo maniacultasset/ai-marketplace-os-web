@@ -225,7 +225,7 @@ export function validateEdit(d: EditDraft, isVariant: boolean): EditErrors {
   if (price) e.selling_price = price
   else if (!mrp && priceAboveMrp(d.sellingPrice, d.mrp)) e.selling_price = 'Keep the selling price at or below the MRP.'
   if (d.ownManufacturer) for (const [k, msg] of Object.entries(partyProblems(d.manufacturer))) e[`manufacturer.${k}`] = msg
-  const barcode = d.barcode.exempt ? null : barcodeProblem(d.barcode.type, d.barcode.value)
+  const barcode = d.barcode.exempt || d.barcode.none ? null : barcodeProblem(d.barcode.type, d.barcode.value)
   if (barcode) e[BARCODE_KEY] = barcode
   const hsn = hsnProblem(d.hsn)
   if (hsn) e.hsn_code = hsn

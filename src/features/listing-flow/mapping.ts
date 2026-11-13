@@ -6,18 +6,23 @@
  *   - Your value: the listing's canonical attributes (ListingDetail.content.attributes).
  *   - Marketplace field: the adapter preview payload (GET /listings/{id}/preview), matched only
  *     when the payload carries a field with the same name. A remapped name is not guessed.
- *   - Rule: the enabled rules for this marketplace and category (GET /rules).
+ *   - Rule: the enabled rules for this marketplace and category (GET /rules), else the category
+ *     template's own verdict on the field: a template MISSING_ATTRIBUTE (no rule id) says
+ *     "Required" at error severity and "Recommended" at warning (recommended.ts
+ *     `isRecommendation`, the backend's `is_recommendation`), so this page, the review cards and
+ *     the approval gate read one requirement level (client Chrome pass B4).
  *   - State: the findings of the latest validation on the current version, plus the preview's own
  *     mapping errors. Passed only when a rule covers the field and the version was checked;
  *     otherwise "Not checked yet".
  */
 import type { Schema } from '@/api/types'
 import type { ErrorItem, Rule } from './gates'
+import { isRecommendation } from './recommended'
 
 type JsonValue = Schema<'JsonValue'>
 type AttrValue = string | number | boolean | string[]
 
-export type RuleTag = 'Required' | 'Conditional' | 'Allowed values' | 'Other rule' | 'No rule'
+export type RuleTag = 'Required' | 'Conditional' | 'Recommended' | 'Allowed values' | 'Other rule' | 'No rule'
 export type RowState = 'passed' | 'warning' | 'blocked' | 'unchecked'
 
 export interface MappingRow {
@@ -62,11 +67,17 @@ export function payloadField(payload: Record<string, JsonValue> | undefined, key
   return { name: key, value: formatJson(hit) }
 }
 
-function ruleTag(types: readonly string[]): RuleTag {
+/** A template check's own finding: it carries the template's level when no rule covers the field. */
+const templateMissing = (f: ErrorItem) => f.error_code === 'MISSING_ATTRIBUTE' && f.source === 'rules_engine' && !f.rule_id
+
+function ruleTag(types: readonly string[], findings: readonly ErrorItem[] = []): RuleTag {
   if (types.includes('required_attribute')) return 'Required'
+  const template = findings.filter(templateMissing)
+  if (template.some((f) => f.severity === 'error')) return 'Required'
   if (types.includes('conditional_required')) return 'Conditional'
   if (types.includes('allowed_values')) return 'Allowed values'
   if (types.length) return 'Other rule'
+  if (template.some(isRecommendation)) return 'Recommended'
   return 'No rule'
 }
 
@@ -100,7 +111,7 @@ export function mappingRows(input: {
       key,
       yourValue: formatAttr(attrs[key]),
       marketplaceField: payloadField(input.payload, key),
-      rule: ruleTag(types),
+      rule: ruleTag(types, findings),
       ruleTypes: types,
       state,
       findings,

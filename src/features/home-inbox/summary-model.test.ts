@@ -129,6 +129,28 @@ describe('what the agent did', () => {
     expect(feedSummary(summary().activity)).toBe('1 in progress · 1 failed')
     expect(feedSummary([])).toBeNull()
   })
+
+  it('says an import that imported nothing as failed, and opens its failed rows (B3)', () => {
+    const IMP = '0b1c2d3e-0000-4000-8000-0000000000aa'
+    const at = '2026-11-12T13:00:00Z'
+    const rows = feedRows([
+      { kind: 'import', state: 'failed', text: 'Could not import your spreadsheet: none of its 7 rows imported', at, import_id: IMP, needs_fix: 7 },
+      { kind: 'import', state: 'completed', text: 'Imported 3 of 7 rows from your spreadsheet. 4 rows need a fix', at, import_id: IMP, needs_fix: 4 },
+      { kind: 'import', state: 'completed', text: 'Imported 5 rows from your spreadsheet', at, import_id: IMP, needs_fix: 0 },
+    ])
+    expect(rows.map((r) => [r.word, r.icon.tone])).toEqual([
+      ['Failed', 'fail'],
+      ['Partly done', 'warn'],
+      ['Done', 'ok'],
+    ])
+    expect(rows[0]!.target).toEqual({ to: '/imports/$importId', params: { importId: IMP }, search: { rows: 'failed' } })
+    expect(rows[1]!.target).toEqual({ to: '/imports/$importId', params: { importId: IMP }, search: { rows: 'failed' } })
+    expect(rows[2]!.target).toEqual({ to: '/imports/$importId', params: { importId: IMP } })
+    expect(feedSummary([
+      { kind: 'import', state: 'failed', text: 'x', at, import_id: IMP, needs_fix: 7 },
+      { kind: 'import', state: 'completed', text: 'y', at, import_id: IMP, needs_fix: 4 },
+    ])).toBe('1 failed · 1 needs a fix')
+  })
 })
 
 describe('marketplace cards', () => {
@@ -284,6 +306,18 @@ describe('marketplace cards (client feedback item 6, bullets 1 and 4)', () => {
     expect(card.action).toBe('reconnect')
     expect(card.stats).toEqual([expect.objectContaining({ key: 'live', label: '2 live', target: at('fully_live') })])
     expect(card.sub).toBe('Access expired')
+  })
+
+  it('says Connected for a working account (Chrome pass 2), never for a missing or expired one', () => {
+    const s = summary()
+    expect(marketCard(s, 'amazon').connected).toBe(true)
+    const card = marketCard({ ...s, by_marketplace: [{ ...s.by_marketplace[0]!, live: 0, problem: 4 }, s.by_marketplace[1]!] }, 'amazon')
+    expect(card).toMatchObject({ connected: true, chip: { label: 'None live yet' } })
+    expect(card.stats.find((x) => x.key === 'fix')).toMatchObject({ label: '4 to fix', target: at('problem') })
+    const expired = { ...s, marketplaces: [{ ...s.marketplaces[0]!, account: 'needs_reconnect' as const, next_step: 'reconnect' as const }, s.marketplaces[1]!] }
+    expect(marketCard(expired, 'amazon').connected).toBe(false)
+    const none = { ...s, marketplaces: [{ ...s.marketplaces[0]!, account: 'not_connected' as const, next_step: 'connect' as const }, s.marketplaces[1]!] }
+    expect(marketCard(none, 'amazon').connected).toBe(false)
   })
 
   it('a missing account offers to connect, and a closed marketplace is coming soon', () => {

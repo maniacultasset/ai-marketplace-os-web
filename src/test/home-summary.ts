@@ -23,9 +23,9 @@ export function summary(over: Partial<HomeSummary> = {}): HomeSummary {
       { kind: 'approve', action: 'approve', product_id: P1, product_sku: 'KURTA-001', product_title: 'Block Print Kurta', marketplace: 'amazon', listing_id: L2, issue: 'Written and checked. Review it and approve.', issue_count: 0, at: AT },
     ],
     activity: [
-      { kind: 'write', state: 'pending', text: 'Writing the Amazon listing for Block Print Kurta', product_id: P1, product_title: 'Block Print Kurta', listing_id: L1, marketplace: 'amazon', at: AT },
-      { kind: 'send', state: 'failed', text: 'Could not send Block Print Kurta to Flipkart', product_id: P1, product_title: 'Block Print Kurta', listing_id: L2, marketplace: 'flipkart', at: AT },
-      { kind: 'import', state: 'completed', text: 'Imported your spreadsheet', at: AT },
+      { kind: 'write', state: 'pending', text: 'Writing the Amazon listing for Block Print Kurta', product_id: P1, product_title: 'Block Print Kurta', listing_id: L1, marketplace: 'amazon', needs_fix: 0, at: AT },
+      { kind: 'send', state: 'failed', text: 'Could not send Block Print Kurta to Flipkart', product_id: P1, product_title: 'Block Print Kurta', listing_id: L2, marketplace: 'flipkart', needs_fix: 0, at: AT },
+      { kind: 'import', state: 'completed', text: 'Imported your spreadsheet', needs_fix: 0, at: AT },
     ],
     marketplaces: [
       { marketplace: 'amazon', enabled: true, account: 'connected', publishing_enabled: false, next_step: 'fix' },

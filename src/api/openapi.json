@@ -9,6 +9,19 @@
             "title": "At",
             "type": "string"
           },
+          "import_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A spreadsheet import (`kind` `import`): its import, to open its rows.",
+            "title": "Import Id"
+          },
           "kind": {
             "enum": [
               "write",
@@ -42,6 +55,13 @@
                 "type": "null"
               }
             ]
+          },
+          "needs_fix": {
+            "default": 0,
+            "description": "A finished spreadsheet import: its rows that failed and need a fix. An import that imported none of its rows is `failed`.",
+            "minimum": 0.0,
+            "title": "Needs Fix",
+            "type": "integer"
           },
           "product_id": {
             "anyOf": [
@@ -7257,6 +7277,18 @@
             ],
             "title": "Needs Reconnect Since"
           },
+          "marketplace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The marketplace this account sells on: Amazon's marketplace id (`A21TJRUUN4KGV`, Amazon.in), or null when there is none to name.",
+            "title": "Marketplace Id"
+          },
           "publishing_enabled": {
             "default": true,
             "description": "Whether this deployment may publish to the account's marketplace (the publish kill switch, `AMAZON_PUBLISH_ENABLED` for Amazon). False: publish and field retry answer 501 NOT_IMPLEMENTED \"Publishing to Amazon is paused for this workspace\" with nothing sent, and neither the automatic resend nor the marketplace dry run runs; reads and connect still work.",
@@ -9519,6 +9551,22 @@
             ],
             "title": "Compliance Status",
             "type": "string"
+          },
+          "fix_unavailable": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ai_off",
+                  "not_fixable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why a main photo whose checks failed offers no fix: `ai_off` (the white background needs the AI edit, switched off on this server), `not_fixable` (a failed check no candidate can fix: re-export or upload the photo again). Null when `fixes` is not empty, nothing failed or the photo is not the main one.",
+            "title": "Fix Unavailable"
           },
           "fixes": {
             "items": {
@@ -57353,7 +57401,9 @@
             "content": {
               "application/json": {
                 "example": {
+                  "asked_at": "2026-10-05T09:31:00Z",
                   "brand_name": "Kalakar Weaves",
+                  "question": "Which marketplaces do you sell on today, and under which store name?",
                   "requested_at": "2026-10-05T09:30:00Z",
                   "status": "pending"
                 },

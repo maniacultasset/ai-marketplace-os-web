@@ -13,6 +13,7 @@ import { MARKETPLACE_META } from './meta'
 import { RevokeDialog } from './revoke-dialog'
 import { AccountStatusBadge } from './status-badge'
 import { useNow } from './use-now'
+import { regionText } from '@/features/marketplaces-settings/model'
 
 const col = columnHelper<MarketplaceAccount>()
 
@@ -68,7 +69,7 @@ const columns = col.columns([
   }),
   col.accessor('region', {
     header: 'Region',
-    cell: (c) => c.getValue() ?? <span className="text-ink-3">—</span>,
+    cell: (c) => regionText(c.row.original),
   }),
   col.display({
     id: 'actions',

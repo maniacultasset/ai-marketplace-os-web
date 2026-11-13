@@ -7,7 +7,7 @@
  * tooltip.
  */
 import { useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Icon } from '@/components/la/icons'
 import {
   DropdownMenu,
@@ -42,6 +42,10 @@ export function BrandSwitcher({ collapsed }: { collapsed?: boolean }) {
   const navigate = useNavigate()
   const [pending, setPending] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
+  // Set when "Add another brand" closes the menu: the menu then leaves focus where the dialog put
+  // it (its name field). Giving it back to the trigger blurred the empty field, which showed
+  // "Enter the brand name." before any typing (prod Chrome pass 12 Nov, B9).
+  const toDialog = useRef(false)
   const name = useBrandName(me)
   const profile = useBrandProfile()
   const canAdd = canAddBrand(me, profile.data?.data)
@@ -90,7 +94,16 @@ export function BrandSwitcher({ collapsed }: { collapsed?: boolean }) {
             {pending ? <Spinner className="size-4" /> : <Icon name="chev" size={16} className={cn('text-ink-2', collapsed && 'hidden')} />}
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" side={collapsed ? 'right' : 'bottom'} className="w-64">
+        <DropdownMenuContent
+          align="start"
+          side={collapsed ? 'right' : 'bottom'}
+          className="w-64"
+          onCloseAutoFocus={(e) => {
+            if (!toDialog.current) return
+            toDialog.current = false
+            e.preventDefault()
+          }}
+        >
           <DropdownMenuLabel className="flex items-center justify-between text-caption text-ink-3">
             <span>Brands</span>
             {brandCount > 1 ? <span className="tabular-nums" data-testid="brand-count">{brandCount}</span> : null}
@@ -120,7 +133,14 @@ export function BrandSwitcher({ collapsed }: { collapsed?: boolean }) {
           </div>
           <DropdownMenuSeparator />
           {canAdd ? (
-            <DropdownMenuItem disabled={!!pending} onSelect={() => setAdding(true)} data-testid="add-brand">
+            <DropdownMenuItem
+              disabled={!!pending}
+              onSelect={() => {
+                toDialog.current = true
+                setAdding(true)
+              }}
+              data-testid="add-brand"
+            >
               <span aria-hidden className="inline-flex size-6 shrink-0 items-center justify-center rounded-[7px] border border-dashed border-line text-ink-2">
                 <Icon name="plus" size={14} />
               </span>

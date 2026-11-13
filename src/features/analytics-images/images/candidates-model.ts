@@ -56,6 +56,30 @@ export const AI_HINT = 'Uses AI. Counts toward your daily limit.'
 export const FREE_HINT = 'Free. Does not use AI.'
 export const CACHE_HIT_COPY = 'Made before, so no new cost.'
 
+/** Why a failed main photo offers no fix (`fix_unavailable` on the product read). */
+export type FixUnavailable = NonNullable<ProductImageDetail['fix_unavailable']>
+
+/**
+ * B2 (chrome pass 1): what the page says when a failed Front has no fix to offer, always a reason
+ * and a next step. Null or unknown (an older backend): the general reason.
+ */
+export function noFixCopy(reason: FixUnavailable | null | undefined): { reason: string; next: string } {
+  switch (reason) {
+    case 'ai_off':
+      return {
+        reason: 'The AI white background is switched off on this account, so Kuinn cannot replace this background.',
+        next: 'Upload a version of this photo on plain white.',
+      }
+    case 'not_fixable':
+      return {
+        reason: 'The file itself failed a check (see the report), so no automatic fix can run.',
+        next: 'Export the photo again as JPEG or PNG and upload it.',
+      }
+    default:
+      return { reason: 'Kuinn has no automatic fix for this photo.', next: 'Upload a version of this photo on plain white.' }
+  }
+}
+
 /** Badge for an image that came from a candidate; null for the seller's own photo. */
 export function originBadge(d: Pick<ProductImageDetail, 'origin' | 'slot'> | undefined): string | null {
   if (!d || !d.origin || d.origin === 'seller') return null

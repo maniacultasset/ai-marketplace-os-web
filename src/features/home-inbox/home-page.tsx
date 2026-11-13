@@ -39,7 +39,6 @@ import {
   marketCard,
   needsYouTile,
   progressTile,
-  STATE_WORD,
   waitingEmpty,
   waitingRow,
   type HomeSummary,
@@ -286,6 +285,18 @@ function MarketplaceRow({ summary }: { summary: HomeSummary }) {
             <div className="flex items-center gap-3 font-semibold text-ink">
               <MarketplaceTile id={m} />
               {MARKETPLACE_LABEL[m]}
+              {view.connected ? (
+                // Connected is a fact about the account, not a count: it opens the account page.
+                <Link
+                  to="/marketplaces"
+                  search={{ mp: m }}
+                  className="focus-ring ml-auto inline-flex min-h-10 items-center gap-1 rounded-control text-caption font-medium text-success-ink underline-offset-4 hover:underline pointer-fine:min-h-0"
+                  data-testid="mp-connected"
+                >
+                  <Icon name="check" size={14} aria-hidden />
+                  Connected
+                </Link>
+              ) : null}
             </div>
             <div className="mt-3">
               {view.chip.target && view.chip.definition ? (
@@ -550,7 +561,7 @@ function AgentFeed({ summary }: { summary: HomeSummary }) {
             <li key={r.key} className="flex items-start gap-3 border-b border-line py-2.5 last:border-b-0" data-testid="agent-feed-row" data-state={r.state}>
               <IconTile icon={r.icon.icon} tone={r.icon.tone} size="sm" className="mt-0.5" />
               <div className="min-w-0 flex-1 text-small">
-                <span className="sr-only">{STATE_WORD[r.state]}: </span>
+                <span className="sr-only">{r.word}: </span>
                 {r.target ? (
                   <Link {...linkTo(r.target)} className="font-semibold text-ink underline-offset-4 hover:underline">
                     {r.text}
@@ -559,7 +570,7 @@ function AgentFeed({ summary }: { summary: HomeSummary }) {
                   <span className="font-semibold text-ink">{r.text}</span>
                 )}
                 <span className="block text-caption text-ink-3">
-                  {r.state === 'failed' ? 'Failed · ' : r.state === 'pending' ? 'In progress · ' : null}
+                  {r.state === 'failed' ? 'Failed · ' : r.needsFix ? 'Needs a fix · ' : r.state === 'pending' ? 'In progress · ' : null}
                   <Ago iso={r.at} />
                 </span>
               </div>
