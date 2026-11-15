@@ -28,17 +28,17 @@ const product = (id: string, images: string[] = []): Schema<'ProductOut'> => ({
   status: 'active',
   category: 'kurta_sets',
   created_at: 'x',
-  identifier_exemption: false, brand_name_inherited: false, size_chart_read_enabled: false, category_suggest_enabled: false, photo_reading: false,
+  identifier_exemption: false, brand_name_inherited: false, size_chart_read_enabled: false, category_suggest_enabled: false, photo_reading: false, photo_links_pending: false,
   updated_at: 'x',
   images,
 })
 
-function setup(products: Schema<'ProductOut'>[], seed: Record<string, Schema<'ProductOut'>> = {}) {
+function setup(products: Schema<'ProductOut'>[], seed: Record<string, Schema<'ProductOut'>> = {}, photosWaiting = 0) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   for (const [id, p] of Object.entries(seed)) qc.setQueryData(productQuery(keysFor('t1'), id).queryKey, { ...p, etag: '"v"', attribute_literals: {} })
   render(
     <QueryClientProvider client={qc}>
-      <NeedsPhotosCard products={products} />
+      <NeedsPhotosCard products={products} photosWaiting={photosWaiting} />
     </QueryClientProvider>,
   )
 }
@@ -66,5 +66,13 @@ describe('NeedsPhotosCard', () => {
     setup([product('a'), product('b', ['k1'])])
     expect(screen.queryByTestId('needs-photos')).toBeNull()
     expect(screen.queryByLabelText('Checking photos')).toBeNull()
+  })
+
+  it('says photos from the file are still downloading while the import’s links download (G2)', () => {
+    setup([product('a')], {}, 3)
+    expect(screen.getByTestId('needs-photos').textContent).toContain('Photos from your file are still downloading.')
+    cleanup()
+    setup([product('a')])
+    expect(screen.getByTestId('needs-photos').textContent).not.toContain('still downloading')
   })
 })

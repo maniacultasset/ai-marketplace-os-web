@@ -21,8 +21,11 @@ export interface ColumnGroup {
   /** The columns of this group the "All columns" template holds (default: all of them). */
   templateColumns?: readonly string[]
   /**
-   * Photo links: accepted and kept, but no photo is ever fetched from them. Photos are added on
-   * the product's Media tab. Left out of the templates so nobody fills them in for nothing.
+   * Photo links (main_image, additional_images). With sheet photos on (G2,
+   * `capabilities.sheet_photos_enabled`) each link is downloaded after the import and saved like an
+   * upload, so the "All columns" template holds them. While it is off they are accepted and kept,
+   * but no photo is fetched: photos are added on the product's Media tab, and the templates leave
+   * them out so nobody fills them in for nothing. See `columnGroups` and `fullHeader`.
    */
   photoLinks?: boolean
 }
@@ -97,6 +100,7 @@ export const COLUMN_GROUPS: readonly ColumnGroup[] = [
   },
   // A size chart link is stored and used (a style's `size_chart_url`).
   { label: 'Media', columns: ['size_chart'] },
+  // Label and note while photos are downloaded: `columnGroups({ sheetPhotos: true })`.
   { label: 'Photo links (not used)', columns: ['main_image', 'additional_images'], photoLinks: true },
   {
     label: 'Content',
@@ -133,18 +137,41 @@ export const COLUMN_ALIASES: readonly { alias: string; column: string; note?: st
   { alias: 'fabric_composition', column: 'fiber_composition', note: 'for example 60% cotton, 40% viscose' },
 ]
 
-/** Photo link columns: accepted, never fetched (see `ColumnGroup.photoLinks`). */
+/** Photo link columns (see `ColumnGroup.photoLinks`). */
 export const PHOTO_LINK_COLUMNS = COLUMN_GROUPS.filter((g) => g.photoLinks).flatMap((g) => g.columns)
+
+/** Whether photos are downloaded from the photo link columns (GET /tenants/me `capabilities.sheet_photos_enabled`). */
+export interface SheetPhotosOpt {
+  sheetPhotos?: boolean
+}
+
+/** The photo link group's note when photos are downloaded (row_model.py `media()`: `MAX_MEDIA_URLS`, https only). */
+export const PHOTO_LINKS_NOTE =
+  'main_image: one link, used as the Front photo. additional_images: more links, separated by |. Up to 9 links per row. Links must start with https and open the photo itself (JPG or PNG, up to 10 MB). Google Drive and Dropbox share links work when anyone with the link can view.'
+
+/** The column guide's groups: the photo link group reads as used (with its note) only while photos are downloaded. */
+export function columnGroups({ sheetPhotos = false }: SheetPhotosOpt = {}): readonly ColumnGroup[] {
+  if (!sheetPhotos) return COLUMN_GROUPS
+  return COLUMN_GROUPS.map((g) => (g.photoLinks ? { ...g, label: 'Photo links', note: PHOTO_LINKS_NOTE } : g))
+}
 
 /** Header for the minimal template: the required columns. */
 export const MINIMAL_HEADER = [...REQUIRED_COLUMNS] as const
 
-/** Header for the full template: every stored column that is used, in the documented order. */
-export const FULL_HEADER = COLUMN_GROUPS.filter((g) => !g.notStored && !g.photoLinks).flatMap((g) => g.templateColumns ?? g.columns)
+/**
+ * Header for the full template: every stored column that is used, in the documented order. The
+ * photo links (after size_chart) only while photos are downloaded from them.
+ */
+export function fullHeader({ sheetPhotos = false }: SheetPhotosOpt = {}): string[] {
+  return COLUMN_GROUPS.filter((g) => !g.notStored && (sheetPhotos || !g.photoLinks)).flatMap((g) => g.templateColumns ?? g.columns)
+}
+
+/** The full template while photos are not downloaded (today's header). */
+export const FULL_HEADER = fullHeader()
 
 /** Trigger a browser download of a CSV with only a header line. */
-export function downloadTemplate(kind: 'minimal' | 'full') {
-  const header = kind === 'minimal' ? MINIMAL_HEADER : FULL_HEADER
+export function downloadTemplate(kind: 'minimal' | 'full', opts: SheetPhotosOpt = {}) {
+  const header = kind === 'minimal' ? MINIMAL_HEADER : fullHeader(opts)
   const blob = new Blob([`${header.join(',')}\r\n`], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

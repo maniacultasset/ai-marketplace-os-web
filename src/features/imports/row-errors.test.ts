@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { FULL_HEADER } from './csv-template'
-import { plainRowError, rowNotes, rowProblems } from './row-errors'
+import { photoLinkStatus, photoLinkText, plainRowError, rowNotes, rowProblems, type PhotoLink } from './row-errors'
 
 const e = (error_code: string, message: string, severity = 'error') => ({ error_code, message, severity })
 
@@ -39,5 +39,44 @@ describe('import row errors in plain words', () => {
   it('the All columns template takes whole grams', () => {
     expect(FULL_HEADER).toContain('package_weight_g')
     expect(FULL_HEADER).not.toContain('package_weight')
+  })
+})
+
+const link = (over: Partial<PhotoLink>): PhotoLink => ({
+  link_id: '00000000-0000-4000-8000-000000000901',
+  position: 2,
+  column: 'additional_images',
+  status: 'failed',
+  retryable: true,
+  ...over,
+})
+
+describe('photo links in plain words (G2)', () => {
+  it('prefixes Photo N and uses the server sentence as it comes, never the problem code', () => {
+    const t = photoLinkText(link({ problem: 'not_found', http_status: 404, message: 'The link returned 404. Check the link is right and public.' }))
+    expect(t).toBe('Photo 2: The link returned 404. Check the link is right and public.')
+    expect(t).not.toMatch(/not_found/)
+    expect(photoLinkText(link({ status: 'skipped', retryable: false, problem: 'removed_by_seller', message: 'You removed this photo earlier, so it was not downloaded again.' }))).toBe(
+      'Photo 2: You removed this photo earlier, so it was not downloaded again.',
+    )
+  })
+
+  it('says a waiting link is waiting, and what a saved one became', () => {
+    expect(photoLinkText(link({ status: 'queued', retryable: false }))).toBe('Photo 2: waiting to download')
+    expect(photoLinkText(link({ status: 'downloading', retryable: false }))).toBe('Photo 2: downloading')
+    expect(photoLinkText(link({ position: 1, column: 'main_image', status: 'saved', view: 'front', retryable: false }))).toBe('Photo 1: Saved as Front')
+    expect(photoLinkStatus(link({ status: 'saved', view: 'close_up' }))).toBe('Saved as Close-up')
+    expect(photoLinkStatus(link({ status: 'saved', view: 'extra' }))).toBe('Saved as an extra photo')
+    expect(photoLinkStatus(link({ status: 'saved', view: null, message: 'Saved, then removed from the product.' }))).toBe('Saved, then removed from the product.')
+  })
+
+  it('never shows a blank line for a failed link without a message', () => {
+    expect(photoLinkText(link({ message: null }))).toBe('Photo 2: It could not be downloaded.')
+  })
+
+  it('reads the no-photo note as no photo link while photos are downloaded', () => {
+    const w = e('REQUIRED_FIELD_MISSING', 'no image URL; upload images in the product form', 'warning')
+    expect(plainRowError(w, { sheetPhotos: true })).toBe('No photo link in the file. Add photos on the product’s Media tab.')
+    expect(plainRowError(w, { sheetPhotos: false })).toBe('No photo yet. Add photos on the product’s Media tab.')
   })
 })

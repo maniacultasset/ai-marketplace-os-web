@@ -10,8 +10,12 @@ import { productQuery } from '@/features/products/api'
 import { useKeys } from '@/lib/query-keys'
 import { detailIdsToRead, needsPhotos } from './needs-photos'
 
-/** Imported styles and standalone products with no main photo, each linking to its Media tab. */
-export function NeedsPhotosCard({ products }: { products: readonly Schema<'ProductOut'>[] }) {
+/**
+ * Imported styles and standalone products with no main photo, each linking to its Media tab.
+ * `photosWaiting`: the import's photo links still downloading (G2 `photos.waiting`, 0 while sheet
+ * photos are off), so the list may still shrink by itself.
+ */
+export function NeedsPhotosCard({ products, photosWaiting = 0 }: { products: readonly Schema<'ProductOut'>[]; photosWaiting?: number }) {
   const keys = useKeys()
   const ids = detailIdsToRead(products)
   const details = useQueries({ queries: ids.map((id) => ({ ...productQuery(keys, id), staleTime: 30_000 })) })
@@ -28,7 +32,11 @@ export function NeedsPhotosCard({ products }: { products: readonly Schema<'Produ
       <div className="p-4">
         <CardHead
           title={missing.length ? `${missing.length} ${missing.length === 1 ? 'product needs' : 'products need'} photos` : 'Photos'}
-          sub="A product needs a main photo before its listing can pass the checks. Open each one to add photos."
+          sub={
+            photosWaiting > 0
+              ? 'A product needs a main photo before its listing can pass the checks. Photos from your file are still downloading.'
+              : 'A product needs a main photo before its listing can pass the checks. Open each one to add photos.'
+          }
           icon="image"
           iconTone="warn"
         />

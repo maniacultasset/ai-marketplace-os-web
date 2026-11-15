@@ -15,7 +15,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { api, unwrap } from '@/api/client'
 import { idempotencyHeader, newIdempotencyKey } from '@/api/idempotency'
 import type { Schema } from '@/api/types'
-import { COLUMN_GROUPS } from '@/features/imports/csv-template'
+import { COLUMN_GROUPS, type SheetPhotosOpt } from '@/features/imports/csv-template'
 import { useKeys } from '@/lib/query-keys'
 
 export type ColumnMap = Schema<'ColumnMapOut'>
@@ -83,10 +83,16 @@ export function confirmBody(map: Pick<ColumnMap, 'mappings'>, answers: Answers):
   return { mappings: map.mappings.map((e) => ({ position: e.position, key: resolvedKey(e, answers) })) }
 }
 
-/** The fields a column may fill, in the template's order. */
-export const FIELD_CHOICES: readonly string[] = [
-  ...new Set(COLUMN_GROUPS.filter((g) => !g.notStored && !g.photoLinks).flatMap((g) => g.columns)),
-]
+/**
+ * The fields a column may fill, in the template's order. The photo link columns (main_image,
+ * additional_images) only while their photos are downloaded (G2 sheet photos on).
+ */
+export function fieldChoices({ sheetPhotos = false }: SheetPhotosOpt = {}): readonly string[] {
+  return [...new Set(COLUMN_GROUPS.filter((g) => !g.notStored && (sheetPhotos || !g.photoLinks)).flatMap((g) => g.columns))]
+}
+
+/** The fields a column may fill while sheet photos are off. */
+export const FIELD_CHOICES: readonly string[] = fieldChoices()
 
 /** The backend takes 1 to 200 headers of 1 to 120 characters, distinct once trimmed and lower-cased. */
 export function mappableHeaders(headers: readonly string[]): boolean {

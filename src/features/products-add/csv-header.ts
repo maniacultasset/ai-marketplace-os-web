@@ -4,13 +4,15 @@
  * (after dropping a BOM, trimming and lower-casing), anything else refuses the whole file
  * (HEADER_UNKNOWN_COLUMN), two headers for one column refuse it (HEADER_DUPLICATE_COLUMN), and
  * seller_sku, product_name and category are required. Content, marketplace and workflow columns
- * are accepted but not stored. Photo link columns (main_image, additional_images) are accepted, but
- * no photo is ever fetched from them, so a row that fills one gets a plain warning here. There is
+ * are accepted but not stored. Photo link columns (main_image, additional_images) are accepted and
+ * checked (a bad link fails its row). With sheet photos on (G2) their photos are downloaded after
+ * the import, so they read as used (`matchCopy`, `isUsedMatch`); while it is off no photo is ever
+ * fetched from them, so a row that fills one gets a plain warning here. There is
  * no mapping API, so the screen shows what the server will do with each column before upload,
  * and never offers a mapping it cannot honour.
  */
 import type { CsvSkuRow } from './sku-batch'
-import { COLUMN_ALIASES, COLUMN_GROUPS, PHOTO_LINK_COLUMNS, REQUIRED_COLUMNS } from '@/features/imports/csv-template'
+import { COLUMN_ALIASES, COLUMN_GROUPS, PHOTO_LINK_COLUMNS, REQUIRED_COLUMNS, type SheetPhotosOpt } from '@/features/imports/csv-template'
 
 export type ColumnMatch = 'ok' | 'alias' | 'not-stored' | 'photo-link' | 'unknown' | 'duplicate'
 
@@ -28,7 +30,7 @@ export interface HeaderAnalysis {
   missing: string[]
   /** Data rows in the file (records after the header, blank lines skipped). */
   rows: number
-  /** Data rows with a photo link filled in (links are never fetched). */
+  /** Data rows with a photo link filled in (downloaded after the import only with sheet photos on). */
   photoLinkRows: number
   /** Rows the server will fail for a bad link (first problem per row), like row_model `media()`. */
   linkProblems: LinkProblem[]
@@ -228,4 +230,14 @@ export const MATCH_COPY: Record<ColumnMatch, string> = {
   'photo-link': 'Not used',
   unknown: 'Unknown',
   duplicate: 'Duplicate',
+}
+
+/** The column's match chip: a photo link column reads OK while its photos are downloaded. */
+export function matchCopy(match: ColumnMatch, { sheetPhotos = false }: SheetPhotosOpt = {}): string {
+  return match === 'photo-link' && sheetPhotos ? 'OK' : MATCH_COPY[match]
+}
+
+/** Whether the import stores and uses the column (the photo links only while their photos are downloaded). */
+export function isUsedMatch(match: ColumnMatch, { sheetPhotos = false }: SheetPhotosOpt = {}): boolean {
+  return match === 'ok' || match === 'alias' || (sheetPhotos && match === 'photo-link')
 }

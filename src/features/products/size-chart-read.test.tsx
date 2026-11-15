@@ -31,7 +31,7 @@ const product = {
   identifier_exemption: false,
   attribute_literals: {},
   image_details: [{ image_id: IMG, slot: 'size_chart' as const, position: 0, status: 'ready', origin: 'seller' as const, compliance_status: 'passed' as const }],
-  size_chart_read_enabled: true, category_suggest_enabled: false, photo_reading: false,
+  size_chart_read_enabled: true, category_suggest_enabled: false, photo_reading: false, photo_links_pending: false,
 }
 
 const answer = (body: unknown, status: number) => Promise.resolve({ data: status < 400 ? body : undefined, error: status >= 400 ? body : undefined, response: new Response(JSON.stringify(body), { status }) })

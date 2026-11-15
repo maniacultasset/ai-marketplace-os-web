@@ -1,4 +1,7 @@
-/** /jobs/$jobId: generic job envelope + live progress + link to its result. */
+/**
+ * /jobs/$jobId: generic job envelope + live progress + link to its result. An import job also
+ * shows its file's photo links by outcome (G2, sheet photos on).
+ */
 import { Link } from '@tanstack/react-router'
 import { isApiError, isNotFound } from '@/api/errors'
 import type { JobEnvelope } from '@/api/types'
@@ -10,6 +13,9 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { KeyValues } from '@/features/listing-flow/ui'
 import { formatDateTime, importIdFromResultUrl } from './format'
+import { ImportPhotosLine, useImportReport } from './import-report'
+import { useSheetPhotos } from './sheet-photos'
+import { useCan } from '@/lib/permissions'
 import { JobProgress } from './job-progress'
 import { useImportJob } from './use-import-job'
 
@@ -78,26 +84,28 @@ export function JobDetail({ jobId }: { jobId: string }) {
     <>
       {header}
       <div className="grid items-start gap-4 lg:grid-cols-3">
-        <JobProgress
-          className="lg:col-span-2"
-          polling={polling}
-          importId={importId ?? undefined}
-          footer={
-            job && importId ? (
-              <Link
-                to="/imports/$importId"
-                params={{ importId }}
-                search={{ job: job.job_id }}
-                className="inline-flex items-center gap-1 focus-ring rounded-sm font-semibold text-brand underline-offset-4 hover:underline"
-                data-testid="job-result-link"
-              >
-                Open import report <Icon name="arrow" size={14} />
-              </Link>
-            ) : job?.kind === 'bulk_import' && !job.result_url ? (
-              <span>The report link appears once the worker starts.</span>
-            ) : null
-          }
-        />
+        <div className="flex min-w-0 flex-col gap-4 lg:col-span-2">
+          <JobProgress
+            polling={polling}
+            importId={importId ?? undefined}
+            footer={
+              job && importId ? (
+                <Link
+                  to="/imports/$importId"
+                  params={{ importId }}
+                  search={{ job: job.job_id }}
+                  className="inline-flex items-center gap-1 focus-ring rounded-sm font-semibold text-brand underline-offset-4 hover:underline"
+                  data-testid="job-result-link"
+                >
+                  Open import report <Icon name="arrow" size={14} />
+                </Link>
+              ) : job?.kind === 'bulk_import' && !job.result_url ? (
+                <span>The report link appears once the worker starts.</span>
+              ) : null
+            }
+          />
+          {importId && job?.kind === 'bulk_import' ? <JobPhotos importId={importId} /> : null}
+        </div>
         <LaCard>
           <CardHead title="Details" />
           {job ? (
@@ -124,4 +132,15 @@ export function JobDetail({ jobId }: { jobId: string }) {
       </div>
     </>
   )
+}
+
+/** The import's photo links by outcome, once the report names any (sheet photos on; no read while off). */
+function JobPhotos({ importId }: { importId: string }) {
+  return useSheetPhotos() ? <JobPhotoTotals importId={importId} /> : null
+}
+
+function JobPhotoTotals({ importId }: { importId: string }) {
+  const can = useCan()
+  const photos = useImportReport(importId, { final: true }).data?.photos
+  return photos ? <ImportPhotosLine importId={importId} totals={photos} canRetry={can('product:import')} /> : null
 }

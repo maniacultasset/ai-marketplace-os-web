@@ -18,7 +18,7 @@ import { BUILT } from '@/api/capabilities'
 import { useCapability, useCapabilityProbe } from '@/hooks/use-capabilities'
 import { useJobPolling } from '@/hooks/use-job-polling'
 import { MARKETPLACE_META } from '@/features/marketplaces/meta'
-import { useChangeImageView, useDeleteImage, useKeepPhoto } from '@/features/products/api'
+import { productQuery, useChangeImageView, useDeleteImage, useKeepPhoto } from '@/features/products/api'
 import { useRefreshProductViews } from '@/features/products/image-views'
 import { SavedPhoto } from '@/components/la/saved-photo'
 import { useKeys } from '@/lib/query-keys'
@@ -73,6 +73,9 @@ import { useCandidateSession } from './candidate-session'
 import { matchTile, openQuestions, type PhotoMatch } from './photo-match'
 import { PhotoMatchNote } from './photo-match-note'
 import { ChangeViewMenu } from './change-view-menu'
+import { useSheetPhotos } from '@/features/imports/sheet-photos'
+import { fromFileImageIds, linksFor, photoLinksDelay, type PhotoLink } from './photo-links'
+import { PhotoLinksPanel } from './photo-links-panel'
 
 interface ProductLike extends ColourSource {
   id: string
@@ -83,6 +86,10 @@ interface ProductLike extends ColourSource {
   /** Feedback 7: the category's photo checklist with what is present (empty while it is off). */
   photo_views?: PhotoViewState[]
   size_chart_check?: SizeChartCheck | null
+  /** G2: the links of the spreadsheet's photo columns and what became of each (detail read only). */
+  photo_links?: PhotoLink[]
+  /** G2: a link is still queued or downloading. */
+  photo_links_pending?: boolean
 }
 
 /** A preview URL that failed to load is read again at most this often (they expire after 10 min). */
@@ -149,6 +156,25 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
 
   // A saved photo's link lasts about 10 minutes: one that fails to load reads the product again.
   const refreshViews = useRefreshProductViews(product.id)
+
+  // G2: photos from the spreadsheet's links. While any still downloads, read the product every 3 s
+  // (never in the background); the switch off keeps today's card.
+  const sheetPhotos = useSheetPhotos()
+  const photoLinks = sheetPhotos ? (product.photo_links ?? []) : []
+  useQuery({
+    ...productQuery(keys, product.id),
+    enabled: sheetPhotos && !!product.photo_links_pending,
+    refetchInterval: (q) => photoLinksDelay(q.state.data),
+    refetchIntervalInBackground: false,
+    refetchOnMount: false,
+  })
+  const fromFile = fromFileImageIds(photoLinks)
+  const canFixLinks = live && can(OP_ACTION['POST /products/{product_id}/photo-links/retry']) && can(OP_ACTION['DELETE /photo-links/{link_id}'])
+  const colourwayIds = new Set((product.colourways ?? []).map((c) => c.id))
+  const linksPanel = (colourwayId: string | null | 'all', className?: string) => {
+    const links = colourwayId === 'all' ? photoLinks : linksFor(photoLinks, colourwayId, colourwayIds)
+    return links.length ? <PhotoLinksPanel productId={product.id} links={links} canAct={canFixLinks} className={className} /> : null
+  }
 
   const patch = (localId: string, next: Partial<SessionUpload>) =>
     setUploads((list) => list.map((u) => (u.localId === localId ? { ...u, ...next } : u)))
@@ -347,7 +373,17 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
       knownRole: d?.role ?? null,
       acceptedJob: session.accepted.get(imageId) ?? rechecks.get(imageId),
       viewMenu: viewMenu(imageId),
-      badges: label || kept.has(imageId) ? <OriginBadges label={label} kept={kept.has(imageId)} /> : null,
+      badges:
+        label || kept.has(imageId) || fromFile.has(imageId) ? (
+          <>
+            <OriginBadges label={label} kept={kept.has(imageId)} />
+            {fromFile.has(imageId) ? (
+              <Badge variant="muted" data-testid="from-file-badge" title="Downloaded from a photo link in your spreadsheet.">
+                From your file
+              </Badge>
+            ) : null}
+          </>
+        ) : null,
       extra:
         d?.slot === 'main' ? (
           <>
@@ -476,6 +512,10 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
         </div>
       ) : null}
 
+      {photoLinks.length && !(byColour && (count > 0 || canUpload)) ? (
+        <div className="border-t px-4 py-3 sm:px-5">{linksPanel(byColour ? 'all' : null)}</div>
+      ) : null}
+
       {inFlight.length ? (
         <ul className="divide-y divide-border/70 border-t" aria-label="Uploads">
           {inFlight.map((u) => (
@@ -509,6 +549,7 @@ export function ProductImagesCard({ product }: { product: ProductLike }) {
                 group={g}
                 count={g.keys.length + fresh.length}
                 questions={questions}
+                notice={g.key === 'other' ? null : linksPanel(g.key === ALL_COLOURS ? null : (g.colourwayId ?? null))}
                 tiles={
                   canUpload && g.key !== 'other' ? (
                     <PhotoSlotGrid>
@@ -606,6 +647,7 @@ function ColourSection({
   count,
   questions = 0,
   tiles,
+  notice,
   children,
 }: {
   group: ColourGroup
@@ -614,6 +656,8 @@ function ColourSection({
   questions?: number
   /** This colour's upload tiles (Front, Back, Close-up; the size chart only for all colours). */
   tiles?: ReactNode
+  /** G2: this colour's photo links still downloading or not saved. */
+  notice?: ReactNode
   children: ReactNode
 }) {
   const empty = count === 0
@@ -637,6 +681,7 @@ function ColourSection({
           {tiles}
         </div>
       ) : null}
+      {notice ? <div className="px-4 pt-3 pb-1 sm:px-5">{notice}</div> : null}
       {empty ? (
         <p className="px-5 py-3 text-small text-ink-2">
           {group.colourwayId ? 'Uses the photos for all colours until you add its own.' : 'Photos here show for every colour.'}

@@ -34,7 +34,12 @@ export const BUILT: Record<Capability, boolean> = {
   'listings.generate': true,
   'listings.review': true,
   'listings.publish': true,
-  /** Images card on product detail: upload + compliance report. */
+  /**
+   * Images card on product detail: upload + compliance report. G2 photo links ride on it:
+   * POST /products/{product_id}/photo-links/retry, POST /imports/{import_id}/photo-links/retry and
+   * DELETE /photo-links/{link_id} have no safe GET to probe, so the screens read the runtime switch
+   * GET /tenants/me `capabilities.sheet_photos_enabled` instead (features/imports/sheet-photos.ts).
+   */
   images: true,
   /** Dashboard at /: GET /analytics/summary + GET /analytics. */
   analytics: true,

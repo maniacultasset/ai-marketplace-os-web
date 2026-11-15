@@ -1,5 +1,6 @@
 /**
  * Rows of one import: GET /imports/{id}/rows?status=…&limit=50&cursor= (server filter, Load more).
+ * G2 (sheet photos on): each row's photo links (`photos`) as notes and a Photos column.
  */
 import { Icon } from '@/components/la/icons'
 import { Link } from '@tanstack/react-router'
@@ -19,10 +20,12 @@ import {
 } from '@/components/ui/sheet'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PAGE_SIZE, useCursorList } from '@/hooks/use-cursor-list'
+import { useMemo } from 'react'
 import { useRouteExists } from '@/lib/nav'
 import { useKeys } from '@/lib/query-keys'
 import { cn } from '@/lib/utils'
-import { plainRowError, rowNotes, rowProblems } from './row-errors'
+import { isPhotoProblem, isPhotoWaiting, photoLinkText, plainRowError, rowNotes, rowProblems, type PhotoLink } from './row-errors'
+import { useSheetPhotos } from './sheet-photos'
 
 export type ImportRow = Schema<'ImportRowResult'>
 export type RowsTab = 'all' | 'failed' | 'imported'
@@ -56,15 +59,26 @@ function ProductCell({ productId }: { productId: string | null | undefined }) {
 
 const count = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`
 
+/** A row's photo links that are notes: still downloading, failed or skipped (a saved one is not). */
+const photoNotes = (photos: readonly PhotoLink[] | undefined) => (photos ?? []).filter((p) => p.status !== 'saved')
+
 /**
  * One row's problems and notes in the seller's words (./row-errors.ts). Problems (errors) say why
  * the row was not imported; notes (warnings, such as no photo yet) never stop a row and read softer.
  * The machine code stays on hover (`title`, `data-code`) for support; field and source are left out.
  */
-export function RowIssueList({ row }: { row: Pick<ImportRow, 'errors' | 'status'> }) {
+export function RowIssueList({
+  row,
+  sheetPhotos = false,
+}: {
+  row: Pick<ImportRow, 'errors' | 'status'> & Partial<Pick<ImportRow, 'photos'>>
+  /** Photos are downloaded from the file's links (G2): the "no photo link" note reads so. */
+  sheetPhotos?: boolean
+}) {
   const problems = rowProblems(row.errors)
   const notes = rowNotes(row.errors)
-  if (!problems.length && !notes.length) return null
+  const photos = row.photos ?? []
+  if (!problems.length && !notes.length && !photos.length) return null
   return (
     <div className="space-y-4" data-testid="error-report-list">
       {problems.length ? (
@@ -76,7 +90,7 @@ export function RowIssueList({ row }: { row: Pick<ImportRow, 'errors' | 'status'
             {problems.map((e, i) => (
               <li key={`${e.error_code}-${i}`} className="flex gap-3 px-4 py-3" data-severity="error" data-code={e.error_code} title={e.error_code}>
                 <Icon name="alert" size={16} className="mt-0.5 shrink-0 text-destructive" />
-                <p className="min-w-0 text-sm break-words">{plainRowError(e)}</p>
+                <p className="min-w-0 text-sm break-words">{plainRowError(e, { sheetPhotos })}</p>
               </li>
             ))}
           </ul>
@@ -91,7 +105,31 @@ export function RowIssueList({ row }: { row: Pick<ImportRow, 'errors' | 'status'
             {notes.map((e, i) => (
               <li key={`${e.error_code}-${i}`} className="flex gap-2 text-sm text-muted-foreground" data-severity="warning" data-code={e.error_code} title={e.error_code}>
                 <Icon name="info" size={14} className="mt-0.5 shrink-0" />
-                <span className="min-w-0 break-words">{plainRowError(e)}</span>
+                <span className="min-w-0 break-words">{plainRowError(e, { sheetPhotos })}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {photos.length ? (
+        <section className="space-y-2" aria-labelledby="row-photos-heading" data-testid="row-photos">
+          <h3 id="row-photos-heading" className="text-sm font-medium text-muted-foreground">
+            Photos from the file
+          </h3>
+          <ul className="space-y-1.5">
+            {photos.map((p) => (
+              <li
+                key={p.link_id}
+                className={cn('flex gap-2 text-sm', isPhotoProblem(p) ? 'text-foreground' : 'text-muted-foreground')}
+                data-status={p.status}
+                data-testid="row-photo"
+              >
+                <Icon
+                  name={p.status === 'saved' ? 'check' : isPhotoProblem(p) ? 'alert' : 'clock'}
+                  size={14}
+                  className={cn('mt-0.5 shrink-0', p.status === 'saved' && 'text-success', isPhotoProblem(p) && 'text-warning')}
+                />
+                <span className="min-w-0 break-words">{photoLinkText(p)}</span>
               </li>
             ))}
           </ul>
@@ -102,21 +140,24 @@ export function RowIssueList({ row }: { row: Pick<ImportRow, 'errors' | 'status'
 }
 
 function IssuesCell({ row }: { row: ImportRow }) {
+  const sheetPhotos = useSheetPhotos()
   const problems = rowProblems(row.errors)
   const notes = rowNotes(row.errors)
+  const linkNotes = photoNotes(row.photos)
   const first = problems[0] ?? notes[0]
-  if (!first) return <span className="text-muted-foreground">—</span>
-  const label = problems.length ? count(problems.length, 'issue') : count(notes.length, 'note')
-  const text = plainRowError(first)
+  const noteCount = notes.length + linkNotes.length
+  if (!first && !linkNotes.length) return <span className="text-muted-foreground">—</span>
+  const label = problems.length ? count(problems.length, 'issue') : count(noteCount, 'note')
+  const text = first ? plainRowError(first, { sheetPhotos }) : photoLinkText(linkNotes[0]!)
   return (
     <div className="flex min-w-0 items-center gap-2">
       <p
         className={cn('min-w-0 flex-1 truncate text-xs', problems.length ? 'text-foreground' : 'text-muted-foreground')}
         title={text}
-        data-code={first.error_code}
+        data-code={first?.error_code}
       >
         {text}
-        {problems.length && notes.length ? <span className="text-muted-foreground"> · {count(notes.length, 'note')}</span> : null}
+        {problems.length && noteCount ? <span className="text-muted-foreground"> · {count(noteCount, 'note')}</span> : null}
       </p>
       <Sheet>
         <SheetTrigger asChild>
@@ -138,7 +179,7 @@ function IssuesCell({ row }: { row: ImportRow }) {
             </SheetDescription>
           </SheetHeader>
           <div className="overflow-y-auto p-4">
-            <RowIssueList row={row} />
+            <RowIssueList row={row} sheetPhotos={sheetPhotos} />
           </div>
         </SheetContent>
       </Sheet>
@@ -157,8 +198,25 @@ const SEGMENT =
 const SEGMENT_COUNT =
   'rounded-full bg-ink/[0.07] px-1.5 text-[0.6875rem] leading-[1.125rem] font-medium text-muted-foreground tabular-nums group-data-active/segment:bg-brand-soft group-data-active/segment:text-brand'
 
+/** "3/4": the row's saved photos of its links, toned by what is left (G2). */
+export function PhotosCell({ photos }: { photos: readonly PhotoLink[] | undefined }) {
+  const list = photos ?? []
+  if (!list.length) return <span className="text-muted-foreground">—</span>
+  const saved = list.filter((p) => p.status === 'saved').length
+  const waiting = list.filter(isPhotoWaiting).length
+  const problems = list.filter(isPhotoProblem).length
+  const label = `${saved} of ${list.length} ${list.length === 1 ? 'photo' : 'photos'} saved${waiting ? `, ${waiting} downloading` : ''}${problems ? `, ${problems} not saved` : ''}`
+  return (
+    <Badge variant={problems ? 'warning' : waiting ? 'muted' : 'success'} title={label} aria-label={label} data-testid="row-photos-chip">
+      <span className="tabular-nums">
+        {saved}/{list.length}
+      </span>
+    </Badge>
+  )
+}
+
 const col = columnHelper<ImportRow>()
-const columns = col.columns([
+const baseColumns = col.columns([
   col.accessor('row_number', {
     header: 'Row',
     meta: { className: 'w-16 tabular-nums' },
@@ -205,6 +263,15 @@ const columns = col.columns([
   }),
 ])
 
+const photosColumn = col.display({
+  id: 'photos',
+  header: 'Photos',
+  meta: { className: 'w-20' },
+  cell: (c) => <PhotosCell photos={c.row.original.photos} />,
+})
+/** With sheet photos on, a Photos column sits before Issues. */
+const photoColumns = [...baseColumns.slice(0, -1), photosColumn, baseColumns[baseColumns.length - 1]!]
+
 export function ImportRowsTable({
   importId,
   tab,
@@ -219,6 +286,8 @@ export function ImportRowsTable({
   processing: boolean
 }) {
   const keys = useKeys()
+  const sheetPhotos = useSheetPhotos()
+  const columns = useMemo(() => (sheetPhotos ? photoColumns : baseColumns), [sheetPhotos])
   const status = tab === 'all' ? undefined : tab
   const list = useCursorList<ImportRow>({
     queryKey: keys.importRows.list(importId, status),

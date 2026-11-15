@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest'
 import { analyzeCsv, analyzeHeader } from '@/features/products-add/csv-header'
 import snapshot from './backend-headers.snapshot.json'
 import { HEADERS_PY_PATH, parseHeadersPy } from './headers-py'
-import { COLUMN_ALIASES, COLUMN_GROUPS, FULL_HEADER, MINIMAL_HEADER, PHOTO_LINK_COLUMNS, REQUIRED_COLUMNS } from './csv-template'
+import { COLUMN_ALIASES, COLUMN_GROUPS, columnGroups, FULL_HEADER, fullHeader, MINIMAL_HEADER, PHOTO_LINK_COLUMNS, PHOTO_LINKS_NOTE, REQUIRED_COLUMNS } from './csv-template'
 
 const BACKEND = snapshot
 
@@ -68,6 +68,33 @@ describe('templates and photo links', () => {
     expect(a.columns.slice(3).map((c) => c.match)).toEqual(['photo-link', 'photo-link'])
     expect(a.photoLinkRows).toBe(2)
     expect(analyzeCsv('seller_sku,product_name,category\nA,Kurta,kurtas\n').photoLinkRows).toBe(0)
+  })
+})
+
+describe('templates with sheet photos (G2)', () => {
+  it('keeps today’s header and labels while the switch is off', () => {
+    expect(fullHeader()).toEqual(FULL_HEADER)
+    expect(fullHeader({ sheetPhotos: false })).toEqual(FULL_HEADER)
+    expect(columnGroups()).toBe(COLUMN_GROUPS)
+    expect(columnGroups().find((g) => g.photoLinks)?.label).toBe('Photo links (not used)')
+  })
+
+  it('puts main_image and additional_images right after size_chart while it is on', () => {
+    const on = fullHeader({ sheetPhotos: true })
+    const at = on.indexOf('size_chart')
+    expect(on.slice(at, at + 3)).toEqual(['size_chart', 'main_image', 'additional_images'])
+    expect(on.filter((c) => !PHOTO_LINK_COLUMNS.includes(c))).toEqual(FULL_HEADER)
+    expect(MINIMAL_HEADER).toEqual(['seller_sku', 'product_name', 'category'])
+  })
+
+  it('labels the photo group as used, with the | separator and the link rules', () => {
+    const g = columnGroups({ sheetPhotos: true }).find((x) => x.photoLinks)!
+    expect(g.label).toBe('Photo links')
+    expect(g.note).toBe(PHOTO_LINKS_NOTE)
+    expect(PHOTO_LINKS_NOTE).toContain('separated by |')
+    expect(PHOTO_LINKS_NOTE).toContain('Up to 9 links per row')
+    // The other groups are untouched.
+    expect(columnGroups({ sheetPhotos: true }).filter((x) => !x.photoLinks)).toEqual(COLUMN_GROUPS.filter((x) => !x.photoLinks))
   })
 })
 
