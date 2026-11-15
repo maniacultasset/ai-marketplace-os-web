@@ -12,7 +12,8 @@
  * match below 80% before the upload, which then carries `column_map_id`. This shows whenever a
  * column was matched by more than its exact name (`columnReviewOn`); a backend without column maps,
  * or a sheet of exact names, keeps the read-only table of what the server will do with each column
- * (./csv-header.ts).
+ * (./csv-header.ts). The check step shows what the upload used: the confirmed map read-only when
+ * there was one, else that table.
  * XLSX is not accepted by the API: the dropzone takes .csv only.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -59,6 +60,7 @@ import {
   mappableHeaders,
   resolvedKey,
   unanswered,
+  usedColumns,
   useColumnMap,
   useConfirmColumnMap,
   useCreateColumnMap,
@@ -72,8 +74,8 @@ const rowsLabel = (n: number) => `${n.toLocaleString('en-IN')} ${n === 1 ? 'row'
 
 const STEPS = [{ label: 'Template' }, { label: 'Upload' }, { label: 'Check and send' }] as const
 
-/** Header analysis of the file uploaded from this tab, kept for its check step. */
-const analyses = new Map<string, { name: string; analysis: HeaderAnalysis }>()
+/** Header analysis of the file uploaded from this tab, and the column map the upload used, kept for its check step. */
+const analyses = new Map<string, { name: string; analysis: HeaderAnalysis; map?: { map: ColumnMap; answers: Answers } }>()
 
 const MATCH_CHIP: Record<ColumnMatch, Parameters<typeof StatusChip>[0]['status']> = {
   ok: 'live',
@@ -163,23 +165,22 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
   const upload = useMutation({
     meta: { toast: false },
     mutationFn: async (f: File) => {
-      let mapId: string | null = null
+      let used: ColumnMap | null = null
       if (map) {
-        const confirmed =
-          map.status === 'confirmed' ? map : await confirmMap.mutateAsync({ id: map.id, body: confirmBody(map, answers), key: confirmIntent.get() })
+        used = map.status === 'confirmed' ? map : await confirmMap.mutateAsync({ id: map.id, body: confirmBody(map, answers), key: confirmIntent.get() })
         confirmIntent.reset()
-        setMapSeed(confirmed)
-        mapId = confirmed.id
+        setMapSeed(used)
       }
       const fd = new FormData()
       fd.append('file', f, f.name)
-      if (mapId) fd.append('column_map_id', mapId)
-      return unwrap(api.POST('/products/bulk', { params: { header: idempotencyHeader(intent.get()) }, body: fd as never }))
+      if (used) fd.append('column_map_id', used.id)
+      const res = await unwrap(api.POST('/products/bulk', { params: { header: idempotencyHeader(intent.get()) }, body: fd as never }))
+      return { res, used }
     },
-    onSuccess: (res, f) => {
+    onSuccess: ({ res, used }, f) => {
       intent.reset()
       markJobLive(res.job_id, res.import_id)
-      if (analysis) analyses.set(res.import_id, { name: f.name, analysis })
+      if (analysis) analyses.set(res.import_id, { name: f.name, analysis, ...(used ? { map: { map: used, answers } } : {}) })
       history.add({ import_id: res.import_id, job_id: res.job_id, filename: f.name, size: f.size, created_at: new Date().toISOString() })
       const on = serializeListOn(listOn)
       void navigate({ to: '/add/bulk', search: { import: res.import_id, job: res.job_id, ...(on ? { on } : {}) } })
@@ -329,7 +330,12 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
                 />
               </div>
               {map ? (
-                <ColumnMapReview map={map} answers={answers} onAnswer={(position, key) => setAnswers((a) => ({ ...a, [position]: key }))} />
+                <ColumnMapReview
+                  map={map}
+                  answers={answers}
+                  headers={analysis?.columns.map((c) => c.raw)}
+                  onAnswer={(position, key) => setAnswers((a) => ({ ...a, [position]: key }))}
+                />
               ) : analysis ? (
                 <ColumnTable analysis={analysis} />
               ) : (
@@ -554,7 +560,11 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
   const products = useAllProducts()
   const listings = useAllListings()
   const { connected } = useConnectedMarketplaces()
-  const [listOn, setListOn] = useState<Marketplace[]>(initialListOn)
+  // The picker says "Pre-selected from your connected marketplaces": without a choice carried in
+  // `on` (a reload, or nothing ticked before the upload) the connected ones are ticked until the
+  // seller changes them, as on the Add screen.
+  const [picked, setListOn] = useState<Marketplace[] | null>(initialListOn.length ? initialListOn : null)
+  const listOn = picked ?? connected ?? []
   const [sending, setSending] = useState<{ done: number; total: number } | null>(null)
   const [results, setResults] = useState<ItemOutcome[] | null>(null)
 
@@ -562,8 +572,13 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
   const entry = history.entries.find((e) => e.import_id === importId)
   const r = report.data
 
-  const duplicates = (failedRows.data?.rows ?? []).filter((row) => (row.errors ?? []).some((e) => e.error_code === 'DUPLICATE_SKU_IN_FILE')).length
+  // Both counts are read from the failed rows, so they wait for them: before, the first render
+  // counted a repeated SKU as "need a fix" until the rows arrived (prod bulk test, 15 Nov).
+  const failedList = failedRows.data?.rows
+  const rowCounts = done && (!r || r.failed === 0 || !!failedList || failedRows.isError)
+  const duplicates = (failedList ?? []).filter((row) => (row.errors ?? []).some((e) => e.error_code === 'DUPLICATE_SKU_IN_FILE')).length
   const needValue = r ? r.failed - duplicates : 0
+  const usedMap = local?.map
 
   /** Imported styles and standalones (variants are listed through their style). */
   const sendable = useMemo(() => {
@@ -665,9 +680,11 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="bulk-counts">
           <Tile pending={!done} value={r?.imported ?? 0} caption="rows imported, ready for the agent" tone="success" />
-          <Tile pending={!done} value={needValue} caption="need a fix" tone={needValue ? 'attention' : undefined} />
-          <Tile pending={!done} value={duplicates} caption="repeat a SKU in the file" />
-          {local ? (
+          <Tile pending={!rowCounts} value={needValue} caption="need a fix" tone={needValue ? 'attention' : undefined} />
+          <Tile pending={!rowCounts} value={failedRows.isError && !failedList ? '–' : duplicates} caption="repeat a SKU in the file" />
+          {usedMap ? (
+            <Tile pending={!done} value={usedColumns(usedMap.map, usedMap.answers)} caption="columns matched" tone="tint" />
+          ) : local ? (
             <Tile pending={!done} value={local.analysis.columns.filter((c) => c.match === 'ok' || c.match === 'alias').length} caption="columns matched by name" tone="tint" />
           ) : (
             <Tile pending={!done} value={r?.total_rows ?? 0} caption="rows in the file" tone="tint" />
@@ -678,9 +695,13 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
           {local ? (
             <LaCard pad="none" className="overflow-hidden">
               <div className="p-4">
-                <CardHead title="Column matching" />
+                <CardHead title="Column matching" sub={usedMap ? 'The columns as you confirmed them for this upload.' : undefined} />
               </div>
-              <ColumnTable analysis={local.analysis} />
+              {usedMap ? (
+                <ColumnMapReview map={usedMap.map} answers={usedMap.answers} headers={local.analysis.columns.map((c) => c.raw)} readOnly />
+              ) : (
+                <ColumnTable analysis={local.analysis} />
+              )}
             </LaCard>
           ) : null}
           <LaCard pad="none" className="overflow-hidden">
