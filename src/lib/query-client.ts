@@ -1,4 +1,11 @@
-import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
+import {
+  MutationCache,
+  QueryCache,
+  QueryClient,
+  type InvalidateOptions,
+  type InvalidateQueryFilters,
+  type QueryKey,
+} from '@tanstack/react-query'
 import { isApiError, isMfaRequired } from '@/api/errors'
 import { getSession } from '@/api/session'
 import { isAiPausedError, markAiPaused } from '@/features/ai-credit/model'
@@ -45,8 +52,34 @@ export function noteRateLimited(waitS: number) {
   toast.info('Kuinn is busy', { id: 'rate-limited', description: `Too many requests from this brand right now. Trying again in ${waitS} s.` })
 }
 
+/**
+ * The Home summary's key for the tenant whose issues or tasks `queryKey` names, else null. Its
+ * `inbox` counts count those rows (the sidebar badge, the Inbox header, Home; B28), so every
+ * invalidation of them must re-read it too, whichever screen made it. The same key as
+ * `homeSummaryKey` (features/inbox/api; not imported here, which would be an import cycle).
+ */
+export function summaryKeyFor(queryKey: QueryKey | undefined): QueryKey | null {
+  const [t, tid, area] = queryKey ?? []
+  if (t !== 't' || typeof tid !== 'string' || (area !== 'issues' && area !== 'tasks')) return null
+  return ['t', tid, 'listings', 'list', 'home-summary']
+}
+
+/** A QueryClient whose issue and task invalidations also refresh the Home summary (`summaryKeyFor`). */
+class AppQueryClient extends QueryClient {
+  override invalidateQueries<TTaggedQueryKey extends QueryKey = QueryKey>(
+    filters?: InvalidateQueryFilters<TTaggedQueryKey>,
+    options?: InvalidateOptions,
+  ): Promise<void> {
+    const done = super.invalidateQueries(filters, options)
+    const summary = summaryKeyFor(filters?.queryKey)
+    if (!summary) return done
+    // cancelRefetch false: an issues and a tasks invalidation in one tick share one summary read.
+    return Promise.all([done, super.invalidateQueries({ queryKey: summary, exact: true }, { cancelRefetch: false })]).then(() => undefined)
+  }
+}
+
 export function createQueryClient() {
-  const client: QueryClient = new QueryClient({
+  const client: QueryClient = new AppQueryClient({
     queryCache: new QueryCache({
       onError: (error) => refetchMeAfter403(client, error),
     }),

@@ -54,18 +54,32 @@ export async function walkListings(
   return { rows, complete: false }
 }
 
+/** While Kuinn is writing or sending (drafts in progress, a job pending), so new questions and
+ * issues reach the badge and the Inbox counts within seconds of a bulk draft landing (B28). */
+const HOME_BUSY_REFRESH_MS = 20_000
+
+type HomeSummaryData = Schema<'HomeSummaryOut'>
+
+/** How often the summary re-reads: faster while work is in flight, else once a minute. */
+export function summaryRefreshMs(s: Pick<HomeSummaryData, 'listings' | 'activity'> | undefined): number {
+  if (!s) return HOME_REFRESH_MS
+  const busy = s.listings.in_progress > 0 || s.activity.some((a) => a.state === 'pending')
+  return busy ? HOME_BUSY_REFRESH_MS : HOME_REFRESH_MS
+}
+
 /**
  * Home's one read (client feedback 11 Nov, item 6): exact counts, what needs the caller, the
  * agent's recent work and each marketplace's next step. Under `listings.lists()`, so every
- * listing mutation that invalidates lists refreshes Home.
+ * listing mutation that invalidates lists refreshes Home; an issue or task invalidation refreshes
+ * it too (`createQueryClient`). Its `inbox` counts are the one source of the sidebar badge and the
+ * Inbox header (B28), so the sidebar reads it on every page.
  */
-export function useHomeSummary({ enabled = true }: { enabled?: boolean } = {}) {
+export function useHomeSummary() {
   const keys = useKeys()
   return useQuery({
     queryKey: homeSummaryKey(keys),
     queryFn: () => unwrap(api.GET('/home/summary')),
-    enabled,
-    refetchInterval: HOME_REFRESH_MS,
+    refetchInterval: (q) => summaryRefreshMs(q.state.data),
     refetchIntervalInBackground: false,
   })
 }

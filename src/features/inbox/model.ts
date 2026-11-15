@@ -5,7 +5,7 @@
  */
 import { z } from 'zod'
 import { isApiError, isNotFound } from '@/api/errors'
-import type { ErrorCode, Page, Schema } from '@/api/types'
+import type { ErrorCode, Schema } from '@/api/types'
 import type { IssuesFilters, IssueStatus, Marketplace, TaskStatus } from '@/lib/query-keys'
 import { withoutApiText } from '@/lib/seller-text'
 
@@ -144,32 +144,11 @@ export function hasIssueFilters(s: InboxSearch): boolean {
   return !!(s.source || s.marketplace || s.code || s.listing)
 }
 
-// ---- counts (from loaded data only; never a fabricated total) ----
-
-/** "12", or "50+" when the server says more rows exist beyond what is loaded. */
-export function countLabel(loaded: number, hasMore: boolean): string {
-  return hasMore ? `${loaded}+` : String(loaded)
-}
-
-/**
- * Sidebar badge from the first page of open issues and open tasks, or the backend's exact counts
- * once either has more (`inboxCounts`). Null hides the badge. An issue linked to a listed open
- * question is the same thing to do and counts once (Inbox All).
- */
-export function badgeLabel(
-  issues: Pick<Page<{ human_task_id?: string | null }>, 'data' | 'page'> | undefined,
-  tasks: Pick<Page<{ id?: string }>, 'data' | 'page'> | undefined,
-  exact?: InboxCounts | null,
-): string | null {
-  if (!issues && !tasks) return null
-  const taskRows = (tasks?.data ?? []).map((t) => ({ id: t.id ?? '' }))
-  const issueRows = (issues?.data ?? []).map((i) => ({ human_task_id: i.human_task_id ?? null }))
-  return badgeFromCounts(inboxCounts(taskRows, !!tasks?.page.has_more, issueRows, !!issues?.page.has_more, exact))
-}
+// ---- counts (the backend's exact counts; never a number read from a partial page) ----
 
 export type InboxCounts = Schema<'InboxCounts'>
 
-/** A count, "+" when more rows exist than were read. */
+/** A count. `more` stays in the shape `fmtCount` reads; Inbox counts are exact, so it is false. */
 export interface InboxCount {
   n: number
   more: boolean
@@ -183,33 +162,32 @@ export interface InboxCountsView {
   alone: InboxCount
 }
 
+/** Badge cap: past this the sidebar says "99+" (the Inbox header says the exact number). */
+export const BADGE_CAP = 99
+
 /**
- * Client pass 2, B16: the one set of Inbox numbers the sidebar badge and the Inbox tabs show.
- * From the loaded open lists while they are complete (they refresh on every mutation); once
- * either has more pages, the backend's exact counts (`GET /home/summary` `inbox`, the same rows
- * by the same definition) instead of "50+".
+ * B28 (after B16): the one set of Inbox numbers the sidebar badge, the Inbox header and tabs, and
+ * Home show. The backend's exact counts (`GET /home/summary` `inbox`, every open row by the lists'
+ * own definition) whenever they are loaded. Before they are, the loaded open lists only while both
+ * are complete: then they hold every row and count the same. With more pages to read and no exact
+ * counts yet, null: no screen shows a number from a partial page (prod 15 Nov: "312 open items" in
+ * the Inbox while the badge said "50+", then "74+", from the first pages of 50).
  */
 export function inboxCounts(
-  tasks: readonly Pick<Task, 'id'>[],
+  tasks: readonly Pick<Task, 'id'>[] | null,
   tasksMore: boolean,
-  issues: readonly Pick<Issue, 'human_task_id'>[],
+  issues: readonly Pick<Issue, 'human_task_id'>[] | null,
   issuesMore: boolean,
   exact?: InboxCounts | null,
-): InboxCountsView {
-  if ((tasksMore || issuesMore) && exact) {
-    const c = (n: number) => ({ n, more: false })
+): InboxCountsView | null {
+  const c = (n: number): InboxCount => ({ n, more: false })
+  if (exact) {
     return { open: c(exact.open_items), questions: c(exact.questions), issues: c(exact.issues), alone: c(exact.issues_without_question) }
   }
+  if (!tasks || !issues || tasksMore || issuesMore) return null
   const open = new Set(tasks.map((t) => t.id).filter(Boolean))
   const alone = issues.filter((i) => !i.human_task_id || !open.has(i.human_task_id)).length
-  const more = tasksMore || issuesMore
-  return {
-    open: { n: tasks.length + alone, more },
-    questions: { n: tasks.length, more: tasksMore },
-    issues: { n: issues.length, more: issuesMore },
-    // an issue may stand for a question on a page not read yet: uncertain while either has more
-    alone: { n: alone, more },
-  }
+  return { open: c(tasks.length + alone), questions: c(tasks.length), issues: c(issues.length), alone: c(alone) }
 }
 
 const num = (c: InboxCount) => `${c.n.toLocaleString('en-IN')}${c.more ? '+' : ''}`
@@ -219,19 +197,18 @@ const many = (c: InboxCount, one: string, several: string) => `${num(c)} ${c.n =
  * "21 open items: 19 questions, 2 issues without a question". Says what All counts, so it never
  * reads as the Issues tab's number (which also has the issues a question stands for). Null at zero.
  */
-export function inboxCaption(c: InboxCountsView): string | null {
-  if (c.open.n === 0 && !c.open.more) return null
+export function inboxCaption(c: InboxCountsView | null): string | null {
+  if (!c || (c.open.n === 0 && !c.open.more)) return null
   const parts: string[] = []
   if (c.questions.n || c.questions.more) parts.push(many(c.questions, 'question', 'questions'))
   if (c.alone.n || c.alone.more) parts.push(many(c.alone, 'issue without a question', 'issues without a question'))
   return `${many(c.open, 'open item', 'open items')}: ${parts.join(', ')}`
 }
 
-/** The sidebar badge from the Inbox numbers: the All count, "99+" past 99, null at zero. */
-export function badgeFromCounts(c: InboxCountsView): string | null {
-  if (c.open.n === 0 && !c.open.more) return null
-  if (c.open.n > 99) return '99+'
-  return countLabel(c.open.n, c.open.more)
+/** The sidebar badge from the Inbox numbers: the All count, "99+" past 99, null at zero or unknown. */
+export function badgeFromCounts(c: InboxCountsView | null): string | null {
+  if (!c || c.open.n <= 0) return null
+  return c.open.n > BADGE_CAP ? `${BADGE_CAP}+` : String(c.open.n)
 }
 
 export interface SeveritySplit {
