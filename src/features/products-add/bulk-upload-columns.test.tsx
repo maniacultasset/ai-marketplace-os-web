@@ -123,6 +123,36 @@ describe('Bulk upload column review (SI14)', () => {
     expect(screen.getByLabelText('Column matching')).toBeTruthy()
   })
 
+  it('uses the map when every column matched a known name, with no Kuinn call (B18)', async () => {
+    const known = {
+      ...map,
+      needs_review_count: 0,
+      mappings: [
+        { position: 1, header_shown: 'SKU', key: 'seller_sku', method: 'alias', confidence: 1, needs_review: false },
+        { position: 2, header_shown: 'Product Title', key: 'product_name', method: 'alias', confidence: 1, needs_review: false },
+        { position: 3, header_shown: 'category', key: 'category', method: 'exact', confidence: 1, needs_review: false },
+        { position: 4, header_shown: 'colour shade', key: 'color_name', method: 'alias', confidence: 1, needs_review: false },
+      ],
+    }
+    post.mockImplementation((path: string, init: { body: unknown }) => {
+      if (path === '/imports/column-maps') return ok(known, 201)
+      if (path === '/imports/column-maps/{map_id}/confirm') return ok({ ...known, status: 'confirmed' })
+      if (path === '/products/bulk') return ok({ import_id: 'i1', job_id: 'j1', status: 'queued', body: init.body }, 202)
+      return refuse(404)
+    })
+    setup()
+    await chooseFile()
+    await screen.findByTestId('column-map-review')
+    const row = screen.getAllByTestId('column-map-row').find((r) => r.dataset.position === '1')!
+    expect(row.textContent).toContain('Known name')
+    const upload = screen.getByTestId('bulk-upload') as HTMLButtonElement
+    await waitFor(() => expect(upload.disabled).toBe(false))
+    await userEvent.click(upload)
+    await waitFor(() => expect(post.mock.calls.some((c) => c[0] === '/products/bulk')).toBe(true))
+    const fd = post.mock.calls.find((c) => c[0] === '/products/bulk')![1].body as FormData
+    expect(fd.get('column_map_id')).toBe(MAP)
+  }, 15_000)
+
   it('keeps today’s read-only matching against a backend without column maps', async () => {
     post.mockImplementation((path: string) => (path === '/imports/column-maps' ? refuse(404) : ok({ import_id: 'i1', job_id: 'j1', status: 'queued' }, 202)))
     setup()

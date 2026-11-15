@@ -9,9 +9,9 @@
  *
  * Column matching: with SI14 column maps (features/assist/column-map.ts) the backend matches each
  * header (exact, known name, close match, or Kuinn for leftovers) and the seller confirms every
- * match below 80% before the upload, which then carries `column_map_id`. This shows only while the
- * backend asks Kuinn for the leftovers (`columnReviewOn`); a backend without column maps, or with
- * that switch off, keeps the read-only table of what the server will do with each column
+ * match below 80% before the upload, which then carries `column_map_id`. This shows whenever a
+ * column was matched by more than its exact name (`columnReviewOn`); a backend without column maps,
+ * or a sheet of exact names, keeps the read-only table of what the server will do with each column
  * (./csv-header.ts).
  * XLSX is not accepted by the API: the dropzone takes .csv only.
  */
@@ -220,8 +220,8 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
     setText(raw)
     const headers = next.columns.map((c) => c.raw)
     if (mappableHeaders(headers)) {
-      // A refusal (an older backend, a header it rejects), or a map Kuinn was not asked about (its
-      // switch off), keeps the read-only table below.
+      // A refusal (an older backend, a header it rejects), or a map of exact names only, keeps the
+      // read-only table below.
       createMap.mutate(headers, {
         onSuccess: (m) => {
           if (columnReviewOn(m)) setMapSeed(m)
