@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { FULL_HEADER } from './csv-template'
-import { plainRowError, rowProblems } from './row-errors'
+import { plainRowError, rowNotes, rowProblems } from './row-errors'
 
 const e = (error_code: string, message: string, severity = 'error') => ({ error_code, message, severity })
 
@@ -15,6 +15,23 @@ describe('import row errors in plain words', () => {
   it('names any other column in words, never a raw key', () => {
     expect(plainRowError(e('PATTERN_MISMATCH', 'hsn_code must be 4, 6 or 8 digits'))).toBe('Hsn code must be 4, 6 or 8 digits.'.replace('Hsn', 'HSN'))
     expect(plainRowError(e('REQUIRED_FIELD_MISSING', 'seller_sku is required'))).toBe('SKU is required.')
+  })
+  it('reads the prod bulk test messages in plain words, never a column key (15 Nov)', () => {
+    expect(plainRowError(e('DUPLICATE_SKU_IN_FILE', 'seller_sku repeats an earlier row'))).toBe('This SKU is already on an earlier row of the file. Give this row its own SKU.')
+    expect(plainRowError(e('PATTERN_MISMATCH', 'package_weight_g must be whole grams'))).toBe('Package weight in grams must be a whole number, like 500, with no unit.')
+    expect(plainRowError(e('VALUE_NOT_ALLOWED', 'package_weight_g must be 1 to 2000000 grams'))).toBe('Package weight (grams) must be 1 to 2000000 grams.')
+    expect(plainRowError(e('VALUE_NOT_ALLOWED', 'fiber_composition must list fibres whose percents add up to 100'))).toBe('Fiber composition must list fibres whose percents add up to 100.')
+    expect(plainRowError(e('VALUE_NOT_ALLOWED', 'tax_rate must be from 0 to 100'))).toBe('GST rate must be from 0 to 100.')
+    const gst = 'tax_rate is not a GST rate (0, 0.1, 0.25, 1, 1.5, 3, 5, 6, 7.5, 12, 18, 28 or 40); it was not saved, so set the GST rate on the product'
+    expect(plainRowError(e('VALUE_NOT_ALLOWED', gst, 'warning'))).toMatch(/^The GST rate is not one of the GST rates .* Set the GST rate on the product\.$/)
+    const fibre = 'fiber_composition has no percents (60% cotton, 40% viscose); it was not saved, so add the fabric composition on the product'
+    expect(plainRowError(e('VALUE_NOT_ALLOWED', fibre, 'warning'))).toBe('The fabric composition has no percents (like 60% cotton, 40% viscose), so it was not saved. Add it on the product.')
+    expect(plainRowError(e('REQUIRED_FIELD_MISSING', 'no image URL; upload images in the product form', 'warning'))).toBe('No photo yet. Add photos on the product’s Media tab.')
+  })
+  it('keeps warnings apart as notes', () => {
+    const errors = [e('REQUIRED_FIELD_MISSING', 'no image URL; upload images in the product form', 'warning'), e('PRICE_ABOVE_MRP', 'x')]
+    expect(rowNotes(errors).map((n) => n.error_code)).toEqual(['REQUIRED_FIELD_MISSING'])
+    expect(rowProblems(errors).map((n) => n.error_code)).toEqual(['PRICE_ABOVE_MRP'])
   })
   it('leaves warnings out of the row problems', () => {
     expect(rowProblems([e('REQUIRED_FIELD_MISSING', 'no image URL; upload images in the product form', 'warning'), e('PRICE_ABOVE_MRP', 'x')])).toHaveLength(1)

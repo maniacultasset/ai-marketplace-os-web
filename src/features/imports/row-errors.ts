@@ -1,7 +1,8 @@
 /**
  * Import row errors in the seller's words. The backend's row messages are written for developers
  * and name CSV column keys ("selling_price is above mrp"); the API and the full report keep them.
- * Here they read as plain sentences, and warnings (for example "no image URL") are not problems.
+ * Here they read as plain sentences, and warnings (for example "no image URL") are not problems:
+ * they are notes (`rowNotes`), shown apart and softer.
  */
 import { sentenceCase } from '@/features/listing-flow/format'
 
@@ -15,6 +16,8 @@ const COLUMN_WORDS: Record<string, string> = {
   product_identifier: 'barcode',
   product_name: 'product name',
   country_of_origin: 'country of origin',
+  package_weight_g: 'package weight (grams)',
+  tax_rate: 'GST rate',
 }
 
 /** "selling_price" → "selling price", "mrp" → "MRP". */
@@ -31,6 +34,20 @@ const KNOWN: { test: (e: RowError) => boolean; text: string }[] = [
   { test: (e) => /family needs size_name or color_name/.test(e.message), text: 'Each size or colour in a style needs a size or colour name.' },
   { test: (e) => /^product_name differs from the rest of its parent_style_id family/.test(e.message), text: 'Product name must match the rest of its style.' },
   { test: (e) => /^package_weight needs a unit/.test(e.message), text: 'Package weight needs a unit (450 g or 0.45 kg), or use the package_weight_g column for whole grams.' },
+  { test: (e) => /^package_weight_g must be whole grams/.test(e.message), text: 'Package weight in grams must be a whole number, like 500, with no unit.' },
+  {
+    test: (e) => e.error_code === 'DUPLICATE_SKU_IN_FILE' || /^seller_sku repeats an earlier row/.test(e.message),
+    text: 'This SKU is already on an earlier row of the file. Give this row its own SKU.',
+  },
+  { test: (e) => /^no image URL/.test(e.message), text: 'No photo yet. Add photos on the product’s Media tab.' },
+  {
+    test: (e) => /^tax_rate is not a GST rate/.test(e.message),
+    text: 'The GST rate is not one of the GST rates (0, 0.1, 0.25, 1, 1.5, 3, 5, 6, 7.5, 12, 18, 28 or 40), so it was not saved. Set the GST rate on the product.',
+  },
+  {
+    test: (e) => /^fiber_composition has no percents/.test(e.message),
+    text: 'The fabric composition has no percents (like 60% cotton, 40% viscose), so it was not saved. Add it on the product.',
+  },
 ]
 
 /** A row error as a plain sentence. */
@@ -41,4 +58,9 @@ export function plainRowError(e: RowError): string {
 /** The row's problems only: warnings are left out. */
 export function rowProblems<E extends RowError>(errors: readonly E[] | null | undefined): E[] {
   return (errors ?? []).filter((e) => e.severity !== 'warning')
+}
+
+/** The row's notes: warnings, which never stop the row ("no image URL"). */
+export function rowNotes<E extends RowError>(errors: readonly E[] | null | undefined): E[] {
+  return (errors ?? []).filter((e) => e.severity === 'warning')
 }

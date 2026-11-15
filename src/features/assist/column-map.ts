@@ -52,6 +52,18 @@ export function resolvedKey(e: ColumnMapEntry, answers: Answers): string | null 
   return e.position in answers ? (answers[e.position] ?? null) : (e.key ?? null)
 }
 
+/** How many columns the import fills a field from. */
+export const usedColumns = (map: Pick<ColumnMap, 'mappings'>, answers: Answers = {}) => map.mappings.filter((e) => resolvedKey(e, answers) !== null).length
+
+/**
+ * A column as the seller wrote it when the file is at hand in this browser ("Weight (g)"), else the
+ * API's `header_shown`, which names a header it does not echo by its position ("column 18").
+ */
+export function headerText(entry: Pick<ColumnMapEntry, 'position' | 'header_shown'>, headers?: readonly string[]): string {
+  const own = headers?.[entry.position - 1]?.replace(/^\uFEFF/, '').trim()
+  return own || entry.header_shown
+}
+
 /** Columns that still wait for the seller. */
 export function unanswered(map: Pick<ColumnMap, 'mappings'>, answers: Answers): ColumnMapEntry[] {
   return map.mappings.filter((e) => needsAnswer(e) && !(e.position in answers))

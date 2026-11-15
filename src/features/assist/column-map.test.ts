@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { confirmBody, duplicatePositions, FIELD_CHOICES, mappableHeaders, needsAnswer, unanswered, type ColumnMap } from './column-map'
+import { confirmBody, duplicatePositions, FIELD_CHOICES, headerText, mappableHeaders, needsAnswer, unanswered, usedColumns, type ColumnMap } from './column-map'
 
 const map: Pick<ColumnMap, 'mappings'> = {
   mappings: [
@@ -49,5 +49,16 @@ describe('column map review', () => {
     expect(FIELD_CHOICES).toContain('seller_sku')
     expect(FIELD_CHOICES).toContain('category')
     expect(new Set(FIELD_CHOICES).size).toBe(FIELD_CHOICES.length)
+  })
+  it('shows the seller’s own header when the file is at hand, else the API’s name (W4)', () => {
+    const entry = map.mappings[4]!
+    expect(headerText(entry, ['a', 'b', 'c', 'd', '\uFEFF Weight (g) '])).toBe('Weight (g)')
+    expect(headerText(entry)).toBe('column 5')
+    expect(headerText(entry, ['a', 'b'])).toBe('column 5')
+  })
+  it('counts the columns the import fills a field from (W1)', () => {
+    expect(usedColumns(map)).toBe(4)
+    expect(usedColumns(map, { 4: null, 5: 'fit' })).toBe(4)
+    expect(usedColumns(map, { 4: null })).toBe(3)
   })
 })
