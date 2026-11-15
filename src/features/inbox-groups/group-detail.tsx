@@ -7,9 +7,12 @@
  *   brand         the brand manufacturer, set once (the Brand page's card, owner or admin).
  *   per_item      the list only: each one is opened and fixed on its own.
  *
- * After an answer, the affected listings are redrafted (on by default for roles that can) with
- * POST /listings/{id}/regenerate, one key per listing; past the brand's cap a draft waits for a
- * free slot (B19). With redraft off, "Check again" re-runs the checks with the new facts (no AI).
+ * After an answer, the affected listings the backend marks `redraft` are redrafted (on by default
+ * for roles that can) with POST /listings/{id}/regenerate, only the sections the answer feeds, one
+ * key per listing; past the brand's cap a draft waits for a free slot (B19). The others show why
+ * they wait (other questions open, already drafting, AI paused). With redraft off, "Check again"
+ * re-runs the checks with the new facts (no AI). A brand-wide save checks the listings again and
+ * redrafts the ones that can be, at once.
  */
 import { Link } from '@tanstack/react-router'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
@@ -29,7 +32,7 @@ import { answerMode, checkAnswer, parseAnswerSpec } from '@/features/photo-facts
 import { factLabel } from '@/features/photo-facts/model'
 import { OP_ACTION, useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
-import { useAnswerGroup, useRecheck, useRedraft, type GroupAnswerRun } from './api'
+import { fetchListingPlan, useAnswerGroup, useRecheck, useRedraft, type GroupAnswerRun } from './api'
 import {
   answerable,
   answerSummary,
@@ -38,15 +41,18 @@ import {
   distinctProducts,
   groupMeta,
   groupTitle,
+  heldReason,
   keptLabel,
   memberItemKey,
   otherSkips,
+  plainPlan,
   recheckSummary,
+  redraftPlan,
   redraftSummary,
-  redraftTargets,
   SKIP_COPY,
   type GroupMember,
   type InboxGroup,
+  type RedraftPlanItem,
   type RedraftResult,
 } from './model'
 
@@ -181,7 +187,7 @@ function ManyAnswer({
             {exemption ? 'Every product here has a barcode now.' : 'Every product here has its own value now.'} Redraft the listings to use it.
           </span>
         </Banner>
-        <NextStep listingIds={[...new Set(group.members.flatMap((m) => m.listing_ids))]} auto={false} />
+        <NextStep plan={plainPlan(group.members.flatMap((m) => m.listing_ids))} auto={false} />
       </div>
     )
 
@@ -387,7 +393,7 @@ function AnswerResultBlock({ group, run, keptBefore, redraftFirst }: { group: In
   const others = otherSkips(run.result)
   const byReason = new Map<string, number>()
   for (const s of others) byReason.set(SKIP_COPY[s.reason], (byReason.get(SKIP_COPY[s.reason]) ?? 0) + 1)
-  const listings = redraftTargets(run.result.listings)
+  const plan = redraftPlan(run.result.listings)
   return (
     <div className="flex flex-col gap-3" data-testid="group-result">
       <Banner tone={run.result.applied.length ? 'success' : 'attention'} role="status">
@@ -407,7 +413,7 @@ function AnswerResultBlock({ group, run, keptBefore, redraftFirst }: { group: In
           The rest couldn’t be saved. They are still in your Inbox; try again from there.
         </Banner>
       ) : null}
-      {run.result.applied.length ? <NextStep listingIds={listings} auto={redraftFirst} /> : null}
+      {run.result.applied.length ? <NextStep plan={plan} auto={redraftFirst} members={group.members} /> : null}
     </div>
   )
 }
@@ -416,10 +422,19 @@ function AnswerResultBlock({ group, run, keptBefore, redraftFirst }: { group: In
 
 function BrandAnswer({ group }: { group: InboxGroup }) {
   const can = useCan()
+  const aiPaused = useAiPaused()
   const canEdit = can(OP_ACTION['PATCH /brand-profile'])
   const [saved, setSaved] = useState<boolean | null>(null)
+  // After a save here: each listing's status and sections, then the same step as an answer, at once.
+  const [savedPlan, setSavedPlan] = useState<RedraftPlanItem[] | 'loading' | null>(null)
   const set = saved ?? group.brand_value_set
   const listings = brandListings(group.members)
+  const onSaved = (s: boolean) => {
+    setSaved(s)
+    if (!s || !listings.length) return setSavedPlan(null)
+    setSavedPlan('loading')
+    void fetchListingPlan(listings, aiPaused).then(setSavedPlan)
+  }
   return (
     <div className="flex flex-col gap-3" data-testid="group-brand">
       {set ? (
@@ -435,8 +450,17 @@ function BrandAnswer({ group }: { group: InboxGroup }) {
           <span data-testid="group-brand-no-permission">Only an owner or admin can set the brand manufacturer. You can still add it on each product.</span>
         </Banner>
       )}
-      {canEdit || set ? <ManufacturerCard canEdit={canEdit} onSaved={(s) => setSaved(s)} /> : null}
-      {set && listings.length ? <NextStep listingIds={listings} auto={false} /> : null}
+      {canEdit || set ? <ManufacturerCard canEdit={canEdit} onSaved={onSaved} /> : null}
+      {savedPlan === 'loading' ? (
+        <p className="flex items-center gap-2 text-small text-ink-2" role="status" data-testid="group-brand-loading">
+          <Spinner aria-hidden />
+          Looking at the listings…
+        </p>
+      ) : savedPlan ? (
+        <NextStep key="saved" plan={savedPlan} auto autoCheck members={group.members} />
+      ) : set && listings.length ? (
+        <NextStep plan={plainPlan(listings)} auto={false} />
+      ) : null}
     </div>
   )
 }
@@ -444,10 +468,21 @@ function BrandAnswer({ group }: { group: InboxGroup }) {
 /* ------------------------------------------------------------------------- Redraft or check */
 
 /**
- * The step after an answer: redraft the listings (started at once when `auto`), or check them
- * again with the new facts. "Redraft the rest" resends only the ones that could not start.
+ * The step after an answer: redraft the listings that can be (started at once when `auto`), or
+ * check them again with the new facts (at once when `autoCheck`, before any redraft). The ones held
+ * show why. "Redraft the rest" resends only the ones that could not start.
  */
-function NextStep({ listingIds, auto }: { listingIds: readonly string[]; auto: boolean }) {
+function NextStep({
+  plan,
+  auto,
+  autoCheck = false,
+  members = [],
+}: {
+  plan: readonly RedraftPlanItem[]
+  auto: boolean
+  autoCheck?: boolean
+  members?: readonly GroupMember[]
+}) {
   const can = useCan()
   const aiPaused = useAiPaused()
   const canRedraft = can(OP_ACTION['POST /listings/{listing_id}/regenerate'])
@@ -455,12 +490,16 @@ function NextStep({ listingIds, auto }: { listingIds: readonly string[]; auto: b
   const redraft = useRedraft()
   const recheck = useRecheck()
   const [results, setResults] = useState<RedraftResult[] | null>(null)
-  const [checked, setChecked] = useState<{ failed: number; closed: number | null } | null>(null)
+  const [checked, setChecked] = useState<{ failed: number; closed: number | null; redrafting?: boolean } | null>(null)
   const [started, setStarted] = useState(false)
+  const listingIds = plan.map((p) => p.listingId)
+  const ready = plan.filter((p) => p.redraft)
+  const held = plan.filter((p) => !p.redraft)
+  const sectionsOf = new Map(plan.map((p) => [p.listingId, p.sections]))
 
   const start = async (ids: readonly string[]) => {
     setStarted(true)
-    const out = await redraft.run(ids)
+    const out = await redraft.run(ids.map((listingId) => ({ listingId, sections: sectionsOf.get(listingId) ?? [] })))
     setResults((prev) => {
       if (!prev) return out
       const next = new Map(prev.map((r) => [r.listingId, r]))
@@ -469,16 +508,30 @@ function NextStep({ listingIds, auto }: { listingIds: readonly string[]; auto: b
     })
   }
 
-  // Redraft right after the answer when it was ticked: once (the ref holds through a remount check).
+  // Right after the answer: check again first when asked, then redraft the ready ones when it was
+  // ticked. Once (the ref holds through a remount check).
   const autoRan = useRef(false)
   useEffect(() => {
-    if (!auto || autoRan.current || !canRedraft || aiPaused || !listingIds.length) return
+    if (autoRan.current) return
     autoRan.current = true
-    void start(listingIds)
+    const redraftNow = auto && canRedraft && !aiPaused && ready.length > 0
+    void (async () => {
+      // A listing being written is not checked now (its new draft is checked when it lands).
+      const checkIds = plan.filter((p) => p.reason !== 'busy').map((p) => p.listingId)
+      if (autoCheck && canCheck && checkIds.length) {
+        const out = await recheck.run(checkIds)
+        setChecked({ ...out, redrafting: redraftNow })
+      }
+      if (redraftNow) await start(ready.map((p) => p.listingId))
+    })()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, for the answer that mounted this step
   }, [])
 
   if (!listingIds.length) return null
+  const nameOf = (productId: string | null) => {
+    const m = productId ? members.find((x) => x.product_id === productId) : undefined
+    return [m?.sku, m?.title].filter(Boolean).join(' · ') || 'A listing'
+  }
   const summary = results ? redraftSummary(results) : null
   const running = !!redraft.progress
   return (
@@ -514,16 +567,29 @@ function NextStep({ listingIds, auto }: { listingIds: readonly string[]; auto: b
       ) : null}
       {checked ? (
         <p className="text-small text-ink" role="status" data-testid="group-recheck-result">
-          {recheckSummary(checked.closed)}
+          {recheckSummary(checked.closed, checked.redrafting)}
           {checked.failed ? ` Couldn’t check ${listingsWord(checked.failed)}.` : ''}
         </p>
       ) : null}
+      {held.length ? (
+        <div className="flex flex-col gap-1" data-testid="group-redraft-held">
+          <p className="text-small font-semibold text-ink">{held.length === 1 ? 'One listing waits' : `${n(held.length)} listings wait`}</p>
+          <ul className="flex list-none flex-col gap-0.5 text-small text-ink-2">
+            {held.slice(0, ROWS_SHOWN).map((h) => (
+              <li key={h.listingId} data-testid="group-held-row">
+                {nameOf(h.productId)}: {heldReason(h)}
+              </li>
+            ))}
+          </ul>
+          {held.length > ROWS_SHOWN ? <p className="text-caption text-ink-3">And {n(held.length - ROWS_SHOWN)} more.</p> : null}
+        </div>
+      ) : null}
       {!started && !running ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-          {canRedraft ? (
-            <Button disabled={aiPaused} onClick={() => void start(listingIds)} data-testid="group-redraft-now">
+          {canRedraft && ready.length ? (
+            <Button disabled={aiPaused} onClick={() => void start(ready.map((p) => p.listingId))} data-testid="group-redraft-now">
               <Icon name="refresh" size={16} />
-              Redraft {listingsWord(listingIds.length)}
+              Redraft {listingsWord(ready.length)}
             </Button>
           ) : null}
           {canCheck ? (
@@ -539,7 +605,7 @@ function NextStep({ listingIds, auto }: { listingIds: readonly string[]; auto: b
           ) : null}
         </div>
       ) : null}
-      {!started && canRedraft ? (
+      {!started && canRedraft && ready.length ? (
         <p className="text-caption text-ink-2">{aiPaused ? AI_PAUSED_REASON : 'Kuinn writes new drafts with your answer. Each one needs approval again.'}</p>
       ) : null}
     </div>

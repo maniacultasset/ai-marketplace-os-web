@@ -28,7 +28,19 @@ export type InboxGroups = Omit<RawGroups, 'groups'> & { groups: InboxGroup[] }
 export type GroupAnswerOut = Schema<'InboxGroupAnswerOut'>
 export type GroupSkipped = Schema<'SkippedOut'>
 export type SkipReason = GroupSkipped['reason']
-export type AffectedListing = Schema<'AffectedListingOut'>
+export type RedraftSection = NonNullable<Schema<'RegenerateRequest'>['sections']>[number]
+/** Why a listing is not redrafted now (backend `AffectedListingOut.reason`). */
+export type RedraftReason = 'other_questions_open' | 'busy' | 'paused'
+/**
+ * One affected listing. `reason` says why `redraft` is false, `open_questions` how many other
+ * questions it still waits on, `sections` the sections the answered fact feeds (regenerate only
+ * those, `for_answers: true`). Optional: an older backend sends only `redraft`.
+ */
+export type AffectedListing = Schema<'AffectedListingOut'> & {
+  reason?: RedraftReason | null
+  open_questions?: number | null
+  sections?: RedraftSection[] | null
+}
 export type GroupScope = InboxGroup['scope']
 export type AnswerScalar = Schema<'InboxGroupAnswerIn'>['value']
 type InboxCounts = Schema<'HomeSummaryOut'>['inbox']
@@ -182,6 +194,64 @@ export function redraftTargets(listings: readonly AffectedListing[]): string[] {
   return [...new Set(listings.filter((l) => l.redraft).map((l) => l.listing_id))]
 }
 
+/** One listing in the step after an answer: redrafted now (`redraft`), or held with a reason. */
+export type RedraftPlanItem = {
+  listingId: string
+  productId: string | null
+  redraft: boolean
+  reason: RedraftReason | null
+  openQuestions: number | null
+  sections: RedraftSection[]
+}
+
+/**
+ * The step after an answer, from the backend's affected listings: redraft on only where `redraft`
+ * is true; a held one shows its reason; a listing never written (no reason) is left out.
+ */
+export function redraftPlan(listings: readonly AffectedListing[]): RedraftPlanItem[] {
+  const out = new Map<string, RedraftPlanItem>()
+  for (const l of listings) {
+    if (!l.redraft && !l.reason) continue
+    out.set(l.listing_id, {
+      listingId: l.listing_id,
+      productId: l.product_id,
+      redraft: l.redraft,
+      reason: l.redraft ? null : (l.reason ?? null),
+      openQuestions: l.open_questions ?? null,
+      sections: l.sections ?? [],
+    })
+  }
+  return [...out.values()]
+}
+
+/** Listings that can be redrafted with no more to know (a full regenerate). */
+export const plainPlan = (listingIds: readonly string[]): RedraftPlanItem[] =>
+  [...new Set(listingIds)].map((listingId) => ({ listingId, productId: null, redraft: true, reason: null, openQuestions: null, sections: [] }))
+
+/**
+ * The plan for a listing read after a brand-wide save (GET /listings/{id}): never written is left
+ * out, one being written is held as busy, the AI pause holds the rest; the sections are the ones
+ * the new answers feed (`affected_sections`).
+ */
+export function listingPlan(
+  l: { id: string; product_id: string; status: string; affected_sections?: RedraftSection[] | null },
+  aiPaused: boolean,
+): RedraftPlanItem | null {
+  if (l.status === 'created') return null
+  const busy = l.status === 'generating'
+  const reason: RedraftReason | null = busy ? 'busy' : aiPaused ? 'paused' : null
+  return { listingId: l.id, productId: l.product_id, redraft: !reason, reason, openQuestions: null, sections: l.affected_sections ?? [] }
+}
+
+/** Why a listing waits, in words. */
+export function heldReason(item: Pick<RedraftPlanItem, 'reason' | 'openQuestions'>): string {
+  if (item.reason === 'busy') return 'Already drafting.'
+  if (item.reason === 'paused') return 'AI drafting is paused.'
+  const q = item.openQuestions
+  const open = q && q > 0 ? `${n(q)} ${q === 1 ? 'question' : 'questions'}` : 'questions'
+  return `Still has ${open} open. Kuinn redrafts it when they’re answered.`
+}
+
 /** A brand-wide value reaches the products without their own: their listings, deduplicated. */
 export function brandListings(members: readonly GroupMember[]): string[] {
   return [...new Set(members.filter((m) => !m.has_value).flatMap((m) => m.listing_ids))]
@@ -234,10 +304,12 @@ export function redraftSummary(results: readonly RedraftResult[]): { started: st
 
 /**
  * After a re-check: `closed` is how many Inbox items the checks closed (the summary's open items
- * before less after), or null when that is unknown.
+ * before less after), or null when that is unknown. `redrafting`: the redrafts start next, so no
+ * prompt to redraft.
  */
-export function recheckSummary(closed: number | null): string {
+export function recheckSummary(closed: number | null, redrafting = false): string {
   if (closed === null) return 'Checked again.'
-  if (closed <= 0) return 'Checked again. Nothing closed yet. Redraft the listings to use your answer.'
-  return `Checked again. ${n(closed)} ${closed === 1 ? 'item is' : 'items are'} done. Redraft the rest to use your answer.`
+  if (closed <= 0) return redrafting ? 'Checked again.' : 'Checked again. Nothing closed yet. Redraft the listings to use your answer.'
+  const done = `Checked again. ${n(closed)} ${closed === 1 ? 'item is' : 'items are'} done.`
+  return redrafting ? done : `${done} Redraft the rest to use your answer.`
 }

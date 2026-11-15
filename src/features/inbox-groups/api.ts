@@ -8,7 +8,10 @@
  *                                                  skipped, listings; 422 at task_ids[i], group or
  *                                                  value; 501 when the switch is off.
  *   POST /listings/{id}/regenerate                 via regenerateBody (listing:regenerate; one key
- *                                                  per listing; B19: 202 waiting_for_slot past the cap)
+ *                                                  per listing; B19: 202 waiting_for_slot past the cap).
+ *                                                  The sections the answer feeds with for_answers: true;
+ *                                                  the whole listing only when none are given.
+ *   GET  /listings/{id}                            after a brand-wide save: status and affected_sections.
  *   POST /listings/validate                        listing:edit; a failed check is still 200.
  *
  * The groups read sits under `tasks.all()`, so every answer, close or regenerate that refreshes the
@@ -27,7 +30,18 @@ import { invalidateListingWork, regenerateBody } from '@/features/listings/api'
 import { isWaitingForSlot, type JobAccepted } from '@/features/products-add/generate'
 import type { InboxView } from '@/features/home-inbox/model'
 import { useKeys } from '@/lib/query-keys'
-import { chunks, mergeAnswers, normalizeGroups, type AnswerScalar, type GroupAnswerOut, type RedraftOutcome, type RedraftResult } from './model'
+import {
+  chunks,
+  listingPlan,
+  mergeAnswers,
+  normalizeGroups,
+  type AnswerScalar,
+  type GroupAnswerOut,
+  type RedraftOutcome,
+  type RedraftPlanItem,
+  type RedraftResult,
+  type RedraftSection,
+} from './model'
 
 export const inboxGroupsKey = (keys: ReturnType<typeof useKeys>, view: InboxView) => [...keys.tasks.all(), 'inbox-groups', view] as const
 
@@ -116,34 +130,52 @@ export function redraftOutcome(error: unknown): { outcome: RedraftOutcome; stop:
   return { outcome: 'failed', stop: false }
 }
 
-export type RegenerateSend = (listingId: string, key: string) => Promise<Pick<JobAccepted, 'status' | 'waiting_for_slot'>>
+export type RegenerateSend = (
+  listingId: string,
+  key: string,
+  sections: readonly RedraftSection[],
+) => Promise<Pick<JobAccepted, 'status' | 'waiting_for_slot'>>
+/** A listing to redraft: only `sections` (for the answers), or the whole listing when empty. */
+export type RedraftTarget = { listingId: string; sections: readonly RedraftSection[] }
 
-const regenerateOne: RegenerateSend = (listingId, key) =>
+export const regenerateOne: RegenerateSend = (listingId, key, sections) =>
   unwrap(
     api.POST('/listings/{listing_id}/regenerate', {
       params: { path: { listing_id: listingId }, header: idempotencyHeader(key) },
-      body: regenerateBody(null),
+      body: regenerateBody(null, sections, true),
     }),
   )
+
+/** The plan for listings after a brand-wide save, read one by one (pool of 3); an unreadable one is left out. */
+export async function fetchListingPlan(listingIds: readonly string[], aiPaused: boolean): Promise<RedraftPlanItem[]> {
+  const out = await pool(listingIds, async (listing_id) => {
+    try {
+      return listingPlan(await unwrap(api.GET('/listings/{listing_id}', { params: { path: { listing_id } } })), aiPaused)
+    } catch {
+      return null
+    }
+  })
+  return out.filter((x): x is RedraftPlanItem => !!x)
+}
 
 /**
  * Redraft each listing (pool of 3), one Idempotency-Key per listing kept for this screen: "Redraft
  * the rest" after a 429 resends the same keys, and a listing already started replays its job.
  */
 export async function redraftMany(
-  listingIds: readonly string[],
+  targets: readonly RedraftTarget[],
   keyFor: (listingId: string) => string,
   send: RegenerateSend = regenerateOne,
   onProgress?: (done: number) => void,
 ): Promise<RedraftResult[]> {
   let stop: RedraftOutcome | null = null
   let done = 0
-  return pool(listingIds, async (listingId) => {
+  return pool(targets, async ({ listingId, sections }) => {
     let outcome: RedraftOutcome
     if (stop) outcome = stop
     else
       try {
-        const job = await send(listingId, keyFor(listingId))
+        const job = await send(listingId, keyFor(listingId), sections)
         outcome = isWaitingForSlot(job) ? 'waiting' : 'accepted'
       } catch (error) {
         const r = redraftOutcome(error)
@@ -162,7 +194,8 @@ export function useRedraft() {
   const keyRef = useRef(new Map<string, string>())
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const run = useCallback(
-    async (listingIds: readonly string[]) => {
+    async (targets: readonly RedraftTarget[]) => {
+      const listingIds = targets.map((t) => t.listingId)
       const keyFor = (id: string) => {
         let k = keyRef.current.get(id)
         if (!k) keyRef.current.set(id, (k = newIdempotencyKey()))
@@ -170,7 +203,7 @@ export function useRedraft() {
       }
       setProgress({ done: 0, total: listingIds.length })
       try {
-        return await redraftMany(listingIds, keyFor, regenerateOne, (done) => setProgress({ done, total: listingIds.length }))
+        return await redraftMany(targets, keyFor, regenerateOne, (done) => setProgress({ done, total: listingIds.length }))
       } finally {
         setProgress(null)
         invalidateListingWork(qc, keys, listingIds)

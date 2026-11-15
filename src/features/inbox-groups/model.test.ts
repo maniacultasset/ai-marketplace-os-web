@@ -15,6 +15,9 @@ import {
   mergeAnswers,
   normalizeGroups,
   recheckSummary,
+  heldReason,
+  listingPlan,
+  redraftPlan,
   redraftSummary,
   redraftTargets,
   singleItem,
@@ -187,15 +190,63 @@ describe('redraft', () => {
       if (id === 'limit') throw err(429, 'RATE_LIMITED')
       return { status: id === 'wait' ? ('queued' as const) : ('running' as const), waiting_for_slot: id === 'wait' }
     }
-    const out = await redraftMany(['ok', 'wait', 'busy', 'bad'], (id) => `k-${id}`, send)
+    const t = (...ids: string[]) => ids.map((listingId) => ({ listingId, sections: [] }))
+    const out = await redraftMany(t('ok', 'wait', 'busy', 'bad'), (id) => `k-${id}`, send)
     expect(out.map((r) => r.outcome)).toEqual(['accepted', 'waiting', 'busy', 'failed'])
     expect(sent).toEqual(['ok:k-ok', 'wait:k-wait', 'busy:k-busy', 'bad:k-bad'])
     // A 429 first: the two already in flight finish, nothing else is sent.
     sent.length = 0
-    const limited = await redraftMany(['limit', 'ok', 'wait', 'after1', 'after2'], (id) => `k-${id}`, send)
+    const limited = await redraftMany(t('limit', 'ok', 'wait', 'after1', 'after2'), (id) => `k-${id}`, send)
     expect(limited.map((r) => r.outcome)).toEqual(['limited', 'accepted', 'waiting', 'limited', 'limited'])
     expect(sent.some((x) => x.startsWith('after'))).toBe(false)
     expect(redraftOutcome(err(409, 'LISTING_BUSY'))).toEqual({ outcome: 'busy', stop: false })
     expect(redraftOutcome(err(402, 'AI_CREDIT_EXHAUSTED'))).toEqual({ outcome: 'failed', stop: true })
+  })
+
+  it('passes each listing its sections', async () => {
+    const seen: string[] = []
+    const send = async (id: string, _key: string, sections: readonly string[]) => {
+      seen.push(`${id}:${sections.join(',')}`)
+      return { status: 'running' as const, waiting_for_slot: false }
+    }
+    await redraftMany([{ listingId: 'a', sections: ['attributes', 'bullets'] }, { listingId: 'b', sections: [] }], (id) => id, send)
+    expect(seen).toEqual(['a:attributes,bullets', 'b:'])
+  })
+})
+
+describe('redraft plan', () => {
+  const base = { product_id: U(101), marketplace: 'amazon' as const, status: 'approved' }
+  it('redrafts only the ready ones, holds the others with a reason, leaves out never written', () => {
+    const plan = redraftPlan([
+      { ...base, listing_id: U(201), redraft: true, sections: ['attributes'] },
+      { ...base, listing_id: U(202), redraft: false, reason: 'other_questions_open', open_questions: 3 },
+      { ...base, listing_id: U(203), redraft: false, reason: 'busy' },
+      { ...base, listing_id: U(204), redraft: false, reason: 'paused' },
+      { ...base, listing_id: U(205), redraft: false, status: 'created' },
+      { ...base, listing_id: U(206), redraft: true },
+    ])
+    expect(plan.map((p) => [p.listingId, p.redraft, p.reason, p.sections])).toEqual([
+      [U(201), true, null, ['attributes']],
+      [U(202), false, 'other_questions_open', []],
+      [U(203), false, 'busy', []],
+      [U(204), false, 'paused', []],
+      [U(206), true, null, []],
+    ])
+    expect(plan.map((p) => (p.redraft ? null : heldReason(p)))).toEqual([
+      null,
+      'Still has 3 questions open. Kuinn redrafts it when they’re answered.',
+      'Already drafting.',
+      'AI drafting is paused.',
+      null,
+    ])
+    expect(heldReason({ reason: 'other_questions_open', openQuestions: 1 })).toBe('Still has 1 question open. Kuinn redrafts it when they’re answered.')
+  })
+
+  it('a listing read after a brand save: by status and the AI pause', () => {
+    const l = { id: U(201), product_id: U(101), status: 'approved', affected_sections: ['attributes' as const] }
+    expect(listingPlan(l, false)).toMatchObject({ redraft: true, reason: null, sections: ['attributes'] })
+    expect(listingPlan({ ...l, status: 'generating' }, false)).toMatchObject({ redraft: false, reason: 'busy' })
+    expect(listingPlan(l, true)).toMatchObject({ redraft: false, reason: 'paused' })
+    expect(listingPlan({ ...l, status: 'created' }, false)).toBeNull()
   })
 })

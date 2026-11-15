@@ -7,9 +7,10 @@ import type { Action } from '@/lib/permissions'
 import type { GroupMember, InboxGroup } from './model'
 
 const post = vi.fn()
+const get = vi.fn()
 const can = vi.hoisted(() => ({ actions: new Set<string>() }))
 const ai = vi.hoisted(() => ({ paused: false }))
-vi.mock('@/api/client', async (orig) => ({ ...(await orig<typeof import('@/api/client')>()), api: { POST: (...a: unknown[]) => post(...a) } }))
+vi.mock('@/api/client', async (orig) => ({ ...(await orig<typeof import('@/api/client')>()), api: { POST: (...a: unknown[]) => post(...a), GET: (...a: unknown[]) => get(...a) } }))
 vi.mock('@/lib/auth', async (orig) => ({ ...(await orig<typeof import('@/lib/auth')>()), useSession: () => ({ tenantId: 't1' }) }))
 vi.mock('@/lib/permissions', async (orig) => ({ ...(await orig<typeof import('@/lib/permissions')>()), useCan: () => (a: string) => can.actions.has(a) }))
 vi.mock('@/features/ai-credit/use-ai-paused', () => ({ useAiPaused: () => ai.paused }))
@@ -95,6 +96,7 @@ beforeEach(() => {
   // The Radix checkbox measures itself; jsdom has no ResizeObserver.
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
   post.mockReset()
+  get.mockReset()
   can.actions = new Set(OWNER)
   ai.paused = false
 })
@@ -110,7 +112,13 @@ describe('GroupDetail, one answer for many products', () => {
             { task_id: U(1002), product_id: U(102) },
           ],
           skipped: [],
-          listings: [listing(1), listing(2), listing(4, false)],
+          listings: [
+            { ...listing(1), sections: ['attributes', 'bullets'] },
+            listing(2),
+            listing(4, false),
+            { ...listing(5, false), reason: 'other_questions_open', open_questions: 3 },
+            { ...listing(6, false), reason: 'busy' },
+          ],
         })
       const id = init.params?.path?.listing_id
       return id === U(201) ? ok(job(false), 202) : ok(job(true), 202)
@@ -138,12 +146,19 @@ describe('GroupDetail, one answer for many products', () => {
     expect(screen.getByTestId('group-result-line').textContent).toBe('Saved for 2 products. 1 already had a value and was kept.')
     expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ key: 't|missing_fact|facts.gender|503f4d45ede0' }), 'Saved for 2 products. 1 already had a value and was kept.')
 
-    // Only the listings the backend says can be written again, one key each.
+    // Only the listings the backend says can be written again, one key each; the sections the
+    // answer feeds when given, else the whole listing.
     await screen.findByTestId('group-redraft-started')
     const regens = calls('/listings/{listing_id}/regenerate')
     expect(regens.map((c) => c.params!.path!.listing_id)).toEqual([U(201), U(202)])
     expect(new Set(regens.map((c) => c.params!.header!['Idempotency-Key'])).size).toBe(2)
-    expect(regens[0]!.body).toEqual({})
+    expect(regens[0]!.body).toEqual({ sections: ['attributes', 'bullets'], for_answers: true })
+    expect(regens[1]!.body).toEqual({})
+    // The others say why they wait; a listing never written is left out.
+    expect(screen.getAllByTestId('group-held-row').map((r) => r.textContent)).toEqual([
+      'A listing: Still has 3 questions open. Kuinn redrafts it when they’re answered.',
+      'A listing: Already drafting.',
+    ])
     expect(screen.getByTestId('group-redraft-started').textContent).toBe('Redrafting 2 listings. 1 is waiting for a free slot.')
   })
 
@@ -237,18 +252,60 @@ describe('GroupDetail, other scopes', () => {
   const brand = (over: Partial<InboxGroup> = {}) =>
     group({ key: 't|missing_fact|facts.manufacturer|cae91fb30742', scope: 'brand', field: 'manufacturer', answer: { kind: 'text' }, ...over })
 
-  it('brand, not set: the brand card, then redraft of the listings without their own value', async () => {
-    post.mockImplementation(() => ok(job(false), 202))
-    setup(brand())
+  const detail = (i: number, status = 'approved', affected_sections: string[] = ['attributes']) => ({ id: U(200 + i), product_id: U(100 + i), status, affected_sections })
+  const brandApi = (statuses: Record<string, string>) => {
+    get.mockImplementation((_path: string, init: Init) => {
+      const id = init.params!.path!.listing_id!
+      const i = Number(id.slice(-3)) - 200
+      return ok(detail(i, statuses[id] ?? 'approved'))
+    })
+    post.mockImplementation((path: string) => (path === '/listings/validate' ? ok({ passed: true }) : ok(job(false), 202)))
+  }
+
+  it('brand, not set: after the save, checks again and redrafts the ready listings at once', async () => {
+    brandApi({ [U(202)]: 'generating' })
+    setup(brand({ members: [member(1), member(2), member(3, { has_value: true }), member(4)] }))
     expect(screen.getByTestId('group-title').textContent).toBe('3 products need a manufacturer')
     expect(screen.getByTestId('group-brand-unset').textContent).toBe('Set the manufacturer once for the brand. Every product uses it unless it has its own.')
     expect(screen.queryByTestId('group-redraft-now')).toBeNull()
     fireEvent.click(screen.getByTestId('manufacturer-save'))
     expect(screen.getByTestId('group-brand-set').textContent).toBe('Your brand manufacturer is set. These listings were written before that. Redraft them to use it.')
-    fireEvent.click(screen.getByTestId('group-redraft-now'))
     await screen.findByTestId('group-redraft-started')
-    // The kept product (its own manufacturer) is left out.
-    expect(calls('/listings/{listing_id}/regenerate').map((c) => c.params!.path!.listing_id)).toEqual([U(201), U(202)])
+    // The kept product (its own manufacturer) is left out; each listing's status is read first.
+    expect(get.mock.calls.map((c) => (c[1] as Init).params!.path!.listing_id)).toEqual([U(201), U(202), U(204)])
+    expect(calls('/listings/validate').map((c) => c.body!.listing_id)).toEqual([U(201), U(204)])
+    // The one being written waits; the others get their sections only.
+    const regens = calls('/listings/{listing_id}/regenerate')
+    expect(regens.map((c) => c.params!.path!.listing_id)).toEqual([U(201), U(204)])
+    expect(regens[0]!.body).toEqual({ sections: ['attributes'], for_answers: true })
+    expect(screen.getByTestId('group-redraft-started').textContent).toBe('Redrafting 2 listings.')
+    expect(screen.getAllByTestId('group-held-row').map((r) => r.textContent)).toEqual(['KTEST-002 · Kurta 2: Already drafting.'])
+    expect(screen.getByTestId('group-recheck-result').textContent).toBe('Checked again.')
+  })
+
+  it('brand save with the AI paused: checks again, redrafts nothing, says why', async () => {
+    ai.paused = true
+    brandApi({})
+    setup(brand())
+    fireEvent.click(screen.getByTestId('manufacturer-save'))
+    await screen.findByTestId('group-recheck-result')
+    expect(calls('/listings/validate')).toHaveLength(2)
+    expect(calls('/listings/{listing_id}/regenerate')).toHaveLength(0)
+    expect(screen.getAllByTestId('group-held-row').map((r) => r.textContent)).toEqual([
+      'KTEST-001 · Kurta 1: AI drafting is paused.',
+      'KTEST-002 · Kurta 2: AI drafting is paused.',
+    ])
+  })
+
+  it('brand save without listing:regenerate: checks again only', async () => {
+    can.actions = new Set(['tenant:read', 'listing:edit', 'settings:manage'])
+    brandApi({})
+    setup(brand())
+    fireEvent.click(screen.getByTestId('manufacturer-save'))
+    await screen.findByTestId('group-recheck-result')
+    await waitFor(() => expect(calls('/listings/validate')).toHaveLength(2))
+    expect(calls('/listings/{listing_id}/regenerate')).toHaveLength(0)
+    expect(screen.queryByTestId('group-redraft-now')).toBeNull()
   })
 
   it('brand, someone who cannot edit it: a read-only note', () => {
