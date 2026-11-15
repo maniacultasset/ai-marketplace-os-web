@@ -101,22 +101,26 @@ test.describe('home', () => {
 })
 
 test.describe('inbox', () => {
-  test('counts and list match GET /tasks and GET /issues', async ({ page }) => {
+  test('counts match GET /home/summary inbox and the list matches GET /tasks and GET /issues', async ({ page }) => {
     const { access_token } = await apiLogin(page.request, USERS.acme.owner)
-    const [t, i] = await Promise.all([
+    const [t, i, s] = await Promise.all([
       page.request.get('/api/v1/tasks?limit=50', { headers: auth(access_token) }),
       page.request.get('/api/v1/issues?limit=50', { headers: auth(access_token) }),
+      page.request.get('/api/v1/home/summary', { headers: auth(access_token) }),
     ])
     const tasks = (await t.json()) as PageBody<{ id: string }>
-    const issues = (await i.json()) as PageBody<{ id: string }>
-    const n = tasks.data.length + issues.data.length
-    const more = tasks.page.has_more || issues.page.has_more
+    const issues = (await i.json()) as PageBody<{ human_task_id?: string | null }>
+    const { inbox } = (await s.json()) as { inbox: { open_items: number } }
+    // An issue linked to an open question shows once, as the question.
+    const ids = new Set(tasks.data.map((x) => x.id))
+    const shown = tasks.data.length + issues.data.filter((x) => !x.human_task_id || !ids.has(x.human_task_id)).length
 
     await loginAs(page, USERS.acme.owner, '/inbox')
     await expect(page.getByRole('heading', { name: 'Inbox', level: 1 })).toBeVisible()
-    await expect(page.getByTestId('inbox-open-count')).toHaveText(`${n}${more ? '+' : ''} open`)
-    if (n === 0 && !more) await expect(page.getByTestId('inbox-empty')).toBeVisible()
-    else await expect(page.getByTestId('inbox-item')).toHaveCount(n)
+    // B28: the exact count at any volume, the same number the sidebar badge reads.
+    await expect(page.getByTestId('inbox-open-count')).toHaveText(`${inbox.open_items.toLocaleString('en-IN')} open`)
+    if (inbox.open_items === 0) await expect(page.getByTestId('inbox-empty')).toBeVisible()
+    else await expect(page.getByTestId('inbox-item')).toHaveCount(shown)
   })
 
   test('views and statuses live in the URL and query the API', async ({ page }) => {
@@ -222,22 +226,15 @@ test.describe('inbox', () => {
     }
   })
 
-  test('sidebar badge matches the first page of open issues and tasks', async ({ page }) => {
+  test('sidebar badge matches the Inbox count from GET /home/summary on any page', async ({ page }) => {
     const { access_token } = await apiLogin(page.request, USERS.acme.owner)
-    const [i, t] = await Promise.all([
-      page.request.get('/api/v1/issues?limit=50', { headers: auth(access_token) }),
-      page.request.get('/api/v1/tasks?limit=50', { headers: auth(access_token) }),
-    ])
-    const issues = (await i.json()) as PageBody<{ human_task_id?: string | null }>
-    const tasks = (await t.json()) as PageBody<{ id: string }>
-    // An issue linked to an open question counts once, as the question.
-    const open = new Set(tasks.data.map((x) => x.id))
-    const n = issues.data.filter((x) => !x.human_task_id || !open.has(x.human_task_id)).length + tasks.data.length
-    const more = issues.page.has_more || tasks.page.has_more
+    const res = await page.request.get('/api/v1/home/summary', { headers: auth(access_token) })
+    const n = ((await res.json()) as { inbox: { open_items: number } }).inbox.open_items
     await loginAs(page, USERS.acme.owner, '/products')
     const badge = page.getByTestId('inbox-nav-badge')
-    if (n === 0 && !more) await expect(badge).toHaveCount(0)
-    else await expect(badge).toHaveText(n > 99 ? '99+' : more ? `${n}+` : String(n))
+    // B28: one count, one cap ("99+"), never a first-page "50+".
+    if (n === 0) await expect(badge).toHaveCount(0)
+    else await expect(badge).toHaveText(n > 99 ? '99+' : String(n))
   })
 })
 

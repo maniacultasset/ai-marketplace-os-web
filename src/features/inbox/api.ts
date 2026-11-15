@@ -13,9 +13,6 @@ import { PAGE_SIZE, useCursorList } from '@/hooks/use-cursor-list'
 import { useKeys, type IssuesFilters, type QueryKeys, type TaskStatus } from '@/lib/query-keys'
 import type { Issue, Task } from './model'
 
-/** Sidebar badge refresh: cheap first-page refetch while the tab is visible. */
-export const BADGE_REFRESH_MS = 120_000
-
 export function fetchIssuesPage(f: IssuesFilters, cursor: string | undefined) {
   return unwrap(
     api.GET('/issues', {
@@ -39,8 +36,8 @@ export function fetchTasksPage(status: TaskStatus, cursor: string | undefined) {
 }
 
 /** GET /home/summary's cache entry (under `listings.lists()`, so listing mutations refresh it). Its
- * `inbox` counts back the sidebar badge and the Inbox tabs (B16): an issue or task mutation
- * refreshes it too. */
+ * `inbox` counts are the sidebar badge and the Inbox tabs (B16, B28): any invalidation of
+ * issues or tasks refreshes it too (`createQueryClient`). */
 export const homeSummaryKey = (keys: QueryKeys) => [...keys.listings.lists(), 'home-summary'] as const
 
 export function useIssuesList(f: IssuesFilters, opts: { enabled?: boolean; refetchInterval?: number | false } = {}) {

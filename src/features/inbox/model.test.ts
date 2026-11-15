@@ -3,12 +3,11 @@ import openapi from '@/api/openapi.json'
 import { ApiError, type ApiErrorType } from '@/api/errors'
 import { OP_ACTION, allows } from '@/lib/permissions'
 import {
-  badgeLabel,
+  badgeFromCounts,
   inboxCaption,
   inboxCounts,
   canDismiss,
   dismissFailure,
-  countLabel,
   ERROR_CODES,
   hasIssueFilters,
   issuesFiltersFrom,
@@ -17,6 +16,7 @@ import {
   ISSUE_STATUSES,
   issueHeadline,
   issuesMeta,
+  listsNewerThanSummary,
   MARKETPLACES,
   RESOLUTION_LABEL,
   severitySplit,
@@ -76,25 +76,25 @@ describe('inboxSearchSchema', () => {
 })
 
 describe('counts from loaded data', () => {
-  const page = (n: number, has_more: boolean) => ({
-    data: Array.from({ length: n }, (_, i) => ({ id: `x${i}`, human_task_id: null })),
-    page: { next_cursor: has_more ? 'c' : null, has_more, limit: 50 },
-  })
-  it('countLabel', () => {
-    expect(countLabel(0, false)).toBe('0')
-    expect(countLabel(50, true)).toBe('50+')
-  })
-  it('badgeLabel', () => {
-    expect(badgeLabel(undefined, undefined)).toBeNull()
-    expect(badgeLabel(page(0, false), page(0, false))).toBeNull()
-    expect(badgeLabel(page(3, false), undefined)).toBe('3')
-    expect(badgeLabel(page(3, false), page(2, false))).toBe('5')
-    expect(badgeLabel(page(50, true), page(0, false))).toBe('50+')
-    expect(badgeLabel(page(50, true), page(50, true))).toBe('99+')
+  const rows = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `x${i}`, human_task_id: null }))
+  it('badgeFromCounts: the All count, "99+" past 99, hidden at zero or unknown', () => {
+    expect(badgeFromCounts(null)).toBeNull()
+    expect(badgeFromCounts(inboxCounts([], false, [], false))).toBeNull()
+    expect(badgeFromCounts(inboxCounts([], false, rows(3), false))).toBe('3')
+    expect(badgeFromCounts(inboxCounts(rows(2), false, rows(3), false))).toBe('5')
+    expect(badgeFromCounts(inboxCounts(rows(50), false, rows(49), false))).toBe('99')
+    expect(badgeFromCounts(inboxCounts(rows(50), false, rows(50), false))).toBe('99+')
     // An issue linked to an open question counts once.
-    const tasks = { data: [{ id: 't1' }], page: { has_more: false } }
-    const issues = { data: [{ human_task_id: 't1' }, { human_task_id: 'gone' }, { human_task_id: null }], page: { has_more: false } }
-    expect(badgeLabel(issues as never, tasks as never)).toBe('3')
+    expect(badgeFromCounts(inboxCounts([{ id: 't1' }], false, [{ human_task_id: 't1' }, { human_task_id: 'gone' }, { human_task_id: null }], false))).toBe('3')
+  })
+  it('listsNewerThanSummary: both lists complete and one read after the summary', () => {
+    const r = (complete: boolean, at: number) => ({ complete, at })
+    expect(listsNewerThanSummary(0, r(true, 5), r(true, 5))).toBe(true) // no summary yet
+    expect(listsNewerThanSummary(10, r(true, 20), r(true, 5))).toBe(true) // a task closed
+    expect(listsNewerThanSummary(10, r(true, 5), r(true, 20))).toBe(true) // an issue dismissed
+    expect(listsNewerThanSummary(10, r(true, 5), r(true, 10))).toBe(false) // the summary is newest
+    expect(listsNewerThanSummary(10, r(false, 20), r(true, 20))).toBe(false) // more pages: never
+    expect(listsNewerThanSummary(10, r(true, 20), r(false, 20))).toBe(false)
   })
   it('severitySplit and issuesMeta', () => {
     const s = severitySplit([{ severity: 'error' }, { severity: 'warning' }, { severity: 'warning' }])
@@ -166,33 +166,50 @@ describe('Inbox counts (client pass 2, B16)', () => {
   const issues = [...tasks.slice(0, 22).map((t) => ({ human_task_id: t.id })), ...tasks.slice(0, 3).map((t) => ({ human_task_id: t.id })), { human_task_id: null }, { human_task_id: 'gone' }]
   it('All is questions plus the issues no question stands for; Issues lists every issue', () => {
     const c = inboxCounts(tasks, false, issues, false)
-    expect(c.open).toEqual({ n: 21, more: false })
-    expect(c.questions).toEqual({ n: 19, more: false })
-    expect(c.issues).toEqual({ n: 24, more: false })
+    expect(c?.open).toEqual({ n: 21, more: false })
+    expect(c?.questions).toEqual({ n: 19, more: false })
+    expect(c?.issues).toEqual({ n: 24, more: false })
     expect(inboxCaption(c)).toBe('21 open items: 19 questions, 2 issues without a question')
-    expect(badgeLabel({ data: issues, page: { has_more: false } } as never, { data: tasks, page: { has_more: false } } as never)).toBe('21')
-  })
-  it('past one page, the backend exact counts replace "50+" for the badge and every tab', () => {
-    const exact = { open_items: 130, questions: 70, blocking_questions: 40, issues: 90, issues_without_question: 60 }
-    const c = inboxCounts(tasks, true, issues, false, exact)
-    expect(c).toEqual({ open: { n: 130, more: false }, questions: { n: 70, more: false }, issues: { n: 90, more: false }, alone: { n: 60, more: false } })
-    expect(badgeLabel({ data: issues, page: { has_more: false } } as never, { data: tasks, page: { has_more: true } } as never, exact)).toBe('99+')
-    // without the exact counts yet: the loaded rows with "+"
-    expect(inboxCounts(tasks, true, issues, false).open).toEqual({ n: 21, more: true })
+    expect(badgeFromCounts(c)).toBe('21')
   })
   it('the caption names each part in the singular and hides at zero', () => {
     expect(inboxCaption(inboxCounts([{ id: 'a' }], false, [{ human_task_id: 'a' }], false))).toBe('1 open item: 1 question')
     expect(inboxCaption(inboxCounts([], false, [{ human_task_id: null }], false))).toBe('1 open item: 1 issue without a question')
     expect(inboxCaption(inboxCounts([], false, [], false))).toBeNull()
+    expect(inboxCaption(null)).toBeNull()
   })
 })
 
-describe('Inbox counts with more questions to read (B16 review)', () => {
-  it('the issues without a question are uncertain while the questions have more pages', () => {
-    const tasks = Array.from({ length: 50 }, (_, i) => ({ id: `t${i}` }))
-    const issues = Array.from({ length: 10 }, (_, i) => ({ human_task_id: `later${i}` }))
-    const c = inboxCounts(tasks, true, issues, false)
-    expect(c.alone).toEqual({ n: 10, more: true })
-    expect(inboxCaption(c)).toBe('60+ open items: 50+ questions, 10+ issues without a question')
+describe('Inbox counts above one page (B28)', () => {
+  // Prod 15 Nov, after a bulk draft of 34 products: the Inbox said 312 while the badge said "50+",
+  // then "74+", read from the first pages of 50 while the summary had not answered.
+  const exact = { open_items: 312, questions: 130, blocking_questions: 90, issues: 230, issues_without_question: 182 }
+  const tasks = Array.from({ length: 50 }, (_, i) => ({ id: `t${i}` }))
+  const issues = [...tasks.slice(0, 26).map((t) => ({ human_task_id: t.id })), ...Array.from({ length: 24 }, () => ({ human_task_id: null }))]
+
+  it('the backend counts are the numbers, whatever the loaded pages hold', () => {
+    const c = inboxCounts(tasks, true, issues, true, exact)
+    expect(c).toEqual({ open: { n: 312, more: false }, questions: { n: 130, more: false }, issues: { n: 230, more: false }, alone: { n: 182, more: false } })
+    expect(inboxCaption(c)).toBe('312 open items: 130 questions, 182 issues without a question')
+    // complete lists that lag the summary still show the summary's numbers
+    expect(inboxCounts(tasks.slice(0, 3), false, [], false, exact)?.open.n).toBe(312)
+  })
+
+  it('a partial page is never a count: no "50+" or "74+" while the summary is loading', () => {
+    expect(inboxCounts(tasks, true, issues, true)).toBeNull()
+    expect(inboxCounts(tasks, true, issues, false)).toBeNull()
+    expect(inboxCounts(tasks.slice(0, 5), false, issues, true)).toBeNull()
+    expect(inboxCounts(null, false, issues, false)).toBeNull()
+    expect(badgeFromCounts(inboxCounts(tasks, true, issues, true))).toBeNull()
+  })
+
+  it('the badge and the Inbox header read the same count, capped once at "99+"', () => {
+    // the badge passes no rows (it reads the summary only), the Inbox page passes its pages
+    const badge = inboxCounts(null, false, null, false, exact)
+    const header = inboxCounts(tasks, true, issues, true, exact)
+    expect(badge).toEqual(header)
+    expect(badgeFromCounts(badge)).toBe('99+')
+    expect(badgeFromCounts(inboxCounts(null, false, null, false, { ...exact, open_items: 99 }))).toBe('99')
+    expect(badgeFromCounts(inboxCounts(null, false, null, false, { ...exact, open_items: 0 }))).toBeNull()
   })
 })

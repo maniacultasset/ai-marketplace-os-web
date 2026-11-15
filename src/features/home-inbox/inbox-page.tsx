@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useIssuesList, useTasksList } from '@/features/inbox/api'
-import { inboxCaption, inboxCounts, ISSUE_STATUS_LABEL, MARKETPLACE_LABEL, TASK_STATUS_LABEL, type Issue } from '@/features/inbox/model'
+import { inboxCaption, inboxCounts, ISSUE_STATUS_LABEL, listsNewerThanSummary, MARKETPLACE_LABEL, TASK_STATUS_LABEL, type Issue } from '@/features/inbox/model'
 import { fieldLabel } from '@/features/listing-flow/format'
 import type { AnswerOutcome } from '@/features/photo-facts/answer-card'
 import { useMediaQuery } from '@/lib/use-media-query'
@@ -47,7 +47,7 @@ export type OnInboxSearch = (patch: Partial<InboxSearch>, opts?: { replace?: boo
 export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch: OnInboxSearch }) {
   const view: InboxView = search.view ?? 'all'
   const statuses = inboxStatuses(search)
-  // Open lists always load: they feed the counts (and share the sidebar badge's cache entries).
+  // Open lists always load: they list the items, and count them until the summary answers.
   const openTasks = useTasksList('open')
   const openIssues = useIssuesList({})
   const tasks = useTasksList(statuses.task, { enabled: statuses.task !== 'open' })
@@ -74,13 +74,25 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
   const items = visibleItems(view, mergeInbox(showsTasks ? taskRows : [], showsIssues ? issueRows : [], openIssues.rows))
   const selectedKey = search.item ?? (items[0] ? itemKey(items[0]) : undefined)
 
-  // Client pass 2, B16: the sidebar badge's numbers (`inboxCounts`). An issue linked to an open
-  // question is the same thing to do: All counts it once. Past one page, the backend's exact counts.
-  const more = !!openTasks.hasNextPage || !!openIssues.hasNextPage
-  const exact = useHomeSummary({ enabled: more }).data?.inbox
-  const counts = inboxCounts(openTasks.rows, !!openTasks.hasNextPage, openIssues.rows, !!openIssues.hasNextPage, exact)
-  const countsReady = !!openTasks.data && !!openIssues.data
-  const caption = countsReady ? inboxCaption(counts) : null
+  // B16, B28: the sidebar badge's numbers (`inboxCounts`), from the same summary entry the badge
+  // reads, at any volume. An issue linked to an open question is the same thing to do: All counts
+  // it once. The loaded lists count instead while both are complete and one was read after the
+  // summary (before it answers, and right after a mutation until it re-reads).
+  const summary = useHomeSummary()
+  const listsFirst = listsNewerThanSummary(
+    summary.data ? summary.dataUpdatedAt : 0,
+    { complete: !!openTasks.data && !openTasks.hasNextPage, at: openTasks.dataUpdatedAt },
+    { complete: !!openIssues.data && !openIssues.hasNextPage, at: openIssues.dataUpdatedAt },
+  )
+  const exact = listsFirst ? null : summary.data?.inbox
+  const counts = inboxCounts(
+    openTasks.data ? openTasks.rows : null,
+    !!openTasks.hasNextPage,
+    openIssues.data ? openIssues.rows : null,
+    !!openIssues.hasNextPage,
+    exact,
+  )
+  const caption = inboxCaption(counts)
   // An issue names its product too: its listing says which (IssueOut has listing_id only).
   const issueProducts = useListingProductIds(items.map((i) => (i.kind === 'issue' ? i.issue.listing_id : null)))
   const productOf = (i: InboxItem) => (i.kind === 'task' ? i.task.product_id : issueProducts.map.get(i.issue.listing_id))
@@ -104,7 +116,7 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
           Inbox
           {/* The count shows once, on the All segment; this copy is for screen readers only. */}
           <span className="sr-only" data-testid="inbox-open-count">
-            {countsReady ? `${fmtCount(counts.open)} open` : null}
+            {counts ? `${fmtCount(counts.open)} open` : null}
           </span>
         </h1>
         {/* What All counts, in words, so it never reads as the Issues tab's number (B16). */}
@@ -119,10 +131,10 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
           value={view}
           onChange={(v) => onSearch({ view: v === 'all' ? undefined : v, item: undefined }, { replace: true })}
           options={[
-            { value: 'all', label: 'All', count: countsReady ? fmtCount(counts.open) : undefined },
-            // All three counts appear together, once both open lists have answered.
-            { value: 'questions', label: 'Questions', count: countsReady ? fmtCount(counts.questions) : undefined },
-            { value: 'issues', label: 'Issues', count: countsReady ? fmtCount(counts.issues) : undefined },
+            { value: 'all', label: 'All', count: counts ? fmtCount(counts.open) : undefined },
+            // All three counts appear together, from the summary (or both complete open lists).
+            { value: 'questions', label: 'Questions', count: counts ? fmtCount(counts.questions) : undefined },
+            { value: 'issues', label: 'Issues', count: counts ? fmtCount(counts.issues) : undefined },
           ]}
         />
         {view !== 'all' ? <StatusPicker view={view} search={search} onSearch={onSearch} /> : null}
