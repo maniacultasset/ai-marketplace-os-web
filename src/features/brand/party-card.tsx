@@ -131,7 +131,7 @@ export function BrandPartyCard({
       })
       setConfirmRemove(false)
       stop()
-      onSaved?.(!!value, out.data.affected_listings)
+      onSaved?.(!!value, out.data.affected_listings ?? undefined)
     } catch (err) {
       if (isStaleVersion(err)) {
         // Only here does the base move: to the version someone else saved.

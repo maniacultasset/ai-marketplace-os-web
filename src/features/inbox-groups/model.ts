@@ -34,22 +34,16 @@ export type RedraftSection = NonNullable<Schema<'RegenerateRequest'>['sections']
  * stand, `nothing_to_redraft` the answered fact feeds no unlocked section, `not_written` never
  * generated. The last two are left out of the step after an answer.
  */
-export type RedraftBlocked = 'busy' | 'paused' | 'other_questions_open' | 'nothing_to_redraft' | 'not_written'
+export type RedraftBlocked = NonNullable<Schema<'AffectedListingOut'>['redraft_blocked']>
 /** The blocks the step after an answer shows, with a reason. */
 export type HeldBlock = Extract<RedraftBlocked, 'busy' | 'paused' | 'other_questions_open'>
 /**
  * One affected listing (POST /inbox/groups/answer `listings`, PATCH /brand-profile
  * `affected_listings`). `redraft` is true only when it can be written again now and `sections` is
  * non-empty; `open_questions` counts the other live questions when `other_questions_open`.
- * Typed to the agreed contract: the generated schema may still lag the last two block values and
- * `open_questions`.
  */
-export type AffectedListing = Omit<Schema<'AffectedListingOut'>, 'redraft_blocked' | 'sections'> & {
-  redraft_blocked?: RedraftBlocked | null
-  open_questions?: number | null
-  sections?: RedraftSection[]
-}
-export type GroupAnswerOut = Omit<Schema<'InboxGroupAnswerOut'>, 'listings'> & { listings: AffectedListing[] }
+export type AffectedListing = Schema<'AffectedListingOut'>
+export type GroupAnswerOut = Schema<'InboxGroupAnswerOut'>
 export type GroupScope = InboxGroup['scope']
 export type AnswerScalar = Schema<'InboxGroupAnswerIn'>['value']
 type InboxCounts = Schema<'HomeSummaryOut'>['inbox']

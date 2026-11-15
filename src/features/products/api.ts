@@ -10,7 +10,6 @@ import { isApiError } from '@/api/errors'
 import { idempotencyHeader } from '@/api/idempotency'
 import { ifMatchHeader, unwrapVersioned, type Versioned } from '@/api/etag'
 import type { Schema } from '@/api/types'
-import type { AffectedListing } from '@/features/inbox-groups/model'
 import { PAGE_SIZE, useCursorList } from '@/hooks/use-cursor-list'
 import { useKeys, type QueryKeys } from '@/lib/query-keys'
 import { viewRefreshDelay } from './image-views'
@@ -22,11 +21,6 @@ export type ProductCreateBody = Schema<'ProductCreate'>
 export type ProductPatchBody = Schema<'ProductPatch'>
 export type BrandProfile = Schema<'BrandProfileOut'>
 export type BrandProfileBody = Schema<'BrandProfileIn'>
-/**
- * The PATCH /brand-profile reply: the profile, plus `affected_listings` (the same verdicts as a
- * group answer) when the Inbox groups are on and a brand party default changed.
- */
-export type BrandProfileSaved = BrandProfile & { affected_listings?: AffectedListing[] }
 
 /** Backend `limit` bounds for GET /products. */
 export const MAX_PAGE_SIZE = 200
@@ -245,10 +239,10 @@ export function useSaveBrandManufacturer() {
   const qc = useQueryClient()
   return useMutation({
     meta: { toast: false },
-    mutationFn: ({ body, etag }: { body: BrandProfileBody; etag: string | null }): Promise<Versioned<BrandProfileSaved>> =>
+    mutationFn: ({ body, etag }: { body: BrandProfileBody; etag: string | null }): Promise<Versioned<BrandProfile>> =>
       unwrapVersioned(api.PATCH('/brand-profile', { params: { header: ifMatchHeader(etag) }, body })),
-    onSuccess: (next: Versioned<BrandProfileSaved>) => {
-      // The cache holds the profile only: the verdicts belong to this save.
+    onSuccess: (next: Versioned<BrandProfile>) => {
+      // The cache holds the profile only: `affected_listings` (the backend's verdicts) belong to this save.
       const { affected_listings: _verdicts, ...profile } = next.data
       qc.setQueryData([...keys.brand.all(), 'brand-profile'], { ...next, data: profile })
       // Products inherit the default: their effective manufacturer changed too.
