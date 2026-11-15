@@ -36,11 +36,16 @@ export function photoTotalsDelay(report: { photos?: ImportPhotoTotals | null } |
   return (report?.photos?.waiting ?? 0) > 0 ? PHOTO_TOTALS_POLL_MS : false
 }
 
-/** "40 saved · 2 failed · 8 downloading", leaving out the zero parts ("No photos yet" for none). */
+/**
+ * "40 saved · 2 failed · 3 skipped · 8 downloading", leaving out the zero parts ("No photos yet" for
+ * none). Skipped links (the per-file cap, a photo the seller removed, a deleted product) were never
+ * downloaded, so they are counted apart from the failed ones.
+ */
 export function photoTotalsText(t: ImportPhotoTotals): string {
   const parts = [
     t.saved ? `${t.saved.toLocaleString('en-IN')} saved` : null,
     t.failed ? `${t.failed.toLocaleString('en-IN')} failed` : null,
+    t.skipped ? `${t.skipped.toLocaleString('en-IN')} skipped` : null,
     t.waiting ? `${t.waiting.toLocaleString('en-IN')} downloading` : null,
   ].filter(Boolean)
   return parts.length ? parts.join(' · ') : 'No photos yet'

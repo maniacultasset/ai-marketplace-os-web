@@ -47,21 +47,30 @@ afterEach(() => {
 })
 
 describe('ImportPhotosLine (G2)', () => {
-  it('sums up the file’s photos and offers Retry only when some failed', () => {
-    wrap(<ImportPhotosLine importId={IMP} totals={{ total: 50, saved: 40, failed: 2, waiting: 8 }} canRetry />)
-    expect(screen.getByTestId('import-photos-text').textContent).toBe('40 saved · 2 failed · 8 downloading')
+  it('sums up the file’s photos, skipped apart from failed, and offers Retry only when a retry would download something', () => {
+    wrap(<ImportPhotosLine importId={IMP} totals={{ total: 53, saved: 40, failed: 2, skipped: 3, retryable: 2, waiting: 8 }} canRetry />)
+    expect(screen.getByTestId('import-photos-text').textContent).toBe('40 saved · 2 failed · 3 skipped · 8 downloading')
     expect(screen.getByTestId('retry-photos')).toBeTruthy()
     cleanup()
-    wrap(<ImportPhotosLine importId={IMP} totals={{ total: 3, saved: 3, failed: 0, waiting: 0 }} canRetry />)
+    wrap(<ImportPhotosLine importId={IMP} totals={{ total: 3, saved: 3, failed: 0, skipped: 0, retryable: 0, waiting: 0 }} canRetry />)
     expect(screen.queryByTestId('retry-photos')).toBeNull()
     cleanup()
-    wrap(<ImportPhotosLine importId={IMP} totals={{ total: 3, saved: 1, failed: 2, waiting: 0 }} canRetry={false} />)
+    // only skips no retry can lift (a deleted product, a photo the seller removed): no Retry
+    wrap(<ImportPhotosLine importId={IMP} totals={{ total: 3, saved: 1, failed: 0, skipped: 2, retryable: 0, waiting: 0 }} canRetry />)
+    expect(screen.getByTestId('import-photos-text').textContent).toBe('1 saved · 2 skipped')
+    expect(screen.queryByTestId('retry-photos')).toBeNull()
+    cleanup()
+    // per-file cap skips are retryable even with nothing failed
+    wrap(<ImportPhotosLine importId={IMP} totals={{ total: 3, saved: 1, failed: 0, skipped: 2, retryable: 2, waiting: 0 }} canRetry />)
+    expect(screen.getByTestId('retry-photos')).toBeTruthy()
+    cleanup()
+    wrap(<ImportPhotosLine importId={IMP} totals={{ total: 3, saved: 1, failed: 2, skipped: 0, retryable: 2, waiting: 0 }} canRetry={false} />)
     expect(screen.queryByTestId('retry-photos')).toBeNull()
   })
 
   it('retries the failed photos with an Idempotency-Key, toasts the count and reads the report again', async () => {
     post.mockReturnValue(ok({ queued: 2, products: 1 }, 202))
-    const { invalidate } = wrap(<ImportPhotosLine importId={IMP} totals={{ total: 4, saved: 2, failed: 2, waiting: 0 }} canRetry />)
+    const { invalidate } = wrap(<ImportPhotosLine importId={IMP} totals={{ total: 4, saved: 2, failed: 2, skipped: 0, retryable: 2, waiting: 0 }} canRetry />)
     await userEvent.click(screen.getByTestId('retry-photos'))
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('2 photos downloading again', expect.anything()))
     const [path, init] = post.mock.calls[0] as [string, { params: { path: { import_id: string }; header: Record<string, string> } }]
@@ -74,7 +83,7 @@ describe('ImportPhotosLine (G2)', () => {
   it('says there is nothing to retry on a 409, and hides the button on a 501', async () => {
     const onMessage = vi.fn()
     post.mockReturnValueOnce(refuse(409, 'INVALID_STATUS_TRANSITION'))
-    wrap(<ImportPhotosLine importId={IMP} totals={{ total: 4, saved: 2, failed: 2, waiting: 0 }} canRetry onMessage={onMessage} />)
+    wrap(<ImportPhotosLine importId={IMP} totals={{ total: 4, saved: 2, failed: 2, skipped: 0, retryable: 2, waiting: 0 }} canRetry onMessage={onMessage} />)
     await userEvent.click(screen.getByTestId('retry-photos'))
     await waitFor(() => expect(onMessage).toHaveBeenCalledWith('No failed photos to retry.'))
     post.mockReturnValueOnce(refuse(501, 'NOT_IMPLEMENTED'))
@@ -93,7 +102,7 @@ describe('useImportReport while photos download (G2)', () => {
   it('reads the report every 5 s after the import has settled, until no photo waits', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     let waiting = 3
-    get.mockImplementation(() => ok({ import_id: IMP, total_rows: 2, imported: 2, failed: 0, schema_version: '2.1.0', photos: { total: 3, saved: 3 - waiting, failed: 0, waiting } }))
+    get.mockImplementation(() => ok({ import_id: IMP, total_rows: 2, imported: 2, failed: 0, schema_version: '2.1.0', photos: { total: 3, saved: 3 - waiting, failed: 0, skipped: 0, retryable: 0, waiting } }))
     wrap(<Report />)
     await act(() => vi.advanceTimersByTimeAsync(100))
     expect(get).toHaveBeenCalledTimes(1)

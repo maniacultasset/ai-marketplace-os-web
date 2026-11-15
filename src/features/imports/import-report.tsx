@@ -123,7 +123,7 @@ export function ImportReportView({
   // G2: a photo that lands (or fails) changes its row: read the rows again with the totals.
   const sheetPhotos = useSheetPhotos()
   const photos = report.data?.photos
-  const photoSig = photos ? `${photos.saved}/${photos.failed}/${photos.waiting}` : null
+  const photoSig = photos ? `${photos.saved}/${photos.failed}/${photos.skipped}/${photos.waiting}` : null
   const lastPhotoSig = useRef<string | null>(null)
   useEffect(() => {
     if (photoSig === null) return
@@ -313,8 +313,9 @@ export function ImportReportView({
 }
 
 /**
- * "Photos: 40 saved · 2 failed · 8 downloading" with "Retry failed photos". A 501 (the switch was
- * turned off) hides the button; a 409 says there is nothing to retry.
+ * "Photos: 40 saved · 2 failed · 3 skipped · 8 downloading" with "Retry failed photos", shown only
+ * while a retry would download something (`retryable > 0`). A 501 (the switch was turned off) hides
+ * the button; a 409 says there is nothing to retry.
  */
 export function ImportPhotosLine({
   importId,
@@ -356,7 +357,7 @@ export function ImportPhotosLine({
           {photoTotalsText(totals)}
         </span>
       </p>
-      {canRetry && totals.failed > 0 && !off ? (
+      {canRetry && totals.retryable > 0 && !off ? (
         <Button variant="outline" size="sm" disabled={retry.isPending} onClick={run} data-testid="retry-photos">
           {retry.isPending ? <Spinner data-icon="inline-start" /> : <Icon name="refresh" size={16} data-icon="inline-start" />}
           Retry failed photos
