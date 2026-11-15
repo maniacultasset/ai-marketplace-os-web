@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useIssuesList, useTasksList } from '@/features/inbox/api'
-import { inboxCaption, inboxCounts, ISSUE_STATUS_LABEL, MARKETPLACE_LABEL, TASK_STATUS_LABEL, type Issue } from '@/features/inbox/model'
+import { inboxCaption, inboxCounts, ISSUE_STATUS_LABEL, listsNewerThanSummary, MARKETPLACE_LABEL, TASK_STATUS_LABEL, type Issue } from '@/features/inbox/model'
 import { fieldLabel } from '@/features/listing-flow/format'
 import type { AnswerOutcome } from '@/features/photo-facts/answer-card'
 import { useMediaQuery } from '@/lib/use-media-query'
@@ -76,8 +76,15 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
 
   // B16, B28: the sidebar badge's numbers (`inboxCounts`), from the same summary entry the badge
   // reads, at any volume. An issue linked to an open question is the same thing to do: All counts
-  // it once. Before the summary answers, the loaded lists only while both are complete.
-  const exact = useHomeSummary().data?.inbox
+  // it once. The loaded lists count instead while both are complete and one was read after the
+  // summary (before it answers, and right after a mutation until it re-reads).
+  const summary = useHomeSummary()
+  const listsFirst = listsNewerThanSummary(
+    summary.data ? summary.dataUpdatedAt : 0,
+    { complete: !!openTasks.data && !openTasks.hasNextPage, at: openTasks.dataUpdatedAt },
+    { complete: !!openIssues.data && !openIssues.hasNextPage, at: openIssues.dataUpdatedAt },
+  )
+  const exact = listsFirst ? null : summary.data?.inbox
   const counts = inboxCounts(
     openTasks.data ? openTasks.rows : null,
     !!openTasks.hasNextPage,

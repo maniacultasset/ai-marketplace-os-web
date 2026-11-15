@@ -54,32 +54,76 @@ export async function walkListings(
   return { rows, complete: false }
 }
 
-/** While Kuinn is writing or sending (drafts in progress, a job pending), so new questions and
- * issues reach the badge and the Inbox counts within seconds of a bulk draft landing (B28). */
+/** While Kuinn is writing drafts (a write, photo check or import job pending), so new questions
+ * and issues reach the badge and the Inbox counts within seconds of a bulk draft landing (B28). */
 const HOME_BUSY_REFRESH_MS = 20_000
+/** The fast rate stops after this long with no change in the summary (a job stuck pending). */
+export const HOME_BUSY_CAP_MS = 15 * 60_000
 
 type HomeSummaryData = Schema<'HomeSummaryOut'>
+type Activity = HomeSummaryData['activity'][number]
 
-/** How often the summary re-reads: faster while work is in flight, else once a minute. */
-export function summaryRefreshMs(s: Pick<HomeSummaryData, 'listings' | 'activity'> | undefined): number {
-  if (!s) return HOME_REFRESH_MS
-  const busy = s.listings.in_progress > 0 || s.activity.some((a) => a.state === 'pending')
-  return busy ? HOME_BUSY_REFRESH_MS : HOME_REFRESH_MS
+/**
+ * The jobs whose results land in the Inbox while they run: drafting, photo checks, imports. Not
+ * `listings.in_progress`: it also counts listings sent and waiting on the marketplace, which can
+ * take hours, and a stuck one never ends. Not a pending send either: nothing reaches the Inbox
+ * until the marketplace answers.
+ */
+const WRITING_KINDS: ReadonlySet<Activity['kind']> = new Set(['write', 'photo_check', 'import'])
+
+/** Whether the summary says Kuinn is writing drafts right now (a pending write-side job). */
+export function isWriting(s: Pick<HomeSummaryData, 'activity'>): boolean {
+  return s.activity.some((a) => a.state === 'pending' && WRITING_KINDS.has(a.kind))
 }
+
+/**
+ * How often the summary re-reads: every 20 s while drafts are being written, for at most
+ * `HOME_BUSY_CAP_MS` of no change (`unchangedForMs`), else once a minute.
+ */
+export function summaryRefreshMs(s: Pick<HomeSummaryData, 'activity'> | undefined, unchangedForMs = 0): number {
+  if (!s || !isWriting(s)) return HOME_REFRESH_MS
+  return unchangedForMs >= HOME_BUSY_CAP_MS ? HOME_REFRESH_MS : HOME_BUSY_REFRESH_MS
+}
+
+/** What a re-read can change that matters here (not `as_of`, which every read moves). */
+function summaryPrint(s: HomeSummaryData): string {
+  return JSON.stringify([s.inbox, s.listings, s.needs_you, s.activity.map((a) => [a.kind, a.state, a.at, a.listing_id ?? null, a.import_id ?? null])])
+}
+
+/**
+ * How long the summary has read the same (`summaryPrint`), per cache entry. Every observer's
+ * interval asks with the same entry, so they share one clock; a changed read restarts it.
+ */
+export function summaryChangeClock() {
+  const seen = new WeakMap<object, { print: string; since: number }>()
+  return (entry: object, s: HomeSummaryData | undefined, now = Date.now()): number => {
+    if (!s) return 0
+    const print = summaryPrint(s)
+    const last = seen.get(entry)
+    if (!last || last.print !== print) {
+      seen.set(entry, { print, since: now })
+      return 0
+    }
+    return now - last.since
+  }
+}
+
+const unchangedFor = summaryChangeClock()
 
 /**
  * Home's one read (client feedback 11 Nov, item 6): exact counts, what needs the caller, the
  * agent's recent work and each marketplace's next step. Under `listings.lists()`, so every
  * listing mutation that invalidates lists refreshes Home; an issue or task invalidation refreshes
  * it too (`createQueryClient`). Its `inbox` counts are the one source of the sidebar badge and the
- * Inbox header (B28), so the sidebar reads it on every page.
+ * Inbox header (B28), so the sidebar reads it on every page. The read takes the query's abort
+ * signal, so an invalidation that cancels an in-flight read really stops it.
  */
 export function useHomeSummary() {
   const keys = useKeys()
   return useQuery({
     queryKey: homeSummaryKey(keys),
-    queryFn: () => unwrap(api.GET('/home/summary')),
-    refetchInterval: (q) => summaryRefreshMs(q.state.data),
+    queryFn: ({ signal }) => unwrap(api.GET('/home/summary', { signal })),
+    refetchInterval: (q) => summaryRefreshMs(q.state.data, unchangedFor(q, q.state.data)),
     refetchIntervalInBackground: false,
   })
 }

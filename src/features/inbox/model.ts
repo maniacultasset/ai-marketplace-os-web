@@ -190,6 +190,23 @@ export function inboxCounts(
   return { open: c(tasks.length + alone), questions: c(tasks.length), issues: c(issues.length), alone: c(alone) }
 }
 
+/** One open list as `listsNewerThanSummary` reads it: every row loaded, and when it was read. */
+export interface ListRead {
+  complete: boolean
+  at: number
+}
+
+/**
+ * Whether the Inbox counts its loaded open lists instead of the summary: both lists hold every
+ * row (low volume) and one of them was read after the summary. A mutation re-reads only the list
+ * it changed (closing a question re-reads tasks, a dismiss re-reads issues) and the lists answer
+ * before the summary, so the header counts the rows on screen ("3 open items" never sits over 2
+ * rows) until the summary's next read, which is newer again and wins.
+ */
+export function listsNewerThanSummary(summaryAt: number, tasks: ListRead, issues: ListRead): boolean {
+  return tasks.complete && issues.complete && Math.max(tasks.at, issues.at) > summaryAt
+}
+
 const num = (c: InboxCount) => `${c.n.toLocaleString('en-IN')}${c.more ? '+' : ''}`
 const many = (c: InboxCount, one: string, several: string) => `${num(c)} ${c.n === 1 && !c.more ? one : several}`
 

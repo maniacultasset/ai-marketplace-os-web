@@ -64,8 +64,18 @@ export function summaryKeyFor(queryKey: QueryKey | undefined): QueryKey | null {
   return ['t', tid, 'listings', 'list', 'home-summary']
 }
 
-/** A QueryClient whose issue and task invalidations also refresh the Home summary (`summaryKeyFor`). */
+/**
+ * A QueryClient whose issue and task invalidations also refresh the Home summary (`summaryKeyFor`).
+ * The invalidations of one tick (an issues and a tasks invalidation, as a listing action makes)
+ * share one summary invalidation, made on the next microtask. It cancels a read already in
+ * flight (the default `cancelRefetch`): a timer read that started before the mutation holds an
+ * older snapshot, and joining it would leave the badge, the Inbox header and Home stale until
+ * the next poll.
+ */
 class AppQueryClient extends QueryClient {
+  /** The summary invalidation queued for this tick, per summary key. */
+  #summaryQueued = new Map<string, Promise<void>>()
+
   override invalidateQueries<TTaggedQueryKey extends QueryKey = QueryKey>(
     filters?: InvalidateQueryFilters<TTaggedQueryKey>,
     options?: InvalidateOptions,
@@ -73,8 +83,20 @@ class AppQueryClient extends QueryClient {
     const done = super.invalidateQueries(filters, options)
     const summary = summaryKeyFor(filters?.queryKey)
     if (!summary) return done
-    // cancelRefetch false: an issues and a tasks invalidation in one tick share one summary read.
-    return Promise.all([done, super.invalidateQueries({ queryKey: summary, exact: true }, { cancelRefetch: false })]).then(() => undefined)
+    return Promise.all([done, this.#refreshSummary(summary)]).then(() => undefined)
+  }
+
+  #refreshSummary(queryKey: QueryKey): Promise<void> {
+    const id = JSON.stringify(queryKey)
+    let queued = this.#summaryQueued.get(id)
+    if (!queued) {
+      queued = Promise.resolve().then(() => {
+        this.#summaryQueued.delete(id)
+        return super.invalidateQueries({ queryKey, exact: true })
+      })
+      this.#summaryQueued.set(id, queued)
+    }
+    return queued
   }
 }
 

@@ -16,6 +16,7 @@ import {
   ISSUE_STATUSES,
   issueHeadline,
   issuesMeta,
+  listsNewerThanSummary,
   MARKETPLACES,
   RESOLUTION_LABEL,
   severitySplit,
@@ -85,6 +86,15 @@ describe('counts from loaded data', () => {
     expect(badgeFromCounts(inboxCounts(rows(50), false, rows(50), false))).toBe('99+')
     // An issue linked to an open question counts once.
     expect(badgeFromCounts(inboxCounts([{ id: 't1' }], false, [{ human_task_id: 't1' }, { human_task_id: 'gone' }, { human_task_id: null }], false))).toBe('3')
+  })
+  it('listsNewerThanSummary: both lists complete and one read after the summary', () => {
+    const r = (complete: boolean, at: number) => ({ complete, at })
+    expect(listsNewerThanSummary(0, r(true, 5), r(true, 5))).toBe(true) // no summary yet
+    expect(listsNewerThanSummary(10, r(true, 20), r(true, 5))).toBe(true) // a task closed
+    expect(listsNewerThanSummary(10, r(true, 5), r(true, 20))).toBe(true) // an issue dismissed
+    expect(listsNewerThanSummary(10, r(true, 5), r(true, 10))).toBe(false) // the summary is newest
+    expect(listsNewerThanSummary(10, r(false, 20), r(true, 20))).toBe(false) // more pages: never
+    expect(listsNewerThanSummary(10, r(true, 20), r(false, 20))).toBe(false)
   })
   it('severitySplit and issuesMeta', () => {
     const s = severitySplit([{ severity: 'error' }, { severity: 'warning' }, { severity: 'warning' }])
