@@ -40,6 +40,12 @@ const LABEL: Record<string, string> = {
   embroidery: 'Embroidery',
   occasion: 'Occasion',
   number_of_pieces: 'Pieces',
+  // Facts asked outside the photo check (G1: answered once for many products).
+  gender: 'Gender',
+  hsn_code: 'HSN code',
+  country_of_origin: 'Country of origin',
+  manufacturer: 'Manufacturer',
+  identifier: 'Barcode',
 }
 
 /** `sleeve_length` → "Sleeve length"; unknown keys read as words. */

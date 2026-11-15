@@ -27,6 +27,7 @@ and appears when the route exists, the role allows it, and its backend capabilit
 | `features/public` | Landing, sign in, request access, request status, privacy (01) |
 | `features/onboarding` | Setup frame steps 02-04 (`staticData.solo`) |
 | `features/home-inbox` | Home first-run and working (05, 06), Inbox (11), issue detail (16) |
+| `features/inbox-groups` | Inbox groups (G1): identical open items across products as one card, one answer for many |
 | `features/products-add` | Products (07), product detail (17), add chooser, guided form, bulk upload, variants (08-10) |
 | `features/listing-flow` | Agent run, review and approve, field mapping, live (12-15) |
 | `features/marketplaces-settings` | Marketplaces (18), Autonomy, settings sub-nav, activity |

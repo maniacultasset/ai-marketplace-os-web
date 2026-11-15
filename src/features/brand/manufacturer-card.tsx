@@ -29,10 +29,13 @@ import { focusFirstInvalid } from '@/lib/validation'
 export function ManufacturerCard({
   canEdit,
   onEditingChange,
+  onSaved,
 }: {
   canEdit: boolean
   /** Told when the edit form opens and closes, so a page can hold navigation over an unsaved draft. */
   onEditingChange?: (editing: boolean) => void
+  /** Told after a save: `set` is false when the brand manufacturer was removed. */
+  onSaved?: (set: boolean) => void
 }) {
   const q = useBrandManufacturer()
   const save = useSaveBrandManufacturer()
@@ -79,6 +82,7 @@ export function ManufacturerCard({
       })
       setConfirmRemove(false)
       stop()
+      onSaved?.(!!body.default_manufacturer)
     } catch (err) {
       if (isStaleVersion(err)) {
         // Only here does the base move: to the version someone else saved.

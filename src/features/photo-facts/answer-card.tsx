@@ -209,7 +209,8 @@ export function AnswerCard({ task, onOutcome }: { task: Task; onOutcome: (o: Ans
 
 /* -------------------------------------------------------------------------------- Inputs */
 
-function AnswerInput({
+/** The input for one AnswerSpec. Also used by the Inbox group answer (G1). */
+export function AnswerInput({
   id,
   spec,
   label,

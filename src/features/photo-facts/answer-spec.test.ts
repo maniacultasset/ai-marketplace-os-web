@@ -35,6 +35,14 @@ describe('which tasks are answerable fact questions', () => {
     expect(isFactQuestion(task({ target_path: 'brand.default_manufacturer' }))).toBe(false)
     expect(isFactQuestion(task({ target_path: 'facts.attributes.Color' }))).toBe(false)
     expect(isFactQuestion(task({ target_path: null }))).toBe(false)
+    expect(isFactQuestion(task({ target_path: 'facts.manufacturer' }))).toBe(false)
+    expect(isFactQuestion(task({ target_path: 'facts.identifier' }))).toBe(false)
+    expect(isFactQuestion(task({ target_path: 'facts.gender.x' }))).toBe(false)
+  })
+  it('answers the product columns gender, HSN code and country of origin too (G1)', () => {
+    expect(factKey(task({ target_path: 'facts.gender' }))).toBe('gender')
+    expect(factKey(task({ target_path: 'facts.hsn_code' }))).toBe('hsn_code')
+    expect(factKey(task({ target_path: 'facts.country_of_origin' }))).toBe('country_of_origin')
   })
 })
 

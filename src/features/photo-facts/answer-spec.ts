@@ -17,7 +17,12 @@ export type AnswerValue = string | number | boolean
 
 /** The fact kinds `tasks_answer` takes (backend FACT_KINDS). */
 export const FACT_KINDS = ['missing_fact', 'conflicting_facts'] as const satisfies readonly Task['kind'][]
-const FACT_TARGET = /^facts\.attributes\.([a-z0-9_]{1,64})$/
+/**
+ * The targets `tasks_answer` writes (backend `services/tasks.py` FACT_TARGET): an attribute, or one
+ * of the product columns gender, HSN code and country of origin (G1). The column's own key is the
+ * fact key (`facts.hsn_code` -> `hsn_code`).
+ */
+const FACT_TARGET = /^facts\.(?:attributes\.([a-z0-9_]{1,64})|(gender|hsn_code|country_of_origin))$/
 /** `TaskAnswerIn.value` string limit. */
 export const MAX_ANSWER_CHARS = 2000
 /** A piece count is always a whole number 1..50 (backend `ANSWER_MAX_PIECES`), whatever the spec. */
@@ -26,7 +31,8 @@ export const MAX_PIECES = 50
 /** The attribute key a fact question is about, or null when `tasks_answer` would refuse the task. */
 export function factKey(task: Pick<Task, 'kind' | 'product_id' | 'target_path'>): string | null {
   if (!(FACT_KINDS as readonly string[]).includes(task.kind) || !task.product_id) return null
-  return FACT_TARGET.exec(task.target_path ?? '')?.[1] ?? null
+  const m = FACT_TARGET.exec(task.target_path ?? '')
+  return m ? (m[1] ?? m[2] ?? null) : null
 }
 
 export const isFactQuestion = (task: Pick<Task, 'kind' | 'product_id' | 'target_path'>) => factKey(task) !== null
