@@ -10,15 +10,17 @@ const post = vi.fn()
 const get = vi.fn()
 const can = vi.hoisted(() => ({ actions: new Set<string>() }))
 const ai = vi.hoisted(() => ({ paused: false }))
+// What the mocked brand card's save hands back: the PATCH reply's `affected_listings`.
+const brandSave = vi.hoisted(() => ({ affected: undefined as unknown }))
 vi.mock('@/api/client', async (orig) => ({ ...(await orig<typeof import('@/api/client')>()), api: { POST: (...a: unknown[]) => post(...a), GET: (...a: unknown[]) => get(...a) } }))
 vi.mock('@/lib/auth', async (orig) => ({ ...(await orig<typeof import('@/lib/auth')>()), useSession: () => ({ tenantId: 't1' }) }))
 vi.mock('@/lib/permissions', async (orig) => ({ ...(await orig<typeof import('@/lib/permissions')>()), useCan: () => (a: string) => can.actions.has(a) }))
 vi.mock('@/features/ai-credit/use-ai-paused', () => ({ useAiPaused: () => ai.paused }))
-vi.mock('@/features/brand/manufacturer-card', () => ({
-  ManufacturerCard: ({ canEdit, onSaved }: { canEdit: boolean; onSaved?: (set: boolean) => void }) => (
-    <div data-testid="manufacturer-card" data-can-edit={canEdit}>
-      <button type="button" onClick={() => onSaved?.(true)} data-testid="manufacturer-save">
-        Save manufacturer
+vi.mock('@/features/brand/party-card', () => ({
+  BrandPartyCard: ({ role, canEdit, onSaved }: { role: string; canEdit: boolean; onSaved?: (set: boolean, affected?: unknown) => void }) => (
+    <div data-testid="party-card" data-role={role} data-can-edit={canEdit}>
+      <button type="button" onClick={() => onSaved?.(true, brandSave.affected)} data-testid="party-save">
+        Save
       </button>
     </div>
   ),
@@ -72,7 +74,15 @@ const refuse = (status: number, type: string, details: unknown[] | null = null) 
   const error = { error: { type, message: 'm', status, correlation_id: 'req-1', details, error_report: null } }
   return Promise.resolve({ data: undefined, error, response: new Response(JSON.stringify(error), { status }) })
 }
-const listing = (i: number, redraft = true) => ({ listing_id: U(200 + i), product_id: U(100 + i), marketplace: 'amazon', status: 'approved', redraft })
+const listing = (i: number, redraft = true, sections: string[] = redraft ? ['attributes'] : []) => ({
+  listing_id: U(200 + i),
+  product_id: U(100 + i),
+  marketplace: 'amazon',
+  status: 'approved',
+  redraft,
+  redraft_blocked: null as string | null,
+  sections,
+})
 const job = (waiting: boolean) => ({ job_id: U(9000), status: waiting ? 'queued' : 'running', waiting_for_slot: waiting, listing_id: U(200) })
 
 type Init = { params?: { path?: { listing_id?: string }; header?: Record<string, string> }; body?: Record<string, unknown> }
@@ -99,6 +109,7 @@ beforeEach(() => {
   get.mockReset()
   can.actions = new Set(OWNER)
   ai.paused = false
+  brandSave.affected = undefined
 })
 afterEach(cleanup)
 
@@ -113,11 +124,14 @@ describe('GroupDetail, one answer for many products', () => {
           ],
           skipped: [],
           listings: [
-            { ...listing(1), sections: ['attributes', 'bullets'] },
-            listing(2),
-            listing(4, false),
-            { ...listing(5, false), reason: 'other_questions_open', open_questions: 3 },
-            { ...listing(6, false), reason: 'busy' },
+            listing(1, true, ['attributes', 'bullets']),
+            listing(2, true, ['bullets']),
+            // Never written, and fed nothing: left out. Ready but no sections: never auto-redrafted.
+            { ...listing(4, false), status: 'created', redraft_blocked: 'not_written' },
+            { ...listing(7, false), redraft_blocked: 'nothing_to_redraft' },
+            listing(8, true, []),
+            { ...listing(5, false), redraft_blocked: 'other_questions_open', open_questions: 3 },
+            { ...listing(6, false), redraft_blocked: 'busy' },
           ],
         })
       const id = init.params?.path?.listing_id
@@ -146,15 +160,15 @@ describe('GroupDetail, one answer for many products', () => {
     expect(screen.getByTestId('group-result-line').textContent).toBe('Saved for 2 products. 1 already had a value and was kept.')
     expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ key: 't|missing_fact|facts.gender|503f4d45ede0' }), 'Saved for 2 products. 1 already had a value and was kept.')
 
-    // Only the listings the backend says can be written again, one key each; the sections the
-    // answer feeds when given, else the whole listing.
+    // Only the listings the backend says can be written again, one key each, with the sections
+    // the answer feeds.
     await screen.findByTestId('group-redraft-started')
     const regens = calls('/listings/{listing_id}/regenerate')
     expect(regens.map((c) => c.params!.path!.listing_id)).toEqual([U(201), U(202)])
     expect(new Set(regens.map((c) => c.params!.header!['Idempotency-Key'])).size).toBe(2)
     expect(regens[0]!.body).toEqual({ sections: ['attributes', 'bullets'], for_answers: true })
-    expect(regens[1]!.body).toEqual({})
-    // The others say why they wait; a listing never written is left out.
+    expect(regens[1]!.body).toEqual({ sections: ['bullets'], for_answers: true })
+    // The others say why they wait; never written or fed nothing is left out.
     expect(screen.getAllByTestId('group-held-row').map((r) => r.textContent)).toEqual([
       'A listing: Still has 3 questions open. Kuinn redrafts it when they’re answered.',
       'A listing: Already drafting.',
@@ -252,44 +266,52 @@ describe('GroupDetail, other scopes', () => {
   const brand = (over: Partial<InboxGroup> = {}) =>
     group({ key: 't|missing_fact|facts.manufacturer|cae91fb30742', scope: 'brand', field: 'manufacturer', answer: { kind: 'text' }, ...over })
 
-  const detail = (i: number, status = 'approved', affected_sections: string[] = ['attributes']) => ({ id: U(200 + i), product_id: U(100 + i), status, affected_sections })
-  const brandApi = (statuses: Record<string, string>) => {
-    get.mockImplementation((_path: string, init: Init) => {
-      const id = init.params!.path!.listing_id!
-      const i = Number(id.slice(-3)) - 200
-      return ok(detail(i, statuses[id] ?? 'approved'))
-    })
-    post.mockImplementation((path: string) => (path === '/listings/validate' ? ok({ passed: true }) : ok(job(false), 202)))
-  }
+  const ready = (i: number, sections = ['attributes']) => listing(i, true, sections)
+  const held = (i: number, redraft_blocked: string) => ({ ...listing(i, false), redraft_blocked })
+  const jobs = () => post.mockImplementation((path: string) => (path === '/listings/validate' ? ok({ passed: true }) : ok(job(false), 202)))
 
-  it('brand, not set: after the save, checks again and redrafts the ready listings at once', async () => {
-    brandApi({ [U(202)]: 'generating' })
+  it('brand, not set: after the save, uses the save verdicts and redrafts the ready ones at once', async () => {
+    jobs()
+    brandSave.affected = [ready(1), held(2, 'busy'), ready(4, ['attributes', 'bullets']), { ...held(5, 'not_written'), status: 'created' }, ready(6, [])]
     setup(brand({ members: [member(1), member(2), member(3, { has_value: true }), member(4)] }))
     expect(screen.getByTestId('group-title').textContent).toBe('3 products need a manufacturer')
     expect(screen.getByTestId('group-brand-unset').textContent).toBe('Set the manufacturer once for the brand. Every product uses it unless it has its own.')
+    expect(screen.getByTestId('party-card').dataset.role).toBe('manufacturer')
     expect(screen.queryByTestId('group-redraft-now')).toBeNull()
-    fireEvent.click(screen.getByTestId('manufacturer-save'))
+    fireEvent.click(screen.getByTestId('party-save'))
     expect(screen.getByTestId('group-brand-set').textContent).toBe('Your brand manufacturer is set. These listings were written before that. Redraft them to use it.')
     await screen.findByTestId('group-redraft-started')
-    // The kept product (its own manufacturer) is left out; each listing's status is read first.
-    expect(get.mock.calls.map((c) => (c[1] as Init).params!.path!.listing_id)).toEqual([U(201), U(202), U(204)])
-    expect(calls('/listings/validate').map((c) => c.body!.listing_id)).toEqual([U(201), U(204)])
-    // The one being written waits; the others get their sections only.
+    // No listing reads and no check of our own: the backend re-checked them in the save.
+    expect(get).not.toHaveBeenCalled()
+    expect(calls('/listings/validate')).toHaveLength(0)
     const regens = calls('/listings/{listing_id}/regenerate')
     expect(regens.map((c) => c.params!.path!.listing_id)).toEqual([U(201), U(204)])
     expect(regens[0]!.body).toEqual({ sections: ['attributes'], for_answers: true })
+    expect(regens[1]!.body).toEqual({ sections: ['attributes', 'bullets'], for_answers: true })
     expect(screen.getByTestId('group-redraft-started').textContent).toBe('Redrafting 2 listings.')
     expect(screen.getAllByTestId('group-held-row').map((r) => r.textContent)).toEqual(['KTEST-002 · Kurta 2: Already drafting.'])
-    expect(screen.getByTestId('group-recheck-result').textContent).toBe('Checked again.')
+    expect(screen.queryByTestId('group-recheck-result')).toBeNull()
   })
 
-  it('brand save with the AI paused: checks again, redrafts nothing, says why', async () => {
+  it('brand packer: the card, the copy and the title follow the group field', () => {
+    setup(brand({ key: 't|missing_fact|facts.packer|aa', field: 'packer' }))
+    expect(screen.getByTestId('group-title').textContent).toBe('3 products need a packer')
+    expect(screen.getByTestId('group-brand-unset').textContent).toBe('Set the packer once for the brand. Every product uses it unless it has its own.')
+    expect(screen.getByTestId('party-card').dataset.role).toBe('packer')
+    cleanup()
+    can.actions = new Set(['tenant:read', 'product:import'])
+    setup(brand({ field: 'importer' }))
+    expect(screen.getByTestId('group-title').textContent).toBe('3 products need an importer')
+    expect(screen.getByTestId('group-brand-no-permission').textContent).toBe('Only an owner or admin can set the brand importer. You can still add it on each product.')
+  })
+
+  it('brand save with the AI paused: redrafts nothing, says why', async () => {
     ai.paused = true
-    brandApi({})
+    jobs()
+    brandSave.affected = [held(1, 'paused'), held(2, 'paused')]
     setup(brand())
-    fireEvent.click(screen.getByTestId('manufacturer-save'))
-    await screen.findByTestId('group-recheck-result')
-    expect(calls('/listings/validate')).toHaveLength(2)
+    fireEvent.click(screen.getByTestId('party-save'))
+    await screen.findByTestId('group-redraft-held')
     expect(calls('/listings/{listing_id}/regenerate')).toHaveLength(0)
     expect(screen.getAllByTestId('group-held-row').map((r) => r.textContent)).toEqual([
       'KTEST-001 · Kurta 1: AI drafting is paused.',
@@ -297,28 +319,49 @@ describe('GroupDetail, other scopes', () => {
     ])
   })
 
-  it('brand save without listing:regenerate: checks again only', async () => {
+  it('brand save without listing:regenerate: no redraft, the check is offered', async () => {
     can.actions = new Set(['tenant:read', 'listing:edit', 'settings:manage'])
-    brandApi({})
+    jobs()
+    brandSave.affected = [ready(1), ready(2)]
     setup(brand())
-    fireEvent.click(screen.getByTestId('manufacturer-save'))
-    await screen.findByTestId('group-recheck-result')
-    await waitFor(() => expect(calls('/listings/validate')).toHaveLength(2))
+    fireEvent.click(screen.getByTestId('party-save'))
+    await screen.findByTestId('group-recheck')
+    expect(calls('/listings/validate')).toHaveLength(0)
     expect(calls('/listings/{listing_id}/regenerate')).toHaveLength(0)
     expect(screen.queryByTestId('group-redraft-now')).toBeNull()
+  })
+
+  it('brand save that feeds nothing: no next step', () => {
+    brandSave.affected = [{ ...listing(1, false), redraft_blocked: 'nothing_to_redraft' }]
+    setup(brand())
+    fireEvent.click(screen.getByTestId('party-save'))
+    expect(screen.queryByTestId('group-next')).toBeNull()
+    expect(post).not.toHaveBeenCalled()
   })
 
   it('brand, someone who cannot edit it: a read-only note', () => {
     can.actions = new Set(['tenant:read', 'product:import', 'listing:regenerate'])
     setup(brand())
     expect(screen.getByTestId('group-brand-no-permission').textContent).toBe('Only an owner or admin can set the brand manufacturer. You can still add it on each product.')
-    expect(screen.queryByTestId('manufacturer-card')).toBeNull()
+    expect(screen.queryByTestId('party-card')).toBeNull()
   })
 
-  it('brand already set: offers the redraft at once', () => {
+  it('brand already set: the manual redraft writes whole listings', async () => {
+    jobs()
     setup(brand({ brand_value_set: true }))
     expect(screen.getByTestId('group-brand-set')).toBeTruthy()
+    expect(calls('/listings/{listing_id}/regenerate')).toHaveLength(0)
     expect(screen.getByTestId('group-redraft-now').textContent).toBe('Redraft 2 listings')
+    fireEvent.click(screen.getByTestId('group-redraft-now'))
+    await screen.findByTestId('group-redraft-started')
+    expect(calls('/listings/{listing_id}/regenerate').map((c) => c.body)).toEqual([{}, {}])
+  })
+
+  it('every product has its own value: only the check is offered', () => {
+    setup(group({ members: [member(1, { has_value: true }), member(2, { has_value: true })] }))
+    expect(screen.getByTestId('group-all-kept').textContent).toBe('Every product here has its own value now. Check the listings again to close these.')
+    expect(screen.queryByTestId('group-redraft-now')).toBeNull()
+    expect(screen.getByTestId('group-recheck')).toBeTruthy()
   })
 
   it('exemption: needs the confirm, sends true, and keeps barcoded products', async () => {

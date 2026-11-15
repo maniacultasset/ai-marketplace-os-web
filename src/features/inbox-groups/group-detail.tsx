@@ -4,15 +4,18 @@
  *   product_fact  one answer (the question's own input) for all of them, or the products picked;
  *                 a product that already has a value is never sent and never changed.
  *   exemption     the brand's GTIN exemption for the products without a barcode, after a confirm.
- *   brand         the brand manufacturer, set once (the Brand page's card, owner or admin).
+ *   brand         a brand party (manufacturer, marketer, packer or importer, from `field`), set
+ *                 once (the Brand page's card, owner or admin).
  *   per_item      the list only: each one is opened and fixed on its own.
  *
  * After an answer, the affected listings the backend marks `redraft` are redrafted (on by default
  * for roles that can) with POST /listings/{id}/regenerate, only the sections the answer feeds, one
- * key per listing; past the brand's cap a draft waits for a free slot (B19). The others show why
- * they wait (other questions open, already drafting, AI paused). With redraft off, "Check again"
- * re-runs the checks with the new facts (no AI). A brand-wide save checks the listings again and
- * redrafts the ones that can be, at once.
+ * key per listing; past the brand's cap a draft waits for a free slot (B19). A listing with no
+ * sections is never redrafted on its own. The others show why they wait (other questions open,
+ * already drafting, AI paused); one never written or fed nothing is left out. With redraft off,
+ * "Check again" re-runs the checks with the new facts (no AI). A brand-wide save uses the PATCH
+ * reply's `affected_listings` the same way (the backend has re-checked them). Only the manual
+ * "brand already set" redraft writes whole listings.
  */
 import { Link } from '@tanstack/react-router'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
@@ -25,31 +28,35 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Spinner } from '@/components/ui/spinner'
 import { AI_PAUSED_REASON } from '@/features/ai-credit/model'
 import { useAiPaused } from '@/features/ai-credit/use-ai-paused'
-import { ManufacturerCard } from '@/features/brand/manufacturer-card'
+import { BrandPartyCard } from '@/features/brand/party-card'
 import type { InboxSearch } from '@/features/home-inbox/model'
 import { AnswerInput } from '@/features/photo-facts/answer-card'
 import { answerMode, checkAnswer, parseAnswerSpec } from '@/features/photo-facts/answer-spec'
 import { factLabel } from '@/features/photo-facts/model'
 import { OP_ACTION, useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
-import { fetchListingPlan, useAnswerGroup, useRecheck, useRedraft, type GroupAnswerRun } from './api'
+import { useAnswerGroup, useRecheck, useRedraft, type GroupAnswerRun } from './api'
 import {
   answerable,
   answerSummary,
   brandListings,
+  brandRole,
+  canRedraftItem,
+  checkOnlyPlan,
   distinctListings,
   distinctProducts,
+  fullPlan,
   groupMeta,
   groupTitle,
   heldReason,
   keptLabel,
   memberItemKey,
   otherSkips,
-  plainPlan,
   recheckSummary,
   redraftPlan,
   redraftSummary,
   SKIP_COPY,
+  type AffectedListing,
   type GroupMember,
   type InboxGroup,
   type RedraftPlanItem,
@@ -184,10 +191,10 @@ function ManyAnswer({
       <div className="flex flex-col gap-3">
         <Banner tone="neutral" icon="info">
           <span data-testid="group-all-kept">
-            {exemption ? 'Every product here has a barcode now.' : 'Every product here has its own value now.'} Redraft the listings to use it.
+            {exemption ? 'Every product here has a barcode now.' : 'Every product here has its own value now.'} Check the listings again to close these.
           </span>
         </Banner>
-        <NextStep plan={plainPlan(group.members.flatMap((m) => m.listing_ids))} auto={false} />
+        <NextStep plan={checkOnlyPlan(group.members.flatMap((m) => m.listing_ids))} auto={false} />
       </div>
     )
 
@@ -422,44 +429,37 @@ function AnswerResultBlock({ group, run, keptBefore, redraftFirst }: { group: In
 
 function BrandAnswer({ group }: { group: InboxGroup }) {
   const can = useCan()
-  const aiPaused = useAiPaused()
   const canEdit = can(OP_ACTION['PATCH /brand-profile'])
+  const role = brandRole(group.field)
   const [saved, setSaved] = useState<boolean | null>(null)
-  // After a save here: each listing's status and sections, then the same step as an answer, at once.
-  const [savedPlan, setSavedPlan] = useState<RedraftPlanItem[] | 'loading' | null>(null)
+  // After a save here: the PATCH reply's verdicts (the backend re-checked them), the same step as an answer.
+  const [savedPlan, setSavedPlan] = useState<RedraftPlanItem[] | null>(null)
   const set = saved ?? group.brand_value_set
   const listings = brandListings(group.members)
-  const onSaved = (s: boolean) => {
+  const onSaved = (s: boolean, affected?: AffectedListing[]) => {
     setSaved(s)
-    if (!s || !listings.length) return setSavedPlan(null)
-    setSavedPlan('loading')
-    void fetchListingPlan(listings, aiPaused).then(setSavedPlan)
+    setSavedPlan(s && affected ? redraftPlan(affected) : null)
   }
   return (
-    <div className="flex flex-col gap-3" data-testid="group-brand">
+    <div className="flex flex-col gap-3" data-testid="group-brand" data-role={role}>
       {set ? (
         <p className="text-body text-ink" data-testid="group-brand-set">
-          Your brand manufacturer is set. These listings were written before that. Redraft them to use it.
+          Your brand {role} is set. These listings were written before that. Redraft them to use it.
         </p>
       ) : canEdit ? (
         <p className="text-body text-ink" data-testid="group-brand-unset">
-          Set the manufacturer once for the brand. Every product uses it unless it has its own.
+          Set the {role} once for the brand. Every product uses it unless it has its own.
         </p>
       ) : (
         <Banner tone="neutral" icon="lock">
-          <span data-testid="group-brand-no-permission">Only an owner or admin can set the brand manufacturer. You can still add it on each product.</span>
+          <span data-testid="group-brand-no-permission">Only an owner or admin can set the brand {role}. You can still add it on each product.</span>
         </Banner>
       )}
-      {canEdit || set ? <ManufacturerCard canEdit={canEdit} onSaved={onSaved} /> : null}
-      {savedPlan === 'loading' ? (
-        <p className="flex items-center gap-2 text-small text-ink-2" role="status" data-testid="group-brand-loading">
-          <Spinner aria-hidden />
-          Looking at the listings…
-        </p>
-      ) : savedPlan ? (
-        <NextStep key="saved" plan={savedPlan} auto autoCheck members={group.members} />
+      {canEdit || set ? <BrandPartyCard role={role} canEdit={canEdit} onSaved={onSaved} /> : null}
+      {savedPlan ? (
+        <NextStep key="saved" plan={savedPlan} auto members={group.members} />
       ) : set && listings.length ? (
-        <NextStep plan={plainPlan(listings)} auto={false} />
+        <NextStep plan={fullPlan(listings)} auto={false} />
       ) : null}
     </div>
   )
@@ -469,18 +469,16 @@ function BrandAnswer({ group }: { group: InboxGroup }) {
 
 /**
  * The step after an answer: redraft the listings that can be (started at once when `auto`), or
- * check them again with the new facts (at once when `autoCheck`, before any redraft). The ones held
- * show why. "Redraft the rest" resends only the ones that could not start.
+ * check them again with the new facts. Only items with sections (or the manual full redraft) are
+ * redrafted. The ones held show why. "Redraft the rest" resends only the ones that could not start.
  */
 function NextStep({
   plan,
   auto,
-  autoCheck = false,
   members = [],
 }: {
   plan: readonly RedraftPlanItem[]
   auto: boolean
-  autoCheck?: boolean
   members?: readonly GroupMember[]
 }) {
   const can = useCan()
@@ -490,11 +488,11 @@ function NextStep({
   const redraft = useRedraft()
   const recheck = useRecheck()
   const [results, setResults] = useState<RedraftResult[] | null>(null)
-  const [checked, setChecked] = useState<{ failed: number; closed: number | null; redrafting?: boolean } | null>(null)
+  const [checked, setChecked] = useState<{ failed: number; closed: number | null } | null>(null)
   const [started, setStarted] = useState(false)
   const listingIds = plan.map((p) => p.listingId)
-  const ready = plan.filter((p) => p.redraft)
-  const held = plan.filter((p) => !p.redraft)
+  const ready = plan.filter(canRedraftItem)
+  const held = plan.filter((p) => !p.redraft && p.blocked)
   const sectionsOf = new Map(plan.map((p) => [p.listingId, p.sections]))
 
   const start = async (ids: readonly string[]) => {
@@ -508,22 +506,13 @@ function NextStep({
     })
   }
 
-  // Right after the answer: check again first when asked, then redraft the ready ones when it was
-  // ticked. Once (the ref holds through a remount check).
+  // Right after the answer: redraft the ready ones when it was ticked. Once (the ref holds through
+  // a remount check).
   const autoRan = useRef(false)
   useEffect(() => {
     if (autoRan.current) return
     autoRan.current = true
-    const redraftNow = auto && canRedraft && !aiPaused && ready.length > 0
-    void (async () => {
-      // A listing being written is not checked now (its new draft is checked when it lands).
-      const checkIds = plan.filter((p) => p.reason !== 'busy').map((p) => p.listingId)
-      if (autoCheck && canCheck && checkIds.length) {
-        const out = await recheck.run(checkIds)
-        setChecked({ ...out, redrafting: redraftNow })
-      }
-      if (redraftNow) await start(ready.map((p) => p.listingId))
-    })()
+    if (auto && canRedraft && !aiPaused && ready.length > 0) void start(ready.map((p) => p.listingId))
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, for the answer that mounted this step
   }, [])
 
@@ -567,7 +556,7 @@ function NextStep({
       ) : null}
       {checked ? (
         <p className="text-small text-ink" role="status" data-testid="group-recheck-result">
-          {recheckSummary(checked.closed, checked.redrafting)}
+          {recheckSummary(checked.closed)}
           {checked.failed ? ` Couldn’t check ${listingsWord(checked.failed)}.` : ''}
         </p>
       ) : null}

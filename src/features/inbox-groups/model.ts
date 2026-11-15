@@ -25,22 +25,31 @@ export type GroupMember = Omit<RawMember, 'listing_ids'> & { listing_ids: string
 /** A group with its defaulted lists filled in (`normalizeGroups`). */
 export type InboxGroup = Omit<RawGroup, 'members' | 'categories'> & { members: GroupMember[]; categories: string[] }
 export type InboxGroups = Omit<RawGroups, 'groups'> & { groups: InboxGroup[] }
-export type GroupAnswerOut = Schema<'InboxGroupAnswerOut'>
 export type GroupSkipped = Schema<'SkippedOut'>
 export type SkipReason = GroupSkipped['reason']
 export type RedraftSection = NonNullable<Schema<'RegenerateRequest'>['sections']>[number]
-/** Why a listing is not redrafted now (backend `AffectedListingOut.reason`). */
-export type RedraftReason = 'other_questions_open' | 'busy' | 'paused'
 /**
- * One affected listing. `reason` says why `redraft` is false, `open_questions` how many other
- * questions it still waits on, `sections` the sections the answered fact feeds (regenerate only
- * those, `for_answers: true`). Optional: an older backend sends only `redraft`.
+ * Why a listing is not redrafted now (contract `AffectedListingOut.redraft_blocked`): `busy` is
+ * being written now, `paused` the AI pause, `other_questions_open` other seller questions still
+ * stand, `nothing_to_redraft` the answered fact feeds no unlocked section, `not_written` never
+ * generated. The last two are left out of the step after an answer.
  */
-export type AffectedListing = Schema<'AffectedListingOut'> & {
-  reason?: RedraftReason | null
+export type RedraftBlocked = 'busy' | 'paused' | 'other_questions_open' | 'nothing_to_redraft' | 'not_written'
+/** The blocks the step after an answer shows, with a reason. */
+export type HeldBlock = Extract<RedraftBlocked, 'busy' | 'paused' | 'other_questions_open'>
+/**
+ * One affected listing (POST /inbox/groups/answer `listings`, PATCH /brand-profile
+ * `affected_listings`). `redraft` is true only when it can be written again now and `sections` is
+ * non-empty; `open_questions` counts the other live questions when `other_questions_open`.
+ * Typed to the agreed contract: the generated schema may still lag the last two block values and
+ * `open_questions`.
+ */
+export type AffectedListing = Omit<Schema<'AffectedListingOut'>, 'redraft_blocked' | 'sections'> & {
+  redraft_blocked?: RedraftBlocked | null
   open_questions?: number | null
-  sections?: RedraftSection[] | null
+  sections?: RedraftSection[]
 }
+export type GroupAnswerOut = Omit<Schema<'InboxGroupAnswerOut'>, 'listings'> & { listings: AffectedListing[] }
 export type GroupScope = InboxGroup['scope']
 export type AnswerScalar = Schema<'InboxGroupAnswerIn'>['value']
 type InboxCounts = Schema<'HomeSummaryOut'>['inbox']
@@ -133,7 +142,7 @@ export function groupTitle(g: Pick<InboxGroup, 'item_kind' | 'scope' | 'field' |
   }
   const p = Math.max(g.products, 1)
   if (g.task_kind === 'image_replacement') return `${n(g.count)} ${g.count === 1 ? 'photo needs' : 'photos need'} replacing`
-  if (g.scope === 'brand' || g.field === 'manufacturer') return `${products(p)} a manufacturer`
+  if (g.scope === 'brand' || g.field === 'manufacturer') return `${products(p)} ${aRole(brandRole(g.field))}`
   if (g.scope === 'exemption' || g.field === 'identifier') return `${products(p)} a barcode`
   if (g.field) return `${products(p)} the ${fieldWords(g)}`
   return `${products(p)} an answer`
@@ -189,68 +198,87 @@ export function mergeAnswers(parts: readonly GroupAnswerOut[]): GroupAnswerOut {
   return { applied: parts.flatMap((p) => p.applied), skipped: parts.flatMap((p) => p.skipped), listings: [...listings.values()] }
 }
 
-/** The listings to redraft after an answer: the ones the backend says can be written again now. */
+/** The listings to redraft after an answer: the ones the backend says can be written again now, with sections. */
 export function redraftTargets(listings: readonly AffectedListing[]): string[] {
-  return [...new Set(listings.filter((l) => l.redraft).map((l) => l.listing_id))]
+  return redraftPlan(listings)
+    .filter((p) => p.redraft)
+    .map((p) => p.listingId)
 }
 
-/** One listing in the step after an answer: redrafted now (`redraft`), or held with a reason. */
+/**
+ * One listing in the step after an answer: redrafted now (`redraft`, only `sections`), or held
+ * with a reason. `full` is a whole-listing regenerate, only from the manual "brand already set"
+ * button; any other item with no sections is never redrafted.
+ */
 export type RedraftPlanItem = {
   listingId: string
   productId: string | null
   redraft: boolean
-  reason: RedraftReason | null
+  blocked: HeldBlock | null
   openQuestions: number | null
   sections: RedraftSection[]
+  full: boolean
 }
 
+/** Whether a plan item is redrafted: ready, and either its sections or a manual full regenerate. */
+export const canRedraftItem = (p: Pick<RedraftPlanItem, 'redraft' | 'sections' | 'full'>) => p.redraft && (p.full || p.sections.length > 0)
+
 /**
- * The step after an answer, from the backend's affected listings: redraft on only where `redraft`
- * is true; a held one shows its reason; a listing never written (no reason) is left out.
+ * The step after an answer, from the backend's verdicts: redraft only where `redraft` is true and
+ * sections are given; a held one shows its reason (busy, paused, other questions open); a listing
+ * never written, one the fact feeds nothing in, or one with no reason is left out.
  */
 export function redraftPlan(listings: readonly AffectedListing[]): RedraftPlanItem[] {
   const out = new Map<string, RedraftPlanItem>()
   for (const l of listings) {
-    if (!l.redraft && !l.reason) continue
+    const sections = l.sections ?? []
+    const ready = l.redraft && sections.length > 0
+    const block = l.redraft_blocked ?? null
+    const held: HeldBlock | null = block === 'busy' || block === 'paused' || block === 'other_questions_open' ? block : null
+    if (!ready && !held) continue
     out.set(l.listing_id, {
       listingId: l.listing_id,
       productId: l.product_id,
-      redraft: l.redraft,
-      reason: l.redraft ? null : (l.reason ?? null),
-      openQuestions: l.open_questions ?? null,
-      sections: l.sections ?? [],
+      redraft: ready,
+      blocked: ready ? null : held,
+      openQuestions: held === 'other_questions_open' ? (l.open_questions ?? null) : null,
+      sections,
+      full: false,
     })
   }
   return [...out.values()]
 }
 
-/** Listings that can be redrafted with no more to know (a full regenerate). */
-export const plainPlan = (listingIds: readonly string[]): RedraftPlanItem[] =>
-  [...new Set(listingIds)].map((listingId) => ({ listingId, productId: null, redraft: true, reason: null, openQuestions: null, sections: [] }))
+/** The manual "brand already set" redraft: the whole of each listing (a full regenerate). */
+export const fullPlan = (listingIds: readonly string[]): RedraftPlanItem[] =>
+  [...new Set(listingIds)].map((listingId) => ({ listingId, productId: null, redraft: true, blocked: null, openQuestions: null, sections: [], full: true }))
 
-/**
- * The plan for a listing read after a brand-wide save (GET /listings/{id}): never written is left
- * out, one being written is held as busy, the AI pause holds the rest; the sections are the ones
- * the new answers feed (`affected_sections`).
- */
-export function listingPlan(
-  l: { id: string; product_id: string; status: string; affected_sections?: RedraftSection[] | null },
-  aiPaused: boolean,
-): RedraftPlanItem | null {
-  if (l.status === 'created') return null
-  const busy = l.status === 'generating'
-  const reason: RedraftReason | null = busy ? 'busy' : aiPaused ? 'paused' : null
-  return { listingId: l.id, productId: l.product_id, redraft: !reason, reason, openQuestions: null, sections: l.affected_sections ?? [] }
-}
+/** Listings to check again only (no redraft): every product already has its own value. */
+export const checkOnlyPlan = (listingIds: readonly string[]): RedraftPlanItem[] =>
+  [...new Set(listingIds)].map((listingId) => ({ listingId, productId: null, redraft: false, blocked: null, openQuestions: null, sections: [], full: false }))
 
 /** Why a listing waits, in words. */
-export function heldReason(item: Pick<RedraftPlanItem, 'reason' | 'openQuestions'>): string {
-  if (item.reason === 'busy') return 'Already drafting.'
-  if (item.reason === 'paused') return 'AI drafting is paused.'
+export function heldReason(item: Pick<RedraftPlanItem, 'blocked' | 'openQuestions'>): string {
+  if (item.blocked === 'busy') return 'Already drafting.'
+  if (item.blocked === 'paused') return 'AI drafting is paused.'
   const q = item.openQuestions
   const open = q && q > 0 ? `${n(q)} ${q === 1 ? 'question' : 'questions'}` : 'questions'
   return `Still has ${open} open. Kuinn redrafts it when they’re answered.`
 }
+
+/* ------------------------------------------------------------------------------ Brand parties */
+
+export type BrandRole = 'manufacturer' | 'marketer' | 'packer' | 'importer'
+export const BRAND_ROLES: readonly BrandRole[] = ['manufacturer', 'marketer', 'packer', 'importer']
+
+/** The brand party a brand group asks for (`group.field`), manufacturer when unknown. */
+export function brandRole(field: string | null | undefined): BrandRole {
+  const f = (field ?? '').replace(/^facts\./, '')
+  return (BRAND_ROLES as readonly string[]).includes(f) ? (f as BrandRole) : 'manufacturer'
+}
+
+/** "a manufacturer", "an importer". */
+export const aRole = (role: BrandRole) => `${role === 'importer' ? 'an' : 'a'} ${role}`
 
 /** A brand-wide value reaches the products without their own: their listings, deduplicated. */
 export function brandListings(members: readonly GroupMember[]): string[] {

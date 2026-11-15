@@ -10,6 +10,7 @@ import { isApiError } from '@/api/errors'
 import { idempotencyHeader } from '@/api/idempotency'
 import { ifMatchHeader, unwrapVersioned, type Versioned } from '@/api/etag'
 import type { Schema } from '@/api/types'
+import type { AffectedListing } from '@/features/inbox-groups/model'
 import { PAGE_SIZE, useCursorList } from '@/hooks/use-cursor-list'
 import { useKeys, type QueryKeys } from '@/lib/query-keys'
 import { viewRefreshDelay } from './image-views'
@@ -21,6 +22,11 @@ export type ProductCreateBody = Schema<'ProductCreate'>
 export type ProductPatchBody = Schema<'ProductPatch'>
 export type BrandProfile = Schema<'BrandProfileOut'>
 export type BrandProfileBody = Schema<'BrandProfileIn'>
+/**
+ * The PATCH /brand-profile reply: the profile, plus `affected_listings` (the same verdicts as a
+ * group answer) when the Inbox groups are on and a brand party default changed.
+ */
+export type BrandProfileSaved = BrandProfile & { affected_listings?: AffectedListing[] }
 
 /** Backend `limit` bounds for GET /products. */
 export const MAX_PAGE_SIZE = 200
@@ -227,7 +233,7 @@ export function useKeepPhoto(productId: string) {
 
 export const fetchBrandProfile = () => unwrapVersioned(api.GET('/brand-profile'))
 
-/** GET /brand-profile with its ETag: the default manufacturer every product inherits. */
+/** GET /brand-profile with its ETag: the brand parties (manufacturer, marketer, packer, importer) every product inherits. */
 export function useBrandManufacturer(enabled = true) {
   const keys = useKeys()
   return useQuery({ queryKey: [...keys.brand.all(), 'brand-profile'] as const, queryFn: fetchBrandProfile, enabled, staleTime: 60_000 })
@@ -239,10 +245,12 @@ export function useSaveBrandManufacturer() {
   const qc = useQueryClient()
   return useMutation({
     meta: { toast: false },
-    mutationFn: ({ body, etag }: { body: BrandProfileBody; etag: string | null }) =>
+    mutationFn: ({ body, etag }: { body: BrandProfileBody; etag: string | null }): Promise<Versioned<BrandProfileSaved>> =>
       unwrapVersioned(api.PATCH('/brand-profile', { params: { header: ifMatchHeader(etag) }, body })),
-    onSuccess: (next: Versioned<BrandProfile>) => {
-      qc.setQueryData([...keys.brand.all(), 'brand-profile'], next)
+    onSuccess: (next: Versioned<BrandProfileSaved>) => {
+      // The cache holds the profile only: the verdicts belong to this save.
+      const { affected_listings: _verdicts, ...profile } = next.data
+      qc.setQueryData([...keys.brand.all(), 'brand-profile'], { ...next, data: profile })
       // Products inherit the default: their effective manufacturer changed too.
       void qc.invalidateQueries({ queryKey: keys.products.all() })
     },

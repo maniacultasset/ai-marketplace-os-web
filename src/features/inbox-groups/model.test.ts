@@ -16,7 +16,11 @@ import {
   normalizeGroups,
   recheckSummary,
   heldReason,
-  listingPlan,
+  aRole,
+  brandRole,
+  canRedraftItem,
+  checkOnlyPlan,
+  fullPlan,
   redraftPlan,
   redraftSummary,
   redraftTargets,
@@ -134,7 +138,7 @@ describe('answer', () => {
     expect(chunks([U(1), U(1)])).toEqual([[U(1)]])
   })
   it('merges chunk answers and keeps each listing once', () => {
-    const l = { listing_id: U(201), product_id: U(101), marketplace: 'amazon' as const, status: 'approved', redraft: true }
+    const l = { listing_id: U(201), product_id: U(101), marketplace: 'amazon' as const, status: 'approved', redraft: true, sections: ['title' as const] }
     const m = mergeAnswers([
       { applied: [{ task_id: U(1), product_id: U(101) }], skipped: [], listings: [l] },
       { applied: [], skipped: [{ task_id: U(2), product_id: U(102), reason: 'has_value' }], listings: [l, { ...l, listing_id: U(202), redraft: false }] },
@@ -216,37 +220,56 @@ describe('redraft', () => {
 
 describe('redraft plan', () => {
   const base = { product_id: U(101), marketplace: 'amazon' as const, status: 'approved' }
-  it('redrafts only the ready ones, holds the others with a reason, leaves out never written', () => {
+  it('redrafts only ready ones with sections, holds busy, paused and open questions, leaves the rest out', () => {
     const plan = redraftPlan([
       { ...base, listing_id: U(201), redraft: true, sections: ['attributes'] },
-      { ...base, listing_id: U(202), redraft: false, reason: 'other_questions_open', open_questions: 3 },
-      { ...base, listing_id: U(203), redraft: false, reason: 'busy' },
-      { ...base, listing_id: U(204), redraft: false, reason: 'paused' },
-      { ...base, listing_id: U(205), redraft: false, status: 'created' },
-      { ...base, listing_id: U(206), redraft: true },
+      { ...base, listing_id: U(202), redraft: false, redraft_blocked: 'other_questions_open', open_questions: 3, sections: ['bullets'] },
+      { ...base, listing_id: U(203), redraft: false, redraft_blocked: 'busy' },
+      { ...base, listing_id: U(204), redraft: false, redraft_blocked: 'paused' },
+      { ...base, listing_id: U(205), redraft: false, redraft_blocked: 'not_written', status: 'created' },
+      { ...base, listing_id: U(206), redraft: false, redraft_blocked: 'nothing_to_redraft', sections: [] },
+      // Never auto-redrafted without sections, whatever the flag says.
+      { ...base, listing_id: U(207), redraft: true, sections: [] },
+      { ...base, listing_id: U(208), redraft: false },
     ])
-    expect(plan.map((p) => [p.listingId, p.redraft, p.reason, p.sections])).toEqual([
-      [U(201), true, null, ['attributes']],
-      [U(202), false, 'other_questions_open', []],
-      [U(203), false, 'busy', []],
-      [U(204), false, 'paused', []],
-      [U(206), true, null, []],
+    expect(plan.map((p) => [p.listingId, p.redraft, p.blocked, p.openQuestions, p.sections])).toEqual([
+      [U(201), true, null, null, ['attributes']],
+      [U(202), false, 'other_questions_open', 3, ['bullets']],
+      [U(203), false, 'busy', null, []],
+      [U(204), false, 'paused', null, []],
     ])
     expect(plan.map((p) => (p.redraft ? null : heldReason(p)))).toEqual([
       null,
       'Still has 3 questions open. Kuinn redrafts it when they’re answered.',
       'Already drafting.',
       'AI drafting is paused.',
-      null,
     ])
-    expect(heldReason({ reason: 'other_questions_open', openQuestions: 1 })).toBe('Still has 1 question open. Kuinn redrafts it when they’re answered.')
+    expect(heldReason({ blocked: 'other_questions_open', openQuestions: 1 })).toBe('Still has 1 question open. Kuinn redrafts it when they’re answered.')
+    expect(redraftTargets([{ ...base, listing_id: U(201), redraft: true, sections: ['title'] }, { ...base, listing_id: U(207), redraft: true, sections: [] }])).toEqual([U(201)])
   })
 
-  it('a listing read after a brand save: by status and the AI pause', () => {
-    const l = { id: U(201), product_id: U(101), status: 'approved', affected_sections: ['attributes' as const] }
-    expect(listingPlan(l, false)).toMatchObject({ redraft: true, reason: null, sections: ['attributes'] })
-    expect(listingPlan({ ...l, status: 'generating' }, false)).toMatchObject({ redraft: false, reason: 'busy' })
-    expect(listingPlan(l, true)).toMatchObject({ redraft: false, reason: 'paused' })
-    expect(listingPlan({ ...l, status: 'created' }, false)).toBeNull()
+  it('a full regenerate only from the manual plan; a check-only plan redrafts nothing', () => {
+    const full = fullPlan([U(201), U(201), U(202)])
+    expect(full.map((p) => [p.listingId, p.full, canRedraftItem(p)])).toEqual([
+      [U(201), true, true],
+      [U(202), true, true],
+    ])
+    expect(checkOnlyPlan([U(201)]).map(canRedraftItem)).toEqual([false])
+    expect(canRedraftItem({ redraft: true, sections: [], full: false })).toBe(false)
+  })
+
+  it('brand parties from the group field', () => {
+    expect(['manufacturer', 'marketer', 'packer', 'importer', 'facts.packer', null, 'gender'].map((f) => brandRole(f))).toEqual([
+      'manufacturer',
+      'marketer',
+      'packer',
+      'importer',
+      'packer',
+      'manufacturer',
+      'manufacturer',
+    ])
+    expect(aRole('importer')).toBe('an importer')
+    expect(groupTitle({ item_kind: 'task', scope: 'brand', field: 'importer', task_kind: 'missing_fact', error_code: null, products: 4, listings: 4, count: 4 })).toBe('4 products need an importer')
+    expect(groupTitle({ item_kind: 'task', scope: 'brand', field: 'marketer', task_kind: 'missing_fact', error_code: null, products: 1, listings: 1, count: 1 })).toBe('1 product needs a marketer')
   })
 })

@@ -10,8 +10,10 @@
  *   POST /listings/{id}/regenerate                 via regenerateBody (listing:regenerate; one key
  *                                                  per listing; B19: 202 waiting_for_slot past the cap).
  *                                                  The sections the answer feeds with for_answers: true;
- *                                                  the whole listing only when none are given.
- *   GET  /listings/{id}                            after a brand-wide save: status and affected_sections.
+ *                                                  the whole listing only from the manual "brand already
+ *                                                  set" redraft.
+ *   PATCH /brand-profile                           a brand party saved: `affected_listings` carries the same
+ *                                                  verdicts as an answer (the backend re-checks them).
  *   POST /listings/validate                        listing:edit; a failed check is still 200.
  *
  * The groups read sits under `tasks.all()`, so every answer, close or regenerate that refreshes the
@@ -32,13 +34,11 @@ import type { InboxView } from '@/features/home-inbox/model'
 import { useKeys } from '@/lib/query-keys'
 import {
   chunks,
-  listingPlan,
   mergeAnswers,
   normalizeGroups,
   type AnswerScalar,
   type GroupAnswerOut,
   type RedraftOutcome,
-  type RedraftPlanItem,
   type RedraftResult,
   type RedraftSection,
 } from './model'
@@ -145,18 +145,6 @@ export const regenerateOne: RegenerateSend = (listingId, key, sections) =>
       body: regenerateBody(null, sections, true),
     }),
   )
-
-/** The plan for listings after a brand-wide save, read one by one (pool of 3); an unreadable one is left out. */
-export async function fetchListingPlan(listingIds: readonly string[], aiPaused: boolean): Promise<RedraftPlanItem[]> {
-  const out = await pool(listingIds, async (listing_id) => {
-    try {
-      return listingPlan(await unwrap(api.GET('/listings/{listing_id}', { params: { path: { listing_id } } })), aiPaused)
-    } catch {
-      return null
-    }
-  })
-  return out.filter((x): x is RedraftPlanItem => !!x)
-}
 
 /**
  * Redraft each listing (pool of 3), one Idempotency-Key per listing kept for this screen: "Redraft
