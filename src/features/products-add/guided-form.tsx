@@ -76,7 +76,7 @@ import { focusFirstInvalid } from '@/lib/validation'
 import { cn } from '@/lib/utils'
 import { useAllProducts } from './catalog'
 import type { Marketplace, Product } from './catalog-model'
-import { generateMany, planGenerate } from './generate'
+import { acceptedSummary, generateMany, planGenerate } from './generate'
 import {
   ATTR_FIELDS,
   emptyGuided,
@@ -629,7 +629,10 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
           description: failed.map((f) => (f.kind === 'failed' ? f.message : '')).join(' '),
         })
       } else {
-        toast.success('Sent to the agent', { description: `Drafting ${p.sku} for ${ok.length} ${ok.length === 1 ? 'marketplace' : 'marketplaces'}.` })
+        const slots = acceptedSummary(out)
+        toast.success('Sent to the agent', {
+          description: slots ? `${p.sku}: ${slots}` : `Drafting ${p.sku} for ${ok.length} ${ok.length === 1 ? 'marketplace' : 'marketplaces'}.`,
+        })
       }
     } else {
       toast.success('Product saved', {

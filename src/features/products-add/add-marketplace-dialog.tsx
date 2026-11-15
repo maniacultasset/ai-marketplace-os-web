@@ -16,7 +16,16 @@ import { openForDrafts } from '@/features/marketplaces/meta'
 import { useKeys } from '@/lib/query-keys'
 import type { Listing, Marketplace, Product } from './catalog-model'
 import { ListOnPicker, useConnectedMarketplaces } from './list-on'
-import { generateMany, planGenerate, SKIP_COPY, type GenerateItem, type ItemOutcome } from './generate'
+import {
+  acceptedSummary,
+  generateMany,
+  isWaitingForSlot,
+  planGenerate,
+  SKIP_COPY,
+  WAITING_FOR_SLOT,
+  type GenerateItem,
+  type ItemOutcome,
+} from './generate'
 import { neededForApproval, viewGaps } from '@/features/analytics-images/images/photo-views'
 
 const API_NAMES: Record<Marketplace, string> = { amazon: 'Amazon', flipkart: 'Flipkart' }
@@ -105,7 +114,7 @@ export function AddMarketplaceDialog({
           <div className="flex flex-col gap-3" data-testid="generate-results">
             {accepted.length ? (
               <Banner tone="success" role="status" title={`${accepted.length} ${accepted.length === 1 ? 'draft' : 'drafts'} queued`}>
-                Each one shows as Working until the agent finishes. While processing is paused it stays queued.
+                {acceptedSummary(accepted) ?? 'Each one shows as Working until the agent finishes. While processing is paused it stays queued.'}
               </Banner>
             ) : null}
             {/* listing-flow: each accepted job is an agent run (/runs/<job id>, p12). */}
@@ -122,6 +131,7 @@ export function AddMarketplaceDialog({
                     <li key={a.accepted.job_id} className="flex items-center justify-between gap-3 px-3 py-2 text-small text-ink-2">
                       <span className="min-w-0 truncate">
                         <b className="text-ink">{a.item.product.sku}</b> · {API_NAMES[a.item.marketplace]}
+                        {isWaitingForSlot(a.accepted) ? <span className="text-ink-3"> · {WAITING_FOR_SLOT}</span> : null}
                       </span>
                       <Button variant="ghost" size="xs" className="shrink-0" asChild>
                         <Link

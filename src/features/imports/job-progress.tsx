@@ -30,10 +30,10 @@ import { formatDateTime, formatDuration, formatTime, importIdFromResultUrl, JOB_
 
 export type JobPolling = ReturnType<typeof useJobPolling>
 
-function statusLine(status: JobEnvelope['status'], kind: string, timedOut: boolean): string {
+function statusLine(status: JobEnvelope['status'], kind: string, timedOut: boolean, forSlot = false): string {
   switch (status) {
     case 'queued':
-      return 'Queued. It starts when a worker is free.'
+      return forSlot ? 'Waiting for a free slot. It starts on its own as earlier drafts finish.' : 'Queued. It starts when a worker is free.'
     case 'running':
       return kind === 'bulk_import' ? 'Importing rows…' : 'Working on it…'
     case 'succeeded':
@@ -78,12 +78,13 @@ export function JobProgress({
   const stage = job?.stage
   const timedOut = !!job?.error?.errors?.some((e) => e.error_code === 'JOB_TIMEOUT')
   const kind = job?.kind
+  const forSlot = polling.isWaitingForSlot
   const announce = useMemo(() => {
     if (!status || !kind) return ''
-    const line = statusLine(status, kind, timedOut)
+    const line = statusLine(status, kind, timedOut, forSlot)
     const sub = status === 'running' ? stageLine(stage) : null
     return sub ? `${line} ${sub}` : line
-  }, [status, stage, kind, timedOut])
+  }, [status, stage, kind, timedOut, forSlot])
 
   const cancel = useMutation({
     meta: { toast: false },
@@ -173,10 +174,10 @@ export function JobProgress({
           <div className="min-w-0 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-display text-h3 text-ink">{title ?? JOB_KIND_LABEL[job.kind] ?? job.kind}</h2>
-              <JobStatusBadge status={job.status} />
+              <JobStatusBadge status={job.status} waitingForSlot={forSlot} />
             </div>
             <p className="text-small text-ink-2" aria-hidden>
-              {statusLine(job.status, job.kind, timedOut)}
+              {statusLine(job.status, job.kind, timedOut, forSlot)}
               {running && stageLine(job.stage) ? <span className="ml-1">{stageLine(job.stage)}</span> : null}
             </p>
           </div>

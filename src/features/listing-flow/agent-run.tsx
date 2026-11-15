@@ -119,6 +119,7 @@ export function AgentRun({ runId }: { runId: string }) {
       job={envelope}
       listingId={envelope.listing_id}
       waiting={job.isWaitingForWorker}
+      waitingForSlot={job.isWaitingForSlot}
       rateLimitedFor={job.rateLimitedFor}
     />
   )
@@ -143,11 +144,13 @@ function RunBody({
   job,
   listingId,
   waiting,
+  waitingForSlot,
   rateLimitedFor,
 }: {
   job: JobEnvelope
   listingId: string
   waiting: boolean
+  waitingForSlot: boolean
   rateLimitedFor: number | null
 }) {
   const can = useCan()
@@ -248,6 +251,11 @@ function RunBody({
       />
 
       <div className="mb-4 flex flex-col gap-3 empty:hidden">
+        {waitingForSlot ? (
+          <Banner tone="neutral" role="status" className="animate-page-in" title="Waiting for a free slot" data-testid="waiting-for-slot">
+            Your brand already has the most drafts in progress. Kuinn starts this one as a slot frees up. You can leave this page.
+          </Banner>
+        ) : null}
         {waiting ? (
           <Banner tone="neutral" role="status" className="animate-page-in" title="Still waiting for a worker">
             It starts on its own when one is free. You can leave this page.
@@ -501,6 +509,7 @@ function FailedJobAction({
 
 function laneSub(l: Listing, run: boolean, job: JobEnvelope): string {
   const at = clock(l.status_changed_at)
+  if (run && job.status === 'queued' && job.waiting_for_slot) return 'Waiting for a free slot'
   if (run && (job.status === 'queued' || job.status === 'running')) return `${JOB_KIND_LABEL[job.kind] ?? 'Working'} · attempt ${job.attempt}`
   if (l.status === 'published') return `Submitted · ${at}`
   if (needsYourInfo(l)) return `${needsYourInfoLabel(l)} · ${at}`

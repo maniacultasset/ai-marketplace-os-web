@@ -91,8 +91,10 @@ export function useJobPolling(jobId: string | null | undefined, opts: UseJobPoll
   }, [limited])
 
   // Queued for more than 15 s since mount: show "Waiting for a worker…" (no worker = stays queued).
+  // A generation waiting for a free slot (B19) is queued on purpose, so it is never "waiting for a worker".
   const [waiting, setWaiting] = useState(false)
   const queued = job?.status === 'queued'
+  const forSlot = queued && !!job?.waiting_for_slot
   useEffect(() => {
     if (!queued) return
     const t = setTimeout(() => setWaiting(true), Math.max(0, 15_000 - (Date.now() - startedAt.current)))
@@ -106,7 +108,9 @@ export function useJobPolling(jobId: string | null | undefined, opts: UseJobPoll
     ...query,
     job,
     isTerminal: terminal,
-    isWaitingForWorker: queued && waiting,
+    isWaitingForWorker: queued && waiting && !forSlot,
+    /** Accepted, waiting for a free slot: the brand already has the most generations live (B19). */
+    isWaitingForSlot: forSlot,
     /** Seconds until polling resumes after a 429, else null. */
     rateLimitedFor: limited ? resumeIn : null,
   }
