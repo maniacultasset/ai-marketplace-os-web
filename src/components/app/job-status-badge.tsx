@@ -16,8 +16,11 @@ function Dot({ live }: { live?: boolean }) {
   return <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full bg-current', live && 'motion-safe:animate-pulse')} />
 }
 
-/** Status pill for a JobEnvelope.status. Leading 6px dot per DESIGN.md. */
-export function JobStatusBadge({ status }: { status: JobState | undefined }) {
+/**
+ * Status pill for a JobEnvelope.status. Leading 6px dot per DESIGN.md. `waitingForSlot`: a queued
+ * generation waiting for a free slot (B19) reads as that, not a bare "Queued".
+ */
+export function JobStatusBadge({ status, waitingForSlot = false }: { status: JobState | undefined; waitingForSlot?: boolean }) {
   if (!status) {
     return (
       <Badge variant="muted">
@@ -29,7 +32,7 @@ export function JobStatusBadge({ status }: { status: JobState | undefined }) {
   return (
     <Badge variant={m.variant} data-status={status}>
       <Dot live={status === 'running' || status === 'queued'} />
-      {m.label}
+      {status === 'queued' && waitingForSlot ? 'Waiting for a free slot' : m.label}
     </Badge>
   )
 }

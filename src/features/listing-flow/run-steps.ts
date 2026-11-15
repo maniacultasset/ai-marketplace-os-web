@@ -70,7 +70,7 @@ export const STAGE_SUB: Record<Stage, string> = {
 }
 
 export interface RunInput {
-  job: Pick<JobEnvelope, 'kind' | 'status' | 'stage'> | null | undefined
+  job: (Pick<JobEnvelope, 'kind' | 'status' | 'stage'> & { waiting_for_slot?: boolean }) | null | undefined
   listing: Pick<Listing, 'status' | 'status_reason' | 'marketplace_state' | 'marketplace'> | null | undefined
   validation?: { blocking: number; warnings: number } | null
   /**
@@ -109,7 +109,7 @@ export function runSteps({ job, listing, validation, liveConfirmed = false, publ
 
   // A generation job in flight (or one that just ended badly) is the most precise signal.
   if (genJob && (ACTIVE.has(genJob.status) || (listing?.status === 'generating' && !ENDED_BAD.has(genJob.status)))) {
-    if (genJob.status === 'queued') return upTo('understand', 'now', 'Waiting for a worker…')
+    if (genJob.status === 'queued') return upTo('understand', 'now', genJob.waiting_for_slot ? 'Waiting for a free slot' : 'Waiting for a worker…')
     const stage = genJob.stage
     return stage ? upTo(STAGE_STEP[stage], 'now', STAGE_SUB[stage]) : upTo('understand', 'now', 'Starting…')
   }

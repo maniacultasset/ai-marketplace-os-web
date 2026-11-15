@@ -4986,6 +4986,12 @@ export interface components {
             poll_url: string;
             /** @default queued */
             status: components["schemas"]["JobState"];
+            /**
+             * Waiting For Slot
+             * @description True while a `queued` generation waits for a free slot: its brand already has the most generations on the queue (GENERATION_LIVE_JOBS_PER_TENANT). It starts on its own, oldest first, as the brand's earlier ones finish; nothing to retry.
+             * @default false
+             */
+            waiting_for_slot: boolean;
         };
         /** JobEnvelope */
         JobEnvelope: {
@@ -5033,6 +5039,12 @@ export interface components {
             /** Started At */
             started_at?: string | null;
             status: components["schemas"]["JobState"];
+            /**
+             * Waiting For Slot
+             * @description True while a `queued` generation waits for a free slot: its brand already has the most generations on the queue (GENERATION_LIVE_JOBS_PER_TENANT). It starts on its own, oldest first, as the brand's earlier ones finish; nothing to retry.
+             * @default false
+             */
+            waiting_for_slot: boolean;
         };
         /**
          * JobKind

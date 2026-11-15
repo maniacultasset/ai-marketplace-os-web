@@ -49,7 +49,7 @@ import { useAllListings, useAllProducts, walkPages } from './catalog'
 import type { Marketplace } from './catalog-model'
 import { analyzeCsv, csvSkuRows, MATCH_COPY, parseCsv, type ColumnMatch, type HeaderAnalysis } from './csv-header'
 import { csvSkuFindings, csvSkus, repeatedSkus, useTakenSkus, type CsvSkuRow } from './sku-batch'
-import { generateMany, planGenerate, type ItemOutcome } from './generate'
+import { acceptedSummary, generateMany, planGenerate, type ItemOutcome } from './generate'
 import { ListOnPicker, serializeListOn, useConnectedMarketplaces } from './list-on'
 import { NeedsPhotosCard } from './needs-photos-card'
 import { ColumnMapReview } from '@/features/assist/column-map-review'
@@ -766,7 +766,7 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
           <div className="mt-4 flex flex-col gap-3">
             {accepted ? (
               <Banner tone="success" role="status" title={`${accepted} ${accepted === 1 ? 'draft' : 'drafts'} queued`}>
-                The agent drafts each listing. A person approves every one before it is sent.
+                {acceptedSummary(results ?? []) ?? 'The agent drafts each listing.'} A person approves every one before it is sent.
               </Banner>
             ) : null}
             {failedSends.length ? (

@@ -237,6 +237,13 @@ describe('run steps', () => {
     expect(runSteps({ job: job({ status: 'queued' }), listing: null })[0]).toMatchObject({ state: 'now', sub: 'Waiting for a worker…' })
   })
 
+  it('says a generation past the brand cap waits for a free slot, then follows it once promoted (B19)', () => {
+    const listing = { ...baseListing, status: 'generating' } as Listing
+    expect(runSteps({ job: job({ status: 'queued', waiting_for_slot: true }), listing })[0]).toMatchObject({ state: 'now', sub: 'Waiting for a free slot' })
+    expect(runSteps({ job: job({ status: 'queued', waiting_for_slot: false }), listing })[0]).toMatchObject({ sub: 'Waiting for a worker…' })
+    expect(runSteps({ job: job({ stage: 'content_agent', waiting_for_slot: false }), listing })[1]).toMatchObject({ state: 'now', sub: 'Writing the title, bullets and description…' })
+  })
+
   it('stops at approval after generation (approval is always on)', () => {
     const s = runSteps({ job: job({ status: 'succeeded', stage: 'quality_check' }), listing: { ...baseListing, status: 'needs_review' } as Listing, validation: { blocking: 0, warnings: 2 } })
     expect(states(s).slice(0, 4)).toEqual(['understand:done', 'write:done', 'check:done', 'approve:needs-you'])
