@@ -14,7 +14,8 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
-import { duplicatePositions, FIELD_CHOICES, headerText, METHOD_LABEL, needsAnswer, resolvedKey, usedColumns, type Answers, type ColumnMap, type ColumnMapEntry } from './column-map'
+import { useSheetPhotos } from '@/features/imports/sheet-photos'
+import { duplicatePositions, fieldChoices, headerText, METHOD_LABEL, needsAnswer, resolvedKey, usedColumns, type Answers, type ColumnMap, type ColumnMapEntry } from './column-map'
 
 const SKIP = '__skip'
 
@@ -29,7 +30,8 @@ function FieldSelect({ entry, label, answers, onAnswer, invalid }: { entry: Colu
   const answered = entry.position in answers
   const waiting = needsAnswer(entry) && !answered
   const current = waiting ? '' : (resolvedKey(entry, answers) ?? SKIP)
-  const choices = [...FIELD_CHOICES]
+  const sheetPhotos = useSheetPhotos()
+  const choices = [...fieldChoices({ sheetPhotos })]
   for (const k of [entry.key, answers[entry.position]]) if (k && !choices.includes(k)) choices.push(k)
   return (
     <Select value={current} onValueChange={(v) => onAnswer(v === SKIP ? null : v)}>

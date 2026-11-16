@@ -43,7 +43,7 @@ const product = (over: Partial<ProductDetail> = {}): ProductDetail => ({
   identifier_exemption: false,
   brand_name_inherited: false,
   size_chart_read_enabled: false,
-  category_suggest_enabled: true, photo_reading: false,
+  category_suggest_enabled: true, photo_reading: false, photo_links_pending: false,
   attribute_literals: {},
   etag: '"e1"',
   ...over,

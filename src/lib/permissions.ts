@@ -104,6 +104,10 @@ export const OP_ACTION = {
   'GET /imports/{import_id}': 'tenant:read',
   'GET /imports/{import_id}/rows': 'tenant:read',
   'POST /imports/{import_id}/rows/retry': 'product:import',
+  // G2: photos downloaded from the spreadsheet's photo links.
+  'POST /imports/{import_id}/photo-links/retry': 'product:import',
+  'POST /products/{product_id}/photo-links/retry': 'product:import',
+  'DELETE /photo-links/{link_id}': 'product:import',
   'POST /imports/column-maps': 'product:import',
   'GET /imports/column-maps/{map_id}': 'tenant:read',
   'POST /imports/column-maps/{map_id}/confirm': 'product:import',

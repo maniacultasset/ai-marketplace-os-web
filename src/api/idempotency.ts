@@ -14,6 +14,8 @@ export const IDEMPOTENT_OPS = [
   'POST /products/bulk',
   'POST /products/bulk-delete',
   'POST /imports/{import_id}/rows/retry',
+  'POST /imports/{import_id}/photo-links/retry',
+  'POST /products/{product_id}/photo-links/retry',
   'POST /brand/documents',
   'POST /images/upload',
   'POST /images/{image_id}/photo-match/keep',

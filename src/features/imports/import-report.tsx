@@ -1,6 +1,8 @@
 /**
  * /imports/$importId body: job progress, live counts, error panel,
  * rows table with server status filter, "Retry failed rows".
+ * G2 (sheet photos on): the file's photo links by outcome (`photos`), "Retry failed photos"
+ * (POST /imports/{id}/photo-links/retry), and the report read every 5 s while photos download.
  */
 import { Icon } from '@/components/la/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -18,12 +20,13 @@ import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCan } from '@/lib/permissions'
 import { useKeys } from '@/lib/query-keys'
-import { toastError } from '@/lib/toast'
+import { toast, toastError } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { ErrorReportList } from './error-report-list'
 import { useImportHistory } from './history'
 import { ImportRowsTable, type RowsTab } from './import-rows'
 import { JobProgress } from './job-progress'
+import { photoTotalsDelay, photoTotalsText, useRetryImportPhotos, useSheetPhotos, type ImportPhotoTotals } from './sheet-photos'
 import { markJobLive, useImportJob } from './use-import-job'
 
 const IMPORT_CAP_MESSAGE = 'Two imports are already running. Wait for one to finish.'
@@ -44,8 +47,13 @@ export function useImportReport(
   const query = useQuery({
     queryKey: keys.imports.detail(importId),
     queryFn: () => unwrap(api.GET('/imports/{import_id}', { params: { path: { import_id: importId } } })),
-    // Live counts while the worker runs; the job poll drives everything else.
-    refetchInterval: opts.live ? 3000 : opts.watch ? (settled ? 15_000 : 3000) : false,
+    // Live counts while the worker runs; the job poll drives everything else. G2: every 5 s while
+    // the file's photos still download, even after the import has settled.
+    refetchInterval: (q) => {
+      const own = opts.live ? 3000 : opts.watch ? (settled ? 15_000 : 3000) : false
+      const photos = photoTotalsDelay(q.state.data)
+      return own === false ? photos : photos === false ? own : Math.min(own, photos)
+    },
     refetchIntervalInBackground: false,
     // After the job ends the report changes only via explicit invalidation (job end, retry).
     staleTime: opts.final ? Infinity : undefined,
@@ -111,6 +119,17 @@ export function ImportReportView({
   useEffect(() => {
     if (gone) remove(importId)
   }, [gone, importId, remove])
+
+  // G2: a photo that lands (or fails) changes its row: read the rows again with the totals.
+  const sheetPhotos = useSheetPhotos()
+  const photos = report.data?.photos
+  const photoSig = photos ? `${photos.saved}/${photos.failed}/${photos.skipped}/${photos.waiting}` : null
+  const lastPhotoSig = useRef<string | null>(null)
+  useEffect(() => {
+    if (photoSig === null) return
+    if (lastPhotoSig.current !== null && lastPhotoSig.current !== photoSig) void qc.invalidateQueries({ queryKey: keys.importRows.all(importId) })
+    lastPhotoSig.current = photoSig
+  }, [photoSig, importId, keys, qc])
 
   const [retryMsg, setRetryMsg] = useState<string | null>(null)
   const retry = useMutation({
@@ -246,6 +265,8 @@ export function ImportReportView({
           </div>
         )}
 
+        {data?.photos && sheetPhotos ? <ImportPhotosLine importId={importId} totals={data.photos} canRetry={can('product:import')} onMessage={setRetryMsg} /> : null}
+
         {data?.error ? (
           <section role="alert" className="space-y-3 rounded-card border border-danger-line bg-danger-bg p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -288,6 +309,61 @@ export function ImportReportView({
         </section>
       </div>
     </>
+  )
+}
+
+/**
+ * "Photos: 40 saved · 2 failed · 3 skipped · 8 downloading" with "Retry failed photos", shown only
+ * while a retry would download something (`retryable > 0`). A 501 (the switch was turned off) hides
+ * the button; a 409 says there is nothing to retry.
+ */
+export function ImportPhotosLine({
+  importId,
+  totals,
+  canRetry,
+  onMessage,
+}: {
+  importId: string
+  totals: ImportPhotoTotals
+  canRetry: boolean
+  /** A plain status line under the header (shared with "Retry failed rows"). */
+  onMessage?: (message: string | null) => void
+}) {
+  const retry = useRetryImportPhotos(importId)
+  const [off, setOff] = useState(false)
+  const run = () => {
+    onMessage?.(null)
+    retry.mutate(undefined, {
+      onSuccess: (res) =>
+        toast.success(`${res.queued.toLocaleString('en-IN')} ${res.queued === 1 ? 'photo' : 'photos'} downloading again`, {
+          description: 'Each link’s result shows in its row.',
+        }),
+      onError: (err) => {
+        if (isApiError(err) && err.status === 501) return setOff(true)
+        if (isApiError(err) && err.type === 'INVALID_STATUS_TRANSITION') return onMessage?.('No failed photos to retry.')
+        toastError(err, "Couldn't retry the failed photos")
+      },
+    })
+  }
+  return (
+    <div
+      className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-card border border-line bg-card px-4 py-3 shadow-raised-sm sm:px-5"
+      data-testid="import-photos"
+    >
+      <p className="flex min-w-0 items-center gap-2 text-sm">
+        {totals.waiting > 0 ? <Spinner className="size-4 shrink-0 text-muted-foreground" aria-hidden /> : <Icon name="image" size={16} className="shrink-0 text-muted-foreground" />}
+        <span className="font-medium">Photos:</span>
+        <span className="tabular-nums text-muted-foreground" data-testid="import-photos-text">
+          {photoTotalsText(totals)}
+        </span>
+      </p>
+      {canRetry && totals.retryable > 0 && !off ? (
+        <Button variant="outline" size="sm" disabled={retry.isPending} onClick={run} data-testid="retry-photos">
+          {retry.isPending ? <Spinner data-icon="inline-start" /> : <Icon name="refresh" size={16} data-icon="inline-start" />}
+          Retry failed photos
+        </Button>
+      ) : null}
+    </div>
   )
 }
 

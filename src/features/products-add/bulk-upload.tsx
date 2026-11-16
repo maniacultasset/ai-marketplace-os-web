@@ -18,7 +18,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useDropzone, type FileRejection } from 'react-dropzone'
 import { api, unwrap } from '@/api/client'
 import { describeError, isApiError, isNotFound } from '@/api/errors'
@@ -37,6 +37,7 @@ import { plainRowError, rowProblems } from '@/features/imports/row-errors'
 import { sentenceCase } from '@/features/listing-flow/format'
 import { useImportHistory } from '@/features/imports/history'
 import { useImportReport } from '@/features/imports/import-report'
+import { useSheetPhotos } from '@/features/imports/sheet-photos'
 import { markJobLive, useImportJob } from '@/features/imports/use-import-job'
 import { useLampsEnabled } from '@/features/assist/flags'
 import { CategoryCodes } from '@/features/products/category-select'
@@ -47,7 +48,7 @@ import { useKeys } from '@/lib/query-keys'
 import { cn } from '@/lib/utils'
 import { useAllListings, useAllProducts, walkPages } from './catalog'
 import type { Marketplace } from './catalog-model'
-import { analyzeCsv, csvSkuRows, MATCH_COPY, parseCsv, type ColumnMatch, type HeaderAnalysis } from './csv-header'
+import { analyzeCsv, csvSkuRows, isUsedMatch, matchCopy, parseCsv, type ColumnMatch, type HeaderAnalysis } from './csv-header'
 import { csvSkuFindings, csvSkus, repeatedSkus, useTakenSkus, type CsvSkuRow } from './sku-batch'
 import { acceptedSummary, generateMany, planGenerate, type ItemOutcome } from './generate'
 import { ListOnPicker, serializeListOn, useConnectedMarketplaces } from './list-on'
@@ -86,7 +87,7 @@ const MATCH_CHIP: Record<ColumnMatch, Parameters<typeof StatusChip>[0]['status']
   duplicate: 'error',
 }
 
-function ColumnTable({ analysis }: { analysis: HeaderAnalysis }) {
+function ColumnTable({ analysis, sheetPhotos }: { analysis: HeaderAnalysis; sheetPhotos: boolean }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-small" aria-label="Column matching">
@@ -109,7 +110,7 @@ function ColumnTable({ analysis }: { analysis: HeaderAnalysis }) {
               </td>
               <td className="px-2 text-ink-2">{c.field ?? 'Not set'}</td>
               <td className="px-4">
-                <StatusChip status={MATCH_CHIP[c.match]}>{MATCH_COPY[c.match]}</StatusChip>
+                <StatusChip status={c.match === 'photo-link' && sheetPhotos ? 'live' : MATCH_CHIP[c.match]}>{matchCopy(c.match, { sheetPhotos })}</StatusChip>
               </td>
             </tr>
           ))}
@@ -120,7 +121,9 @@ function ColumnTable({ analysis }: { analysis: HeaderAnalysis }) {
       ) : null}
       {analysis.columns.some((c) => c.match === 'photo-link') ? (
         <p className="border-t border-line px-4 py-3 text-small text-ink-2" data-testid="photo-link-note">
-          Not used. Clear these columns: a bad link still fails the row.
+          {sheetPhotos
+            ? 'Photos are downloaded from these links after the import. A link that is not https fails its row.'
+            : 'Not used. Clear these columns: a bad link still fails the row.'}
         </p>
       ) : null}
     </div>
@@ -141,6 +144,8 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
   const [text, setText] = useState<string | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
   const lamps = useLampsEnabled()
+  // G2: photos are downloaded from the photo link columns (else they are kept, never fetched).
+  const sheetPhotos = useSheetPhotos()
 
   // SI14 column review: the backend matches the headers and the seller checks the weak matches.
   // `null` until a map exists; a backend without column maps leaves the old read-only table.
@@ -258,7 +263,7 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
                   <Icon name="download" size={16} />
                   Required columns
                 </Button>
-                <Button variant="secondary" onClick={() => downloadTemplate('full')}>
+                <Button variant="secondary" onClick={() => downloadTemplate('full', { sheetPhotos })}>
                   <Icon name="download" size={16} />
                   All columns
                 </Button>
@@ -279,7 +284,11 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
                 <li>By header name, exactly as in the template (any letter case).</li>
                 <li>A column we don’t recognise stops the whole file, so the upload step lists every column first.</li>
                 <li>A SKU that already exists updates that product.</li>
-                <li>Photos are not read from the file. Add them on each product’s Media tab after the import.</li>
+                <li data-testid="photos-rule">
+                  {sheetPhotos
+                    ? 'Photos are downloaded from main_image and additional_images after the import. Separate several links with |.'
+                    : 'Photos are not read from the file. Add them on each product’s Media tab after the import.'}
+                </li>
               </ul>
             </LaCard>
           </div>
@@ -337,7 +346,7 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
                   onAnswer={(position, key) => setAnswers((a) => ({ ...a, [position]: key }))}
                 />
               ) : analysis ? (
-                <ColumnTable analysis={analysis} />
+                <ColumnTable analysis={analysis} sheetPhotos={sheetPhotos} />
               ) : (
                 <p className="border-t border-line px-4 py-6 text-small text-ink-2">Choose a file to see its columns.</p>
               )}
@@ -347,7 +356,7 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
 
         {step === 1 && analysis && (analysis.photoLinkRows > 0 || analysis.linkProblems.length > 0) ? (
           <Banner
-            tone={analysis.linkProblems.length ? 'danger' : 'attention'}
+            tone={analysis.linkProblems.length ? 'danger' : sheetPhotos ? 'neutral' : 'attention'}
             role="status"
             className="mt-4"
             title={
@@ -355,11 +364,19 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
                 ? `${rowsLabel(analysis.photoLinkRows)} ${analysis.photoLinkRows === 1 ? 'has' : 'have'} photo links`
                 : `${rowsLabel(analysis.linkProblems.length)} with a bad link`
             }
+            data-testid="photo-links-notice"
           >
-            <p>
-              {analysis.photoLinkRows > 0 ? 'Photo links are not used. Clear these columns: a bad link still fails the row. ' : ''}
-              Add photos on each product’s Media tab after the import.
-            </p>
+            {sheetPhotos ? (
+              <p>
+                {analysis.linkProblems.length ? 'A row with a bad link fails. Fix the link or clear it. ' : ''}
+                The photos download after the import. Each link’s result shows in the report.
+              </p>
+            ) : (
+              <p>
+                {analysis.photoLinkRows > 0 ? 'Photo links are not used. Clear these columns: a bad link still fails the row. ' : ''}
+                Add photos on each product’s Media tab after the import.
+              </p>
+            )}
             {analysis.linkProblems.length ? (
               <ul className="mt-1.5 flex flex-col gap-0.5 text-small" aria-label="Rows that will fail for a link" data-testid="link-problems">
                 {analysis.linkProblems.slice(0, 5).map((p) => (
@@ -579,6 +596,17 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
   const duplicates = (failedList ?? []).filter((row) => (row.errors ?? []).some((e) => e.error_code === 'DUPLICATE_SKU_IN_FILE')).length
   const needValue = r ? r.failed - duplicates : 0
   const usedMap = local?.map
+  const sheetPhotos = useSheetPhotos()
+  // G2: once the file's photos have all downloaded, read the products again for "needs photos".
+  const photosWaiting = r?.photos?.waiting ?? 0
+  const wasWaiting = useRef(false)
+  useEffect(() => {
+    if (photosWaiting > 0) wasWaiting.current = true
+    else if (wasWaiting.current) {
+      wasWaiting.current = false
+      void qc.invalidateQueries({ queryKey: keys.products.list() })
+    }
+  }, [photosWaiting, qc, keys])
 
   /** Imported styles and standalones (variants are listed through their style). */
   const sendable = useMemo(() => {
@@ -685,7 +713,7 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
           {usedMap ? (
             <Tile pending={!done} value={usedColumns(usedMap.map, usedMap.answers)} caption="columns matched" tone="tint" />
           ) : local ? (
-            <Tile pending={!done} value={local.analysis.columns.filter((c) => c.match === 'ok' || c.match === 'alias').length} caption="columns matched by name" tone="tint" />
+            <Tile pending={!done} value={local.analysis.columns.filter((c) => isUsedMatch(c.match, { sheetPhotos })).length} caption="columns matched by name" tone="tint" />
           ) : (
             <Tile pending={!done} value={r?.total_rows ?? 0} caption="rows in the file" tone="tint" />
           )}
@@ -700,7 +728,7 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
               {usedMap ? (
                 <ColumnMapReview map={usedMap.map} answers={usedMap.answers} headers={local.analysis.columns.map((c) => c.raw)} readOnly />
               ) : (
-                <ColumnTable analysis={local.analysis} />
+                <ColumnTable analysis={local.analysis} sheetPhotos={sheetPhotos} />
               )}
             </LaCard>
           ) : null}
@@ -743,7 +771,7 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
                       <tr key={row.row_number} className="h-[46px] border-t border-line align-middle">
                         <td className="px-4 tabular-nums">{row.row_number}</td>
                         <td className="px-2">{row.sku ?? <span className="text-ink-3">No SKU</span>}</td>
-                        <td className="px-4 text-ink">{rowProblems(row.errors).map(plainRowError).join(' ') || 'Not imported'}</td>
+                        <td className="px-4 text-ink">{rowProblems(row.errors).map((e) => plainRowError(e)).join(' ') || 'Not imported'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -758,7 +786,9 @@ function CheckAndSend({ importId, jobId, listOn: initialListOn }: { importId: st
           </LaCard>
         </div>
 
-        {done && importedRows.data && products.data ? <NeedsPhotosCard products={sendable} /> : null}
+        {done && importedRows.data && products.data ? (
+          <NeedsPhotosCard products={sendable} photosWaiting={sheetPhotos ? photosWaiting : 0} />
+        ) : null}
 
         {done ? <ListOnPicker className="mt-6" value={listOn} onChange={setListOn} connected={connected} /> : null}
 

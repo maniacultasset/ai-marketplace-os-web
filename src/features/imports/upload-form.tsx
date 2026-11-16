@@ -22,10 +22,10 @@ import { useLampsEnabled } from '@/features/assist/flags'
 import { CategoryCodes } from '@/features/products/category-select'
 import {
   COLUMN_ALIASES,
-  COLUMN_GROUPS,
+  columnGroups,
   downloadTemplate,
   formatBytes,
-  FULL_HEADER,
+  fullHeader,
   MAX_FILE_BYTES,
   MAX_IMPORT_ROWS,
   MINIMAL_HEADER,
@@ -33,6 +33,7 @@ import {
 } from './csv-template'
 import { ErrorReportList } from './error-report-list'
 import { useImportHistory } from './history'
+import { useSheetPhotos } from './sheet-photos'
 import { markJobLive } from './use-import-job'
 
 type Problem =
@@ -65,6 +66,8 @@ export function UploadForm() {
   const [file, setFile] = useState<File | null>(null)
   const [problem, setProblem] = useState<Problem | null>(null)
   const lamps = useLampsEnabled()
+  // G2: photos are downloaded from the photo link columns (else they are kept, never fetched).
+  const sheetPhotos = useSheetPhotos()
 
   const upload = useMutation({
     meta: { toast: false },
@@ -255,9 +258,9 @@ export function UploadForm() {
                   <span>Required columns</span>
                   <span className="text-xs text-muted-foreground">{MINIMAL_HEADER.length} columns, ready to fill in</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => downloadTemplate('full')} className="flex-col items-start gap-0.5">
+                <DropdownMenuItem onSelect={() => downloadTemplate('full', { sheetPhotos })} className="flex-col items-start gap-0.5">
                   <span>All columns</span>
-                  <span className="text-xs text-muted-foreground">Every stored column, {FULL_HEADER.length} in all</span>
+                  <span className="text-xs text-muted-foreground">Every stored column, {fullHeader({ sheetPhotos }).length} in all</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -297,8 +300,10 @@ export function UploadForm() {
                 </li>
               ))}
             </ul>
-            <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">
-              Photos are not read from the file. Add them on each product’s Media tab after the import.
+            <p className="text-[0.8125rem] leading-relaxed text-muted-foreground" data-testid="photos-note">
+              {sheetPhotos
+                ? 'Photos are downloaded from main_image and additional_images after the import. Separate several links with |.'
+                : 'Photos are not read from the file. Add them on each product’s Media tab after the import.'}
             </p>
           </section>
 
@@ -329,14 +334,23 @@ export function UploadForm() {
               <Icon name="chev" size={16} className="text-muted-foreground transition-transform duration-150 group-data-[state=open]:rotate-180 motion-reduce:transition-none" />
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-4 border-t border-line bg-sunken px-5 py-4">
-              {COLUMN_GROUPS.map((g) => (
+              {columnGroups({ sheetPhotos }).map((g) => (
                 <div key={g.label} className="space-y-1" data-testid="column-group">
                   <h3 className="text-xs font-medium text-foreground">
                     {g.label}
                     {g.notStored ? <span className="font-normal text-muted-foreground"> · accepted, not stored (warning when filled)</span> : null}
-                    {g.photoLinks ? <span className="font-normal text-muted-foreground"> · accepted, no photo is downloaded from them</span> : null}
+                    {g.photoLinks ? (
+                      <span className="font-normal text-muted-foreground">
+                        {sheetPhotos ? ' · downloaded after the import' : ' · accepted, no photo is downloaded from them'}
+                      </span>
+                    ) : null}
                   </h3>
-                  <p className={cn('font-mono text-[11px] leading-relaxed break-words', g.notStored || g.photoLinks ? 'text-muted-foreground' : 'text-foreground/80')}>
+                  <p
+                    className={cn(
+                      'font-mono text-[11px] leading-relaxed break-words',
+                      g.notStored || (g.photoLinks && !sheetPhotos) ? 'text-muted-foreground' : 'text-foreground/80',
+                    )}
+                  >
                     {g.columns.join(', ')}
                   </p>
                   {g.note ? <p className="text-xs leading-relaxed text-muted-foreground">{g.note}</p> : null}

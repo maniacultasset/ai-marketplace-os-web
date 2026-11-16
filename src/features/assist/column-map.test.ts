@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { confirmBody, duplicatePositions, FIELD_CHOICES, headerText, mappableHeaders, needsAnswer, unanswered, usedColumns, type ColumnMap } from './column-map'
+import { confirmBody, duplicatePositions, FIELD_CHOICES, fieldChoices, headerText, mappableHeaders, needsAnswer, unanswered, usedColumns, type ColumnMap } from './column-map'
 
 const map: Pick<ColumnMap, 'mappings'> = {
   mappings: [
@@ -60,5 +60,17 @@ describe('column map review', () => {
     expect(usedColumns(map)).toBe(4)
     expect(usedColumns(map, { 4: null, 5: 'fit' })).toBe(4)
     expect(usedColumns(map, { 4: null })).toBe(3)
+  })
+})
+
+describe('column map targets with sheet photos (G2)', () => {
+  it('offers the photo link columns only while their photos are downloaded', () => {
+    expect(FIELD_CHOICES).not.toContain('main_image')
+    expect(fieldChoices()).toEqual(FIELD_CHOICES)
+    const on = fieldChoices({ sheetPhotos: true })
+    expect(on).toContain('main_image')
+    expect(on).toContain('additional_images')
+    expect(on.indexOf('main_image')).toBe(on.indexOf('size_chart') + 1)
+    expect(on.filter((k) => k !== 'main_image' && k !== 'additional_images')).toEqual([...FIELD_CHOICES])
   })
 })

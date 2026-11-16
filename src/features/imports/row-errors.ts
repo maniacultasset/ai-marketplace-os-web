@@ -4,9 +4,11 @@
  * Here they read as plain sentences, and warnings (for example "no image URL") are not problems:
  * they are notes (`rowNotes`), shown apart and softer.
  */
+import type { Schema } from '@/api/types'
 import { sentenceCase } from '@/features/listing-flow/format'
 
 type RowError = { error_code: string; message: string; severity?: string | null }
+export type PhotoLink = Schema<'PhotoLinkResult'>
 
 const ACRONYM: Record<string, string> = { mrp: 'MRP', sku: 'SKU', hsn: 'HSN', gtin: 'GTIN', ean: 'EAN', upc: 'UPC', url: 'URL', urls: 'URLs', id: 'ID' }
 
@@ -50,10 +52,59 @@ const KNOWN: { test: (e: RowError) => boolean; text: string }[] = [
   },
 ]
 
-/** A row error as a plain sentence. */
-export function plainRowError(e: RowError): string {
+/** With photos read from the file (G2), a row with no photo link says so, and where to add photos. */
+const NO_PHOTO_LINK = 'No photo link in the file. Add photos on the product’s Media tab.'
+
+/**
+ * A row error as a plain sentence. `sheetPhotos`: photos are downloaded from the file's photo
+ * links (GET /tenants/me `capabilities.sheet_photos_enabled`).
+ */
+export function plainRowError(e: RowError, opts: { sheetPhotos?: boolean } = {}): string {
+  if (opts.sheetPhotos && /^no image URL/.test(e.message)) return NO_PHOTO_LINK
   return KNOWN.find((k) => k.test(e))?.text ?? sentenceCase(words(e.message))
 }
+
+/** What a saved photo became, from its live `view`. */
+export const PHOTO_VIEW_WORDS: Record<NonNullable<PhotoLink['view']>, string> = {
+  front: 'Front',
+  back: 'Back',
+  close_up: 'Close-up',
+  lifestyle: 'Lifestyle',
+  size_chart: 'Size chart',
+  packaging_label: 'Packaging label',
+  extra: 'an extra photo',
+}
+
+/** One photo link's state in a few words, no "Photo N" prefix. Failed and skipped links use the server's sentence. */
+export function photoLinkStatus(link: Pick<PhotoLink, 'status' | 'view' | 'message'>): string {
+  switch (link.status) {
+    case 'queued':
+      return 'Waiting to download'
+    case 'downloading':
+      return 'Downloading'
+    case 'saved':
+      return link.view ? `Saved as ${PHOTO_VIEW_WORDS[link.view]}` : (link.message ?? 'Saved')
+    case 'failed':
+      return link.message ?? 'It could not be downloaded.'
+    case 'skipped':
+      return link.message ?? 'It was not downloaded.'
+  }
+}
+
+/**
+ * "Photo 2: The link returned 404. Check the link is right and public." The server's sentence is
+ * used as it comes, never the problem code; a waiting link reads "Photo 2: waiting to download".
+ */
+export function photoLinkText(link: Pick<PhotoLink, 'position' | 'status' | 'view' | 'message'>): string {
+  const status = photoLinkStatus(link)
+  const text = link.status === 'queued' || link.status === 'downloading' ? status.toLowerCase() : status
+  return `Photo ${link.position}: ${text}`
+}
+
+/** Links that still download (queued or downloading). */
+export const isPhotoWaiting = (link: Pick<PhotoLink, 'status'>) => link.status === 'queued' || link.status === 'downloading'
+/** Links that did not become a photo (failed, or skipped). */
+export const isPhotoProblem = (link: Pick<PhotoLink, 'status'>) => link.status === 'failed' || link.status === 'skipped'
 
 /** The row's problems only: warnings are left out. */
 export function rowProblems<E extends RowError>(errors: readonly E[] | null | undefined): E[] {
