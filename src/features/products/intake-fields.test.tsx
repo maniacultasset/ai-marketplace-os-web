@@ -39,6 +39,16 @@ describe('intake editors', () => {
     expect(document.activeElement).toBe(screen.getByLabelText('Fibre 2'))
   })
 
+  it('composition never shows a number the seller did not type (KTEST-E2E-01: "100" placeholder read as filled)', () => {
+    render(<Composition initial={[{ fibre: 'Cotton', percent: '' }]} />)
+    const pct = screen.getByLabelText('Percent of fibre 1') as HTMLInputElement
+    expect(pct.value).toBe('')
+    expect(pct.placeholder).toBe('')
+    expect(screen.getByText('0% of 100%')).toBeTruthy()
+    fireEvent.change(pct, { target: { value: '100' } })
+    expect(screen.getByText('100% of 100%')).toBeTruthy()
+  })
+
   it('size chart adds a common size once', () => {
     render(<Chart />)
     expect(screen.getByText(/No sizes yet/)).toBeTruthy()

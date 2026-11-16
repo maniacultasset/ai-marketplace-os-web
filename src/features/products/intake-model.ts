@@ -419,6 +419,12 @@ export const GSTIN_PATTERN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/
 
 export const partyFilled = (p: PartyDraft) => PARTY_FIELDS.some((k) => p[k].trim() !== '')
 
+/** The fields `partyProblems` requires: a manufacturer counts as given only with all of them. */
+export const PARTY_REQUIRED = ['legal_name', 'address_line1', 'city', 'state_code', 'postal_code'] as const satisfies readonly PartyField[]
+
+/** Every required field has a value (an opened, empty form is not a manufacturer). */
+export const partyComplete = (p: PartyDraft) => PARTY_REQUIRED.every((k) => p[k].trim() !== '')
+
 /** Field errors keyed by party field (callers prefix them, e.g. `manufacturer.city`). */
 export function partyProblems(p: PartyDraft): Partial<Record<PartyField, string>> {
   const e: Partial<Record<PartyField, string>> = {}

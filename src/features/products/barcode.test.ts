@@ -11,6 +11,7 @@ import {
   isBarcodeErrorKey,
   normalizeBarcode,
   reviveBarcode,
+  styleBarcode,
   styleExemption,
   type BarcodeDraft,
 } from './barcode'
@@ -171,6 +172,30 @@ describe('styleExemption (from the variants)', () => {
   })
   it('never counts a variant with a barcode as exempt', () => {
     expect(styleExemption([v({ product_identifier: { type: 'ean', value: EAN13 }, identifier_exemption: true }), v({})]).exemptCount).toBe(0)
+  })
+})
+
+describe('styleBarcode (the style editor choice)', () => {
+  const v = (over: { product_identifier?: { type: 'ean'; value: string } | null; identifier_exemption?: boolean }) => ({
+    product_identifier: null,
+    identifier_exemption: false,
+    ...over,
+  })
+  it('reads "No barcodes" when no variant has a barcode and none is exempt (KTEST-E2E-01)', () => {
+    expect(styleBarcode([v({}), v({}), v({})])).toEqual({ ...emptyBarcode(), none: true, exempt: false })
+  })
+  it('reads "No barcodes" with the exemption when every variant without one is exempt', () => {
+    expect(styleBarcode([v({ identifier_exemption: true }), v({ product_identifier: { type: 'ean', value: EAN13 } })])).toEqual({ ...emptyBarcode(), none: true, exempt: true })
+  })
+  it('reads "Variants have barcodes" when any variant has one and the rest are not exempt', () => {
+    expect(styleBarcode([v({ product_identifier: { type: 'ean', value: EAN13 } }), v({})])).toEqual(emptyBarcode())
+  })
+  it('reads "Variants have barcodes" before any variant is known', () => {
+    expect(styleBarcode([])).toEqual(emptyBarcode())
+  })
+  it('sends nothing on save until the seller changes the choice', () => {
+    const base = styleBarcode([v({}), v({})])
+    expect(barcodePatchFields(base, base, 'style')).toEqual({})
   })
 })
 

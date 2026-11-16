@@ -121,10 +121,15 @@ export function styleExemption(variants: readonly Product[]): { exempt: boolean;
   return { exempt: without.length > 0 && exemptCount === without.length, exemptCount, total: variants.length }
 }
 
-/** A style's barcode draft: only the exemption, read from its variants. */
+/**
+ * A style's barcode draft: only the exemption, read from its variants. "No barcodes" is chosen
+ * when every variant without a barcode is exempt, and also when no variant has a barcode at all:
+ * "No barcode" with no exemption saves nothing, so the variants are the only record of that choice.
+ */
 export function styleBarcode(variants: readonly Product[]): BarcodeDraft {
   const { exempt } = styleExemption(variants)
-  return { ...emptyBarcode(), none: exempt, exempt }
+  const noneHasOne = variants.length > 0 && variants.every((v) => !v.product_identifier)
+  return { ...emptyBarcode(), none: exempt || noneHasOne, exempt }
 }
 
 /** Where a draft's barcode lives: a style holds only the exemption (it reaches its variants). */

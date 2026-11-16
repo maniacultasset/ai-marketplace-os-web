@@ -82,6 +82,7 @@ import {
   emptyGuided,
   errorOrder,
   isEmptyGuided,
+  manufacturerGiven,
   reviveGuided,
   type AttrField,
   type GuidedContext,
@@ -425,8 +426,9 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
     product_size: packageHasSize(values.item),
     package_weight: packageHasWeight(values.pkg),
     country_of_origin: !!values.country.trim(),
-    // Unknown while the brand loads: not counted until it is known.
-    manufacturer: values.ownManufacturer || brand.data === undefined || brandParty !== null,
+    // This product's own only once its required fields are typed; the brand's is not counted
+    // missing while it loads.
+    manufacturer: manufacturerGiven(values, ctx.brandManufacturer),
     size_chart: hasSizeRows(values.sizeChart),
   }
   const needs = missingNeeds(requirements.data, listOn, filled)

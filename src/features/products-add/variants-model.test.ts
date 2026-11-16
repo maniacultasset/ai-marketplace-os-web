@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseCsv } from './csv-header'
-import { buildFamilyCsv, buildVariants, cellKey, colourCode, colourProblem, emptyVariants, gtinProblem, gtinValid, sizeProblem, validateVariants, variantSku, seedFromVariants } from './variants-model'
+import { buildFamilyCsv, buildVariants, cellKey, colourCode, colourProblem, emptyVariants, gtinProblem, gtinValid, sizeProblem, validateVariants, variantSku, seedFromVariants, sizesFromChart } from './variants-model'
 
 describe('variant SKUs', () => {
   it('builds codes like the design', () => {
@@ -130,5 +130,26 @@ describe('seedFromVariants: reopening a style that has variants', () => {
   })
   it('is null for a style with no variants', () => {
     expect(seedFromVariants(style, [])).toBeNull()
+  })
+  it('reads "No barcodes" when no saved variant has a barcode, with or without the exemption', () => {
+    expect(seedFromVariants(style, [v('Black', 'S'), v('Black', 'M')])!).toMatchObject({ noBarcodes: true, exempt: false })
+    expect(seedFromVariants(style, [v('Black', 'S', { identifier_exemption: true })])!).toMatchObject({ noBarcodes: true, exempt: true })
+    expect(seedFromVariants(style, [v('Black', 'S', { product_identifier: { value: '4006381333931' } }), v('Black', 'M')])!).toMatchObject({ noBarcodes: false, exempt: false })
+  })
+})
+
+describe('sizesFromChart: the sizes a new matrix starts with', () => {
+  const chart = (...sizes: string[]) => ({ rows: sizes.map((size) => ({ size })) })
+  it('is exactly the chart’s sizes, in its order, never a stock run', () => {
+    expect(sizesFromChart(chart('S', 'M', 'L'))).toEqual(['S', 'M', 'L'])
+    expect(sizesFromChart(chart('32', '28', ' 30 '))).toEqual(['32', '28', '30'])
+  })
+  it('drops blanks and repeats', () => {
+    expect(sizesFromChart(chart('S', 's', ' ', 'M'))).toEqual(['S', 'M'])
+  })
+  it('is empty with no chart', () => {
+    expect(sizesFromChart(null)).toEqual([])
+    expect(sizesFromChart(undefined)).toEqual([])
+    expect(sizesFromChart(chart())).toEqual([])
   })
 })

@@ -32,6 +32,7 @@ import {
   formatMoney,
   MEASURE_LABEL,
   MEASURES,
+  partyComplete,
   partyPlace,
   type PartyField,
 } from '@/features/products/intake-model'
@@ -608,7 +609,7 @@ export function ProductDetailsEditor({
     product_size: packageHasSize(d.item),
     package_weight: packageHasWeight(d.pkg),
     country_of_origin: !!d.country.trim(),
-    manufacturer: d.ownManufacturer || !!product.manufacturer?.legal_name,
+    manufacturer: d.ownManufacturer ? partyComplete(d.manufacturer) : !!product.manufacturer?.legal_name,
     size_chart: isVariant || hasSizeRows(d.sizeChart),
   }
   const needs = missingNeeds(requirements.data, sellOn, filled)

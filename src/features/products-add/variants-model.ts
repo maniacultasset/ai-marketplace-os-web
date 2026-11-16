@@ -274,6 +274,16 @@ function sizeOrder(a: string, b: string): number {
   return ra === rb ? 0 : ra < rb ? -1 : 1
 }
 
+/**
+ * The sizes a new matrix starts with: exactly the rows of the style's saved size chart, in its
+ * order, or none. Never a stock run (S to XL): the page promises "We never add one you did not list."
+ */
+export function sizesFromChart(chart: { rows: readonly { size: string }[] } | null | undefined): string[] {
+  let sizes: string[] = []
+  for (const r of chart?.rows ?? []) sizes = addTag(sizes, r.size)
+  return sizes
+}
+
 /** What a saved variant row carries that the matrix needs. */
 export interface SavedVariant {
   sku: string
@@ -309,7 +319,10 @@ export function seedFromVariants(style: { sku: string; colourways?: readonly { c
     placed.push({ colour, size, v })
   }
   sizes.sort(sizeOrder)
-  const s: VariantsState = { ...emptyVariants(), colours, sizes, exempt: children.some((v) => v.identifier_exemption), noBarcodes: children.some((v) => v.identifier_exemption) }
+  const exempt = children.some((v) => v.identifier_exemption)
+  // "No barcodes" without an exemption saves nothing: no variant holding a barcode is that choice.
+  const noBarcodes = exempt || children.every((v) => !v.product_identifier?.value)
+  const s: VariantsState = { ...emptyVariants(), colours, sizes, exempt, noBarcodes }
   const filled = new Set<string>()
   for (const { colour, size, v } of placed) {
     const key = cellKey(colour, size)

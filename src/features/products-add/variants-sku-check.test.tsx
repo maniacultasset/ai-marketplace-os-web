@@ -17,7 +17,8 @@ vi.mock('@/lib/auth', async (orig) => ({ ...(await orig<typeof import('@/lib/aut
 vi.mock('@/lib/permissions', async (orig) => ({ ...(await orig<typeof import('@/lib/permissions')>()), useCan: () => () => true }))
 vi.mock('@/hooks/use-capabilities', async (orig) => ({ ...(await orig<object>()), useCapability: () => false }))
 
-const STYLE = { id: 'style-1', sku: 'KS-1', title: 'Kurta set', category: 'ethnic_wear_kurta_sets', parent_product_id: null, colourways: [] }
+const chart = (...sizes: string[]) => ({ unit: 'cm', basis: 'garment', rows: sizes.map((size) => ({ size, chest: 40 })) })
+const STYLE: Record<string, unknown> = { id: 'style-1', sku: 'KS-1', title: 'Kurta set', category: 'ethnic_wear_kurta_sets', parent_product_id: null, colourways: [], size_chart: chart('S', 'M', 'L', 'XL') }
 vi.mock('@/features/products/api', async (orig) => ({ ...(await orig<object>()), useProduct: () => ({ data: STYLE, isPending: false, error: null }) }))
 vi.mock('./catalog', async (orig) => ({ ...(await orig<object>()), useAllProducts: () => ({ data: { rows: [STYLE] } }) }))
 vi.mock('./list-on', async (orig) => ({ ...(await orig<object>()), useConnectedMarketplaces: () => ({ connected: [], error: null }) }))
@@ -48,6 +49,7 @@ function open() {
 const bulk = () => post.mock.calls.filter((c) => c[0] === '/products/bulk')
 
 beforeEach(() => {
+  STYLE['size_chart'] = chart('S', 'M', 'L', 'XL')
   get.mockReset()
   post.mockReset()
   get.mockImplementation(() => new Promise(() => {}))
@@ -90,5 +92,22 @@ describe('Variants grid duplicate SKU check (client feedback 11 Nov, item 3)', (
     open()
     await userEvent.click(screen.getByTestId('variants-save'))
     await waitFor(() => expect(bulk()).toHaveLength(1))
+  })
+})
+
+describe('Variants grid starting sizes (KTEST-E2E-01: chart S, M, L showed S, M, L, XL)', () => {
+  const sizeTags = () => [...screen.getAllByText('variants will be created. We never add one you did not list.', { exact: false })].map((n) => n.textContent)
+  it('starts with exactly the size chart’s sizes', async () => {
+    post.mockImplementation(() => ok({ checked: 3, taken: [] }))
+    STYLE['size_chart'] = chart('S', 'M', 'L')
+    open()
+    expect(sizeTags()[0]).toContain('3 variants will be created')
+    await waitFor(() => expect(post.mock.calls.find((c) => c[0] === '/skus/availability-check')![1].body).toEqual({ skus: ['KS-1-S', 'KS-1-M', 'KS-1-L'] }))
+  })
+  it('starts with no sizes when the style has no size chart', () => {
+    STYLE['size_chart'] = null
+    open()
+    expect(sizeTags()[0]).toContain('0 variants will be created')
+    expect(screen.getByText('Add colours or sizes above to build the matrix.')).toBeTruthy()
   })
 })

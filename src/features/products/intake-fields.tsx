@@ -343,7 +343,7 @@ export function CompositionEditor({
                   value={r.fibre}
                   onChange={(e) => set(i, { fibre: e.target.value })}
                   onBlur={() => onBlur?.(`composition.rows.${i}.fibre`)}
-                  placeholder={i === 0 ? 'Cotton' : 'Fibre'}
+                  placeholder={i === 0 ? 'for example Cotton' : 'Fibre'}
                   list={listId}
                   autoComplete="off"
                   maxLength={120}
@@ -357,14 +357,14 @@ export function CompositionEditor({
                     onChange={(e) => set(i, { percent: e.target.value })}
                     onBlur={() => onBlur?.(`composition.rows.${i}.percent`)}
                     inputMode="decimal"
-                    placeholder={i === 0 ? '100' : '0'}
                     autoComplete="off"
                     maxLength={8}
                     className="pr-7 text-right tabular-nums"
                     aria-label={`Percent of fibre ${i + 1}`}
                     aria-invalid={pe ? true : undefined}
                   />
-                  <span aria-hidden className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-body text-ink-2">
+                  {/* No number as a placeholder: a grey "100" read as typed while the total said 0%. */}
+                  <span aria-hidden className={cn('pointer-events-none absolute inset-y-0 right-3 flex items-center text-body', r.percent.trim() ? 'text-ink-2' : 'text-ink-3')}>
                     %
                   </span>
                 </div>
