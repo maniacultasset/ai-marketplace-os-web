@@ -101,8 +101,6 @@ export const OP_ACTION = {
   'POST /products/{product_id}/archive': 'settings:manage',
   'POST /products/{product_id}/unarchive': 'settings:manage',
   'POST /products/bulk-delete': 'settings:manage',
-  'POST /products/{product_id}/archive': 'settings:manage',
-  'POST /products/{product_id}/unarchive': 'settings:manage',
   'GET /imports/{import_id}': 'tenant:read',
   'GET /imports/{import_id}/rows': 'tenant:read',
   'POST /imports/{import_id}/rows/retry': 'product:import',
