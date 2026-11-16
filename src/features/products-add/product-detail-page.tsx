@@ -76,7 +76,9 @@ import {
   mergeById,
   OVERALL_CHIP,
   overallStatus,
+  sizeOnlyMatrix,
   variantMatrix,
+  variantsSubtitle,
   type Listing,
   type Marketplace,
   type Product,
@@ -165,7 +167,7 @@ function DetailSkeletonBody({ tab }: { tab: DetailTab }) {
       return (
         <LaCard pad="none" className="overflow-hidden">
           <div className="p-5">
-            <CardHead title="Variants" sub="Each size and colour you make, as its own SKU. The colour is in each variant’s SKU." />
+            <CardHead title="Variants" sub="Each size and colour you make, as its own SKU." />
           </div>
           <VariantRowsSkeleton />
         </LaCard>
@@ -1005,6 +1007,9 @@ function OverviewTab({ data, session, onEdit }: { data: DetailData; session: Pro
 
 function VariantStatusCard({ data }: { data: DetailData }) {
   const matrix = useMemo(() => variantMatrix(data.variants), [data.variants])
+  // A size-only family has no colour column: its one row holds each size's SKU (prod 16 Nov:
+  // a hidden "Colour" corner over the size headers read "Colour: L M S").
+  const sizeOnly = sizeOnlyMatrix(matrix)
   return (
     <LaCard data-testid="product-family">
       <CardHead title={data.isVariant ? 'Family' : 'Variants'} />
@@ -1034,14 +1039,12 @@ function VariantStatusCard({ data }: { data: DetailData }) {
           {matrix.cells.size ? (
             <div
               role="grid"
-              aria-label="Variants by colour and size"
+              aria-label={sizeOnly ? 'Variants by size' : 'Variants by colour and size'}
               className="mt-4 grid items-center gap-1.5 overflow-x-auto"
               style={{ gridTemplateColumns: `minmax(64px, max-content) repeat(${matrix.sizes.length}, minmax(44px, 1fr))` }}
             >
               <div role="row" className="contents">
-                <span role="columnheader">
-                  <span className="sr-only">Colour</span>
-                </span>
+                <span role="columnheader">{sizeOnly ? null : <span className="sr-only">Colour</span>}</span>
                 {matrix.sizes.map((s) => (
                   <b key={s} role="columnheader" className="text-center text-small text-ink">
                     {s}
@@ -1051,7 +1054,7 @@ function VariantStatusCard({ data }: { data: DetailData }) {
               {matrix.colours.map((c) => (
                 <div key={c ?? ''} role="row" className="contents">
                   <b role="rowheader" className="truncate text-small text-ink" title={c ?? undefined}>
-                    {c ?? 'Size'}
+                    {c ?? 'SKU'}
                   </b>
                   {matrix.sizes.map((s) => {
                     const v = matrix.cells.get(matrixKey(c, s))
@@ -1108,7 +1111,7 @@ function VariantsTab({ data }: { data: DetailData }) {
   return (
     <LaCard pad="none" className="overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 p-5">
-        <CardHead title="Variants" sub={hasColour ? 'Each size and colour you make, as its own SKU.' : 'Each size and colour you make, as its own SKU. The colour is in each variant’s SKU.'} />
+        <CardHead title="Variants" sub={variantsSubtitle(data.product, data.variants)} />
         {data.product.archived_at ? null : (
           <Can action="product:import">
             <Button variant="secondary" size="sm" asChild>

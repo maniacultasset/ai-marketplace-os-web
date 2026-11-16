@@ -16,8 +16,10 @@ import {
   overallStatus,
   shortId,
   sizeLabel,
+  sizeOnlyMatrix,
   variantAxis,
   variantMatrix,
+  variantsSubtitle,
   type Issue,
   type Listing,
   type Product,
@@ -296,5 +298,33 @@ describe('Home filters read on the server (client feedback item 6)', () => {
     const b = product()
     const newer = { ...a, title: 'Renamed' }
     expect(mergeById([a], [newer, b])).toEqual([newer, b])
+  })
+})
+
+describe('variants copy (prod 16 Nov, KTEST-E2E-01)', () => {
+  // the SI8 shape: each variant's own axes, the size as the lower-cased key
+  const sized = (size: string) => product({ variant_attributes: { size }, attributes: { size: size.toUpperCase() } })
+  it('says a size-only family has sizes only, not a colour in each SKU', () => {
+    const vs = ['s', 'm', 'l'].map(sized)
+    expect(variantsSubtitle({ variation_theme: 'size' }, vs)).toBe('Each size you make, as its own SKU.')
+    expect(variantsSubtitle({}, vs)).toBe('Each size you make, as its own SKU.')
+    expect(variantsSubtitle({ variation_theme: 'size' }, vs)).not.toContain('colour')
+  })
+  it('names colours only when a variant carries one', () => {
+    const both = [product({ variant_attributes: { color: 'Black', size: 's' } }), product({ variant_attributes: { color: 'White', size: 's' } })]
+    expect(variantsSubtitle({ variation_theme: 'size_color' }, both)).toBe('Each size and colour you make, as its own SKU.')
+    const colours = [product({ variant_attributes: { color: 'Black' } }), product({ variant_attributes: { color: 'White' } })]
+    expect(variantsSubtitle({ variation_theme: 'color' }, colours)).toBe('Each colour you make, as its own SKU.')
+  })
+  it('keeps the colour-in-the-SKU note only for a backend before SI8 (no variant_attributes)', () => {
+    const old = [product({ attributes: { size: 's' } }), product({ attributes: { size: 'm' } })]
+    expect(variantsSubtitle({}, old)).toBe('Each size and colour you make, as its own SKU. The colour is in each variant’s SKU.')
+    expect(variantsSubtitle({}, [])).toBe('Each size and colour you make, as its own SKU.')
+  })
+  it('marks a size-only grid, so the card shows no Colour header over the sizes', () => {
+    expect(sizeOnlyMatrix(variantMatrix(['s', 'm', 'l'].map(sized)))).toBe(true)
+    const both = variantMatrix([product({ variant_attributes: { color: 'Black', size: 's' } }), product({ variant_attributes: { color: 'White', size: 's' } })])
+    expect(sizeOnlyMatrix(both)).toBe(false)
+    expect(sizeOnlyMatrix(variantMatrix([product({ variant_attributes: { color: 'Black' } })]))).toBe(false)
   })
 })
