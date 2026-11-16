@@ -386,7 +386,7 @@ describe('GroupDetail, other scopes', () => {
     expect(screen.getByTestId('group-result-line').textContent).toBe('Marked as exempt for 2 products. 1 has a barcode and was kept.')
   })
 
-  it('an issue group: one row per listing, saying how many issues it has (prod 16 Nov)', () => {
+  it('an issue group on missing photo views: one row per listing, saying how many photos it needs (prod 16 Nov)', () => {
     // Two listings each missing two required photo views (two issues at `listing`), one with one.
     const issue = (i: number, items: number) =>
       member(i, { task_id: null, issue_id: U(3000 + i * 10), issue_ids: Array.from({ length: items }, (_, k) => U(3000 + i * 10 + k)), items })
@@ -408,15 +408,21 @@ describe('GroupDetail, other scopes', () => {
     expect(screen.getByTestId('group-title').textContent).toBe('3 listings: Image non compliant')
     const rows = screen.getAllByTestId('group-member')
     expect(rows).toHaveLength(3)
-    expect(screen.getAllByTestId('group-member-status').map((s) => s.textContent)).toEqual(['Open · 2 issues', 'Open · 2 issues', 'Open'])
+    expect(screen.getAllByTestId('group-member-status').map((s) => s.textContent)).toEqual(['Open · 2 photos needed', 'Open · 2 photos needed', 'Open'])
     expect(screen.getAllByTestId('group-member-open')[0]!.getAttribute('href')).toBe(`/inbox?item=issue:${U(3010)}`)
     expect(screen.queryByTestId('group-show-all')).toBeNull()
+  })
+
+  it('an issue group on anything else counts the issues of a listing', () => {
+    const row = member(1, { task_id: null, issue_id: U(3001), issue_ids: [U(3001), U(3002)], items: 2 })
+    setup(group({ key: 'i|VALUE_NOT_ALLOWED|facts.color|amazon|error', item_kind: 'issue', scope: 'per_item', task_kind: null, field: 'facts.color', error_code: 'VALUE_NOT_ALLOWED', answer: null, count: 2, listings: 1, members: [row] }))
+    expect(screen.getByTestId('group-member-status').textContent).toBe('Open · 2 issues')
   })
 
   it('an issue group on photos counts the photos of a listing', () => {
     const row = member(1, { task_id: null, issue_id: U(3001), issue_ids: [U(3001), U(3002)], items: 2 })
     setup(group({ key: 'i|IMAGE_NON_COMPLIANT|images[]|amazon|error', item_kind: 'issue', scope: 'per_item', task_kind: null, field: 'images[]', error_code: 'IMAGE_NON_COMPLIANT', answer: null, count: 2, listings: 1, members: [row] }))
-    expect(screen.getByTestId('group-member-status').textContent).toBe('Open · 2 photos')
+    expect(screen.getByTestId('group-member-status').textContent).toBe('Open · 2 photos needed')
   })
 
   it('per item: the list only, each row opens its item', () => {

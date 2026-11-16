@@ -23,4 +23,15 @@ describe('AutonomySettings', () => {
     expect(screen.queryAllByRole('switch')).toHaveLength(0)
     expect(screen.getByTestId('owner-approval')).toBeTruthy()
   })
+
+  it('lists each marketplace on one line with one separator, no stray comma (prod 16 Nov)', () => {
+    render(
+      <TooltipProvider>
+        <AutonomySettings />
+      </TooltipProvider>,
+    )
+    const line = screen.getByTestId('autonomy-per-marketplace').textContent ?? ''
+    expect(line).not.toContain(',')
+    expect(line).toMatch(/^Amazon: Approval required( · [A-Za-z]+: Approval required)*$/)
+  })
 })
