@@ -123,7 +123,10 @@ describe('members', () => {
     expect(idx.get(`issue:${U(11)}`)?.member).toBe(row)
     expect(idx.get(`issue:${U(12)}`)?.member).toBe(row)
     expect(memberItems(g, row)).toBe('2 issues')
-    expect(memberItems({ ...g, field: 'images[]' }, row)).toBe('2 photos')
+    expect(memberItems({ ...g, field: 'images[]' }, row)).toBe('2 photos needed')
+    // Prod 16 Nov: the front and the size chart missing are IMAGE_NON_COMPLIANT at `listing`.
+    expect(memberItems({ ...g, field: 'listing', error_code: 'IMAGE_NON_COMPLIANT' }, row)).toBe('2 photos needed')
+    expect(memberItems({ ...g, field: 'listing', error_code: 'VALUE_NOT_ALLOWED' }, row)).toBe('2 issues')
     expect(memberItems(g, member(2))).toBeNull()
     expect(memberItems(group(), { items: 2 })).toBeNull()
   })

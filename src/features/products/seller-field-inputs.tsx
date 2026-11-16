@@ -4,10 +4,13 @@
  */
 import { fieldHintId, LaField } from '@/components/la'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ChevronDownIcon } from 'lucide-react'
+import { useState } from 'react'
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { chipFor, type ChipProps } from './field-sources'
-import { COUNTRIES, countryName, DIM_LABEL, DIMS, packageHasWeight, packageWarnings, type Dim, type PackageDraft } from './seller-fields'
+import { COUNTRIES, countryMatch, countryName, DIM_LABEL, DIMS, packageHasWeight, packageWarnings, type Dim, type PackageDraft } from './seller-fields'
 import type { Source } from '@/components/la'
 
 type Errors = Partial<Record<string, string>>
@@ -237,7 +240,11 @@ function PackageHint({ text, warning }: { text: string; warning?: string }) {
 
 const NONE = '__none__'
 
-/** Country of origin: a list, India first. A stored code not in the list still shows. */
+/**
+ * Country of origin: a searchable list, India first. A stored code not in the list still shows.
+ * A searchable combobox, not a Select: Radix Select's type-ahead skips the item already chosen
+ * and jumps by first letter, so typing "India" from a pinned India landed on Iceland.
+ */
 export function CountryField({
   id,
   value,
@@ -257,9 +264,20 @@ export function CountryField({
   allowClear?: boolean
   hint?: string
 }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
   const v = value.trim().toUpperCase()
   const filled = v !== ''
   const options = filled && !COUNTRIES.some((c) => c.code === v) ? [...COUNTRIES, { code: v, name: countryName(v) }] : COUNTRIES
+  const names = new Map(options.map((c) => [c.code, c.name]))
+  const show = (next: boolean) => {
+    setOpen(next)
+    if (!next) setSearch('')
+  }
+  const choose = (code: string) => {
+    onChange(code)
+    show(false)
+  }
   return (
     <LaField
       label="Country of origin"
@@ -270,19 +288,60 @@ export function CountryField({
       submitCount={submitCount}
       confirmFix
     >
-      <Select value={filled ? v : ''} onValueChange={(next) => onChange(next === NONE ? '' : next)}>
-        <SelectTrigger id={id} className="w-full" aria-invalid={error ? true : undefined} aria-describedby={fieldHintId(id)} data-testid={id}>
-          <SelectValue placeholder="Choose" />
-        </SelectTrigger>
-        <SelectContent>
-          {allowClear && filled ? <SelectItem value={NONE}>Not set</SelectItem> : null}
-          {options.map((c) => (
-            <SelectItem key={c.code} value={c.code}>
-              {c.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Popover open={open} onOpenChange={show}>
+        <PopoverTrigger asChild>
+          <button
+            id={id}
+            type="button"
+            role="combobox"
+            aria-expanded={open}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={fieldHintId(id)}
+            data-testid={id}
+            data-placeholder={filled ? undefined : ''}
+            // Typing on the closed field opens the search with that letter, as a Select did.
+            onKeyDown={(e) => {
+              if (open || e.key.length !== 1 || e.key === ' ' || e.ctrlKey || e.metaKey || e.altKey) return
+              e.preventDefault()
+              setSearch(e.key)
+              setOpen(true)
+            }}
+            className="focus-ring flex h-10 w-full items-center justify-between gap-1.5 rounded-control border pr-2.5 pl-3 text-left text-[14px] whitespace-nowrap text-ink inset-field transition-[color,background-color,border-color,box-shadow] duration-150 select-none hover:border-edge-hover disabled:cursor-not-allowed aria-invalid:border-danger aria-invalid:shadow-[var(--focus-ring-danger),var(--shadow-inset-sm)] data-placeholder:text-ink-3"
+          >
+            <span className="line-clamp-1">{filled ? (names.get(v) ?? countryName(v)) : 'Choose'}</span>
+            <ChevronDownIcon className="pointer-events-none size-4 shrink-0 text-muted-foreground" aria-hidden />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          className="w-(--radix-popover-trigger-width) min-w-[min(16rem,calc(100vw-2rem))] p-0"
+          align="start"
+          // Focus the search with the caret after a letter typed on the closed field: the default
+          // focus selects the text, so the next key would replace that letter.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault()
+            const input = (e.currentTarget as HTMLElement).querySelector('input')
+            input?.focus()
+            input?.setSelectionRange(input.value.length, input.value.length)
+          }}
+        >
+          <Command filter={(code, q) => countryMatch(names.get(code) ?? '', code, q)} defaultValue={filled ? v : undefined} loop>
+            <CommandInput placeholder="Search countries" aria-label="Search countries" value={search} onValueChange={setSearch} data-testid={`${id}-search`} />
+            <CommandList>
+              <CommandEmpty>No country matches.</CommandEmpty>
+              {allowClear && filled && !search ? (
+                <CommandItem value={NONE} onSelect={() => choose('')}>
+                  Not set
+                </CommandItem>
+              ) : null}
+              {options.map((c) => (
+                <CommandItem key={c.code} value={c.code} onSelect={() => choose(c.code)} data-checked={c.code === v ? 'true' : undefined}>
+                  {c.name}
+                </CommandItem>
+              ))}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
     </LaField>
   )
 }

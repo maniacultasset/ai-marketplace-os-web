@@ -166,12 +166,19 @@ export function groupMeta(g: Pick<InboxGroup, 'blocking' | 'listings' | 'marketp
 }
 
 /**
- * What a row stands for past one item, or null: "2 photos" when one listing has two photos in an
- * issue group on photos, else "2 issues" (two required views missing, say).
+ * An issue group about photos: on the photos themselves (`images[]`), or a photo issue raised on
+ * the listing (IMAGE_NON_COMPLIANT at `listing` for each required view that is missing, such as
+ * the front and the size chart). The same test as the Inbox photo glyph (home-inbox/issue-icon).
  */
-export function memberItems(g: Pick<InboxGroup, 'item_kind' | 'field'>, m: Pick<GroupMember, 'items'>): string | null {
+const photoGroup = (g: Pick<InboxGroup, 'field' | 'error_code'>) => g.error_code === 'IMAGE_NON_COMPLIANT' || !!g.field?.startsWith('images')
+
+/**
+ * What a row stands for past one item, or null: "2 photos needed" when one listing has two photo
+ * issues of the group (two required views missing, or two photos to fix), else "2 issues".
+ */
+export function memberItems(g: Pick<InboxGroup, 'item_kind' | 'field' | 'error_code'>, m: Pick<GroupMember, 'items'>): string | null {
   if (g.item_kind !== 'issue' || m.items <= 1) return null
-  return `${n(m.items)} ${g.field?.startsWith('images[') ? 'photos' : 'issues'}`
+  return `${n(m.items)} ${photoGroup(g) ? 'photos needed' : 'issues'}`
 }
 
 export const SKIP_COPY: Record<SkipReason, string> = {

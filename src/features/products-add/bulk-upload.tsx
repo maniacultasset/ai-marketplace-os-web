@@ -152,6 +152,10 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
   const createMap = useCreateColumnMap()
   const [mapSeed, setMapSeed] = useState<ColumnMap | null>(null)
   const mapQ = useColumnMap(mapSeed)
+  // True from the file being read until the backend has matched its headers. Until then the local
+  // exact-name check would call every known name ("SKU", "Colour") Unknown and block the upload,
+  // so the table and the button wait in a neutral state instead. Set with the analysis, in one render.
+  const [matching, setMatching] = useState(false)
   const map = mapSeed ? (mapQ.data ?? mapSeed) : null
   const [answers, setAnswers] = useState<Answers>({})
   const confirmMap = useConfirmColumnMap()
@@ -199,6 +203,9 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
     intent.reset()
     confirmIntent.reset()
     upload.reset()
+    // Drop the previous file's column match: its answer must not land on this file.
+    createMap.reset()
+    setMatching(false)
     setProblem(null)
     setAnalysis(null)
     setText(null)
@@ -228,10 +235,12 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
     if (mappableHeaders(headers)) {
       // A refusal (an older backend, a header it rejects), or a map of exact names only, keeps the
       // read-only table below.
+      setMatching(true)
       createMap.mutate(headers, {
         onSuccess: (m) => {
           if (columnReviewOn(m)) setMapSeed(m)
         },
+        onSettled: () => setMatching(false),
       })
     }
   }
@@ -338,7 +347,12 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
                   }
                 />
               </div>
-              {map ? (
+              {matching ? (
+                <p className="flex items-center gap-2 border-t border-line px-4 py-6 text-small text-ink-2" role="status" data-testid="column-matching">
+                  <Spinner className="size-4" aria-hidden />
+                  Matching columns…
+                </p>
+              ) : map ? (
                 <ColumnMapReview
                   map={map}
                   answers={answers}
@@ -434,13 +448,15 @@ function UploadSteps({ listOn }: { listOn: Marketplace[] }) {
           </Button>
         ) : (
           <Button
-            disabled={!file || !analysis || (map ? mapWaiting : analysis.refused || createMap.isPending) || tooMany || empty || upload.isPending}
+            disabled={!file || !analysis || matching || (map ? mapWaiting : analysis.refused || createMap.isPending) || tooMany || empty || upload.isPending}
             onClick={() => file && upload.mutate(file)}
             data-testid="bulk-upload"
           >
             {upload.isPending ? <Spinner data-icon="inline-start" /> : null}
-            {map && mapWaiting
-              ? 'Check the columns first'
+            {matching
+              ? 'Matching columns…'
+              : map && mapWaiting
+                ? 'Check the columns first'
               : !map && analysis?.refused
                 ? 'Fix the columns first'
                 : empty

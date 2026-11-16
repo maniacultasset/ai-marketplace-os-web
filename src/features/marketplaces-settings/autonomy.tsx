@@ -51,16 +51,17 @@ export function AutonomySettings() {
             <p id="autonomy-mode-approval-desc" className="mt-1 text-small text-ink-2">
               You review and approve every listing before it is sent.
             </p>
-            {/* Per marketplace: the same rule on each supported marketplace, as one line. */}
+            {/* Per marketplace: the same rule on each supported marketplace, as one line. One
+                separator for eyes and screen readers alike: a hidden comma next to it showed as
+                "Approval required , · Flipkart" in prod (16 Nov). */}
             <p id="autonomy-per-marketplace" className="mt-1.5 text-caption text-ink-3" data-testid="autonomy-per-marketplace">
               {SUPPORTED.map((m, i) => (
                 <span key={m}>
-                  {i > 0 ? <span aria-hidden> · </span> : null}
+                  {i > 0 ? ' · ' : null}
                   <span data-testid={`autonomy-${m}`}>
                     <span className="font-semibold text-ink-2">{MARKETPLACES.find((x) => x.id === m)?.name ?? m}:</span>{' '}
                     Approval required
                   </span>
-                  {i < SUPPORTED.length - 1 ? <span className="sr-only">,</span> : null}
                 </span>
               ))}
             </p>

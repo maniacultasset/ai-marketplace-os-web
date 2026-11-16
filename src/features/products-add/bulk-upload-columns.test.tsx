@@ -65,9 +65,9 @@ function setup() {
   )
 }
 
-async function chooseFile() {
+async function chooseFile(file = csv()) {
   await userEvent.click(screen.getByTestId('bulk-next'))
-  await userEvent.upload(screen.getByLabelText('CSV file'), csv())
+  await userEvent.upload(screen.getByLabelText('CSV file'), file)
 }
 
 beforeEach(() => {
@@ -152,6 +152,50 @@ describe('Bulk upload column review (SI14)', () => {
     const fd = post.mock.calls.find((c) => c[0] === '/products/bulk')![1].body as FormData
     expect(fd.get('column_map_id')).toBe(MAP)
   }, 15_000)
+
+  it('shows a neutral "Matching columns" state, never Unknown or blocked, until the match is back (prod 16 Nov)', async () => {
+    const seller = new File(['SKU,Product Title,category,Colour\nKS-1,Kurta,ethnic_wear_kurta_sets,Red\n'], 'seller.csv', { type: 'text/csv' })
+    const known = {
+      ...map,
+      needs_review_count: 0,
+      mappings: [
+        { position: 1, header_shown: 'SKU', key: 'seller_sku', method: 'alias', confidence: 1, needs_review: false },
+        { position: 2, header_shown: 'Product Title', key: 'product_name', method: 'alias', confidence: 1, needs_review: false },
+        { position: 3, header_shown: 'category', key: 'category', method: 'exact', confidence: 1, needs_review: false },
+        { position: 4, header_shown: 'Colour', key: 'color_name', method: 'alias', confidence: 1, needs_review: false },
+      ],
+    }
+    let answer: (v: unknown) => void = () => {}
+    post.mockImplementation((path: string) => (path === '/imports/column-maps' ? new Promise((r) => (answer = r)) : refuse(404)))
+    setup()
+    await chooseFile(seller)
+    await screen.findByTestId('column-matching')
+    expect(screen.getByTestId('column-matching').textContent).toBe('Matching columns…')
+    expect(screen.queryByText('Unknown')).toBeNull()
+    expect(screen.queryByText(/Missing required/)).toBeNull()
+    const upload = screen.getByTestId('bulk-upload') as HTMLButtonElement
+    expect(upload.textContent).toBe('Matching columns…')
+    expect(upload.disabled).toBe(true)
+
+    answer(await ok(known, 201))
+    await screen.findByTestId('column-map-review')
+    expect(screen.queryByTestId('column-matching')).toBeNull()
+    expect(screen.getAllByTestId('column-map-row').find((r) => r.dataset.position === '1')!.textContent).toContain('Known name')
+    await waitFor(() => expect(upload.disabled).toBe(false))
+    expect(upload.textContent).toBe('Upload 1 row')
+  })
+
+  it('a column match that fails leaves the read-only table, after the matching state', async () => {
+    let fail: (v: unknown) => void = () => {}
+    post.mockImplementation((path: string) => (path === '/imports/column-maps' ? new Promise((r) => (fail = r)) : refuse(404)))
+    setup()
+    await chooseFile()
+    await screen.findByTestId('column-matching')
+    fail(await refuse(404))
+    await waitFor(() => expect(screen.queryByTestId('column-matching')).toBeNull())
+    expect(screen.getByLabelText('Column matching')).toBeTruthy()
+    expect((screen.getByTestId('bulk-upload') as HTMLButtonElement).textContent).toBe('Fix the columns first')
+  })
 
   it('keeps today’s read-only matching against a backend without column maps', async () => {
     post.mockImplementation((path: string) => (path === '/imports/column-maps' ? refuse(404) : ok({ import_id: 'i1', job_id: 'j1', status: 'queued' }, 202)))

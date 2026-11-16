@@ -267,3 +267,20 @@ export function countryProblem(raw: string): string | null {
 }
 
 export const normalizeCountry = (raw: string) => raw.trim().toUpperCase()
+
+const fold = (t: string) => t.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('en').trim()
+
+/**
+ * The country search: a name that starts with what was typed first ("Ind" finds India, then
+ * Indonesia), then a later word ("ind" finds British Indian Ocean Territory), then the two-letter
+ * code. Accents are ignored ("aland" finds Åland Islands). cmdk keeps the list order among equal
+ * scores, so India, pinned first, stays first.
+ */
+export function countryMatch(name: string, code: string, search: string): number {
+  const q = fold(search)
+  if (!q) return 1
+  const n = fold(name)
+  if (n.startsWith(q)) return 1
+  if (n.split(/[\s(),.-]+/).some((w) => w.startsWith(q))) return 0.8
+  return fold(code) === q ? 0.6 : 0
+}

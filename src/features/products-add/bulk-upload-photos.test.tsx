@@ -18,10 +18,15 @@ vi.mock('@/lib/permissions', async (orig) => ({ ...(await orig<typeof import('@/
 vi.mock('@/features/assist/flags', async (orig) => ({ ...(await orig<object>()), useLampsEnabled: () => ({ enabled: false, pending: false }) }))
 let sheetPhotos = false
 vi.mock('@/features/imports/sheet-photos', async (orig) => ({ ...(await orig<typeof import('@/features/imports/sheet-photos')>()), useSheetPhotos: () => sheetPhotos }))
-// Every read and the column map stay in flight: these look at the copy only.
+// Every read stays in flight: these look at the copy only. The column map is refused (an older
+// backend), so the read-only column table shows once the matching state ends.
+const noColumnMaps = () => {
+  const error = { error: { type: 'NOT_FOUND', message: 'm', status: 404, correlation_id: 'req-1', details: null, error_report: null } }
+  return Promise.resolve({ data: undefined, error, response: new Response(JSON.stringify(error), { status: 404 }) })
+}
 vi.mock('@/api/client', async (orig) => ({
   ...(await orig<typeof import('@/api/client')>()),
-  api: { GET: () => new Promise(() => {}), POST: () => new Promise(() => {}) },
+  api: { GET: () => new Promise(() => {}), POST: (path: string) => (path === '/imports/column-maps' ? noColumnMaps() : new Promise(() => {})) },
 }))
 
 const { BulkUpload } = await import('./bulk-upload')
@@ -59,7 +64,7 @@ describe('bulk upload copy with sheet photos (G2)', () => {
     expect(notice.textContent).toContain('1 row has photo links')
     expect(notice.textContent).toContain('Photo links are not used.')
     expect(notice.className).toContain('bg-attention-bg')
-    expect(screen.getByTestId('photo-link-note').textContent).toBe('Not used. Clear these columns: a bad link still fails the row.')
+    expect((await screen.findByTestId('photo-link-note')).textContent).toBe('Not used. Clear these columns: a bad link still fails the row.')
   })
 
   it('says the photos download after the import while it is on, in a calm notice', async () => {
@@ -72,7 +77,7 @@ describe('bulk upload copy with sheet photos (G2)', () => {
     expect(notice.textContent).toContain('The photos download after the import. Each link’s result shows in the report.')
     expect(notice.textContent).not.toContain('not used')
     expect(notice.className).toContain('bg-surface')
-    const table = screen.getByLabelText('Column matching')
+    const table = await screen.findByLabelText('Column matching')
     const photoRows = within(table).getAllByRole('row').filter((r) => /main_image|additional_images/.test(r.textContent ?? ''))
     expect(photoRows).toHaveLength(2)
     for (const r of photoRows) {
