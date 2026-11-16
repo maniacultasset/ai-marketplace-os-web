@@ -19,6 +19,7 @@ import {
   emptySizeChart,
   moneyProblem,
   normalizeMoney,
+  partyComplete,
   partyProblems,
   priceAboveMrp,
   sizeChartCount,
@@ -464,6 +465,14 @@ const compositionComplete = (rows: readonly FibreRow[]) => {
   return filled.length > 0 && filled.every((r) => r.fibre.trim() && r.percent.trim())
 }
 
+/**
+ * The product has a manufacturer: its own once every required field is typed (opening "Enter for
+ * this product" alone gives none), else the brand default. `brandManufacturer` null (the brand
+ * still loading) is not counted as missing.
+ */
+export const manufacturerGiven = (v: Pick<GuidedValues, 'ownManufacturer' | 'manufacturer'>, brandManufacturer: boolean | null) =>
+  v.ownManufacturer ? partyComplete(v.manufacturer) : brandManufacturer !== false
+
 /** Critical facts still empty, by label and section (p09 "N missing" card and section counts). */
 export function missingCriticalBy(v: GuidedValues, ctx: GuidedContext = noContext): { label: string; section: SectionId }[] {
   const out: { label: string; section: SectionId }[] = []
@@ -476,7 +485,7 @@ export function missingCriticalBy(v: GuidedValues, ctx: GuidedContext = noContex
   if (ctx.amazon && !packageHasWeight(v.pkg)) out.push({ label: 'Package weight', section: 'shipping' })
   if (empty('wash_care')) out.push({ label: 'Wash care', section: 'care' })
   if (empty('iron_care')) out.push({ label: 'Iron care', section: 'care' })
-  if (!v.ownManufacturer && ctx.brandManufacturer === false) out.push({ label: 'Manufacturer', section: 'care' })
+  if (!manufacturerGiven(v, ctx.brandManufacturer)) out.push({ label: 'Manufacturer', section: 'care' })
   return out
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { emptySizeRow } from '@/features/products/intake-model'
-import { emptyGuided, errorOrder, isEmptyGuided, mapCreateErrors, missingCritical, reviveGuided, sectionStates, toProductCreate, validateGuided } from './guided-model'
+import { emptyGuided, errorOrder, isEmptyGuided, manufacturerGiven, mapCreateErrors, missingCritical, reviveGuided, sectionStates, toProductCreate, validateGuided } from './guided-model'
 
 const filled = () => ({ ...emptyGuided(), sku: 'FSH-TEE-001', title: 'Relaxed Cotton Tee', category: 'tshirts' })
 
@@ -52,8 +52,27 @@ describe('guided form', () => {
     // No brand default and no own manufacturer: the manufacturer is missing too.
     const ctx = { brandManufacturer: false, hasMain: true, imageCount: 1 }
     expect(missingCritical(filled(), ctx)).toContain('Manufacturer')
-    expect(missingCritical({ ...filled(), ownManufacturer: true }, ctx)).not.toContain('Manufacturer')
+    const asha = { legal_name: 'Asha Textiles', address_line1: '12 MG Road', address_line2: '', city: 'Jaipur', state_code: 'RJ', postal_code: '302001', gstin: '' }
+    expect(missingCritical({ ...filled(), ownManufacturer: true, manufacturer: asha }, ctx)).not.toContain('Manufacturer')
     expect(sectionStates(filled(), ctx).media).toEqual({ kind: 'done' })
+  })
+
+  it('counts "Enter for this product" as a manufacturer only once its required fields are typed (KTEST-E2E-01)', () => {
+    const asha = { legal_name: 'Asha Textiles', address_line1: '12 MG Road', address_line2: '', city: 'Jaipur', state_code: 'RJ', postal_code: '302001', gstin: '' }
+    for (const brandManufacturer of [false, true, null]) {
+      const ctx = { brandManufacturer, hasMain: true, imageCount: 1 }
+      // Opened and left empty: still missing.
+      expect(missingCritical({ ...filled(), ownManufacturer: true }, ctx)).toContain('Manufacturer')
+      // A required field still empty (the PIN): still missing. GSTIN and the second line are optional.
+      expect(missingCritical({ ...filled(), ownManufacturer: true, manufacturer: { ...asha, postal_code: ' ' } }, ctx)).toContain('Manufacturer')
+      expect(missingCritical({ ...filled(), ownManufacturer: true, manufacturer: asha }, ctx)).not.toContain('Manufacturer')
+      // The same rule drops Manufacturer from "missing for Amazon" in the side panel.
+      expect(manufacturerGiven({ ownManufacturer: true, manufacturer: emptyGuided().manufacturer }, brandManufacturer)).toBe(false)
+      expect(manufacturerGiven({ ownManufacturer: true, manufacturer: asha }, brandManufacturer)).toBe(true)
+    }
+    expect(manufacturerGiven(emptyGuided(), false)).toBe(false)
+    expect(manufacturerGiven(emptyGuided(), true)).toBe(true)
+    expect(manufacturerGiven(emptyGuided(), null)).toBe(true)
   })
 
   it('makes the packed box critical when Amazon is ticked (item 15)', () => {

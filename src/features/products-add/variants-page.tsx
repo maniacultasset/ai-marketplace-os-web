@@ -57,6 +57,7 @@ import {
   MAX_COLOUR,
   MAX_SIZE,
   seedFromVariants,
+  sizesFromChart,
   SIZE_SYSTEMS,
   sizeProblem,
   validateVariants,
@@ -547,7 +548,6 @@ function ProductPicker({ listOn }: { listOn: Marketplace[] }) {
 
 const PREVIEW_ROWS = 4
 
-const DEFAULT_VARIANTS: VariantsState = { ...emptyVariants(), sizes: [...SIZE_SYSTEMS[0]!.sizes] }
 
 /** `listOn` is the p08 "List on" choice, carried through to the check-and-send step. */
 export function VariantsPage({ productId, listOn = [] }: { productId: string | null; listOn?: Marketplace[] }) {
@@ -581,7 +581,9 @@ function VariantsEditor({ productId, listOn }: { productId: string; listOn: Mark
   const existingVariants = useMemo(() => (all.data?.rows ?? []).filter((x) => x.parent_product_id === productId), [all.data, productId])
   // Reopened for a style that has variants: start from what was saved, until the first edit.
   const saved = useMemo(() => (p && all.data ? seedFromVariants(p, existingVariants) : null), [p, all.data, existingVariants])
-  const s = own ?? saved ?? DEFAULT_VARIANTS
+  // A new matrix starts from the size chart's sizes (or none), never a stock run.
+  const fresh = useMemo<VariantsState>(() => ({ ...emptyVariants(), sizes: sizesFromChart(p?.size_chart) }), [p?.size_chart])
+  const s = own ?? saved ?? fresh
   const edited = own !== null
   const rows = useMemo(() => (p ? buildVariants(p.sku, s) : []), [p, s])
   const allErrors = useMemo(() => (p ? validateVariants(p.sku, s) : {}), [p, s])
