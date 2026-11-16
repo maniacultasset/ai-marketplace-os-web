@@ -51,6 +51,7 @@ import {
   heldReason,
   keptLabel,
   memberItemKey,
+  memberItems,
   otherSkips,
   recheckSummary,
   redraftPlan,
@@ -671,7 +672,8 @@ function MemberRow({
   const key = memberItemKey(member)
   const kept = member.has_value && group.item_kind === 'task'
   const name = [member.sku, member.title].filter(Boolean).join(' · ') || 'A product'
-  const line = status ?? (kept ? keptLabel(group.scope) : 'Open')
+  const items = memberItems(group, member)
+  const line = status ?? [kept ? keptLabel(group.scope) : 'Open', items].filter(Boolean).join(' · ')
   return (
     <li className="flex min-h-[52px] items-center gap-3 px-3.5 py-2.5" data-testid="group-member" data-kept={kept || undefined}>
       {choosing && member.task_id ? (

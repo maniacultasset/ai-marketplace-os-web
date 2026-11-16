@@ -12,6 +12,7 @@ import {
   groupTitle,
   groupsTotal,
   memberIndex,
+  memberItems,
   mergeAnswers,
   normalizeGroups,
   recheckSummary,
@@ -42,6 +43,8 @@ const member = (i: number, over: Partial<GroupMember> = {}): GroupMember => ({
   listing_ids: [U(200 + i)],
   has_value: false,
   at: AT,
+  issue_ids: [],
+  items: 1,
   ...over,
 })
 
@@ -113,6 +116,17 @@ describe('members', () => {
     expect(idx.get(`task:${U(1002)}`)?.member.sku).toBe('KTEST-002')
     expect(idx.size).toBe(3)
   })
+  it('a listing row of an issue group indexes every issue it stands for, and says how many', () => {
+    const row = member(1, { task_id: null, issue_id: U(11), issue_ids: [U(11), U(12)], items: 2 })
+    const g = group({ item_kind: 'issue', scope: 'per_item', field: 'listing', count: 2, listings: 1, members: [row] })
+    const idx = memberIndex([g])
+    expect(idx.get(`issue:${U(11)}`)?.member).toBe(row)
+    expect(idx.get(`issue:${U(12)}`)?.member).toBe(row)
+    expect(memberItems(g, row)).toBe('2 issues')
+    expect(memberItems({ ...g, field: 'images[]' }, row)).toBe('2 photos')
+    expect(memberItems(g, member(2))).toBeNull()
+    expect(memberItems(group(), { items: 2 })).toBeNull()
+  })
   it('answers only open questions without their own value, never a kept one', () => {
     const g = group({ members: [member(1), member(2, { has_value: true }), member(3, { task_id: null, issue_id: U(5) })] })
     expect(answerable(g.members).map((m) => m.sku)).toEqual(['KTEST-001'])
@@ -121,10 +135,13 @@ describe('members', () => {
     expect(brandListings(g.members)).toEqual([U(201), U(203)])
   })
   it('fills the lists the contract defaults', () => {
-    const raw = { enabled: true, as_of: AT, view: 'all', total_items: 1, more: false, groups: [{ ...group(), members: [{ ...member(1), listing_ids: undefined }], categories: undefined }] }
+    const old = { ...member(2, { task_id: null, issue_id: U(7) }), issue_ids: undefined, items: undefined }
+    const raw = { enabled: true, as_of: AT, view: 'all', total_items: 1, more: false, groups: [{ ...group(), members: [{ ...member(1), listing_ids: undefined, issue_ids: undefined, items: undefined }, old], categories: undefined }] }
     const g = normalizeGroups(raw as never).groups[0]!
     expect(g.categories).toEqual([])
     expect(g.members[0]!.listing_ids).toEqual([])
+    expect([g.members[0]!.issue_ids, g.members[0]!.items]).toEqual([[], 1])
+    expect([g.members[1]!.issue_ids, g.members[1]!.items]).toEqual([[U(7)], 1])
     expect(normalizeGroups({ ...raw, groups: undefined } as never).groups).toEqual([])
   })
 })

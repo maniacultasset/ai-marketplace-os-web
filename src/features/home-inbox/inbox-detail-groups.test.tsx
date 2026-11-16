@@ -68,7 +68,7 @@ const group: InboxGroup = {
   marketplace: 'amazon',
   categories: [],
   brand_value_set: false,
-  members: [1, 2].map((i) => ({ issue_id: U(3000 + i), product_id: U(100 + i), sku: `KTEST-${i}`, title: `Kurta ${i}`, listing_ids: [U(200 + i)], has_value: false, at: AT })),
+  members: [1, 2].map((i) => ({ issue_id: U(3000 + i), product_id: U(100 + i), sku: `KTEST-${i}`, title: `Kurta ${i}`, listing_ids: [U(200 + i)], has_value: false, at: AT, issue_ids: [U(3000 + i)], items: 1 })),
   members_more: false,
 }
 
