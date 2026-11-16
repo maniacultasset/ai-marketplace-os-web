@@ -37,6 +37,7 @@ export const IDEMPOTENT_OPS = [
   'POST /jobs/{job_id}/cancel',
   'POST /tasks/{task_id}/answer',
   'POST /tasks/{task_id}/close',
+  'POST /inbox/groups/answer',
   'POST /tenants',
 ] as const
 

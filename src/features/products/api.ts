@@ -227,7 +227,7 @@ export function useKeepPhoto(productId: string) {
 
 export const fetchBrandProfile = () => unwrapVersioned(api.GET('/brand-profile'))
 
-/** GET /brand-profile with its ETag: the default manufacturer every product inherits. */
+/** GET /brand-profile with its ETag: the brand parties (manufacturer, marketer, packer, importer) every product inherits. */
 export function useBrandManufacturer(enabled = true) {
   const keys = useKeys()
   return useQuery({ queryKey: [...keys.brand.all(), 'brand-profile'] as const, queryFn: fetchBrandProfile, enabled, staleTime: 60_000 })
@@ -239,10 +239,12 @@ export function useSaveBrandManufacturer() {
   const qc = useQueryClient()
   return useMutation({
     meta: { toast: false },
-    mutationFn: ({ body, etag }: { body: BrandProfileBody; etag: string | null }) =>
+    mutationFn: ({ body, etag }: { body: BrandProfileBody; etag: string | null }): Promise<Versioned<BrandProfile>> =>
       unwrapVersioned(api.PATCH('/brand-profile', { params: { header: ifMatchHeader(etag) }, body })),
     onSuccess: (next: Versioned<BrandProfile>) => {
-      qc.setQueryData([...keys.brand.all(), 'brand-profile'], next)
+      // The cache holds the profile only: `affected_listings` (the backend's verdicts) belong to this save.
+      const { affected_listings: _verdicts, ...profile } = next.data
+      qc.setQueryData([...keys.brand.all(), 'brand-profile'], { ...next, data: profile })
       // Products inherit the default: their effective manufacturer changed too.
       void qc.invalidateQueries({ queryKey: keys.products.all() })
     },

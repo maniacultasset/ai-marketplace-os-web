@@ -379,6 +379,14 @@ describe('inbox items', () => {
     expect(parseItemKey('issue:12')).toBeNull()
     expect(parseItemKey(undefined)).toBeNull()
   })
+  it('group keys (G1) round-trip as opaque text, up to 200 characters', () => {
+    const key = 't|missing_fact|variants[].facts.color|503f4d45ede0'
+    expect(parseItemKey(`group:${key}`)).toEqual({ kind: 'group', id: key })
+    expect(parseItemKey('group:')).toBeNull()
+    expect(parseItemKey(`group:${'x'.repeat(201)}`)).toBeNull()
+    expect(inboxSearchSchema.parse({ item: `group:${key}` })).toEqual({ item: `group:${key}` })
+    expect(inboxSearchSchema.parse({ item: 'group:' })).toEqual({})
+  })
   it('URL search falls back on junk, and status pickers apply only to their view', () => {
     expect(inboxSearchSchema.parse({ view: 'bogus', item: 'x', status: 'nope' })).toEqual({})
     expect(inboxStatuses({ status: 'resolved', tasks: 'answered' })).toEqual({ task: 'open', issue: 'open' })

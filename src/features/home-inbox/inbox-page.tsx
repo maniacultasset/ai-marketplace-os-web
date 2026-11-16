@@ -6,10 +6,14 @@
  * Fact questions (missing or conflicting facts, e.g. from the photo check) are answered here with
  * POST /tasks/{id}/answer; other question kinds keep their answer controls disabled with the reason.
  * Issue dismiss is real (POST /issues/{id}/dismiss with an Idempotency-Key).
+ *
+ * G1: while the open items are shown and the backend has the groups switched on, the list reads
+ * GET /inbox/groups: identical items across products are one card (`?item=group:<key>`), a group
+ * of one is its item as before. The counts stay the summary's (B16, B28), never the cards.
  */
 import { Link } from '@tanstack/react-router'
 import { formatDistanceToNowStrict } from 'date-fns'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ScrollPane, SplitLayout } from '@/components/app/split-layout'
 import { IconTile } from '@/components/la/icons'
 import { Segmented } from '@/components/la/tabs'
@@ -23,6 +27,9 @@ import { fieldLabel } from '@/features/listing-flow/format'
 import type { AnswerOutcome } from '@/features/photo-facts/answer-card'
 import { useMediaQuery } from '@/lib/use-media-query'
 import { cn } from '@/lib/utils'
+import { useInboxGroups } from '@/features/inbox-groups/api'
+import { GroupCard } from '@/features/inbox-groups/group-card'
+import { groupItemKey, memberIndex, singleItem, type GroupMember, type InboxGroup } from '@/features/inbox-groups/model'
 import { useHomeSummary, useListingProductIds, useProductsById } from './api'
 import { InboxDetail } from './inbox-detail'
 import {
@@ -71,14 +78,43 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
   const onOutcome = useCallback((o: AnswerOutcome) => setOutcomes((m) => ({ ...m, [o.task.id]: o })), [])
   const kept = statuses.task === 'open' ? Object.values(outcomes).filter((o) => !taskList.rows.some((t) => t.id === o.task.id)) : []
   const taskRows = [...taskList.rows, ...kept.map((o) => o.task)]
-  const items = visibleItems(view, mergeInbox(showsTasks ? taskRows : [], showsIssues ? issueRows : [], openIssues.rows))
-  const selectedKey = search.item ?? (items[0] ? itemKey(items[0]) : undefined)
+  const listItems = visibleItems(view, mergeInbox(showsTasks ? taskRows : [], showsIssues ? issueRows : [], openIssues.rows))
+
+  // G1: while the open items are shown, identical ones across products list as one group. A
+  // group of one is the item itself; the old lists stay for closed statuses, a switched-off
+  // backend, or a failed groups read.
+  const openShown = view === 'all' || (view === 'questions' && statuses.task === 'open') || (view === 'issues' && statuses.issue === 'open')
+  const groupsRead = useInboxGroups(view, { enabled: openShown })
+  const groupsOn = openShown && !groupsRead.error && (groupsRead.isPending || groupsRead.data?.enabled === true)
+  const [doneGroups, setDoneGroups] = useState<Record<string, { group: InboxGroup; line: string }>>({})
+  const onGroupDone = useCallback((group: InboxGroup, line: string) => setDoneGroups((m) => ({ ...m, [group.key]: { group, line } })), [])
+  const grouped = useMemo(
+    () => (groupsOn && groupsRead.data?.enabled ? groupedRows(groupsRead.data.groups, outcomes, doneGroups) : null),
+    [groupsOn, groupsRead.data, outcomes, doneGroups],
+  )
+  const items = grouped ? grouped.items : listItems
+  // Grouped, the list is the groups read: a failed page of the open lists does not hide it.
+  const shownError = grouped ? undefined : error
+  const firstKey = grouped ? grouped.rows[0]?.key : items[0] ? itemKey(items[0]) : undefined
+  const selectedKey = search.item ?? firstKey
 
   // B16, B28: the sidebar badge's numbers (`inboxCounts`), from the same summary entry the badge
   // reads, at any volume. An issue linked to an open question is the same thing to do: All counts
   // it once. The loaded lists count instead while both are complete and one was read after the
   // summary (before it answers, and right after a mutation until it re-reads).
   const summary = useHomeSummary()
+  // The groups re-read when the summary's counts move and the groups are older than that read
+  // (an issue dismissed or fixed elsewhere; an answer here refreshes both already).
+  const countsPrint = summary.data ? JSON.stringify(summary.data.inbox) : null
+  const lastPrint = useRef(countsPrint)
+  const refetchGroups = groupsRead.refetch
+  const groupsAt = groupsRead.dataUpdatedAt
+  const summaryAt = summary.dataUpdatedAt
+  useEffect(() => {
+    const moved = lastPrint.current !== null && countsPrint !== null && lastPrint.current !== countsPrint
+    if (moved && groupsOn && groupsAt < summaryAt) void refetchGroups()
+    lastPrint.current = countsPrint
+  }, [countsPrint, groupsOn, groupsAt, summaryAt, refetchGroups])
   const listsFirst = listsNewerThanSummary(
     summary.data ? summary.dataUpdatedAt : 0,
     { complete: !!openTasks.data && !openTasks.hasNextPage, at: openTasks.dataUpdatedAt },
@@ -94,11 +130,13 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
   )
   const caption = inboxCaption(counts)
   // An issue names its product too: its listing says which (IssueOut has listing_id only).
-  const issueProducts = useListingProductIds(items.map((i) => (i.kind === 'issue' ? i.issue.listing_id : null)))
-  const productOf = (i: InboxItem) => (i.kind === 'task' ? i.task.product_id : issueProducts.map.get(i.issue.listing_id))
+  // Grouped, an issue names its product itself (sample_issue.product_id): no listing reads.
+  const issueProducts = useListingProductIds(grouped ? [] : items.map((i) => (i.kind === 'issue' ? i.issue.listing_id : null)))
+  const productOf = (i: InboxItem) => (i.kind === 'task' ? i.task.product_id : (i.issue.product_id ?? issueProducts.map.get(i.issue.listing_id)))
   const products = useProductsById(items.map(productOf))
-  // A card paints once, title and meta together: its product (SKU) is part of the meta.
-  const pending = listsPending || issueProducts.pending || products.pending
+  // A card paints once, title and meta together: its product (SKU) is part of the meta. Grouped,
+  // the SKU comes with the group, so only the groups read holds the list.
+  const pending = groupsOn ? groupsRead.isPending : listsPending || issueProducts.pending || products.pending
   const filteredStatus = (view === 'questions' && statuses.task !== 'open') || (view === 'issues' && statuses.issue !== 'open')
 
   return (
@@ -140,9 +178,9 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
         {view !== 'all' ? <StatusPicker view={view} search={search} onSearch={onSearch} /> : null}
 
         <ul className="flex flex-col gap-2.5" aria-busy={pending || undefined}>
-          {error ? (
+          {shownError ? (
             <li>
-              <ErrorState compact error={error} title="Couldn't load your Inbox" onRetry={() => lists.forEach((l) => void l.refetch())} />
+              <ErrorState compact error={shownError} title="Couldn't load your Inbox" onRetry={() => lists.forEach((l) => void l.refetch())} />
             </li>
           ) : pending ? (
             Array.from({ length: 4 }, (_, i) => (
@@ -157,7 +195,29 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
                 </div>
               </li>
             ))
-          ) : items.length === 0 ? (
+          ) : grouped && grouped.rows.length ? (
+            grouped.rows.map((row) => (
+              <li key={row.key}>
+                {row.kind === 'group' ? (
+                  <GroupCard
+                    group={row.group}
+                    selected={row.key === selectedKey || grouped.members.get(selectedKey ?? '')?.group.key === row.group.key}
+                    search={search}
+                    done={row.done}
+                  />
+                ) : (
+                  <ItemCard
+                    item={row.item}
+                    selected={row.key === selectedKey}
+                    search={search}
+                    product={row.product ?? (productOf(row.item) ? products.map.get(productOf(row.item)!) : undefined)}
+                    linked={openIssues.rows}
+                    answered={row.item.kind === 'task' && outcomes[row.item.task.id] ? outcomes[row.item.task.id]!.kind : undefined}
+                  />
+                )}
+              </li>
+            ))
+          ) : (grouped ? grouped.rows.length : items.length) === 0 ? (
             <li className="flex flex-col items-center rounded-card border border-dashed border-line-strong px-4 py-8 text-center" data-testid="inbox-empty">
               <IconTile icon={filteredStatus ? 'filter' : 'check'} tone={filteredStatus ? 'neutral' : 'ok'} size="lg" className="mb-3" />
               <p className="font-semibold text-ink">{filteredStatus ? 'Nothing here' : 'Nothing needs you'}</p>
@@ -193,7 +253,12 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
             ))
           )}
         </ul>
-        {lists.some((l) => l.hasNextPage) ? (
+        {grouped && groupsRead.data?.more ? (
+          <p className="text-caption text-ink-2" data-testid="inbox-groups-more">
+            Showing the biggest groups first. Answer some, and the rest appear here.
+          </p>
+        ) : null}
+        {!grouped && lists.some((l) => l.hasNextPage) ? (
           <Button
             variant="secondary"
             size="sm"
@@ -217,14 +282,15 @@ export function InboxPage({ search, onSearch }: { search: InboxSearch; onSearch:
         <InboxDetail
           selectedKey={selectedKey}
           items={items}
-          pending={listsPending}
-          error={!!error}
+          pending={groupsOn ? groupsRead.isPending : listsPending}
+          error={!!shownError}
           search={search}
           products={products}
           issueProducts={issueProducts.map}
           openIssues={openIssues.rows}
           outcomes={outcomes}
           onOutcome={onOutcome}
+          grouped={grouped ? { groups: grouped.groups, members: grouped.members, loaded: listItems, onDone: onGroupDone } : undefined}
         />
       </ScrollPane>
     </SplitLayout>
@@ -328,3 +394,55 @@ function ItemCard({
   )
 }
 
+
+type GroupedRow =
+  | { kind: 'group'; key: string; group: InboxGroup; done?: string }
+  | { kind: 'item'; key: string; item: InboxItem; product?: { sku: string; title: string } }
+
+/**
+ * The grouped list (G1): each group of two or more as one card, a group of one as its item, then
+ * what was answered on this screen and has left the read (kept with its result, as the ungrouped
+ * list keeps an answered question). `items` are the singles the detail pane can open directly.
+ */
+function groupedRows(
+  groups: readonly InboxGroup[],
+  outcomes: Readonly<Record<string, AnswerOutcome>>,
+  done: Readonly<Record<string, { group: InboxGroup; line: string }>>,
+) {
+  const rows: GroupedRow[] = []
+  const items: InboxItem[] = []
+  const listed = new Set<string>()
+  for (const g of groups) {
+    const single = singleItem(g)
+    if (single) {
+      const key = itemKey(single)
+      const m: GroupMember | undefined = g.members[0]
+      rows.push({ kind: 'item', key, item: single, product: m?.sku ? { sku: m.sku, title: m.title ?? '' } : undefined })
+      items.push(single)
+      listed.add(key)
+    } else {
+      const key = groupItemKey(g.key)
+      rows.push({ kind: 'group', key, group: g, done: done[g.key]?.line })
+      listed.add(key)
+    }
+  }
+  const members = memberIndex(groups)
+  for (const o of Object.values(outcomes)) {
+    const key = itemKey({ kind: 'task', id: o.task.id })
+    if (listed.has(key) || members.has(key)) continue
+    const item: InboxItem = { kind: 'task', id: o.task.id, at: o.task.created_at, task: o.task }
+    rows.push({ kind: 'item', key, item })
+    items.push(item)
+    listed.add(key)
+  }
+  const kept: InboxGroup[] = []
+  for (const d of Object.values(done)) {
+    const key = groupItemKey(d.group.key)
+    if (listed.has(key)) continue
+    rows.push({ kind: 'group', key, group: d.group, done: d.line })
+    kept.push(d.group)
+  }
+  // A member answered or opened on its own keeps its group findable for the way back.
+  for (const g of kept) for (const [k, v] of memberIndex([g])) if (!members.has(k)) members.set(k, v)
+  return { rows, items, groups: [...groups, ...kept], members }
+}

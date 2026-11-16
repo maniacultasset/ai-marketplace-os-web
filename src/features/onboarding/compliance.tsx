@@ -2,7 +2,8 @@
  * Compliance facts: where each one is kept. Shared by setup step 2 (/setup/manufacturer) and
  * Settings > Compliance (/settings/compliance).
  *
- * The brand manufacturer is set once for the brand (GET/PATCH /brand-profile, ManufacturerCard).
+ * The brand manufacturer is set once for the brand (GET/PATCH /brand-profile, ManufacturerCard);
+ * Settings > Compliance also sets the marketer, packer and importer the same way (BrandParties).
  * Everything else a garment label needs (country of origin, HSN, MRP, size, care) is a product fact,
  * given in the guided form or the spreadsheet. There are no other brand-wide compliance defaults,
  * so none are shown.
@@ -11,6 +12,7 @@ import type { ReactNode } from 'react'
 import { CardHead, LaCard } from '@/components/la/cards'
 import { Icon, IconTile } from '@/components/la/icons'
 import { ManufacturerCard } from '@/features/brand/manufacturer-card'
+import { BrandPartyCard } from '@/features/brand/party-card'
 import { OP_ACTION, useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 
@@ -18,6 +20,20 @@ import { cn } from '@/lib/utils'
 export function BrandManufacturer({ onEditingChange }: { onEditingChange?: (editing: boolean) => void }) {
   const can = useCan()
   return <ManufacturerCard canEdit={can(OP_ACTION['PATCH /brand-profile'])} onEditingChange={onEditingChange} />
+}
+
+/** Settings > Compliance: every brand party (`default_<role>`), the manufacturer first. */
+export function BrandParties() {
+  const can = useCan()
+  const canEdit = can(OP_ACTION['PATCH /brand-profile'])
+  return (
+    <div className="flex flex-col gap-4" data-testid="brand-parties">
+      <ManufacturerCard canEdit={canEdit} />
+      <BrandPartyCard role="marketer" canEdit={canEdit} />
+      <BrandPartyCard role="packer" canEdit={canEdit} />
+      <BrandPartyCard role="importer" canEdit={canEdit} />
+    </div>
+  )
 }
 
 /** Right column: where each declaration comes from, and the not-legal-advice note. */

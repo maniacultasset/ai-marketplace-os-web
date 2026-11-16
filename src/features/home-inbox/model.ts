@@ -428,10 +428,19 @@ export type InboxItem = { kind: 'task'; id: string; at: string; task: Task } | {
 
 export const itemKey = (i: Pick<InboxItem, 'kind' | 'id'>) => `${i.kind}:${i.id}`
 
-export function parseItemKey(key: string | undefined): { kind: 'task' | 'issue'; id: string } | null {
+/** Longest group key the API sends (InboxGroupOut.key, opaque). */
+export const GROUP_KEY_MAX = 200
+
+/**
+ * `task:<uuid>`, `issue:<uuid>`, or `group:<key>` (G1: identical open items across products; the
+ * key is opaque and sent back as is).
+ */
+export function parseItemKey(key: string | undefined): { kind: 'task' | 'issue' | 'group'; id: string } | null {
   if (!key) return null
   const m = /^(task|issue):([0-9a-f-]{36})$/i.exec(key)
-  return m ? { kind: m[1] as 'task' | 'issue', id: m[2]! } : null
+  if (m) return { kind: m[1] as 'task' | 'issue', id: m[2]! }
+  const g = /^group:([\s\S]+)$/.exec(key)
+  return g && g[1]!.length <= GROUP_KEY_MAX ? { kind: 'group', id: g[1]! } : null
 }
 
 /**
@@ -457,10 +466,10 @@ const TASK_STATUS = ['open', 'answered', 'applied', 'cancelled'] as const
 
 export const inboxSearchSchema = z.object({
   view: z.enum(INBOX_VIEWS).optional().catch(undefined),
-  /** Selected item, `task:<uuid>` or `issue:<uuid>`. */
+  /** Selected item, `task:<uuid>`, `issue:<uuid>` or `group:<key>` (G1). */
   item: z
     .string()
-    .regex(/^(task|issue):[0-9a-fA-F-]{36}$/)
+    .refine((v) => parseItemKey(v) !== null)
     .optional()
     .catch(undefined),
   /** Issue status (Issues view only); backend default 'open'. */

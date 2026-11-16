@@ -37,6 +37,9 @@ import {
   type Task,
 } from '@/features/inbox/model'
 import { useCan } from '@/lib/permissions'
+import { useFindOpenTask } from '@/features/inbox-groups/api'
+import { GroupDetail } from '@/features/inbox-groups/group-detail'
+import { groupItemKey, groupTitle, type GroupMember, type InboxGroup } from '@/features/inbox-groups/model'
 import { cn } from '@/lib/utils'
 import {
   issueAffects,
@@ -62,7 +65,7 @@ import {
 } from './model'
 import { answerApprovalLine, useOwnerMayApproveOwn } from '@/features/team-account/approver'
 import { AccountTask } from './account-task'
-import type { ProductsById, ProductSummary } from './api'
+import { useListingIssues, useProductsById, type ProductsById, type ProductSummary } from './api'
 import { Ago, CodeBlock, FixTrail, KeyValues } from './parts'
 import { withoutApiText } from '@/lib/seller-text'
 
@@ -80,6 +83,7 @@ export function InboxDetail({
   openIssues = [],
   outcomes = {},
   onOutcome,
+  grouped,
 }: {
   selectedKey: string | undefined
   items: readonly InboxItem[]
@@ -95,8 +99,12 @@ export function InboxDetail({
   /** Questions answered (or found closed) on this screen, by task id: kept on screen. */
   outcomes?: Readonly<Record<string, AnswerOutcome>>
   onOutcome?: (o: AnswerOutcome) => void
+  /** G1: the list shows groups. A group opens its own pane; a member of one opens from it. */
+  grouped?: GroupedDetail
 }) {
   const item = selectedKey ? items.find((i) => itemKey(i) === selectedKey) : undefined
+  const parsed = parseItemKey(selectedKey)
+  const group = grouped && parsed?.kind === 'group' ? grouped.groups.find((g) => g.key === parsed.id) : undefined
   const idx = item ? items.indexOf(item) : -1
   const backSearch = { ...search, item: undefined }
 
@@ -117,8 +125,20 @@ export function InboxDetail({
       <div className="px-4 py-5 lg:px-12 lg:py-8">
         {pending ? (
           <DetailSkeleton />
-        ) : error ? null : !item ? (
-          <Missing selectedKey={selectedKey} hasItems={items.length > 0} />
+        ) : error ? null : group && grouped ? (
+          <GroupDetail key={group.key} group={group} search={search} onDone={grouped.onDone} />
+        ) : !item && grouped && parsed && parsed.kind !== 'group' ? (
+          <MemberDetail
+            key={selectedKey}
+            itemKey={selectedKey!}
+            grouped={grouped}
+            search={search}
+            openIssues={openIssues}
+            outcomes={outcomes}
+            onOutcome={onOutcome}
+          />
+        ) : !item ? (
+          <Missing selectedKey={selectedKey} hasItems={items.length > 0 || !!grouped?.groups.length} />
         ) : item.kind === 'task' ? (
           <TaskDetail
             key={item.id}
@@ -167,6 +187,88 @@ function nextLink(items: readonly InboxItem[], idx: number, search: InboxSearch,
   )
 }
 
+export type GroupedDetail = {
+  /** The listed groups, and the ones answered on this screen (kept with their result). */
+  groups: readonly InboxGroup[]
+  /** Each member's item key to its group and row. */
+  members: ReadonlyMap<string, { group: InboxGroup; member: GroupMember }>
+  /** The loaded open lists: a member found there opens at once. */
+  loaded: readonly InboxItem[]
+  onDone?: (group: InboxGroup, line: string) => void
+}
+
+/**
+ * One member of a group, opened from it: the same question or issue pane as ever, with a way back
+ * to the group. Found among the loaded lists, else read: a question from the open questions
+ * (walked by page; the API has no GET /tasks/{id}), an issue among its listing's issues.
+ */
+function MemberDetail({
+  itemKey: key,
+  grouped,
+  search,
+  openIssues,
+  outcomes,
+  onOutcome,
+}: {
+  itemKey: string
+  grouped: GroupedDetail
+  search: InboxSearch
+  openIssues: readonly Issue[]
+  outcomes: Readonly<Record<string, AnswerOutcome>>
+  onOutcome?: (o: AnswerOutcome) => void
+}) {
+  const parsed = parseItemKey(key)
+  const at = grouped.members.get(key)
+  const loaded = grouped.loaded.find((i) => itemKey(i) === key)
+  const outcome = parsed?.kind === 'task' ? outcomes[parsed.id] : undefined
+  const needTask = parsed?.kind === 'task' && !loaded && !outcome
+  const found = useFindOpenTask(needTask ? parsed.id : null)
+  const listingId = parsed?.kind === 'issue' && !loaded ? (at?.member.listing_ids[0] ?? null) : null
+  const listingIssues = useListingIssues(listingId ?? undefined)
+  const task = loaded?.kind === 'task' ? loaded.task : (outcome?.task ?? (needTask ? found.data : null) ?? null)
+  const issue = loaded?.kind === 'issue' ? loaded.issue : (listingIssues.data?.find((i) => i.id === parsed?.id) ?? null)
+  const productId = task?.product_id ?? issue?.product_id ?? at?.member.product_id ?? null
+  const products = useProductsById([productId])
+  const fallback = at?.member.sku ? { sku: at.member.sku, title: at.member.title ?? '' } : undefined
+  const product = (productId ? products.map.get(productId) : undefined) ?? fallback
+  const back = at ? (
+    <Link
+      to="/inbox"
+      search={{ ...search, item: groupItemKey(at.group.key) }}
+      replace
+      className="focus-ring -ml-1 inline-flex items-center gap-1 self-start rounded-control px-1 text-small font-semibold text-brand"
+      data-testid="member-back"
+    >
+      <Icon name="chev" size={14} className="rotate-90" />
+      {groupTitle(at.group)}
+    </Link>
+  ) : null
+  const loading = (needTask && found.isPending) || (!!listingId && listingIssues.isPending)
+  return (
+    <div className="flex flex-col gap-3" data-testid="member-detail">
+      {back}
+      {loading ? (
+        <DetailSkeleton />
+      ) : task ? (
+        <TaskDetail
+          task={task}
+          position={null}
+          product={product}
+          productPending={!!task.product_id && products.pending && !product}
+          remaining={0}
+          linked={openIssues.filter((i) => i.human_task_id === task.id)}
+          outcome={outcome}
+          onOutcome={onOutcome}
+        />
+      ) : issue ? (
+        <IssuePane issue={issue} position={null} product={productId && product ? { ...product, id: productId } : undefined} />
+      ) : (
+        <Missing selectedKey={key} hasItems />
+      )}
+    </div>
+  )
+}
+
 function Missing({ selectedKey, hasItems }: { selectedKey: string | undefined; hasItems: boolean }) {
   const parsed = parseItemKey(selectedKey)
   // An empty Inbox is said once, in the list pane with its next step; this pane stays quiet.
@@ -177,6 +279,14 @@ function Missing({ selectedKey, hasItems }: { selectedKey: string | undefined; h
         <IconTile icon="inbox" tone="brand" size="lg" className="mb-4" />
         <p className="font-display text-h2 text-ink">Pick an item</p>
         <p className="mt-1 text-body text-ink-2">Choose a question or an issue on the left.</p>
+      </div>
+    )
+  if (parsed.kind === 'group')
+    return (
+      <div className="mx-auto flex max-w-lg flex-col items-center py-12 text-center" data-testid="inbox-detail-missing">
+        <IconTile icon="check" tone="ok" size="lg" className="mb-4" />
+        <p className="font-display text-h2 text-ink">Nothing left in this group</p>
+        <p className="mt-1 text-body text-ink-2">Its items are answered or closed. Pick another item on the left.</p>
       </div>
     )
   return (
