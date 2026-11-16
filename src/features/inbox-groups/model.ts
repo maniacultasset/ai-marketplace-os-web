@@ -8,7 +8,8 @@
  *   - `scope` says how a group is answered: `product_fact` and `exemption` take one answer for
  *     many tasks; `brand` is set once on the brand profile; `per_item` is opened item by item;
  *   - `total_items` is the summary's `inbox` count for the view (B16): the groups never change
- *     what the header, the tabs or the sidebar badge count.
+ *     what the header, the tabs or the sidebar badge count. `count` is a group's items, `members`
+ *     its rows: one per question, one per listing for an issue group (`items` the issues on it).
  */
 import type { Schema } from '@/api/types'
 import { MARKETPLACE_LABEL } from '@/features/inbox/model'
@@ -20,8 +21,11 @@ import { issueTitle } from '@/features/home-inbox/model'
 type RawGroups = Schema<'InboxGroupsOut'>
 type RawGroup = Schema<'InboxGroupOut'>
 type RawMember = Schema<'InboxGroupMemberOut'>
-/** A member with its defaulted list filled in. */
-export type GroupMember = Omit<RawMember, 'listing_ids'> & { listing_ids: string[] }
+/**
+ * One row of a group, its defaulted fields filled in: a question, or for an issue group one
+ * listing with `items` issues of the group on it (`issue_id` the newest, `issue_ids` all).
+ */
+export type GroupMember = Omit<RawMember, 'listing_ids' | 'issue_ids' | 'items'> & { listing_ids: string[]; issue_ids: string[]; items: number }
 /** A group with its defaulted lists filled in (`normalizeGroups`). */
 export type InboxGroup = Omit<RawGroup, 'members' | 'categories'> & { members: GroupMember[]; categories: string[] }
 export type InboxGroups = Omit<RawGroups, 'groups'> & { groups: InboxGroup[] }
@@ -58,7 +62,12 @@ export function normalizeGroups(raw: RawGroups): InboxGroups {
     groups: (raw.groups ?? []).map((g) => ({
       ...g,
       categories: g.categories ?? [],
-      members: (g.members ?? []).map((m) => ({ ...m, listing_ids: m.listing_ids ?? [] })),
+      members: (g.members ?? []).map((m) => ({
+        ...m,
+        listing_ids: m.listing_ids ?? [],
+        issue_ids: m.issue_ids?.length ? m.issue_ids : m.issue_id ? [m.issue_id] : [],
+        items: Math.max(m.items ?? 1, 1),
+      })),
     })),
   }
 }
@@ -82,13 +91,16 @@ export function singleItem(g: InboxGroup): InboxItem | null {
   return null
 }
 
-/** Each member's item key to its group and member row, for drill-down and selection. */
+/**
+ * Each member's item key to its group and member row, for drill-down and selection. A listing row
+ * of an issue group indexes every issue it stands for, so any of them finds its way back.
+ */
 export function memberIndex(groups: readonly InboxGroup[]): Map<string, { group: InboxGroup; member: GroupMember }> {
   const out = new Map<string, { group: InboxGroup; member: GroupMember }>()
   for (const group of groups)
     for (const member of group.members) {
-      const k = memberItemKey(member)
-      if (k && !out.has(k)) out.set(k, { group, member })
+      const keys = [memberItemKey(member), ...member.issue_ids.map((id) => `issue:${id}`)]
+      for (const k of keys) if (k && !out.has(k)) out.set(k, { group, member })
     }
   return out
 }
@@ -151,6 +163,15 @@ export function groupMeta(g: Pick<InboxGroup, 'blocking' | 'listings' | 'marketp
     if (g.field) parts.push(fieldLabel(g.field.replace(/\[\]/g, '')))
   }
   return parts.filter(Boolean).join(' · ')
+}
+
+/**
+ * What a row stands for past one item, or null: "2 photos" when one listing has two photos in an
+ * issue group on photos, else "2 issues" (two required views missing, say).
+ */
+export function memberItems(g: Pick<InboxGroup, 'item_kind' | 'field'>, m: Pick<GroupMember, 'items'>): string | null {
+  if (g.item_kind !== 'issue' || m.items <= 1) return null
+  return `${n(m.items)} ${g.field?.startsWith('images[') ? 'photos' : 'issues'}`
 }
 
 export const SKIP_COPY: Record<SkipReason, string> = {
