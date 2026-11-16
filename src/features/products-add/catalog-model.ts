@@ -395,6 +395,25 @@ export const variantAxis = (p: Product, key: 'color' | 'size'): string | null =>
   return size === null ? null : sizeLabel(size)
 }
 
+const VARIANTS_SUB = 'Each size and colour you make, as its own SKU.'
+
+/**
+ * The Variants tab's subtitle, true to the family (prod 16 Nov, KTEST-E2E-01: a size-only family
+ * read "The colour is in each variant's SKU."). A colour the variants carry, or a family with only
+ * sizes (the style's `size` theme, or SI8 variants with sizes and no colour), says so; only a
+ * backend before SI8, which sends no `variant_attributes`, leaves the colour in each SKU.
+ */
+export function variantsSubtitle(style: Pick<Product, 'variation_theme'>, variants: readonly Product[]): string {
+  const sized = variants.some((v) => variantAxis(v, 'size'))
+  if (variants.some((v) => variantAxis(v, 'color'))) return sized ? VARIANTS_SUB : 'Each colour you make, as its own SKU.'
+  if (!variants.length) return VARIANTS_SUB
+  const sizeOnly = style.variation_theme === 'size' || (sized && variants.every((v) => 'variant_attributes' in v))
+  return sizeOnly ? 'Each size you make, as its own SKU.' : `${VARIANTS_SUB} The colour is in each variant’s SKU.`
+}
+
+/** The grid has one row and no colours: a size-only family, whose row holds each size's SKU. */
+export const sizeOnlyMatrix = (m: VariantMatrix): boolean => m.cells.size > 0 && m.colours.length === 1 && m.colours[0] === null
+
 export const matrixKey = (colour: string | null, size: string) => `${colour ?? ''}\u0000${size}`
 
 export function variantMatrix(variants: readonly Product[]): VariantMatrix {
