@@ -49,6 +49,7 @@ import { StageUnavailable, stageImageForNewProduct, uploadImage } from '@/featur
 import { fetchProduct, useBrandManufacturer } from '@/features/products/api'
 import { BarcodeField } from '@/features/products/barcode-field'
 import { CompositionEditor, MoneyField, PartyFields, PickOrOtherField, SizeChartEditor, TextField } from '@/features/products/intake-fields'
+import { sizeProfileFor } from '@/features/products/size-profile'
 import {
   bodyErrorKey,
   COLOURS,
@@ -79,6 +80,7 @@ import type { Marketplace, Product } from './catalog-model'
 import { acceptedSummary, generateMany, planGenerate } from './generate'
 import {
   ATTR_FIELDS,
+  formAttrFields,
   emptyGuided,
   errorOrder,
   isEmptyGuided,
@@ -855,7 +857,9 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
                   submitCount={submitCount}
                 />
               </div>
-              {ATTR_FIELDS.filter((f) => f.section === 'fabric' && f.key !== 'fabric_type').map(attrField)}
+              {formAttrFields(values.category, values.attrs, requirements.data?.levels)
+                .filter((f) => f.section === 'fabric' && f.key !== 'fabric_type')
+                .map(attrField)}
             </div>
             <ExtraAttributes values={values} setValues={setValues} errors={errors} touch={touch} submitCount={submitCount} />
             <CriticalNote />
@@ -871,7 +875,14 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
                 <span className="text-ink-2">Add at least one size before you send it.</span>
               </p>
             ) : null}
-            <SizeChartEditor id="g-size" value={values.sizeChart} onChange={(sizeChart) => set({ sizeChart })} errors={errors} onBlur={touch} />
+            <SizeChartEditor
+              id="g-size"
+              value={values.sizeChart}
+              onChange={(sizeChart) => set({ sizeChart })}
+              errors={errors}
+              onBlur={touch}
+              profile={sizeProfileFor(values.category, requirements.data)}
+            />
             <p className="text-caption text-ink-3">
               Have a size chart photo? Add it in Images as Size chart. Once the product is saved, you can read the sizes from it on the product page and check them before saving.
             </p>
@@ -1397,7 +1408,7 @@ function ExtraAttributes({
 }) {
   const update = (i: number, patch: Partial<{ key: string; value: string }>) =>
     setValues((v) => ({ ...v, extra: v.extra.map((x, j) => (j === i ? { ...x, ...patch } : x)) }))
-  const formKeys = new Set<string>([...ATTR_FIELDS.map((f) => f.key), 'fiber_composition', 'size_measurements'])
+  const formKeys = new Set<string>([...formAttrFields(values.category, values.attrs).map((f) => f.key), 'fiber_composition', 'size_measurements'])
   const options = ATTRIBUTE_KEY_SUGGESTIONS.filter((k) => !formKeys.has(k) && k !== 'material')
   return (
     <div className="flex flex-col gap-3">

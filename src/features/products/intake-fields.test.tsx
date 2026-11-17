@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { CompositionEditor, MoneyField, SizeChartEditor } from './intake-fields'
+import { sizeProfileFor, type SizeProfile } from './size-profile'
 import { emptySizeChart, fromReadChart, type FibreRow, type SizeChartDraft } from './intake-model'
 
 afterEach(cleanup)
@@ -11,11 +12,12 @@ function Composition({ initial }: { initial: FibreRow[] }) {
   return <CompositionEditor id="c" rows={rows} onChange={setRows} errors={{}} />
 }
 
-function Chart({ initial = emptySizeChart(), seen }: { initial?: SizeChartDraft; seen?: (v: SizeChartDraft) => void }) {
+function Chart({ initial = emptySizeChart(), seen, profile }: { initial?: SizeChartDraft; seen?: (v: SizeChartDraft) => void; profile?: SizeProfile }) {
   const [v, setV] = useState<SizeChartDraft>(initial)
   return (
     <SizeChartEditor
       id="s"
+      profile={profile}
       value={v}
       onChange={(next) => {
         seen?.(next)
@@ -48,6 +50,23 @@ describe('intake editors', () => {
     expect(screen.getByLabelText('Chest, size M')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /Sleeve/ }))
     expect(screen.getByLabelText('Sleeve, size M')).toBeTruthy()
+  })
+
+  it('size chart follows the category profile: waist sizes and waist-first columns for jeans', () => {
+    const { rerender } = render(<Chart profile={sizeProfileFor('tshirts')} />)
+    fireEvent.click(screen.getByRole('button', { name: 'M' }))
+    fireEvent.change(screen.getByLabelText('Chest, size M'), { target: { value: '40' } })
+    fireEvent.click(screen.getByRole('button', { name: /Sleeve/ }))
+    rerender(<Chart profile={sizeProfileFor('jeans')} />)
+    expect(screen.getByRole('button', { name: '32' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '44' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'XS' })).toBeNull()
+    expect(screen.getByLabelText('Inseam, size M')).toBeTruthy()
+    // The filled chest stays; the empty sleeve the seller added is dropped.
+    expect(screen.getByLabelText('Chest, size M')).toBeTruthy()
+    expect(screen.queryByLabelText('Sleeve, size M')).toBeNull()
+    const heads = screen.getAllByRole('columnheader').map((h) => h.textContent)
+    expect(heads.slice(1, 6)).toEqual(['Waist', 'Hip', 'Inseam', 'Length', 'Chest'])
   })
 
   it('a read with no unit it could check selects none and asks the seller to choose', () => {

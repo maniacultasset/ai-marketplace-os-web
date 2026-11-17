@@ -11,8 +11,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { DEFAULT_SIZE_PROFILE, type SizeProfile } from './size-profile'
 import {
-  COMMON_SIZES,
   compositionTotal,
   emptySizeRow,
   formatTenths,
@@ -448,15 +448,25 @@ export function SizeChartEditor({
   onChange,
   errors,
   onBlur,
+  profile = DEFAULT_SIZE_PROFILE,
 }: {
   id: string
   value: SizeChartDraft
   onChange: (v: SizeChartDraft) => void
   errors: Errors
   onBlur?: (key: string) => void
+  /** The category's sizes and default columns; today's letter sizes and chest-first set when absent. */
+  profile?: SizeProfile
 }) {
   const [extra, setExtra] = useState<Measure[]>([])
-  const cols = measuresInUse(value, extra)
+  // A new category starts from its own columns: the empty ones the seller added are dropped.
+  const profileKey = profile.measures.join(',')
+  const [shownFor, setShownFor] = useState(profileKey)
+  if (shownFor !== profileKey) {
+    setShownFor(profileKey)
+    setExtra([])
+  }
+  const cols = measuresInUse(value, extra, profile.measures)
   const have = new Set(value.rows.map((r) => r.size.trim().toLocaleLowerCase('en')))
   const setRow = (i: number, patch: Partial<SizeChartDraft['rows'][number]>) =>
     onChange({ ...value, rows: value.rows.map((r, j) => (j === i ? { ...r, ...patch } : r)) })
@@ -528,7 +538,7 @@ export function SizeChartEditor({
       <div className="flex flex-col gap-2">
         <p className="text-small font-bold text-ink">Add sizes</p>
         <div className="flex flex-wrap gap-1.5">
-          {COMMON_SIZES.map((s) => (
+          {profile.sizes.map((s) => (
             <Button
               key={s}
               type="button"
