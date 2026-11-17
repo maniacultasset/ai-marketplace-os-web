@@ -24,12 +24,12 @@ const SUGGESTED = {
   ],
 }
 
-function setup(title = 'Cotton kurta set', value = '') {
+function setup(title = 'Cotton kurta set', value = '', onNotListed?: () => void) {
   const onPick = vi.fn()
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={qc}>
-      <CategorySuggest draft={{ title, attributes: {} }} value={value} onPick={onPick} />
+      <CategorySuggest draft={{ title, attributes: {} }} value={value} onPick={onPick} onNotListed={onNotListed} />
     </QueryClientProvider>,
   )
   return onPick
@@ -114,5 +114,31 @@ describe('CategorySuggest (client feedback 11 Nov)', () => {
     await userEvent.click(screen.getByTestId('category-suggest-ask'))
     const chips = await screen.findAllByTestId('category-suggest-chip')
     expect(chips.map((c) => c.getAttribute('aria-pressed'))).toEqual(['false', 'true'])
+  })
+
+  it('client feedback 17 Nov: says when no category fits, and never shows the closest pick as confident', async () => {
+    post.mockReturnValue(answer({ suggestion_id: 's3', status: 'queued', candidates: [] }, 202))
+    get.mockReturnValue(answer({ ...SUGGESTED, candidates: [{ ...SUGGESTED.candidates[0], category: 'tshirts', label: 'T-shirts', confidence: 0.95 }], not_listed: true }))
+    const onNotListed = vi.fn()
+    setup('Blue slim jeans', '', onNotListed)
+    await userEvent.click(screen.getByTestId('category-suggest-ask'))
+    const [chip] = await screen.findAllByTestId('category-suggest-chip')
+    expect(chip!.getAttribute('data-unsure')).toBe('true')
+    expect(chip!.textContent).toContain('Closest, not a match')
+    expect(chip!.textContent).not.toContain('95')
+    expect(screen.getByTestId('category-suggest-doubt').textContent).toContain('None of our categories fit this yet. Pick the closest, or leave the category empty for now.')
+    await userEvent.click(screen.getByTestId('category-suggest-not-listed'))
+    expect(onNotListed).toHaveBeenCalledTimes(1)
+  })
+
+  it('client feedback 17 Nov: points at the group the title names', async () => {
+    post.mockReturnValue(answer({ suggestion_id: 's4', status: 'queued', candidates: [] }, 202))
+    get.mockReturnValue(answer({ ...SUGGESTED, looks_like: 'bottomwear' }))
+    setup('Blue slim jeans')
+    await userEvent.click(screen.getByTestId('category-suggest-ask'))
+    await screen.findAllByTestId('category-suggest-chip')
+    expect(screen.getByTestId('category-suggest-doubt').textContent).toBe('Your title says bottomwear. Check the category.')
+    expect(screen.queryByTestId('category-suggest-not-listed')).toBeNull()
+    expect(screen.getAllByTestId('category-suggest-chip').every((c) => c.getAttribute('data-unsure') === 'true')).toBe(true)
   })
 })

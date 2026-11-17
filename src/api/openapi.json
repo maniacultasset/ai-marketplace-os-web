@@ -2052,6 +2052,30 @@
             "title": "Candidates",
             "type": "array"
           },
+          "looks_like": {
+            "anyOf": [
+              {
+                "enum": [
+                  "topwear",
+                  "bottomwear",
+                  "ethnic",
+                  "home",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The group the seller's own words point to, when it differs from the top pick.",
+            "title": "Looks Like"
+          },
+          "not_listed": {
+            "description": "Kuinn's best answer is that none of the offered categories fits.",
+            "title": "Not Listed",
+            "type": "boolean"
+          },
           "status": {
             "enum": [
               "queued",
@@ -2091,6 +2115,18 @@
           "enabled": {
             "title": "Enabled",
             "type": "boolean"
+          },
+          "group": {
+            "description": "The picker group the category shows under.",
+            "enum": [
+              "topwear",
+              "bottomwear",
+              "ethnic",
+              "home",
+              "other"
+            ],
+            "title": "Group",
+            "type": "string"
           },
           "label": {
             "maxLength": 200,
@@ -2186,6 +2222,30 @@
             "maxItems": 3,
             "title": "Candidates",
             "type": "array"
+          },
+          "looks_like": {
+            "anyOf": [
+              {
+                "enum": [
+                  "topwear",
+                  "bottomwear",
+                  "ethnic",
+                  "home",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The group the seller's own words point to, when it differs from the top pick.",
+            "title": "Looks Like"
+          },
+          "not_listed": {
+            "description": "Kuinn's best answer is that none of the offered categories fits.",
+            "title": "Not Listed",
+            "type": "boolean"
           },
           "status": {
             "enum": [
