@@ -11,7 +11,6 @@ globalThis.ResizeObserver ??= class {
   disconnect() {}
 } as unknown as typeof ResizeObserver
 
-
 const post = vi.fn()
 const get = vi.fn((_path: string): Promise<unknown> => new Promise(() => {}))
 vi.mock('@/api/client', async (orig) => ({
@@ -109,6 +108,23 @@ describe('CategorySuggestionCard (SI14)', () => {
     await userEvent.click(screen.getByTestId('category-choose'))
     expect(screen.getByTestId('category-choose').textContent).toBe('Use T-shirts')
     expect(mutate.mock.calls[0]![0]).toEqual({ body: { category: 'tshirts' }, etag: '"e1"' })
+  })
+
+  it('client feedback 17 Nov: a forced pick is never preselected nor shown as confident', () => {
+    setup(product({ suggestions: { category: { ...suggested.category, not_listed: true } } }))
+    expect(screen.getByTestId('category-suggestion-doubt').textContent).toBe('None of our categories fit this yet. Pick the closest, or leave the category empty for now.')
+    expect(screen.getAllByRole('radio').every((r) => !(r as HTMLInputElement).checked)).toBe(true)
+    expect(screen.getAllByTestId('category-confidence').map((c) => c.textContent)).toEqual(['Closest, not a match', 'Closest, not a match'])
+  })
+
+  it('client feedback 17 Nov: with looks_like, only picks outside the named group read as forced', () => {
+    const cands = [
+      { category: 'tshirts', confidence: 0.7, rationale: 'Plain top.' },
+      { category: 'jeans', confidence: 0.3, rationale: 'Denim.' },
+    ]
+    setup(product({ title: 'Blue slim jeans', suggestions: { category: { status: 'suggested', candidates: cands, looks_like: 'bottomwear' } } }))
+    expect(screen.getByTestId('category-suggestion-doubt').textContent).toBe('Your title says bottomwear. Check the category.')
+    expect(screen.getAllByTestId('category-confidence').map((c) => c.textContent)).toEqual(['Closest, not a match', 'Unsure · 30%'])
   })
 
   it('client item 5: names the marketplace product type of each candidate and of another pick', async () => {

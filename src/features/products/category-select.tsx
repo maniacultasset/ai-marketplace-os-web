@@ -20,7 +20,8 @@ import { brandCategoryChoices, groupedChoices, isMappedCategory, UNMAPPED_CATEGO
 import { pickerChoices, type CatalogCategory } from './catalog-categories'
 
 export const NOT_LISTED_LABEL = 'My category isn’t here'
-export const NOT_LISTED_NOTE = 'Tell us what it is. You can still save it now, and we’ll add the category.'
+// No field holds the seller's own category yet (ProductCreate has none), so the note promises only what is true.
+export const NOT_LISTED_NOTE = 'You can still save it now without a category, and choose one once it’s in the list.'
 const NOT_LISTED_VALUE = '__not_listed__'
 
 /** The searchable control alone (no label), for the add form, the editor and "Change category". */

@@ -24,7 +24,7 @@ import { useKeys } from '@/lib/query-keys'
 import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { useLampsEnabled } from './flags'
-import { AUTO_WAIT_MS, confidenceWord, formatConfidence, isCandidate, suggestView, type CategoryCandidate } from './category-model'
+import { AUTO_WAIT_MS, confidenceWord, formatConfidence, isCandidate, isForcedPick, suggestView, type CategoryCandidate } from './category-model'
 
 const POLL_MS = 3000
 
@@ -63,6 +63,7 @@ export function CategorySuggestionCard({ product, className }: { product: Produc
 
   const candidates: CategoryCandidate[] = view.kind === 'candidates' ? view.candidates : []
   const doubt = view.kind === 'candidates' ? view.doubt : null
+  const forced = (slug: string) => view.kind === 'candidates' && isForcedPick(slug, view)
   // A forced pick is never preselected: the seller chooses it on purpose (client feedback 17 Nov).
   const picked = pickedRaw || (doubt ? '' : candidates[0]?.category) || ''
   const following = view.kind === 'waiting' || asking
@@ -189,7 +190,7 @@ export function CategorySuggestionCard({ product, className }: { product: Produc
                   <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                     <span className="text-body font-semibold text-ink">{categoryLabel(c.category)}</span>
                     <span className="text-caption text-ink-2 tabular-nums" data-testid="category-confidence">
-                      {doubt ? 'Closest, not a match' : `${confidenceWord(c.confidence)} · ${formatConfidence(c.confidence)}`}
+                      {forced(c.category) ? 'Closest, not a match' : `${confidenceWord(c.confidence)} · ${formatConfidence(c.confidence)}`}
                     </span>
                   </span>
                   {c.rationale ? <span className="mt-0.5 block text-small break-words text-ink-2">{c.rationale}</span> : null}

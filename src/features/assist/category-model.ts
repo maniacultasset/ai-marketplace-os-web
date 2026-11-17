@@ -25,8 +25,11 @@ export type SuggestView =
   | { kind: 'waiting' }
   /** No suggestion yet: the seller may ask for one. */
   | { kind: 'ask' }
-  /** `doubt`: Kuinn's own words that no candidate truly fits (client feedback 17 Nov); none is preselected then. */
-  | { kind: 'candidates'; candidates: CategoryCandidate[]; doubt: string | null }
+  /**
+   * `doubt`: Kuinn's own words that its top pick may be wrong (client feedback 17 Nov); none is
+   * preselected then. `notListed`/`looksLike` say which candidates are forced picks (isForcedPick).
+   */
+  | { kind: 'candidates'; candidates: CategoryCandidate[]; doubt: string | null } & AnswerDoubt
   /** Kuinn has no confident answer (or none at all): the seller picks. `failed` may be retried. */
   | { kind: 'none'; failed: boolean }
 
@@ -46,7 +49,10 @@ export function suggestView(p: SuggestInput, now: number): SuggestView {
     return !s && age >= 0 && age < AUTO_WAIT_MS ? { kind: 'waiting' } : { kind: 'ask' }
   }
   const candidates = [...(s.candidates ?? [])].sort((a, b) => b.confidence - a.confidence)
-  if (s.status === 'suggested' && candidates.length) return { kind: 'candidates', candidates, doubt: doubtText(s.not_listed, s.looks_like) }
+  if (s.status === 'suggested' && candidates.length) {
+    const d = answerDoubt(s.not_listed, s.looks_like, candidates[0]?.category)
+    return { kind: 'candidates', candidates, doubt: doubtText(d.notListed, d.looksLike), ...d }
+  }
   return { kind: 'none', failed: s.status === 'failed' }
 }
 
@@ -66,7 +72,23 @@ const GROUP_WORDS: Record<CategoryGroup, string> = {
 /** "Your title says bottomwear. Check the category." (pure). */
 export const looksLikeText = (g: CategoryGroup) => `Your title says ${GROUP_WORDS[g]}. Check the category.`
 
-export const NOT_LISTED_TEXT = 'None of our categories fit this yet. Pick the closest or tell us what it is.'
+export const NOT_LISTED_TEXT = 'None of our categories fit this yet. Pick the closest, or leave the category empty for now.'
+
+export type AnswerDoubt = { notListed: boolean; looksLike: CategoryGroup | null }
+
+/**
+ * The doubt in one answer (pure). `looks_like` counts only while the top pick sits outside that
+ * group: "jeans" in the title with Jeans on top is no doubt at all.
+ */
+export function answerDoubt(notListed: boolean | null | undefined, looksLike: string | null | undefined, top: string | undefined): AnswerDoubt {
+  const g = knownGroup(looksLike)
+  return { notListed: notListed === true, looksLike: g && !(top && categoryGroup(top) === g) ? g : null }
+}
+
+/** A candidate Kuinn offers only as the closest: every one when none fits, else the ones outside the group the words name. */
+export function isForcedPick(slug: string, d: AnswerDoubt): boolean {
+  return d.notListed || (d.looksLike !== null && categoryGroup(slug) !== d.looksLike)
+}
 
 /** What Kuinn says when its best pick is forced (`not_listed`) or the words point elsewhere (`looks_like`); null otherwise. */
 export function doubtText(notListed: boolean | null | undefined, looksLike: string | null | undefined): string | null {

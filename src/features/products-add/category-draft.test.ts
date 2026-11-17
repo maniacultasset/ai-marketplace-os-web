@@ -47,6 +47,14 @@ describe('not listed and looks like (client feedback 17 Nov)', () => {
     expect(l.kind === 'chips' && l.looksLike).toBe('bottomwear')
   })
 
+  it('keeps a chip in the named group as it is, and drops the hint when the top pick is in it', () => {
+    const jeans = { category: 'jeans', label: 'Jeans', confidence: 0.4, rationale: 'Denim.', unsure: false }
+    const l = draftView({ suggestion_id: 's', status: 'suggested', candidates: [tee, jeans], looks_like: 'bottomwear' }, false)
+    expect(l).toEqual({ kind: 'chips', candidates: [{ ...tee, unsure: true }, jeans], notListed: false, looksLike: 'bottomwear' })
+    const top = draftView({ suggestion_id: 's', status: 'suggested', candidates: [{ ...jeans, confidence: 0.99 }, tee], looks_like: 'bottomwear' }, false)
+    expect(top).toEqual({ kind: 'chips', candidates: [{ ...jeans, confidence: 0.99 }, tee], notListed: false, looksLike: null })
+  })
+
   it('keeps a plain answer as it was, and ignores an unknown group', () => {
     const v = draftView({ suggestion_id: 's', status: 'suggested', candidates: [tee], not_listed: false, looks_like: null }, false)
     expect(v).toEqual({ kind: 'chips', candidates: [tee], notListed: false, looksLike: null })
@@ -57,6 +65,6 @@ describe('not listed and looks like (client feedback 17 Nov)', () => {
 
   it('says it in plain words', () => {
     expect(looksLikeText('bottomwear')).toBe('Your title says bottomwear. Check the category.')
-    expect(NOT_LISTED_TEXT).toBe('None of our categories fit this yet. Pick the closest or tell us what it is.')
+    expect(NOT_LISTED_TEXT).toBe('None of our categories fit this yet. Pick the closest, or leave the category empty for now.')
   })
 })

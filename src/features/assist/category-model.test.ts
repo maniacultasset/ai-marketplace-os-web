@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { confidenceWord, doubtText, formatConfidence, isCandidate, suggestView } from './category-model'
+import { answerDoubt, confidenceWord, doubtText, isForcedPick, formatConfidence, isCandidate, suggestView } from './category-model'
 import { lampsOnFrom } from './flags'
 
 const NOW = Date.parse('2026-11-09T12:00:00Z')
@@ -30,13 +30,28 @@ describe('suggestView', () => {
 describe('doubt (client feedback 17 Nov)', () => {
   it('says when no category fits, or the words point to another group', () => {
     const v = suggestView({ ...base, suggestions: { category: { status: 'suggested', candidates: [cand('tshirts', 0.95)], not_listed: true } } }, NOW)
-    expect(v.kind === 'candidates' && v.doubt).toBe('None of our categories fit this yet. Pick the closest or tell us what it is.')
+    expect(v.kind === 'candidates' && v.doubt).toBe('None of our categories fit this yet. Pick the closest, or leave the category empty for now.')
     const l = suggestView({ ...base, suggestions: { category: { status: 'suggested', candidates: [cand('tshirts', 0.95)], looks_like: 'bottomwear' } } }, NOW)
     expect(l.kind === 'candidates' && l.doubt).toBe('Your title says bottomwear. Check the category.')
     const plain = suggestView({ ...base, suggestions: { category: { status: 'suggested', candidates: [cand('tshirts', 0.95)] } } }, NOW)
     expect(plain.kind === 'candidates' && plain.doubt).toBeNull()
     expect(doubtText(false, 'other')).toBeNull()
     expect(doubtText(undefined, 'ethnic')).toBe('Your title says ethnic wear. Check the category.')
+  })
+
+  it('has no doubt when the top pick is already in the group the words name, and still preselects it', () => {
+    const v = suggestView({ ...base, suggestions: { category: { status: 'suggested', candidates: [cand('jeans', 0.9), cand('tshirts', 0.2)], looks_like: 'bottomwear' } } }, NOW)
+    expect(v.kind === 'candidates' && v.doubt).toBeNull()
+    expect(v.kind === 'candidates' && v.looksLike).toBeNull()
+  })
+
+  it('marks only the picks outside the named group as forced', () => {
+    const d = answerDoubt(false, 'bottomwear', 'tshirts')
+    expect(d).toEqual({ notListed: false, looksLike: 'bottomwear' })
+    expect(isForcedPick('tshirts', d)).toBe(true)
+    expect(isForcedPick('jeans', d)).toBe(false)
+    expect(isForcedPick('jeans', answerDoubt(true, null, 'tshirts'))).toBe(true)
+    expect(isForcedPick('tshirts', answerDoubt(false, null, 'tshirts'))).toBe(false)
   })
 })
 

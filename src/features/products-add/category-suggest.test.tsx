@@ -126,7 +126,7 @@ describe('CategorySuggest (client feedback 11 Nov)', () => {
     expect(chip!.getAttribute('data-unsure')).toBe('true')
     expect(chip!.textContent).toContain('Closest, not a match')
     expect(chip!.textContent).not.toContain('95')
-    expect(screen.getByTestId('category-suggest-doubt').textContent).toContain('None of our categories fit this yet. Pick the closest or tell us what it is.')
+    expect(screen.getByTestId('category-suggest-doubt').textContent).toContain('None of our categories fit this yet. Pick the closest, or leave the category empty for now.')
     await userEvent.click(screen.getByTestId('category-suggest-not-listed'))
     expect(onNotListed).toHaveBeenCalledTimes(1)
   })

@@ -13,7 +13,7 @@ import { Icon } from '@/components/la'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { AI_PAUSED_TEXT, isAiPausedError, markAiPaused } from '@/features/ai-credit/model'
-import { confidenceWord, formatConfidence } from '@/features/assist/category-model'
+import { confidenceWord, formatConfidence, isForcedPick } from '@/features/assist/category-model'
 import { useKeys } from '@/lib/query-keys'
 import { cn } from '@/lib/utils'
 import { DRAFT_POLL_MS, DRAFT_WAIT_MS, draftView, looksLikeText, NOT_LISTED_TEXT, type DraftIn, type DraftSuggestion } from './category-draft'
@@ -138,7 +138,7 @@ export function CategorySuggest({
                       {c.label}
                     </span>
                     <span className={cn('text-caption tabular-nums', c.unsure ? 'text-attention-ink' : 'text-ink-2')} data-testid="category-suggest-confidence">
-                      {doubt ? 'Closest, not a match' : `${c.unsure ? 'Unsure' : confidenceWord(c.confidence)} · ${formatConfidence(c.confidence)}`}
+                      {answered && isForcedPick(c.category, answered) ? 'Closest, not a match' : `${c.unsure ? 'Unsure' : confidenceWord(c.confidence)} · ${formatConfidence(c.confidence)}`}
                     </span>
                   </span>
                   {c.rationale ? <span className="text-caption break-words text-ink-2">{c.rationale}</span> : null}

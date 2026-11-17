@@ -7,11 +7,11 @@
  * It runs only when the seller presses "Suggest" (each ask is a model call), from the name and the
  * details typed so far. Kuinn never sets the category: the seller picks a chip.
  * The answer may say `not_listed` (none of the offered categories fits) and `looks_like` (the
- * group the seller's own words point to, when the top pick is in another one). Either makes every
- * chip read as unsure, so a forced pick never looks confident.
+ * group the seller's own words point to, when the top pick is in another one). A chip offered only
+ * as the closest then reads as unsure, so a forced pick never looks confident.
  */
 import type { Schema } from '@/api/types'
-import { knownGroup } from '@/features/assist/category-model'
+import { answerDoubt, isForcedPick } from '@/features/assist/category-model'
 import type { CategoryGroup } from '@/features/products/categories'
 
 export { looksLikeText, NOT_LISTED_TEXT } from '@/features/assist/category-model'
@@ -65,11 +65,9 @@ export function draftView(answer: DraftSuggestion | null | undefined, asking: bo
   if (!answer) return { kind: 'idle' }
   if (answer.status === 'unavailable') return { kind: 'unavailable' }
   if (answer.status === 'failed') return { kind: 'failed', message: 'Kuinn couldn’t suggest a category this time. Choose one, or try again.' }
-  const notListed = answer.not_listed === true
-  const looksLike = knownGroup(answer.looks_like)
-  const doubt = notListed || looksLike !== null
-  const candidates = [...(answer.candidates ?? [])]
-    .sort((a, b) => b.confidence - a.confidence)
-    .map((c) => (doubt && !c.unsure ? { ...c, unsure: true } : c))
+  const sorted = [...(answer.candidates ?? [])].sort((a, b) => b.confidence - a.confidence)
+  const d = answerDoubt(answer.not_listed, answer.looks_like, sorted[0]?.category)
+  const { notListed, looksLike } = d
+  const candidates = sorted.map((c) => (isForcedPick(c.category, d) && !c.unsure ? { ...c, unsure: true } : c))
   return candidates.length ? { kind: 'chips', candidates, notListed, looksLike } : { kind: 'none', notListed, looksLike }
 }
