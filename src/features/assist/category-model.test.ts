@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { confidenceWord, formatConfidence, isCandidate, suggestView } from './category-model'
+import { confidenceWord, doubtText, formatConfidence, isCandidate, suggestView } from './category-model'
 import { lampsOnFrom } from './flags'
 
 const NOW = Date.parse('2026-11-09T12:00:00Z')
@@ -24,6 +24,19 @@ describe('suggestView', () => {
     expect(suggestView({ ...base, suggestions: { category: { status: 'suggested', candidates: [] } } }, NOW)).toEqual({ kind: 'none', failed: false })
     expect(suggestView({ ...base, suggestions: { category: { status: 'unavailable' } } }, NOW)).toEqual({ kind: 'none', failed: false })
     expect(suggestView({ ...base, suggestions: { category: { status: 'failed' } } }, NOW)).toEqual({ kind: 'none', failed: true })
+  })
+})
+
+describe('doubt (client feedback 17 Nov)', () => {
+  it('says when no category fits, or the words point to another group', () => {
+    const v = suggestView({ ...base, suggestions: { category: { status: 'suggested', candidates: [cand('tshirts', 0.95)], not_listed: true } } }, NOW)
+    expect(v.kind === 'candidates' && v.doubt).toBe('None of our categories fit this yet. Pick the closest or tell us what it is.')
+    const l = suggestView({ ...base, suggestions: { category: { status: 'suggested', candidates: [cand('tshirts', 0.95)], looks_like: 'bottomwear' } } }, NOW)
+    expect(l.kind === 'candidates' && l.doubt).toBe('Your title says bottomwear. Check the category.')
+    const plain = suggestView({ ...base, suggestions: { category: { status: 'suggested', candidates: [cand('tshirts', 0.95)] } } }, NOW)
+    expect(plain.kind === 'candidates' && plain.doubt).toBeNull()
+    expect(doubtText(false, 'other')).toBeNull()
+    expect(doubtText(undefined, 'ethnic')).toBe('Your title says ethnic wear. Check the category.')
   })
 })
 

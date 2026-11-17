@@ -16,12 +16,13 @@ import { AI_PAUSED_TEXT, isAiPausedError, markAiPaused } from '@/features/ai-cre
 import { confidenceWord, formatConfidence } from '@/features/assist/category-model'
 import { useKeys } from '@/lib/query-keys'
 import { cn } from '@/lib/utils'
-import { DRAFT_POLL_MS, DRAFT_WAIT_MS, draftView, type DraftIn, type DraftSuggestion } from './category-draft'
+import { DRAFT_POLL_MS, DRAFT_WAIT_MS, draftView, looksLikeText, NOT_LISTED_TEXT, type DraftIn, type DraftSuggestion } from './category-draft'
 
 export function CategorySuggest({
   draft,
   value,
   onPick,
+  onNotListed,
   disabled,
   className,
 }: {
@@ -30,6 +31,8 @@ export function CategorySuggest({
   /** The category picked now (its chip shows as chosen). */
   value: string
   onPick: (slug: string) => void
+  /** "My category isn’t here", offered when Kuinn finds no category that fits. */
+  onNotListed?: () => void
   disabled?: boolean
   className?: string
 }) {
@@ -88,6 +91,10 @@ export function CategorySuggest({
   }
 
   const busy = view.kind === 'asking'
+  // Kuinn doubts its own pick: no category fits, or the seller's words point to another group.
+  const answered = view.kind === 'chips' || view.kind === 'none' ? view : null
+  const doubt = !!answered && (answered.notListed || answered.looksLike !== null)
+  const doubtText = answered?.notListed ? NOT_LISTED_TEXT : answered?.looksLike ? looksLikeText(answered.looksLike) : null
   return (
     <div className={cn('flex flex-col gap-2.5', className)} data-testid="category-suggest" data-view={view.kind}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -107,7 +114,7 @@ export function CategorySuggest({
       </div>
 
       {view.kind === 'chips' ? (
-        <ul className="flex flex-col gap-1.5" aria-label="Suggested categories">
+        <ul className="flex flex-col gap-1.5" aria-label={doubt ? 'Closest categories' : 'Suggested categories'}>
           {view.candidates.map((c) => {
             const on = value === c.category
             return (
@@ -131,7 +138,7 @@ export function CategorySuggest({
                       {c.label}
                     </span>
                     <span className={cn('text-caption tabular-nums', c.unsure ? 'text-attention-ink' : 'text-ink-2')} data-testid="category-suggest-confidence">
-                      {c.unsure ? 'Unsure' : confidenceWord(c.confidence)} · {formatConfidence(c.confidence)}
+                      {doubt ? 'Closest, not a match' : `${c.unsure ? 'Unsure' : confidenceWord(c.confidence)} · ${formatConfidence(c.confidence)}`}
                     </span>
                   </span>
                   {c.rationale ? <span className="text-caption break-words text-ink-2">{c.rationale}</span> : null}
@@ -141,10 +148,19 @@ export function CategorySuggest({
           })}
         </ul>
       ) : null}
-      {view.kind === 'chips' && view.candidates.every((c) => c.unsure) ? (
+      {doubtText ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1" data-testid="category-suggest-doubt">
+          <p className="text-caption text-attention-ink">{doubtText}</p>
+          {answered?.notListed && onNotListed ? (
+            <Button type="button" variant="ghost" size="xs" onClick={onNotListed} disabled={disabled} data-testid="category-suggest-not-listed">
+              My category isn’t here
+            </Button>
+          ) : null}
+        </div>
+      ) : view.kind === 'chips' && view.candidates.every((c) => c.unsure) ? (
         <p className="text-caption text-ink-2">Kuinn isn’t sure. Check the category before you save.</p>
       ) : null}
-      {view.kind === 'none' ? <p className="text-caption text-ink-2">Kuinn couldn’t tell the category from this. Choose it from the list.</p> : null}
+      {view.kind === 'none' && !doubtText ? <p className="text-caption text-ink-2">Kuinn couldn’t tell the category from this. Choose it from the list.</p> : null}
       {view.kind === 'unavailable' ? <p className="text-caption text-ink-2">Kuinn can’t suggest a category right now. Choose it from the list.</p> : null}
       {view.kind === 'failed' ? <p className="text-caption text-ink-2">{view.message}</p> : null}
       {error ? (

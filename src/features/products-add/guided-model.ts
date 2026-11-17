@@ -143,6 +143,11 @@ export interface GuidedValues {
    * while the backend's switch is on (the form clears it otherwise); the category is then left out.
    */
   kuinnSuggests: boolean
+  /**
+   * The seller picked "My category isn’t here" (client feedback 17 Nov): the product saves with
+   * no category, like SI14, and the category is added later.
+   */
+  notListed: boolean
   styleNumber: string
   attrs: Record<string, string>
   composition: FibreRow[]
@@ -177,6 +182,7 @@ export const emptyGuided = (): GuidedValues => ({
   title: '',
   category: '',
   kuinnSuggests: false,
+  notListed: false,
   styleNumber: '',
   attrs: {},
   composition: [],
@@ -223,6 +229,7 @@ export function reviveGuided(raw: Partial<GuidedValues> & { attrs?: Record<strin
     gender: raw.gender && (GENDERS as readonly string[]).includes(raw.gender) ? raw.gender : '',
     ownBrand: raw.ownBrand === true,
     kuinnSuggests: raw.kuinnSuggests === true,
+    notListed: raw.notListed === true,
     brandName: typeof raw.brandName === 'string' ? raw.brandName : '',
     hsn: typeof raw.hsn === 'string' ? raw.hsn : '',
     hsnSuggested: raw.hsnSuggested === true,
@@ -238,6 +245,7 @@ export function isEmptyGuided(v: GuidedValues): boolean {
     !v.title &&
     !v.category &&
     !v.kuinnSuggests &&
+    !v.notListed &&
     !v.styleNumber &&
     !v.mrp &&
     !v.sellingPrice &&
@@ -298,7 +306,7 @@ export function validateGuided(v: GuidedValues, listable?: readonly string[] | n
   if (title) e.title = title
   // A dropdown of mapped categories: any other value (an old draft) would save but never list.
   if (!v.category.trim()) {
-    if (!v.kuinnSuggests) e.category = 'Choose a category.'
+    if (!v.kuinnSuggests && !v.notListed) e.category = 'Choose a category.'
   } else if (!(listable ? listable.includes(v.category.trim()) : isMappedCategory(v.category))) e.category = 'Choose a category from the list. The agent can’t list this one.'
   const style = v.styleNumber.trim()
   if (style) {
@@ -432,7 +440,7 @@ export function toProductCreate(v: GuidedValues, uploads?: { id: string; images:
   }
   const body: ProductCreateBody = { sku: v.sku.trim(), title: v.title.trim(), attributes }
   // Left out only when the seller lets Kuinn suggest it (SI14): the backend classifies it then.
-  if (v.category.trim() || !v.kuinnSuggests) body.category = v.category.trim()
+  if (v.category.trim() || !(v.kuinnSuggests || v.notListed)) body.category = v.category.trim()
   const style = v.styleNumber.trim()
   if (style) body.style_number = style
   if (v.gender) body.gender = v.gender
@@ -497,7 +505,7 @@ export function sectionStates(v: GuidedValues, ctx: GuidedContext = noContext, s
   const missing = missingCriticalBy(v, ctx)
   const content: Record<SectionId, boolean> = {
     identity: !!(v.sku.trim() || v.title.trim() || v.styleNumber.trim() || normalizeBarcode(v.barcode.value) || v.barcode.none || v.barcode.exempt),
-    category: !!v.category.trim() || v.kuinnSuggests,
+    category: !!v.category.trim() || v.kuinnSuggests || v.notListed,
     fabric:
       ATTR_FIELDS.some((f) => f.section === 'fabric' && (v.attrs[f.key] ?? '').trim()) ||
       v.composition.some((r) => r.fibre.trim() || r.percent.trim()) ||

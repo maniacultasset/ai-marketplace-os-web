@@ -100,7 +100,7 @@ import {
 } from './guided-model'
 import { serializeListOn } from './list-on'
 import { CategorySuggest } from './category-suggest'
-import { draftBody } from './category-draft'
+import { draftBody, extraDescription } from './category-draft'
 import { SkuField } from './sku-field'
 import { takenMessage, type SkuAvailability } from './sku-check'
 import { NewProductImages } from './new-images'
@@ -411,7 +411,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
 
   // SI12: what the ticked marketplaces need for this category, while it is empty. Item 4: with
   // "Let Kuinn suggest" on, the needs known without a category, so nothing surprises after save.
-  const requirements = useRequirements(requirementsCategory(values.category, values.kuinnSuggests))
+  const requirements = useRequirements(requirementsCategory(values.category, values.kuinnSuggests || values.notListed))
   const filled: Filled = {
     brand_name: !values.ownBrand || !!values.brandName.trim(),
     identifier: values.barcode.exempt || normalizeBarcode(values.barcode.value) !== '',
@@ -450,6 +450,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
     title: ['title'],
     category: ['category'],
     kuinnSuggests: ['category'],
+    notListed: ['category'],
     styleNumber: ['style_number'],
     mrp: ['mrp', 'selling_price'],
     sellingPrice: ['selling_price'],
@@ -776,7 +777,9 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               <CategorySelect
                 id="g-category"
                 value={values.category}
-                onChange={(category) => set({ category, kuinnSuggests: false })}
+                onChange={(category) => set({ category, kuinnSuggests: false, notListed: false })}
+                notListed={values.notListed}
+                onNotListed={() => set({ category: '', kuinnSuggests: false, notListed: true })}
                 onBlur={() => touch('category')}
                 lampsEnabled={lamps.enabled}
                 catalog={catalogItems}
@@ -802,10 +805,14 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               ) : null}
               {suggestOn && !values.kuinnSuggests ? (
                 <CategorySuggest
-                  draft={draftBody(values.title, values.ownBrand ? values.brandName : storeName, values.attrs)}
+                  draft={draftBody(values.title, values.ownBrand ? values.brandName : storeName, values.attrs, extraDescription(values.extra))}
                   value={values.category}
                   onPick={(category) => {
-                    set({ category, kuinnSuggests: false })
+                    set({ category, kuinnSuggests: false, notListed: false })
+                    touch('category')
+                  }}
+                  onNotListed={() => {
+                    set({ category: '', kuinnSuggests: false, notListed: true })
                     touch('category')
                   }}
                 />
@@ -814,7 +821,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
                 <label className="flex cursor-pointer items-center gap-2.5 text-small text-ink" data-testid="g-kuinn-suggests">
                   <Switch
                     checked={values.kuinnSuggests}
-                    onCheckedChange={(on) => set(on ? { kuinnSuggests: true, category: '' } : { kuinnSuggests: false })}
+                    onCheckedChange={(on) => set(on ? { kuinnSuggests: true, notListed: false, category: '' } : { kuinnSuggests: false })}
                     aria-describedby="g-kuinn-suggests-hint"
                   />
                   <span>
@@ -1043,7 +1050,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
               {values.title.trim() || 'New product'}
             </h1>
             <p className="mt-1 text-body text-pretty text-ink-2 [overflow-wrap:anywhere] md:truncate">
-              {[values.styleNumber.trim(), values.sku.trim(), values.category.trim() ? categoryLabel(values.category) : values.kuinnSuggests ? 'Category from Kuinn' : null].filter(Boolean).join(' · ') ||
+              {[values.styleNumber.trim(), values.sku.trim(), values.category.trim() ? categoryLabel(values.category) : values.kuinnSuggests ? 'Category from Kuinn' : values.notListed ? 'Category to add' : null].filter(Boolean).join(' · ') ||
                 'Fill in what you know. Only the name, SKU and category are needed to save.'}
             </p>
           </div>
@@ -1185,7 +1192,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
             <LaCard pad="sm">
               <p className="text-caption text-ink-2">Category</p>
               <p className="mt-1 truncate text-small font-semibold text-ink" data-testid="guided-category-summary">
-                {values.category.trim() ? categoryLabel(values.category) : values.kuinnSuggests ? 'Kuinn suggests after saving' : 'Not chosen yet'}
+                {values.category.trim() ? categoryLabel(values.category) : values.kuinnSuggests ? 'Kuinn suggests after saving' : values.notListed ? 'Not in the list yet' : 'Not chosen yet'}
               </p>
             </LaCard>
           </div>

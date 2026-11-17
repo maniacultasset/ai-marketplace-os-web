@@ -62,7 +62,9 @@ export function CategorySuggestionCard({ product, className }: { product: Produc
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const candidates: CategoryCandidate[] = view.kind === 'candidates' ? view.candidates : []
-  const picked = pickedRaw || candidates[0]?.category || ''
+  const doubt = view.kind === 'candidates' ? view.doubt : null
+  // A forced pick is never preselected: the seller chooses it on purpose (client feedback 17 Nov).
+  const picked = pickedRaw || (doubt ? '' : candidates[0]?.category) || ''
   const following = view.kind === 'waiting' || asking
 
   // While Kuinn reads the product, read it again every few seconds until the suggestion lands.
@@ -131,10 +133,12 @@ export function CategorySuggestionCard({ product, className }: { product: Produc
       <CardHead
         icon="spark"
         iconTone="brand"
-        title={view.kind === 'candidates' ? 'Kuinn suggests a category' : 'Choose a category'}
+        title={view.kind === 'candidates' && !doubt ? 'Kuinn suggests a category' : 'Choose a category'}
         sub={
           view.kind === 'candidates'
-            ? 'Based on the name, details and photos. Nothing is set until you choose.'
+            ? doubt
+              ? 'Kuinn found only close categories. Nothing is set until you choose.'
+              : 'Based on the name, details and photos. Nothing is set until you choose.'
             : view.kind === 'waiting' || asking
               ? 'Kuinn is reading the name, details and photos. This usually takes under a minute.'
               : view.kind === 'none'
@@ -147,6 +151,12 @@ export function CategorySuggestionCard({ product, className }: { product: Produc
         <p className="flex items-center gap-2 text-small text-ink-2" role="status" data-testid="category-suggestion-waiting">
           <Spinner className="size-4" aria-hidden />
           Reading the product
+        </p>
+      ) : null}
+
+      {doubt ? (
+        <p className="text-small text-attention-ink" data-testid="category-suggestion-doubt">
+          {doubt}
         </p>
       ) : null}
 
@@ -179,7 +189,7 @@ export function CategorySuggestionCard({ product, className }: { product: Produc
                   <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                     <span className="text-body font-semibold text-ink">{categoryLabel(c.category)}</span>
                     <span className="text-caption text-ink-2 tabular-nums" data-testid="category-confidence">
-                      {confidenceWord(c.confidence)} · {formatConfidence(c.confidence)}
+                      {doubt ? 'Closest, not a match' : `${confidenceWord(c.confidence)} · ${formatConfidence(c.confidence)}`}
                     </span>
                   </span>
                   {c.rationale ? <span className="mt-0.5 block text-small break-words text-ink-2">{c.rationale}</span> : null}

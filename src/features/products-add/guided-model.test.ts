@@ -103,6 +103,17 @@ describe('guided form', () => {
     expect(reviveGuided({}).kuinnSuggests).toBe(false)
   })
 
+  it('saves with no category when the seller says theirs is not in the list (client feedback 17 Nov)', () => {
+    expect(validateGuided({ ...filled(), category: '', notListed: true }).category).toBeUndefined()
+    expect('category' in toProductCreate({ ...filled(), category: '', notListed: true })).toBe(false)
+    // A category picked later wins.
+    expect(toProductCreate({ ...filled(), category: 'jeans', notListed: true }).category).toBe('jeans')
+    expect(validateGuided({ ...filled(), category: 'jeans' }).category).toBeUndefined()
+    expect(isEmptyGuided({ ...emptyGuided(), notListed: true })).toBe(false)
+    expect(reviveGuided({ notListed: true }).notListed).toBe(true)
+    expect(reviveGuided({}).notListed).toBe(false)
+  })
+
   it('accepts real product names with digits, symbols and any script', () => {
     for (const title of ['Levi’s 501 jeans', '100% cotton tee', 'boAt 2.0 earbuds', 'खादी कुर्ता', 'T-shirt (pack of 3)'])
       expect(validateGuided({ ...filled(), title }).title).toBeUndefined()

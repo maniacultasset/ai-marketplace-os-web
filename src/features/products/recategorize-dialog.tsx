@@ -13,11 +13,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { toast } from '@/lib/toast'
-import { mappingText, useCatalogCategories } from './catalog-categories'
-import { categoryChoices, categoryLabel } from './categories'
+import { mappingText, pickerChoices, useCatalogCategories } from './catalog-categories'
+import { categoryLabel } from './categories'
+import { CategoryCombobox } from './category-select'
 import { recategorizeRefusal, useRecategorize, type RecategorizeState } from './recategorize'
 
 export function ChangeCategoryButton({ productId, current, state }: { productId: string; current: string; state: RecategorizeState }) {
@@ -40,11 +40,12 @@ export function ChangeCategoryButton({ productId, current, state }: { productId:
 }
 
 function ChangeCategoryDialog({ productId, current, onClose }: { productId: string; current: string; onClose: () => void }) {
-  const choices = categoryChoices(current).filter((c) => c.value !== current)
-  const [value, setValue] = useState(choices[0]?.value ?? '')
+  const catalog = useCatalogCategories()
+  // The backend's list once read (client feedback 17 Nov: bottomwear), else the built-in one.
+  const choices = pickerChoices(catalog.data?.items ?? null, false).filter((c) => c.value !== current && c.mapped)
+  const [value, setValue] = useState(() => choices[0]?.value ?? '')
   const [refusal, setRefusal] = useState<string | null>(null)
   const change = useRecategorize(productId)
-  const catalog = useCatalogCategories()
   // Client feedback item 5: the product type each marketplace is sent for the new category.
   const mapping = mappingText(catalog.data?.items?.find((c) => c.category === value))
 
@@ -78,18 +79,15 @@ function ChangeCategoryDialog({ productId, current, onClose }: { productId: stri
             htmlFor="recategorize"
             hint={mapping ? <span data-testid="change-category-mapping">{mapping}</span> : undefined}
           >
-            <Select value={value} onValueChange={setValue} disabled={change.isPending}>
-              <SelectTrigger id="recategorize" className="w-full" aria-describedby={fieldHintId('recategorize')}>
-                <SelectValue placeholder="Choose" />
-              </SelectTrigger>
-              <SelectContent>
-                {choices.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <CategoryCombobox
+              id="recategorize"
+              value={value}
+              choices={choices}
+              onChange={setValue}
+              disabled={change.isPending}
+              describedBy={fieldHintId('recategorize')}
+              placeholder="Choose"
+            />
           </LaField>
         ) : (
           <p className="text-body text-ink-2">There is no other category to move it to yet.</p>
