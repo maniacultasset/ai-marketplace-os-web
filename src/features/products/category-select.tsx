@@ -25,6 +25,13 @@ export const NOT_LISTED_NOTE = 'You can still save it now without a category, an
 const NOT_LISTED_VALUE = '__not_listed__'
 
 /** The searchable control alone (no label), for the add form, the editor and "Change category". */
+/** Whole-text match: "saree" finds nothing (cmdk's default fuzzy match found T-shirts). */
+export function matchCategory(value: string, search: string, keywords?: string[]): number {
+  const q = search.trim().toLowerCase()
+  if (!q) return 1
+  return [value, ...(keywords ?? [])].join(' ').toLowerCase().replace(/_/g, ' ').includes(q) ? 1 : 0
+}
+
 export function CategoryCombobox({
   id,
   value,
@@ -77,7 +84,7 @@ export function CategoryCombobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-(--radix-popover-trigger-width) min-w-[min(18rem,calc(100vw-2rem))] p-0" align="start">
-        <Command label="Categories">
+        <Command label="Categories" filter={matchCategory}>
           <CommandInput placeholder="Search categories" />
           <CommandList className="max-h-72">
             <CommandEmpty>{onNotListed ? 'No category matches.' : 'No category matches. Try another word.'}</CommandEmpty>
