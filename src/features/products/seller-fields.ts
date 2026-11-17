@@ -35,6 +35,11 @@ export const HSN_BY_CATEGORY: Readonly<Record<string, string>> = {
   tshirts: '6109',
   ethnic_wear_kurta_sets: '6204',
   home_decor_lamps: '9405',
+  jeans: '6203',
+  trousers: '6203',
+  shorts: '6203',
+  track_pants: '6103',
+  skirts: '6204',
 }
 
 export const suggestHsn = (category: string): string | null => HSN_BY_CATEGORY[category.trim()] ?? null
@@ -114,6 +119,11 @@ export const PACKAGE_RANGES: Readonly<Record<string, PackageRange>> = {
   tshirts: APPAREL,
   ethnic_wear_kurta_sets: APPAREL,
   home_decor_lamps: LAMPS,
+  jeans: APPAREL,
+  trousers: APPAREL,
+  track_pants: APPAREL,
+  shorts: APPAREL,
+  skirts: APPAREL,
 }
 
 /** 12, 12.5, 0.25: at most 2 decimals, Indian digit grouping. */
