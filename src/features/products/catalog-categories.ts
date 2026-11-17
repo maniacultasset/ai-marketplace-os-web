@@ -9,7 +9,8 @@ import { useQuery } from '@tanstack/react-query'
 import { api, unwrap } from '@/api/client'
 import type { Schema } from '@/api/types'
 import { useKeys } from '@/lib/query-keys'
-import type { CategoryOption } from './category-options'
+import { categoryGroup } from './categories'
+import { brandCategoryChoices, type CategoryOption } from './category-options'
 
 export type CatalogCategory = Schema<'CategoryOut'>
 export type CatalogMapping = Schema<'MarketplaceCategoryOut'>
@@ -35,12 +36,22 @@ export function useCatalogCategories() {
  */
 export function catalogChoices(items: readonly CatalogCategory[], current = ''): CategoryOption[] {
   const cur = current.trim()
-  const out: CategoryOption[] = items.filter((c) => c.enabled).map((c) => ({ value: c.category, label: c.label, mapped: true }))
+  const out: CategoryOption[] = items
+    .filter((c) => c.enabled)
+    .map((c) => ({ value: c.category, label: c.label, mapped: true, group: categoryGroup(c.category, c.group) }))
   if (cur && !out.some((c) => c.value === cur)) {
     const known = items.find((c) => c.category === cur)
-    out.push({ value: cur, label: known?.label ?? cur, mapped: !!known })
+    out.push({ value: cur, label: known?.label ?? cur, mapped: !!known, group: categoryGroup(cur, known?.group) })
   }
   return out
+}
+
+/**
+ * The choices for one picker (pure): the catalog's once read, else the built-in list. Lamps
+ * count as offered in the built-in list only while their switch is on.
+ */
+export function pickerChoices(catalog: readonly CatalogCategory[] | null | undefined, lampsEnabled: boolean, current = ''): CategoryOption[] {
+  return catalog ? catalogChoices(catalog, current) : brandCategoryChoices(lampsEnabled, current)
 }
 
 const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')

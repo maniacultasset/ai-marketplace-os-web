@@ -16,14 +16,16 @@ import { brandView, GENDER_LABEL, hasAudience, hasBrandName, photoReadView, vari
 import { ReferenceId } from '@/components/states/reference-id'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { categoryChoices, type CategoryLock } from '@/features/products/categories'
+import { type CategoryLock } from '@/features/products/categories'
+import { pickerChoices, useCatalogCategories } from '@/features/products/catalog-categories'
+import { CategoryCombobox } from '@/features/products/category-select'
 import { type ProductDetail } from '@/features/products/api'
 import { formatBarcode, styleExemption, type BarcodeHolder } from '@/features/products/barcode'
 import { BarcodeField } from '@/features/products/barcode-field'
 import { editableAttrs, type ManufacturerSource } from '@/features/products/edit-model'
 import { CompositionEditor, MoneyField, PartyFields, PickOrOtherField, SizeChartEditor, TextField } from '@/features/products/intake-fields'
+import { sizeProfileFor } from '@/features/products/size-profile'
 import {
   COLOURS,
   discountPercent,
@@ -530,6 +532,7 @@ const LOCK_HINT: Record<CategoryLock, string> = {
 function CategoryField({ session, lock, onRetry }: { session: ProductEditSession; lock: CategoryLock; onRetry?: () => void }) {
   const { d, patch, touch, errors, submitted } = session
   const open = lock === 'open'
+  const catalog = useCatalogCategories()
   return (
     <LaField
       label="Category"
@@ -547,25 +550,20 @@ function CategoryField({ session, lock, onRetry }: { session: ProductEditSession
       submitCount={submitted}
       confirmFix
     >
-      <Select
+      <CategoryCombobox
+        id="e-category"
         value={d.category}
+        choices={pickerChoices(catalog.data?.items ?? null, false, session.base.category ?? '')}
         disabled={!open}
-        onValueChange={(category) => {
+        onChange={(category) => {
           patch({ category }, 'category')
           touch('category')
         }}
-      >
-        <SelectTrigger id="e-category" className="w-full" aria-invalid={errors.category ? true : undefined} aria-describedby={fieldHintId('e-category')} data-testid="e-category">
-          <SelectValue placeholder="Choose" />
-        </SelectTrigger>
-        <SelectContent>
-          {categoryChoices(session.base.category ?? '').map((c) => (
-            <SelectItem key={c.value} value={c.value}>
-              {c.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        invalid={!!errors.category}
+        describedBy={fieldHintId('e-category')}
+        placeholder="Choose"
+        testId="e-category"
+      />
     </LaField>
   )
 }
@@ -617,7 +615,8 @@ export function ProductDetailsEditor({
   const sizedStyle = !isVariant && (product.variation_theme === 'size' || product.variation_theme === 'size_color')
   const flags = sizedStyle ? sizeFlags(d.sizeChart.rows.map((r) => r.size), variantSizes(product)) : null
 
-  const attrs = editableAttrs(isVariant, d.category)
+  // Garment-part fields follow the category; one with a value (now or as loaded) stays.
+  const attrs = editableAttrs(isVariant, d.category, { ...b.attrs, ...Object.fromEntries(Object.entries(d.attrs).filter(([, v]) => v.trim())) }, requirements.data?.levels)
   const field = (k: (typeof attrs)[number]) => {
     const f = [...ATTR_FIELDS, ...CATEGORY_ATTR_FIELDS].find((x) => x.key === k)!
     // Item 10: an empty field a ticked marketplace recommends says so, calmly, in its hint.
@@ -848,7 +847,14 @@ export function ProductDetailsEditor({
           <Group title="Size chart">
             {need('size_chart') ? <SourceBadge source={{ kind: 'needed', detail: need('size_chart')! }} /> : null}
             <SizeChartReadButton product={product} onRead={session.loadSizeChart} loaded={!!d.sizeChartImageId} />
-            <SizeChartEditor id="e-size" value={d.sizeChart} onChange={(sizeChart) => patch({ sizeChart }, 'size_chart')} errors={errors} onBlur={touch} />
+            <SizeChartEditor
+              id="e-size"
+              value={d.sizeChart}
+              onChange={(sizeChart) => patch({ sizeChart }, 'size_chart')}
+              errors={errors}
+              onBlur={touch}
+              profile={sizeProfileFor(d.category, requirements.data)}
+            />
             {flags && hasSizeRows(d.sizeChart) ? <SizeFlags missing={flags.missing} unused={flags.unused} /> : null}
           </Group>
         )}

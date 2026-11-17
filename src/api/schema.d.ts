@@ -3714,6 +3714,16 @@ export interface components {
             /** Candidates */
             candidates?: components["schemas"]["CategoryDraftCandidateOut"][];
             /**
+             * Looks Like
+             * @description The group the seller's own words point to, when it differs from the top pick.
+             */
+            looks_like?: ("topwear" | "bottomwear" | "ethnic" | "home" | "other") | null;
+            /**
+             * Not Listed
+             * @description Kuinn's best answer is that none of the offered categories fits.
+             */
+            not_listed?: boolean;
+            /**
              * Status
              * @enum {string}
              */
@@ -3727,6 +3737,12 @@ export interface components {
             category: string;
             /** Enabled */
             enabled: boolean;
+            /**
+             * Group
+             * @description The picker group the category shows under.
+             * @enum {string}
+             */
+            group?: "topwear" | "bottomwear" | "ethnic" | "home" | "other";
             /** Label */
             label: string;
             /** Marketplaces */
@@ -3766,6 +3782,16 @@ export interface components {
             calibration_version?: string | null;
             /** Candidates */
             candidates?: components["schemas"]["CategoryCandidateOut"][];
+            /**
+             * Looks Like
+             * @description The group the seller's own words point to, when it differs from the top pick.
+             */
+            looks_like?: ("topwear" | "bottomwear" | "ethnic" | "home" | "other") | null;
+            /**
+             * Not Listed
+             * @description Kuinn's best answer is that none of the offered categories fits.
+             */
+            not_listed?: boolean;
             /**
              * Status
              * @enum {string}
@@ -7438,6 +7464,8 @@ export interface components {
              * @description Feedback 7: the category's photo view checklist, in display order; empty while the checklist is switched off (show the fixed Front, Back, Close-up and Size chart tiles then).
              */
             photo_views?: components["schemas"]["PhotoViewRuleOut"][];
+            /** @description The category's size system, sizes and chart columns; null when the category has no size step. */
+            size_profile?: components["schemas"]["SizeProfileOut"] | null;
         };
         /** ResetLinkOut */
         ResetLinkOut: {
@@ -7889,6 +7917,21 @@ export interface components {
              * @description The printed line the read unit came from (for example `All measurements in cm`), shown so the seller can confirm the unit; null when `chart.unit` is `unknown`.
              */
             unit_source_line?: string | null;
+        };
+        /**
+         * SizeProfileOut
+         * @description The size system, the sizes offered and the size chart columns for a category.
+         */
+        SizeProfileOut: {
+            /** Measures */
+            measures: ("chest" | "waist" | "hip" | "length" | "shoulder" | "sleeve" | "inseam")[];
+            /**
+             * Size System
+             * @enum {string}
+             */
+            size_system: "alpha" | "waist";
+            /** Sizes */
+            sizes: string[];
         };
         /**
          * SizeRunIn

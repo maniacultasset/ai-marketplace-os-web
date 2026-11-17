@@ -2052,6 +2052,30 @@
             "title": "Candidates",
             "type": "array"
           },
+          "looks_like": {
+            "anyOf": [
+              {
+                "enum": [
+                  "topwear",
+                  "bottomwear",
+                  "ethnic",
+                  "home",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The group the seller's own words point to, when it differs from the top pick.",
+            "title": "Looks Like"
+          },
+          "not_listed": {
+            "description": "Kuinn's best answer is that none of the offered categories fits.",
+            "title": "Not Listed",
+            "type": "boolean"
+          },
           "status": {
             "enum": [
               "queued",
@@ -2091,6 +2115,18 @@
           "enabled": {
             "title": "Enabled",
             "type": "boolean"
+          },
+          "group": {
+            "description": "The picker group the category shows under.",
+            "enum": [
+              "topwear",
+              "bottomwear",
+              "ethnic",
+              "home",
+              "other"
+            ],
+            "title": "Group",
+            "type": "string"
           },
           "label": {
             "maxLength": 200,
@@ -2186,6 +2222,30 @@
             "maxItems": 3,
             "title": "Candidates",
             "type": "array"
+          },
+          "looks_like": {
+            "anyOf": [
+              {
+                "enum": [
+                  "topwear",
+                  "bottomwear",
+                  "ethnic",
+                  "home",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The group the seller's own words point to, when it differs from the top pick.",
+            "title": "Looks Like"
+          },
+          "not_listed": {
+            "description": "Kuinn's best answer is that none of the offered categories fits.",
+            "title": "Not Listed",
+            "type": "boolean"
           },
           "status": {
             "enum": [
@@ -12071,6 +12131,17 @@
             },
             "title": "Photo Views",
             "type": "array"
+          },
+          "size_profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SizeProfileOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The category's size system, sizes and chart columns; null when the category has no size step."
           }
         },
         "required": [
@@ -13271,6 +13342,49 @@
           "status"
         ],
         "title": "SizeChartSuggestionOut",
+        "type": "object"
+      },
+      "SizeProfileOut": {
+        "description": "The size system, the sizes offered and the size chart columns for a category.",
+        "properties": {
+          "measures": {
+            "items": {
+              "enum": [
+                "chest",
+                "waist",
+                "hip",
+                "length",
+                "shoulder",
+                "sleeve",
+                "inseam"
+              ],
+              "type": "string"
+            },
+            "title": "Measures",
+            "type": "array"
+          },
+          "size_system": {
+            "enum": [
+              "alpha",
+              "waist"
+            ],
+            "title": "Size System",
+            "type": "string"
+          },
+          "sizes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sizes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "size_system",
+          "sizes",
+          "measures"
+        ],
+        "title": "SizeProfileOut",
         "type": "object"
       },
       "SizeRunIn": {

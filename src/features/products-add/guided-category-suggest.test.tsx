@@ -5,6 +5,14 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
+// cmdk (the category search) measures its list; jsdom has no ResizeObserver.
+globalThis.ResizeObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver
+
+
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ to, children, ...rest }: { to: string; children: ReactNode }) => (
     <a href={to} {...rest}>

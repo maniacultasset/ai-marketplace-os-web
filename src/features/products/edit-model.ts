@@ -48,6 +48,7 @@ import {
   type BarcodeLevel,
 } from './barcode'
 import { ATTRIBUTE_TEXT_MAX, codePoints, productTitleProblem } from './schema'
+import { showsForCategory, type RequirementLevels } from './size-profile'
 import { audienceServerMessage, brandNameProblem, hasAudience, hasBrandName, type Gender } from './audience'
 import {
   countryProblem,
@@ -75,6 +76,10 @@ export const EDIT_ATTRS = [
   'fit',
   'neckline',
   'sleeve_length',
+  'rise',
+  'leg_style',
+  'closure',
+  'waist_style',
   'pattern',
   'kurta_type',
   'lamp_type',
@@ -94,6 +99,15 @@ const CATEGORY_ATTRS: Partial<Record<EditAttr, string>> = {
   lamp_material: 'home_decor_lamps',
   shade_material: 'home_decor_lamps',
   light_source_type: 'home_decor_lamps',
+}
+/** Garment-part fields (`showsForCategory`): tops hide for bottomwear, bottoms show only for it. */
+const PART_ATTRS: Partial<Record<EditAttr, 'top' | 'bottom'>> = {
+  neckline: 'top',
+  sleeve_length: 'top',
+  rise: 'bottom',
+  leg_style: 'bottom',
+  closure: 'bottom',
+  waist_style: 'bottom',
 }
 
 export interface EditDraft {
@@ -187,9 +201,22 @@ export function withHsnSuggestion(d: EditDraft, p: Pick<Product, 'hsn_code' | 's
   return { ...d, hsn: s, hsnSuggested: true }
 }
 
-/** Which inputs a row may edit: a variant has no style number, size chart or colour. */
-export function editableAttrs(isVariant: boolean, category?: string | null): readonly EditAttr[] {
-  return EDIT_ATTRS.filter((k) => !(isVariant && STYLE_ONLY_ATTRS.includes(k)) && (CATEGORY_ATTRS[k] == null || CATEGORY_ATTRS[k] === category))
+/**
+ * Which inputs a row may edit: a variant has no style number, size chart or colour. Garment-part
+ * fields follow the category (`attrs` keeps a filled one; `levels` shows one the template names).
+ */
+export function editableAttrs(
+  isVariant: boolean,
+  category?: string | null,
+  attrs?: Partial<Record<EditAttr, string>>,
+  levels?: RequirementLevels | null,
+): readonly EditAttr[] {
+  return EDIT_ATTRS.filter(
+    (k) =>
+      !(isVariant && STYLE_ONLY_ATTRS.includes(k)) &&
+      (CATEGORY_ATTRS[k] == null || CATEGORY_ATTRS[k] === category) &&
+      showsForCategory(PART_ATTRS[k], k, category, attrs?.[k], levels),
+  )
 }
 
 export type EditErrors = Partial<Record<string, string>>
@@ -213,7 +240,7 @@ export function validateEdit(d: EditDraft, isVariant: boolean): EditErrors {
       if (b) e.brand_name = b
     }
   }
-  for (const k of editableAttrs(isVariant, d.category)) {
+  for (const k of editableAttrs(isVariant, d.category, d.attrs)) {
     const v = d.attrs[k].trim()
     if (hasStrayControlChars(v)) e[`attr.${k}`] = CONTROL_MSG
     else if (codePoints(v) > ATTRIBUTE_TEXT_MAX) e[`attr.${k}`] = `Shorten it to ${ATTRIBUTE_TEXT_MAX.toLocaleString('en-IN')} characters or fewer.`
@@ -255,7 +282,9 @@ export function buildPatch(base: EditDraft, d: EditDraft, isVariant: boolean, ba
   if (!sameMoney(d.mrp, base.mrp)) body.mrp = d.mrp.trim() ? normalizeMoney(d.mrp) : null
   if (!sameMoney(d.sellingPrice, base.sellingPrice)) body.selling_price = d.sellingPrice.trim() ? normalizeMoney(d.sellingPrice) : null
   const attributes: Record<string, string | null> = {}
-  for (const k of editableAttrs(isVariant, d.category)) {
+  // A garment-part field the seller just emptied still clears: it showed for the loaded value.
+  const either = Object.fromEntries(EDIT_ATTRS.map((k) => [k, d.attrs[k].trim() || base.attrs[k].trim()]))
+  for (const k of editableAttrs(isVariant, d.category, either)) {
     const now = d.attrs[k].trim()
     if (now !== base.attrs[k].trim()) attributes[k] = now || null
   }

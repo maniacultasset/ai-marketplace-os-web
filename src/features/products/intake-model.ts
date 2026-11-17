@@ -266,9 +266,14 @@ export const emptySizeChart = (): SizeChartDraft => ({ unit: 'in', basis: 'garme
 
 const rowFilled = (r: SizeRowDraft) => r.size.trim() !== '' || MEASURES.some((m) => r[m].trim() !== '')
 
-/** The measures a chart uses: the defaults plus any with a value. */
-export function measuresInUse(d: SizeChartDraft, extra: readonly Measure[] = []): Measure[] {
-  return MEASURES.filter((m) => DEFAULT_MEASURES.includes(m) || extra.includes(m) || d.rows.some((r) => r[m].trim() !== ''))
+/**
+ * The measures a chart uses: the category's defaults (`base`, in its order), then any other with a
+ * value or added by the seller. A switch of category keeps every filled column and drops the empty
+ * ones the new category does not list.
+ */
+export function measuresInUse(d: SizeChartDraft, extra: readonly Measure[] = [], base: readonly Measure[] = DEFAULT_MEASURES): Measure[] {
+  const rest = MEASURES.filter((m) => !base.includes(m) && (extra.includes(m) || d.rows.some((r) => r[m].trim() !== '')))
+  return [...base.filter((m) => MEASURES.includes(m)), ...rest]
 }
 
 export const UNIT_CHOOSE_MSG = 'Choose the unit printed on your size chart.'

@@ -51,6 +51,7 @@ import {
   type BarcodeDraft,
 } from '@/features/products/barcode'
 import type { Schema } from '@/api/types'
+import { showsForCategory, type RequirementLevels } from '@/features/products/size-profile'
 import { CONTROL_MSG, hasStrayControlChars } from '@/lib/validation'
 import { audienceServerMessage, brandNameProblem, GENDERS, type Gender } from '@/features/products/audience'
 import {
@@ -91,6 +92,12 @@ export interface AttrField {
   section: 'fabric' | 'care'
   /** Suggestions shown as a pick-list with "Other"; the seller's own words are kept. */
   pick?: 'fabric' | 'colour'
+  /**
+   * Garment part the field belongs to (`formAttrFields`): `top` fields hide for bottomwear, `bottom`
+   * fields show only for bottomwear. A field with a value, or one the category's template names,
+   * always shows.
+   */
+  part?: 'top' | 'bottom'
 }
 
 /**
@@ -101,12 +108,28 @@ export const ATTR_FIELDS: readonly AttrField[] = [
   { key: 'fabric_type', label: 'Fabric type', hint: 'The main fabric, like Cotton or Rayon.', critical: true, section: 'fabric', pick: 'fabric' },
   { key: 'color', label: 'Colour', hint: 'The main colour, as customers see it.', critical: false, section: 'fabric', pick: 'colour' },
   { key: 'fit', label: 'Fit', hint: 'Relaxed, regular, slim…', critical: false, section: 'fabric' },
-  { key: 'neckline', label: 'Neckline', hint: 'Round neck, V-neck…', critical: false, section: 'fabric' },
-  { key: 'sleeve_length', label: 'Sleeve length', hint: 'Short, three-quarter, full…', critical: false, section: 'fabric' },
+  { key: 'neckline', label: 'Neckline', hint: 'Round neck, V-neck…', critical: false, section: 'fabric', part: 'top' },
+  { key: 'sleeve_length', label: 'Sleeve length', hint: 'Short, three-quarter, full…', critical: false, section: 'fabric', part: 'top' },
+  { key: 'rise', label: 'Rise', hint: 'Low, mid, high…', critical: false, section: 'fabric', part: 'bottom' },
+  { key: 'leg_style', label: 'Leg style', hint: 'Straight, skinny, bootcut, wide…', critical: false, section: 'fabric', part: 'bottom' },
+  { key: 'closure', label: 'Closure', hint: 'Button and zip, drawstring, elastic…', critical: false, section: 'fabric', part: 'bottom' },
+  { key: 'waist_style', label: 'Waist style', hint: 'Belt loops, elasticated, paperbag…', critical: false, section: 'fabric', part: 'bottom' },
   { key: 'pattern', label: 'Pattern', hint: 'Solid, striped, printed…', critical: false, section: 'fabric' },
   { key: 'wash_care', label: 'Wash care', hint: 'Exactly as on the care label.', critical: true, section: 'care' },
   { key: 'iron_care', label: 'Iron care', hint: 'Exactly as on the care label.', critical: true, section: 'care' },
 ]
+
+/**
+ * The text attributes the add form shows for a category, in form order: neckline and sleeve
+ * length hide for bottomwear; rise, leg style, closure and waist style show only for it.
+ */
+export function formAttrFields(
+  category: string | null | undefined,
+  attrs: Readonly<Record<string, string>>,
+  levels?: RequirementLevels | null,
+): AttrField[] {
+  return ATTR_FIELDS.filter((f) => showsForCategory(f.part, f.key, category, attrs[f.key], levels))
+}
 
 /**
  * Client feedback item 10: the product editor's fields for one category's recommended
@@ -143,6 +166,11 @@ export interface GuidedValues {
    * while the backend's switch is on (the form clears it otherwise); the category is then left out.
    */
   kuinnSuggests: boolean
+  /**
+   * The seller picked "My category isn’t here" (client feedback 17 Nov): the product saves with
+   * no category, like SI14, and the category is added later.
+   */
+  notListed: boolean
   styleNumber: string
   attrs: Record<string, string>
   composition: FibreRow[]
@@ -177,6 +205,7 @@ export const emptyGuided = (): GuidedValues => ({
   title: '',
   category: '',
   kuinnSuggests: false,
+  notListed: false,
   styleNumber: '',
   attrs: {},
   composition: [],
@@ -223,6 +252,7 @@ export function reviveGuided(raw: Partial<GuidedValues> & { attrs?: Record<strin
     gender: raw.gender && (GENDERS as readonly string[]).includes(raw.gender) ? raw.gender : '',
     ownBrand: raw.ownBrand === true,
     kuinnSuggests: raw.kuinnSuggests === true,
+    notListed: raw.notListed === true,
     brandName: typeof raw.brandName === 'string' ? raw.brandName : '',
     hsn: typeof raw.hsn === 'string' ? raw.hsn : '',
     hsnSuggested: raw.hsnSuggested === true,
@@ -238,6 +268,7 @@ export function isEmptyGuided(v: GuidedValues): boolean {
     !v.title &&
     !v.category &&
     !v.kuinnSuggests &&
+    !v.notListed &&
     !v.styleNumber &&
     !v.mrp &&
     !v.sellingPrice &&
@@ -298,7 +329,7 @@ export function validateGuided(v: GuidedValues, listable?: readonly string[] | n
   if (title) e.title = title
   // A dropdown of mapped categories: any other value (an old draft) would save but never list.
   if (!v.category.trim()) {
-    if (!v.kuinnSuggests) e.category = 'Choose a category.'
+    if (!v.kuinnSuggests && !v.notListed) e.category = 'Choose a category.'
   } else if (!(listable ? listable.includes(v.category.trim()) : isMappedCategory(v.category))) e.category = 'Choose a category from the list. The agent can’t list this one.'
   const style = v.styleNumber.trim()
   if (style) {
@@ -332,7 +363,7 @@ export function validateGuided(v: GuidedValues, listable?: readonly string[] | n
   Object.assign(e, packageLimitProblems(v.pkg, v.category))
   Object.assign(e, packageProblems(v.item, 'item'))
   // item 15: the product size has its own field ("Product itself"), so it is never an extra
-  const seen = new Set([...ATTR_FIELDS.map((f) => f.key), 'fiber_composition', 'fabric_composition', 'size_measurements', 'product_dimensions'])
+  const seen = new Set([...formAttrFields(v.category, v.attrs).map((f) => f.key), 'fiber_composition', 'fabric_composition', 'size_measurements', 'product_dimensions'])
   v.extra.forEach((x, i) => {
     const key = x.key.trim()
     const val = x.value.trim()
@@ -379,6 +410,10 @@ const WITHIN: readonly string[] = [
   'attr.fit',
   'attr.neckline',
   'attr.sleeve_length',
+  'attr.rise',
+  'attr.leg_style',
+  'attr.closure',
+  'attr.waist_style',
   'attr.pattern',
   'extra',
   'size_chart',
@@ -432,7 +467,7 @@ export function toProductCreate(v: GuidedValues, uploads?: { id: string; images:
   }
   const body: ProductCreateBody = { sku: v.sku.trim(), title: v.title.trim(), attributes }
   // Left out only when the seller lets Kuinn suggest it (SI14): the backend classifies it then.
-  if (v.category.trim() || !v.kuinnSuggests) body.category = v.category.trim()
+  if (v.category.trim() || !(v.kuinnSuggests || v.notListed)) body.category = v.category.trim()
   const style = v.styleNumber.trim()
   if (style) body.style_number = style
   if (v.gender) body.gender = v.gender
@@ -497,7 +532,7 @@ export function sectionStates(v: GuidedValues, ctx: GuidedContext = noContext, s
   const missing = missingCriticalBy(v, ctx)
   const content: Record<SectionId, boolean> = {
     identity: !!(v.sku.trim() || v.title.trim() || v.styleNumber.trim() || normalizeBarcode(v.barcode.value) || v.barcode.none || v.barcode.exempt),
-    category: !!v.category.trim() || v.kuinnSuggests,
+    category: !!v.category.trim() || v.kuinnSuggests || v.notListed,
     fabric:
       ATTR_FIELDS.some((f) => f.section === 'fabric' && (v.attrs[f.key] ?? '').trim()) ||
       v.composition.some((r) => r.fibre.trim() || r.percent.trim()) ||

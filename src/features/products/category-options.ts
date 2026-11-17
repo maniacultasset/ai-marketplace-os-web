@@ -7,7 +7,7 @@
  * The add form reads the categories from `GET /catalog/categories` (./catalog-categories.ts); this
  * list stands in while that read is pending or failed, so keep it in step with the backend templates.
  */
-import { APPAREL_CATEGORIES, categoryLabel, type CategoryChoice } from './categories'
+import { APPAREL_CATEGORIES, CATEGORY_GROUPS, categoryGroup, categoryLabel, GROUP_LABEL, type CategoryChoice, type CategoryGroup } from './categories'
 
 /** Mapped (a template on both marketplaces) but not apparel. */
 const BRAND_ONLY: readonly string[] = ['home_decor_lamps']
@@ -19,7 +19,7 @@ export const isMappedCategory = (slug: string) => LISTABLE.includes(slug.trim())
 
 export const UNMAPPED_CATEGORY_HINT = 'The agent can’t list this category yet. Choose one from the list.'
 
-export type CategoryOption = CategoryChoice & { mapped: boolean }
+export type CategoryOption = CategoryChoice & { mapped: boolean; group: CategoryGroup }
 
 /**
  * The choices for a new product: apparel, plus lamps while the lamps switch is on. The current
@@ -29,5 +29,10 @@ export function brandCategoryChoices(lampsEnabled: boolean, current = ''): Categ
   const base: CategoryChoice[] = [...APPAREL_CATEGORIES, ...(lampsEnabled ? BRAND_ONLY.map((s) => ({ value: s, label: categoryLabel(s) })) : [])]
   const cur = current.trim()
   const all = cur && !base.some((c) => c.value === cur) ? [...base, { value: cur, label: categoryLabel(cur) }] : base
-  return all.map((c) => ({ ...c, mapped: isMappedCategory(c.value) }))
+  return all.map((c) => ({ ...c, mapped: isMappedCategory(c.value), group: categoryGroup(c.value) }))
+}
+
+/** The choices in picker order (pure): by group, then as the list gave them. */
+export function groupedChoices(choices: readonly CategoryOption[]): { group: CategoryGroup; label: string; items: CategoryOption[] }[] {
+  return CATEGORY_GROUPS.map((group) => ({ group, label: GROUP_LABEL[group], items: choices.filter((c) => c.group === group) })).filter((g) => g.items.length)
 }

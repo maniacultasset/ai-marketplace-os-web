@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { emptySizeRow } from '@/features/products/intake-model'
-import { emptyGuided, errorOrder, isEmptyGuided, mapCreateErrors, missingCritical, reviveGuided, sectionStates, toProductCreate, validateGuided } from './guided-model'
+import { emptyGuided, errorOrder, formAttrFields, isEmptyGuided, mapCreateErrors, missingCritical, reviveGuided, sectionStates, toProductCreate, validateGuided } from './guided-model'
 
 const filled = () => ({ ...emptyGuided(), sku: 'FSH-TEE-001', title: 'Relaxed Cotton Tee', category: 'tshirts' })
 
@@ -36,6 +36,24 @@ describe('guided form', () => {
 
   it('rejects an extra attribute that repeats a form field', () => {
     expect(validateGuided({ ...filled(), extra: [{ key: 'fit', value: 'x' }] })['extra.0.key']).toBeDefined()
+  })
+
+  it('shows neckline and sleeve for tops, rise to waist style for bottomwear', () => {
+    const keys = (c: string, attrs: Record<string, string> = {}) => formAttrFields(c, attrs).filter((f) => f.section === 'fabric').map((f) => f.key)
+    expect(keys('tshirts')).toEqual(['fabric_type', 'color', 'fit', 'neckline', 'sleeve_length', 'pattern'])
+    expect(keys('ethnic_wear_kurta_sets')).toEqual(keys('tshirts'))
+    expect(keys('')).toEqual(keys('tshirts'))
+    expect(keys('jeans')).toEqual(['fabric_type', 'color', 'fit', 'rise', 'leg_style', 'closure', 'waist_style', 'pattern'])
+    // A value typed before the switch stays on the form.
+    expect(keys('jeans', { neckline: 'Round' })).toContain('neckline')
+    expect(formAttrFields('jeans', {}).find((f) => f.key === 'leg_style')?.label).toBe('Leg style')
+  })
+
+  it('sends bottomwear attributes, and an extra row may name rise only where the form does not', () => {
+    const v = { ...filled(), category: 'jeans', attrs: { rise: 'Mid', leg_style: 'Straight' } }
+    expect(toProductCreate(v).attributes).toEqual({ rise: 'Mid', leg_style: 'Straight' })
+    expect(validateGuided({ ...v, extra: [{ key: 'rise', value: 'x' }] })['extra.0.key']).toBeDefined()
+    expect(validateGuided({ ...filled(), extra: [{ key: 'rise', value: 'x' }] })['extra.0.key']).toBeUndefined()
   })
 
   it('reports completeness per section', () => {
@@ -101,6 +119,17 @@ describe('guided form', () => {
     expect(isEmptyGuided({ ...emptyGuided(), kuinnSuggests: true })).toBe(false)
     expect(reviveGuided({ kuinnSuggests: true }).kuinnSuggests).toBe(true)
     expect(reviveGuided({}).kuinnSuggests).toBe(false)
+  })
+
+  it('saves with no category when the seller says theirs is not in the list (client feedback 17 Nov)', () => {
+    expect(validateGuided({ ...filled(), category: '', notListed: true }).category).toBeUndefined()
+    expect('category' in toProductCreate({ ...filled(), category: '', notListed: true })).toBe(false)
+    // A category picked later wins.
+    expect(toProductCreate({ ...filled(), category: 'jeans', notListed: true }).category).toBe('jeans')
+    expect(validateGuided({ ...filled(), category: 'jeans' }).category).toBeUndefined()
+    expect(isEmptyGuided({ ...emptyGuided(), notListed: true })).toBe(false)
+    expect(reviveGuided({ notListed: true }).notListed).toBe(true)
+    expect(reviveGuided({}).notListed).toBe(false)
   })
 
   it('accepts real product names with digits, symbols and any script', () => {
