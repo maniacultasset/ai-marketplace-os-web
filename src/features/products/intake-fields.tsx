@@ -56,6 +56,7 @@ export function TextField({
   source,
   needed,
   required,
+  suggestions,
 }: ChipProps & {
   id: string
   label: ReactNode
@@ -64,6 +65,8 @@ export function TextField({
   error?: string
   hint?: ReactNode
   critical?: boolean
+  /** Tap suggestions under the box: a tap fills it with that value; the seller can still type. */
+  suggestions?: readonly string[]
   /** A quiet "Required" mark beside the label (LaField `required`). */
   required?: boolean
   placeholder?: string
@@ -110,6 +113,30 @@ export function TextField({
         autoComplete={autoComplete}
         inputMode={inputMode}
       />
+      {suggestions?.length ? (
+        <div role="group" aria-label={typeof label === 'string' ? `${label} suggestions` : 'Suggestions'} className="mt-2 flex flex-wrap gap-1.5" data-testid={`${id}-suggestions`}>
+          {suggestions.map((s) => {
+            const on = value.trim().toLocaleLowerCase('en') === s.toLocaleLowerCase('en')
+            return (
+              <button
+                key={s}
+                type="button"
+                aria-pressed={on}
+                onClick={() => {
+                  onChange(s)
+                  onBlur?.()
+                }}
+                className={cn(
+                  'min-h-8 rounded-full border px-3 py-1 text-small transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand motion-reduce:transition-none',
+                  on ? 'border-brand bg-[var(--tile-brand-bg)] font-semibold text-ink' : 'border-line bg-surface text-ink-2 hover:bg-hover',
+                )}
+              >
+                {s}
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
     </LaField>
   )
 }

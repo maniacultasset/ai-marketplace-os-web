@@ -27,7 +27,7 @@ const empty = { rows: [], isPending: false, error: null, hasNextPage: false, ref
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children, ...p }: { children: ReactNode; 'data-testid'?: string }) => <a data-testid={p['data-testid']}>{children}</a>,
 }))
-vi.mock('@/lib/permissions', () => ({ useCan: () => () => true }))
+vi.mock('@/lib/permissions', async (orig) => ({ ...(await orig<typeof import('@/lib/permissions')>()), useCan: () => () => true }))
 vi.mock('@/features/brand/api', async (orig) => {
   const real = await orig<typeof import('@/features/brand/api')>()
   // The shared hook, on the real helper: the tenant read is the only input.

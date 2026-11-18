@@ -14,6 +14,7 @@ import { api, unwrap } from '@/api/client'
 import type { Schema } from '@/api/types'
 import { useKeys } from '@/lib/query-keys'
 import { fromPackageOut, packageHasSize, packageHasWeight } from './seller-fields'
+import { isStyleCategory, ownStyleFacts, styleFilled } from './style'
 
 export type Requirements = Schema<'RequirementsOut'>
 export type Marketplace = Schema<'Marketplace'>
@@ -40,6 +41,7 @@ export type NeedFieldId =
   | 'country_of_origin'
   | 'manufacturer'
   | 'size_chart'
+  | 'style'
 
 /** In form order. */
 export const NEED_FIELDS: readonly NeedField[] = [
@@ -48,6 +50,7 @@ export const NEED_FIELDS: readonly NeedField[] = [
   { id: 'gender', label: 'Audience', keys: ['gender'] },
   { id: 'fabric_type', label: 'Fabric type', keys: ['fabric_type'] },
   { id: 'color', label: 'Colour', keys: ['color'] },
+  { id: 'style', label: 'Style', keys: ['style'] },
   { id: 'mrp', label: 'MRP', keys: ['mrp'] },
   { id: 'selling_price', label: 'Selling price', keys: ['selling_price'] },
   { id: 'hsn_code', label: 'HSN code', keys: ['hsn_code'] },
@@ -95,7 +98,20 @@ export function useRequirements(category: string | null | undefined) {
 /** The marketplaces in `sellOn` that need `field`, in a fixed order. */
 export function neededBy(field: NeedField, req: Requirements | null | undefined, sellOn: readonly Marketplace[]): Marketplace[] {
   if (!req) return []
+  if (field.id === 'style') return styleNeededBy(req, sellOn)
   return ORDER.filter((m) => sellOn.includes(m) && field.keys.some((k) => (req[m] ?? []).includes(k)))
+}
+
+/**
+ * Amazon's Style (18 Nov): needed when the answer lists `style` or its template level is
+ * `required`. A backend that names neither yet falls back to the apparel categories, whose Amazon
+ * template needs it; one that names it at another level wins.
+ */
+function styleNeededBy(req: Requirements, sellOn: readonly Marketplace[]): Marketplace[] {
+  const named = (m: Marketplace) => (req[m] ?? []).includes('style') || req.levels?.[m]?.style != null
+  const needs = (m: Marketplace) =>
+    (req[m] ?? []).includes('style') || req.levels?.[m]?.style === 'required' || (m === 'amazon' && !named(m) && isStyleCategory(req.category))
+  return ORDER.filter((m) => sellOn.includes(m) && needs(m))
 }
 
 /** "Flipkart needs this", "Amazon and Flipkart need this"; null when no ticked marketplace needs it. */
@@ -120,6 +136,12 @@ export function recommendedText(ms: readonly Marketplace[]): string | null {
   return `Recommended for ${ms.map((m) => NAME[m]).join(' and ')}.`
 }
 
+/** "Required for Amazon"; null when no ticked marketplace needs it. */
+export function requiredText(ms: readonly Marketplace[]): string | null {
+  if (!ms.length) return null
+  return `Required for ${ms.map((m) => NAME[m]).join(' and ')}`
+}
+
 export type Filled = Partial<Record<NeedFieldId, boolean>>
 
 export interface Need {
@@ -133,7 +155,7 @@ export function missingNeeds(req: Requirements | null | undefined, sellOn: reado
   return NEED_FIELDS.flatMap((field) => {
     if (filled[field.id] !== false) return []
     const by = neededBy(field, req, sellOn)
-    const text = neededText(by)
+    const text = field.id === 'style' ? requiredText(by) : neededText(by)
     return text ? [{ field, by, text }] : []
   })
 }
@@ -180,5 +202,8 @@ export function productFilled(p: ProductOut, opts: { isVariant: boolean; isStyle
     manufacturer: !!p.manufacturer?.legal_name,
     // A variant's chart is its style's.
     size_chart: opts.isVariant || (p.size_chart?.rows.length ?? 0) > 0,
+    // A variant's Style is its style's; an empty one Kuinn derives from the seller's own neckline
+    // or fit counts (never from a photo read, which the backend does not derive from).
+    style: opts.isVariant || text('style') || styleFilled(p.category, ownStyleFacts(p)),
   }
 }

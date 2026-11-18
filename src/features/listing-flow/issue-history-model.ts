@@ -242,6 +242,16 @@ export function issueHistoryView(h: IssueHistory, marketplace: string): IssueHis
   }
 }
 
+/**
+ * The product attribute a seller issue names ("attributes.style", "facts.attributes.style",
+ * "variants[SKU].facts.attributes.style" → "style"), for "Add on the product"; null for any other
+ * field (title, images, barcode…), which the seller settles elsewhere.
+ */
+export function productAttrKey(path: string | null | undefined): string | null {
+  const m = /^(?:variants\[[^\]]+\]\.)?(?:facts\.)?attributes\.([a-z][a-z0-9_]*)$/.exec((path ?? '').trim())
+  return m ? m[1]! : null
+}
+
 /** Whether the card is worth showing: at least one marketplace issue or one fix. */
 export function hasIssueHistory(h: IssueHistory | null | undefined): h is IssueHistory {
   return !!h && ((h.issues?.length ?? 0) > 0 || (h.fixes?.length ?? 0) > 0)

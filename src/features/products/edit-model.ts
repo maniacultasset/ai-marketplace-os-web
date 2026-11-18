@@ -48,7 +48,8 @@ import {
   type BarcodeLevel,
 } from './barcode'
 import { ATTRIBUTE_TEXT_MAX, codePoints, productTitleProblem } from './schema'
-import { showsForCategory, type RequirementLevels } from './size-profile'
+import { levelsName, showsForCategory, type RequirementLevels } from './size-profile'
+import { STYLE_CATEGORIES } from './style'
 import { audienceServerMessage, brandNameProblem, hasAudience, hasBrandName, type Gender } from './audience'
 import {
   countryProblem,
@@ -66,13 +67,14 @@ type Product = Schema<'ProductOut'>
 export type ProductPatchBody = Schema<'ProductPatch'>
 
 /**
- * Text attributes the editor shows, in order. The last five belong to one category each
- * (`CATEGORY_ATTRS`): the recommended attributes of Kurta sets and lamps (client feedback item 10),
+ * Text attributes the editor shows, in order. Style shows for apparel (Amazon needs it). The last
+ * five belong to one category each (`CATEGORY_ATTRS`): the recommended attributes of Kurta sets and lamps (client feedback item 10),
  * so Review's "Add on the product" always lands on a field.
  */
 export const EDIT_ATTRS = [
   'fabric_type',
   'color',
+  'style',
   'fit',
   'neckline',
   'sleeve_length',
@@ -91,9 +93,10 @@ export const EDIT_ATTRS = [
 ] as const
 export type EditAttr = (typeof EDIT_ATTRS)[number]
 /** Set on the style, never on a variant (attribute_dictionary.json owner_levels). */
-const STYLE_ONLY_ATTRS: readonly EditAttr[] = ['color']
-/** Shown only for products of this category. */
-const CATEGORY_ATTRS: Partial<Record<EditAttr, string>> = {
+const STYLE_ONLY_ATTRS: readonly EditAttr[] = ['color', 'style']
+/** Shown only for products of this category (or these categories). */
+const CATEGORY_ATTRS: Partial<Record<EditAttr, string | readonly string[]>> = {
+  style: STYLE_CATEGORIES,
   kurta_type: 'ethnic_wear_kurta_sets',
   lamp_type: 'home_decor_lamps',
   lamp_material: 'home_decor_lamps',
@@ -201,6 +204,14 @@ export function withHsnSuggestion(d: EditDraft, p: Pick<Product, 'hsn_code' | 's
   return { ...d, hsn: s, hsnSuggested: true }
 }
 
+/** A category field shows for its category; Style also while it has a value or the template names it. */
+function inCategory(k: EditAttr, category: string | null | undefined, value: string | undefined, levels: RequirementLevels | null | undefined): boolean {
+  const only = CATEGORY_ATTRS[k]
+  if (only == null) return true
+  if (typeof only === 'string') return only === category
+  return only.includes((category ?? '').trim()) || !!(value ?? '').trim() || levelsName(levels, k)
+}
+
 /**
  * Which inputs a row may edit: a variant has no style number, size chart or colour. Garment-part
  * fields follow the category (`attrs` keeps a filled one; `levels` shows one the template names).
@@ -214,7 +225,7 @@ export function editableAttrs(
   return EDIT_ATTRS.filter(
     (k) =>
       !(isVariant && STYLE_ONLY_ATTRS.includes(k)) &&
-      (CATEGORY_ATTRS[k] == null || CATEGORY_ATTRS[k] === category) &&
+      inCategory(k, category, attrs?.[k], levels) &&
       showsForCategory(PART_ATTRS[k], k, category, attrs?.[k], levels),
   )
 }

@@ -20,7 +20,8 @@ import { useCan } from '@/lib/permissions'
 import { toast, toastError } from '@/lib/toast'
 import { useApplyFixes, useIssueHistory } from './api'
 import { clock, mpName } from './format'
-import { fixKindLabel, hasIssueHistory, issueHistoryView, type FixLine, type HistoryStep, type IssueHistoryView, type IssueLine, type Tone } from './issue-history-model'
+import { addOnProductLink } from './recommended'
+import { fixKindLabel, hasIssueHistory, issueHistoryView, productAttrKey, type FixLine, type HistoryStep, type IssueHistoryView, type IssueLine, type Tone } from './issue-history-model'
 
 /** Lines shown per group before "Show N more". */
 const SHOWN = 3
@@ -44,19 +45,22 @@ export function ListingIssuesAndFixes({
   poll = false,
   linkFields = true,
   skeleton = false,
+  productId = null,
 }: {
   listingId: string
   marketplace: string
   ready?: boolean
   poll?: boolean
   linkFields?: boolean
+  /** The listing's product, for "Add on the product" (null when the viewer can't edit products). */
+  productId?: string | null
   /** Hold the card's place while the read lands (screens where it sits above other cards). */
   skeleton?: boolean
 }) {
   const q = useIssueHistory(listingId, { poll })
   if (q.isPending || !ready) return skeleton ? <IssuesAndFixesSkeleton /> : null
   if (!hasIssueHistory(q.data)) return null
-  return <IssuesAndFixesCard view={issueHistoryView(q.data, marketplace)} marketplace={marketplace} listingId={listingId} linkFields={linkFields} />
+  return <IssuesAndFixesCard view={issueHistoryView(q.data, marketplace)} marketplace={marketplace} listingId={listingId} linkFields={linkFields} productId={productId} />
 }
 
 export function IssuesAndFixesCard({
@@ -65,6 +69,7 @@ export function IssuesAndFixesCard({
   listingId,
   linkFields = true,
   className,
+  productId = null,
 }: {
   view: IssueHistoryView
   marketplace: string
@@ -72,6 +77,8 @@ export function IssuesAndFixesCard({
   /** Link each "Needs you" field to the review (off on the review itself). */
   linkFields?: boolean
   className?: string
+  /** A "Needs you" product detail links to the product editor on that field (null: no link). */
+  productId?: string | null
 }) {
   const mp = mpName(marketplace)
   return (
@@ -113,7 +120,7 @@ export function IssuesAndFixesCard({
       {view.needsYou.length ? (
         <Group title="Needs you" testId="issues-needs-you" count={view.needsYou.length}>
           {view.needsYou.map((i) => (
-            <IssueItem key={i.id} issue={i} marketplace={marketplace} showAction fieldLink={linkFields ? listingId : null} />
+            <IssueItem key={i.id} issue={i} marketplace={marketplace} showAction fieldLink={linkFields ? listingId : null} productId={productId} />
           ))}
         </Group>
       ) : null}
@@ -220,13 +227,16 @@ function IssueItem({
   showAction = false,
   note,
   fieldLink = null,
+  productId = null,
 }: {
   issue: IssueLine
   marketplace: string
   showAction?: boolean
   note?: string
   fieldLink?: string | null
+  productId?: string | null
 }) {
+  const attr = productId ? productAttrKey(issue.fieldPath) : null
   return (
     <li className="min-w-0 text-small" data-testid="issue-line">
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -242,6 +252,15 @@ function IssueItem({
         <span className="mt-0.5 block break-words text-ink" data-testid="issue-action">
           {issue.action}
         </span>
+      ) : null}
+      {productId && attr ? (
+        <Link
+          {...addOnProductLink(productId, attr)}
+          className="focus-ring mt-0.5 inline-block rounded-sm font-semibold text-brand hover:underline"
+          data-testid={`issue-add-${attr}`}
+        >
+          Add on the product
+        </Link>
       ) : null}
       {note ? <span className="mt-0.5 block text-caption text-ink-3">{note}</span> : null}
       <Details issue={issue} marketplace={marketplace} />

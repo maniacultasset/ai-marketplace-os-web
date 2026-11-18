@@ -54,6 +54,7 @@ export function recommendedKey(f: Pick<ErrorItem, 'field'>): string {
 
 /** What each recommended attribute is, in seller words. */
 const HELP: Readonly<Record<string, string>> = {
+  style: 'The style Amazon files it under, like Round Neck, Polo or Slim Fit. Amazon needs it for clothing.',
   fit: 'How it sits on the body, like regular, relaxed or slim. Shoppers filter by it.',
   neckline: 'The neck style, like round neck or V-neck. Shoppers filter by it.',
   sleeve_length: 'Short, three-quarter or full sleeves. Shoppers filter by it.',

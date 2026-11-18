@@ -40,10 +40,11 @@ describe('guided form', () => {
 
   it('shows neckline and sleeve for tops, rise to waist style for bottomwear', () => {
     const keys = (c: string, attrs: Record<string, string> = {}) => formAttrFields(c, attrs).filter((f) => f.section === 'fabric').map((f) => f.key)
-    expect(keys('tshirts')).toEqual(['fabric_type', 'color', 'fit', 'neckline', 'sleeve_length', 'pattern'])
+    expect(keys('tshirts')).toEqual(['fabric_type', 'color', 'style', 'fit', 'neckline', 'sleeve_length', 'pattern'])
     expect(keys('ethnic_wear_kurta_sets')).toEqual(keys('tshirts'))
-    expect(keys('')).toEqual(keys('tshirts'))
-    expect(keys('jeans')).toEqual(['fabric_type', 'color', 'fit', 'rise', 'leg_style', 'closure', 'waist_style', 'pattern'])
+    // Style is for apparel only (Amazon's template needs it there).
+    expect(keys('')).toEqual(['fabric_type', 'color', 'fit', 'neckline', 'sleeve_length', 'pattern'])
+    expect(keys('jeans')).toEqual(['fabric_type', 'color', 'style', 'fit', 'rise', 'leg_style', 'closure', 'waist_style', 'pattern'])
     // A value typed before the switch stays on the form.
     expect(keys('jeans', { neckline: 'Round' })).toContain('neckline')
     expect(formAttrFields('jeans', {}).find((f) => f.key === 'leg_style')?.label).toBe('Leg style')

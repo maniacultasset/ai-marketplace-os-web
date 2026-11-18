@@ -196,7 +196,7 @@ describe('product editor fields for recommended attributes', () => {
     expect(editableAttrs(false, 'tshirts')).not.toContain('kurta_type')
     expect(editableAttrs(false, 'home_decor_lamps')).toEqual(expect.arrayContaining(['lamp_type', 'lamp_material', 'shade_material', 'light_source_type']))
     expect(editableAttrs(true, 'tshirts')).not.toContain('color')
-    expect(editableAttrs(false, 'tshirts')).toEqual(['fabric_type', 'color', 'fit', 'neckline', 'sleeve_length', 'pattern', 'wash_care', 'iron_care'])
+    expect(editableAttrs(false, 'tshirts')).toEqual(['fabric_type', 'color', 'style', 'fit', 'neckline', 'sleeve_length', 'pattern', 'wash_care', 'iron_care'])
   })
 
   it('names the ticked marketplaces that recommend a field', () => {

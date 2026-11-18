@@ -89,7 +89,7 @@ describe('Product details sources and needs (SI12)', () => {
     cleanup()
     setup(['amazon'])
     expect(within(row('package')).getByLabelText('Source: Amazon needs this')).toBeTruthy()
-    expect(screen.getByTestId('details-needs-summary').textContent).toBe('3 missing for Amazon')
+    expect(screen.getByTestId('details-needs-summary').textContent).toBe('4 missing for Amazon')
     cleanup()
     setup([])
     expect(screen.queryByTestId('details-needs-summary')).toBeNull()
