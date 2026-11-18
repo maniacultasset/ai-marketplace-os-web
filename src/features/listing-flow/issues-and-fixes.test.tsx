@@ -183,3 +183,39 @@ describe('suggested fixes (client item 20)', () => {
     perm.edit = true
   })
 })
+
+describe('IssuesAndFixesCard: a missing product detail (18 Nov, Amazon "Style")', () => {
+  const styleIssue = history({
+    issues: [
+      issue({
+        id: 's',
+        handler: 'you',
+        lane: 'seller',
+        group: 'missing_attribute',
+        field: 'attributes.style',
+        cause: "Amazon needs the product's style.",
+        action: 'Add the style on the product, then send the listing again.',
+      }),
+    ],
+  })
+
+  it('links "Add on the product" to the product editor on that field, never to Kuinn’s team', () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <IssuesAndFixesCard view={issueHistoryView(styleIssue, 'amazon')} marketplace="amazon" listingId="L1" linkFields={false} productId="P1" />
+      </QueryClientProvider>,
+    )
+    const you = screen.getByTestId('issues-needs-you')
+    expect(within(you).getByText('Style')).toBeTruthy()
+    const add = within(you).getByTestId('issue-add-style')
+    expect(add.textContent).toBe('Add on the product')
+    expect(add.getAttribute('href')).toBe('/products/P1')
+    expect(screen.queryByTestId('issues-team')).toBeNull()
+    expect(screen.queryByText(/Kuinn's team/)).toBeNull()
+  })
+
+  it('shows no product link without a product (a viewer who cannot edit products)', () => {
+    card(styleIssue)
+    expect(screen.queryByTestId('issue-add-style')).toBeNull()
+  })
+})

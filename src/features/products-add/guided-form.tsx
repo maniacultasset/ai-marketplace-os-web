@@ -111,6 +111,7 @@ import { neededForApproval, newProductGaps } from '@/features/analytics-images/i
 import { newPendingImage, placePending, type PendingImage } from './new-images-model'
 import { CountryField, HsnField, PackageFields } from '@/features/products/seller-field-inputs'
 import { packageHasSize, packageHasWeight, suggestHsn } from '@/features/products/seller-fields'
+import { styleFilled, styleSuggestions } from '@/features/products/style'
 import { missingNeeds, missingSummary, needText, requirementsCategory, useRequirements, type Filled, type NeedFieldId } from '@/features/products/needs'
 import { normalizeBarcode } from '@/features/products/barcode'
 import { IdGuide } from './id-guide'
@@ -430,6 +431,7 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
     // Unknown while the brand loads: not counted until it is known.
     manufacturer: values.ownManufacturer || brand.data === undefined || brandParty !== null,
     size_chart: hasSizeRows(values.sizeChart),
+    style: styleFilled(values.category, values.attrs),
   }
   const needs = missingNeeds(requirements.data, listOn, filled)
   // Feedback 7: the photos approval will need, said before the draft starts (it never blocks it).
@@ -695,6 +697,8 @@ export function GuidedForm({ listOn, startAt = 'identity' }: { listOn: Marketpla
         submitCount={submitCount}
         maxLength={ATTRIBUTE_TEXT_MAX * 2}
         hint={f.hint}
+        needed={f.key === 'style' ? need('style') : undefined}
+        suggestions={f.key === 'style' ? styleSuggestions(values.category) : undefined}
       />
     )
 

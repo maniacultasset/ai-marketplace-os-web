@@ -43,6 +43,7 @@ import { PhotoFactsGroup } from '@/features/photo-facts/photo-facts-group'
 import { usePhotoFactActions } from '@/features/photo-facts/api'
 import { OP_ACTION, useCan } from '@/lib/permissions'
 import { editingSource, fieldSource, rawFieldSource } from '@/features/products/field-sources'
+import { isStyleCategory, styleDerivable, styleFilled, styleSuggestions } from '@/features/products/style'
 import { missingNeeds, missingSummary, needText, productFilled, recommendedBy, recommendedText, useRequirements, type Filled, type Marketplace, type NeedFieldId } from '@/features/products/needs'
 import { countryName, fromPackageOut, normalizeCountry, packageHasSize, packageHasWeight, packageText, samePackage } from '@/features/products/seller-fields'
 import { CountryField, HsnField, PackageFields } from '@/features/products/seller-field-inputs'
@@ -64,7 +65,7 @@ import { cn } from '@/lib/utils'
 const KV_GRID = 'grid grid-cols-[minmax(96px,max-content)_minmax(0,1fr)] items-baseline gap-x-3 gap-y-2'
 
 /** Keys the card shows in their own rows (the rest are listed under "More details"). */
-const SHOWN = new Set<string>(['fabric_type', 'fiber_composition', 'color', 'wash_care', 'iron_care', 'size_measurements', 'size_chart_url'])
+const SHOWN = new Set<string>(['fabric_type', 'fiber_composition', 'color', 'style', 'wash_care', 'iron_care', 'size_measurements', 'size_chart_url'])
 const MORE_VISIBLE = 6
 
 function Missing({ critical, needed, children = 'Not set' }: { critical?: boolean; needed?: string; children?: ReactNode }) {
@@ -333,6 +334,23 @@ export function ProductDetailsCard({
               {text('color') ? (rawFieldSource(product, 'color') ? chip('color') : photoColour && !photoColour.confirmed ? <SourceBadge source={{ kind: 'photo' }} /> : null) : null}
             </Row>
           )}
+          {/* 18 Nov: Amazon needs a Style for apparel; Kuinn derives one from neckline or fit. */}
+          {!isVariant && (isStyleCategory(product.category) || text('style')) ? (
+            <Row k="Style" attr="style">
+              {text('style') ? (
+                <>
+                  {text('style')}
+                  {chip('style')}
+                </>
+              ) : (
+                <Missing needed={need('style')}>
+                  {styleDerivable(product.category, { neckline: text('neckline'), fit: text('fit'), kurta_type: text('kurta_type'), leg_style: text('leg_style') })
+                    ? 'Not set. Kuinn uses your neckline or fit.'
+                    : 'Not set'}
+                </Missing>
+              )}
+            </Row>
+          ) : null}
           {(['wash_care', 'iron_care'] as const).map((k) => (
             <Row key={k} k={k === 'wash_care' ? 'Wash care' : 'Iron care'} attr={k}>
               {text(k) ? (
@@ -608,6 +626,7 @@ export function ProductDetailsEditor({
     country_of_origin: !!d.country.trim(),
     manufacturer: d.ownManufacturer || !!product.manufacturer?.legal_name,
     size_chart: isVariant || hasSizeRows(d.sizeChart),
+    style: isVariant || styleFilled(d.category, d.attrs),
   }
   const needs = missingNeeds(requirements.data, sellOn, filled)
   const need = (id: NeedFieldId) => needText(needs, id)
@@ -624,7 +643,7 @@ export function ProductDetailsEditor({
     const hint = rec ? [f.hint, rec].filter(Boolean).join(' ') : f.hint
     const chip = {
       source: saved(k, d.attrs[k].trim() === b.attrs[k].trim(), !!d.attrs[k].trim()),
-      needed: k === 'fabric_type' || k === 'color' ? need(k) : undefined,
+      needed: k === 'fabric_type' || k === 'color' || k === 'style' ? need(k) : undefined,
     }
     return f.pick ? (
       <PickOrOtherField
@@ -654,6 +673,7 @@ export function ProductDetailsEditor({
         submitCount={submitted}
         hint={hint}
         maxLength={4000}
+        suggestions={k === 'style' ? styleSuggestions(d.category) : undefined}
         {...chip}
       />
     )

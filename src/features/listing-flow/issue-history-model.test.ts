@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fix, history, issue } from '@/test/issue-history-fixtures'
-import { fixKindLabel, fixOutcome, GROUP_LABEL, hasIssueHistory, issueHistoryView, summaryLine } from './issue-history-model'
+import { fixKindLabel, fixOutcome, GROUP_LABEL, hasIssueHistory, issueHistoryView, productAttrKey, summaryLine } from './issue-history-model'
 
 describe('issueHistoryView', () => {
   it('groups open issues by who handles them', () => {
@@ -151,5 +151,16 @@ describe('a suggested content fix or AI rewrite (client item 20)', () => {
     expect(v.suggested.map((f) => f.id)).toEqual(['s1'])
     expect(v.suggestedIssues).toEqual([])
     expect(v.summary).toContain('1 suggested fix waits for you')
+  })
+})
+
+describe('productAttrKey', () => {
+  it('names the product attribute of an issue path, and nothing else', () => {
+    expect(productAttrKey('attributes.style')).toBe('style')
+    expect(productAttrKey('facts.attributes.style')).toBe('style')
+    expect(productAttrKey('variants[SKU-1].facts.attributes.fit')).toBe('fit')
+    expect(productAttrKey('content.title')).toBeNull()
+    expect(productAttrKey('facts.identifier')).toBeNull()
+    expect(productAttrKey(null)).toBeNull()
   })
 })

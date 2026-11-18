@@ -298,7 +298,13 @@ function LiveBody({ listing }: { listing: ListingDetail }) {
 
         <div className="flex min-w-0 flex-col gap-4">
           <WhatKuinnDid listing={listing} marketplaceState={proof.marketplaceState} />
-          <ListingIssuesAndFixes listingId={listing.id} marketplace={listing.marketplace} poll={proof.state === 'waiting' || proof.state === 'unconfirmed'} skeleton />
+          <ListingIssuesAndFixes
+            listingId={listing.id}
+            marketplace={listing.marketplace}
+            poll={proof.state === 'waiting' || proof.state === 'unconfirmed'}
+            skeleton
+            productId={can(OP_ACTION['PATCH /products/{product_id}']) ? listing.product_id : null}
+          />
           <AgentDid listing={listing} />
           <LaCard data-testid="next">
             <h3 className="text-h3 text-ink">Next</h3>

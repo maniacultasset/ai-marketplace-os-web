@@ -51,7 +51,8 @@ import {
   type BarcodeDraft,
 } from '@/features/products/barcode'
 import type { Schema } from '@/api/types'
-import { showsForCategory, type RequirementLevels } from '@/features/products/size-profile'
+import { levelsName, showsForCategory, type RequirementLevels } from '@/features/products/size-profile'
+import { STYLE_CATEGORIES, STYLE_HINT } from '@/features/products/style'
 import { CONTROL_MSG, hasStrayControlChars } from '@/lib/validation'
 import { audienceServerMessage, brandNameProblem, GENDERS, type Gender } from '@/features/products/audience'
 import {
@@ -98,6 +99,8 @@ export interface AttrField {
    * always shows.
    */
   part?: 'top' | 'bottom'
+  /** Shown only for these categories (a field with a value, or one the template names, still shows). */
+  categories?: readonly string[]
 }
 
 /**
@@ -107,6 +110,7 @@ export interface AttrField {
 export const ATTR_FIELDS: readonly AttrField[] = [
   { key: 'fabric_type', label: 'Fabric type', hint: 'The main fabric, like Cotton or Rayon.', critical: true, section: 'fabric', pick: 'fabric' },
   { key: 'color', label: 'Colour', hint: 'The main colour, as customers see it.', critical: false, section: 'fabric', pick: 'colour' },
+  { key: 'style', label: 'Style', hint: STYLE_HINT, critical: false, section: 'fabric', categories: STYLE_CATEGORIES },
   { key: 'fit', label: 'Fit', hint: 'Relaxed, regular, slim…', critical: false, section: 'fabric' },
   { key: 'neckline', label: 'Neckline', hint: 'Round neck, V-neck…', critical: false, section: 'fabric', part: 'top' },
   { key: 'sleeve_length', label: 'Sleeve length', hint: 'Short, three-quarter, full…', critical: false, section: 'fabric', part: 'top' },
@@ -128,7 +132,11 @@ export function formAttrFields(
   attrs: Readonly<Record<string, string>>,
   levels?: RequirementLevels | null,
 ): AttrField[] {
-  return ATTR_FIELDS.filter((f) => showsForCategory(f.part, f.key, category, attrs[f.key], levels))
+  return ATTR_FIELDS.filter(
+    (f) =>
+      showsForCategory(f.part, f.key, category, attrs[f.key], levels) &&
+      (!f.categories || f.categories.includes((category ?? '').trim()) || !!(attrs[f.key] ?? '').trim() || levelsName(levels, f.key)),
+  )
 }
 
 /**
@@ -407,6 +415,7 @@ const WITHIN: readonly string[] = [
   'composition',
   'attr.fiber_composition',
   'attr.color',
+  'attr.style',
   'attr.fit',
   'attr.neckline',
   'attr.sleeve_length',

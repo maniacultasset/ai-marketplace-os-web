@@ -32,8 +32,8 @@ describe('product edit', () => {
   })
 
   it('shows garment-part fields by category and still clears an emptied one', () => {
-    expect(editableAttrs(false, 'tshirts')).toEqual(['fabric_type', 'color', 'fit', 'neckline', 'sleeve_length', 'pattern', 'wash_care', 'iron_care'])
-    expect(editableAttrs(false, 'jeans')).toEqual(['fabric_type', 'color', 'fit', 'rise', 'leg_style', 'closure', 'waist_style', 'pattern', 'wash_care', 'iron_care'])
+    expect(editableAttrs(false, 'tshirts')).toEqual(['fabric_type', 'color', 'style', 'fit', 'neckline', 'sleeve_length', 'pattern', 'wash_care', 'iron_care'])
+    expect(editableAttrs(false, 'jeans')).toEqual(['fabric_type', 'color', 'style', 'fit', 'rise', 'leg_style', 'closure', 'waist_style', 'pattern', 'wash_care', 'iron_care'])
     expect(editableAttrs(false, 'jeans', { neckline: 'Round' })).toContain('neckline')
     const base = toEditDraft(product({ category: 'jeans', attributes: { neckline: 'Round', rise: 'Mid' } }))
     const d = { ...base, attrs: { ...base.attrs, neckline: '', rise: 'High' } }

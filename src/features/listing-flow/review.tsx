@@ -544,6 +544,7 @@ function ReviewBody({ checks, listing }: { checks: ReturnType<typeof useListingC
                 ready={checks.gatesReady && !fixesQ.isPending}
                 poll={!!rview?.headline.working}
                 linkFields={false}
+                productId={can(OP_ACTION['PATCH /products/{product_id}']) ? listing.product_id : null}
               />
               <GatesCard
                 gates={checks.gates}
