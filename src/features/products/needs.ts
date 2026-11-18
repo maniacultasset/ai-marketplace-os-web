@@ -14,7 +14,7 @@ import { api, unwrap } from '@/api/client'
 import type { Schema } from '@/api/types'
 import { useKeys } from '@/lib/query-keys'
 import { fromPackageOut, packageHasSize, packageHasWeight } from './seller-fields'
-import { isStyleCategory, styleFilled } from './style'
+import { isStyleCategory, ownStyleFacts, styleFilled } from './style'
 
 export type Requirements = Schema<'RequirementsOut'>
 export type Marketplace = Schema<'Marketplace'>
@@ -183,10 +183,6 @@ export function productFilled(p: ProductOut, opts: { isVariant: boolean; isStyle
     const v = p.attributes?.[k]
     return typeof v === 'string' ? v.trim() !== '' : v !== null && v !== undefined
   }
-  const str = (k: string) => {
-    const v = p.attributes?.[k]
-    return typeof v === 'string' ? v : undefined
-  }
   const pkg = fromPackageOut(p.package)
   const item = fromPackageOut(p.item)
   return {
@@ -206,7 +202,8 @@ export function productFilled(p: ProductOut, opts: { isVariant: boolean; isStyle
     manufacturer: !!p.manufacturer?.legal_name,
     // A variant's chart is its style's.
     size_chart: opts.isVariant || (p.size_chart?.rows.length ?? 0) > 0,
-    // A variant's Style is its style's; an empty one Kuinn derives from neckline or fit counts.
-    style: opts.isVariant || text('style') || styleFilled(p.category, { neckline: str('neckline'), fit: str('fit'), kurta_type: str('kurta_type'), leg_style: str('leg_style') }),
+    // A variant's Style is its style's; an empty one Kuinn derives from the seller's own neckline
+    // or fit counts (never from a photo read, which the backend does not derive from).
+    style: opts.isVariant || text('style') || styleFilled(p.category, ownStyleFacts(p)),
   }
 }

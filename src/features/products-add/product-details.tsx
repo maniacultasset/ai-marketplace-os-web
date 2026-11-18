@@ -43,7 +43,7 @@ import { PhotoFactsGroup } from '@/features/photo-facts/photo-facts-group'
 import { usePhotoFactActions } from '@/features/photo-facts/api'
 import { OP_ACTION, useCan } from '@/lib/permissions'
 import { editingSource, fieldSource, rawFieldSource } from '@/features/products/field-sources'
-import { isStyleCategory, styleDerivable, styleFilled, styleSuggestions } from '@/features/products/style'
+import { isStyleCategory, ownStyleFacts, styleDerivable, styleFilled, styleSuggestions } from '@/features/products/style'
 import { missingNeeds, missingSummary, needText, productFilled, recommendedBy, recommendedText, useRequirements, type Filled, type Marketplace, type NeedFieldId } from '@/features/products/needs'
 import { countryName, fromPackageOut, normalizeCountry, packageHasSize, packageHasWeight, packageText, samePackage } from '@/features/products/seller-fields'
 import { CountryField, HsnField, PackageFields } from '@/features/products/seller-field-inputs'
@@ -344,7 +344,7 @@ export function ProductDetailsCard({
                 </>
               ) : (
                 <Missing needed={need('style')}>
-                  {styleDerivable(product.category, { neckline: text('neckline'), fit: text('fit'), kurta_type: text('kurta_type'), leg_style: text('leg_style') })
+                  {styleDerivable(product.category, ownStyleFacts(product))
                     ? 'Not set. Kuinn uses your neckline or fit.'
                     : 'Not set'}
                 </Missing>
@@ -626,7 +626,7 @@ export function ProductDetailsEditor({
     country_of_origin: !!d.country.trim(),
     manufacturer: d.ownManufacturer || !!product.manufacturer?.legal_name,
     size_chart: isVariant || hasSizeRows(d.sizeChart),
-    style: isVariant || styleFilled(d.category, d.attrs),
+    style: isVariant || styleFilled(d.category, { style: d.attrs.style, ...ownStyleFacts(product, d.attrs, b.attrs) }),
   }
   const needs = missingNeeds(requirements.data, sellOn, filled)
   const need = (id: NeedFieldId) => needText(needs, id)

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { formAttrFields, toProductCreate, emptyGuided } from '@/features/products-add/guided-model'
 import { buildPatch, editableAttrs, toEditDraft } from './edit-model'
 import { missingNeeds, productFilled, type Requirements } from './needs'
-import { STYLE_CATEGORIES, styleDerivable, styleFilled, styleSuggestions } from './style'
+import { ownStyleFacts, STYLE_CATEGORIES, styleDerivable, styleFilled, styleSuggestions } from './style'
 import type { Schema } from '@/api/types'
 
 const req = (category: string, extra: Partial<Requirements> = {}) => ({ category, amazon: [], flipkart: [], ...extra }) as Requirements
@@ -65,10 +65,24 @@ describe('Style for apparel (Amazon needs it)', () => {
   })
 
   it('a saved product counts Style as given when it has one or Kuinn can derive one', () => {
-    const p = (attributes: Record<string, string>) => ({ category: 'tshirts', attributes }) as unknown as Schema<'ProductOut'>
+    const p = (attributes: Record<string, string>, kind = 'you') =>
+      ({ category: 'tshirts', attributes, field_sources: Object.fromEntries(Object.keys(attributes).map((k) => [k, { kind }])) }) as unknown as Schema<'ProductOut'>
     expect(productFilled(p({}), { isVariant: false, isStyle: true }).style).toBe(false)
     expect(productFilled(p({ style: 'Polo' }), { isVariant: false, isStyle: true }).style).toBe(true)
     expect(productFilled(p({ neckline: 'Round Neck' }), { isVariant: false, isStyle: true }).style).toBe(true)
+    expect(productFilled(p({ fit: 'Slim' }, 'sheet'), { isVariant: false, isStyle: true }).style).toBe(true)
     expect(productFilled(p({}), { isVariant: true, isStyle: false }).style).toBe(true)
+  })
+
+  it('never counts a photo read as derivable: the backend derives only from the seller’s own facts', () => {
+    const photo = { category: 'tshirts', attributes: { neckline: 'Round Neck' }, field_sources: { neckline: { kind: 'photo' } } } as unknown as Schema<'ProductOut'>
+    const confirmed = { ...photo, field_sources: { neckline: { kind: 'confirmed' } } } as unknown as Schema<'ProductOut'>
+    const unsourced = { ...photo, field_sources: {} } as unknown as Schema<'ProductOut'>
+    for (const prod of [photo, confirmed, unsourced]) {
+      expect(productFilled(prod, { isVariant: false, isStyle: true }).style).toBe(false)
+    }
+    // in the editor, a neckline the seller typed over the photo value is theirs once saved
+    expect(ownStyleFacts(photo, { neckline: 'V-Neck' }, { neckline: 'Round Neck' }).neckline).toBe('V-Neck')
+    expect(ownStyleFacts(photo, { neckline: 'Round Neck' }, { neckline: 'Round Neck' }).neckline).toBeUndefined()
   })
 })

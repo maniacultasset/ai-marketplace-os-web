@@ -4,6 +4,7 @@
  * backend derives it from the seller's own facts (T-shirts: neckline, else fit; kurta sets: kurta
  * style; bottomwear: fit and leg style). Pure.
  */
+import { rawFieldSource, type FieldSourceOut } from './field-sources'
 import { isBottomwear } from './size-profile'
 
 /** The apparel categories whose Amazon template needs a Style. */
@@ -47,4 +48,30 @@ export function styleDerivable(category: string | null | undefined, attrs: Reado
 /** Style counts as given: the seller's own words, or a value the backend derives. */
 export function styleFilled(category: string | null | undefined, attrs: Readonly<Record<string, string | undefined>>): boolean {
   return !!(attrs.style ?? '').trim() || styleDerivable(category, attrs)
+}
+
+/** The facts the backend derives a Style from. */
+export const STYLE_SOURCE_KEYS = ['neckline', 'fit', 'kurta_type', 'leg_style'] as const
+/** The seller's own values (typed in the app or imported); a photo read, even confirmed, is not. */
+const OWN_KINDS: ReadonlySet<string> = new Set(['you', 'sheet'])
+
+/**
+ * The derive-from facts the backend would use: only the seller's own values, as the backend
+ * derives Style from seller, document or import facts and never from a photo read. In the editor,
+ * a value the seller changed (`current` differs from `baseline`) is theirs once saved.
+ */
+export function ownStyleFacts(
+  p: { attributes?: Readonly<Record<string, unknown>> | null; field_sources?: Record<string, FieldSourceOut> | null },
+  current?: Readonly<Record<string, string | undefined>>,
+  baseline?: Readonly<Record<string, string | undefined>>,
+): Record<string, string | undefined> {
+  const out: Record<string, string | undefined> = {}
+  for (const k of STYLE_SOURCE_KEYS) {
+    const stored = p.attributes?.[k]
+    const value = current ? current[k] : typeof stored === 'string' ? stored : undefined
+    const changed = !!current && (current[k] ?? '').trim() !== (baseline?.[k] ?? '').trim()
+    const kind = rawFieldSource(p, k)?.kind
+    out[k] = changed || (kind != null && OWN_KINDS.has(kind)) ? value : undefined
+  }
+  return out
 }
