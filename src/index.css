@@ -7,6 +7,8 @@
    type opens up (font-optical-sizing: auto, below). */
 @import "@fontsource-variable/dm-sans/opsz.css";
 @import "@fontsource-variable/bricolage-grotesque/opsz.css";
+/* The landing (marketing) layer of the brand theme: night bands, marquee, spotlight (src/brand/theme.ts). */
+@import "./styles/landing.css";
 
 /* Size-matched stand-ins, drawn while the web fonts load (font-display: swap). Arial scaled to each
    face's width and line metrics, so the swap no longer reflows the page (it measured CLS 0.10 to

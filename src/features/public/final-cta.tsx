@@ -1,90 +1,54 @@
 /**
- * The landing's final call to action: list your next collection on Amazon. The panel is the page's
- * last raised surface (canvas only in its far corner) and leads with the real Amazon logo, unchanged,
- * at 64px with a Live chip. From lg a column of three listing slips sits beside it: the hero's three
- * products, each with its real photo (3:4, 1x and 2x), all on the same left and right edges.
- *
- * Motion: the panel uses the page's one reveal (use-reveal.ts). Once it is shown, the slips spread
- * once from a stack, 70ms apart (`cta-fan` in index.css). They move vertically only, never rotated,
- * so their text stays crisp. Nothing loops. With reduced motion, or before the reveal hook runs, the
- * slips simply rest spread.
+ * The landing's final call to action (brief, final CTA, after image 8): a night panel with one soft
+ * brand glow and a faint dot grid, the pill, the two-line headline (second line in the accent), the
+ * body and both actions, then the checklist. The reference's free trial and seller count belong to
+ * another product, so the checklist says what is true of Kuinn, and one line of it carries the
+ * pricing note Amazon's developer website rules ask for (the header and footer "Pricing" links land
+ * here, #pricing).
  */
 import { Link } from '@tanstack/react-router'
-import { useRef, type CSSProperties } from 'react'
-import { MarketplaceTile } from '@/components/la/marketplace'
-import { StatusChip } from '@/components/la/status-chip'
+import { ArrowRight, Check } from 'lucide-react'
+import { IconGlyph } from '@/components/la/icons'
 import { Button } from '@/components/ui/button'
-import { useRevealed } from '@/lib/use-reveal'
 import { cn } from '@/lib/utils'
-import { CTA_SLIPS, STATUS_LABEL } from './hero-story'
+import { COMPANY } from './company'
+import { FINAL_CTA } from './landing-content'
+import { Accent, WRAP } from './landing-kit'
 
-
-export function FinalCta({ wrap, h2 }: { wrap: string; h2: string }) {
-  const panel = useRef<HTMLDivElement>(null)
-  const fanned = useRevealed(panel)
+export function FinalCta() {
   return (
-    <section aria-labelledby="cta-h" data-testid="final-cta">
-      <div className={cn(wrap, 'py-20 md:py-28')}>
-        <div
-          ref={panel}
-          data-reveal
-          className="hero-field-corner grid gap-10 rounded-stage border border-line p-6 shadow-raised-md contrast-more:border-line-strong md:p-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] lg:items-center lg:gap-12 lg:p-12"
-        >
-          <div className="flex min-w-0 flex-col items-start">
-            {/* The lockup keeps at least 8px of clear space around the logo. */}
-            <div className="flex items-center gap-3 md:gap-4" data-testid="cta-lockup">
-              <MarketplaceTile id="amazon" size="xl" className="max-md:size-11 max-md:rounded-xl" />
-              <span className="text-[20px] leading-7 font-semibold text-ink md:text-[22px]">Amazon</span>
-              <StatusChip status="live" />
-            </div>
-            <h2 id="cta-h" className={cn(h2, 'mt-6')}>
-              List your next collection on Amazon, <span className="whitespace-nowrap">in your own voice.</span>
-            </h2>
-            <p className="mt-4 max-w-[58ch] text-[17px] leading-[1.55] text-ink">
-              Set up your products once. When Flipkart and the next marketplaces go live, they connect to that same catalog.
-            </p>
-            <p className="mt-2 max-w-[58ch] text-[15px] leading-[1.55] text-ink-2">
-              Our team reviews every request. Share your brand and work email to get started.
-            </p>
-            <div className="mt-8 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-              <Button asChild size="lg" className="w-full sm:w-auto">
-                <Link to="/signup">Request access</Link>
-              </Button>
-              <Button asChild size="lg" variant="secondary" className="w-full sm:w-auto">
-                <Link to="/signup/status">Check a request</Link>
-              </Button>
-            </div>
+    <section id="pricing" aria-labelledby="cta-h" data-testid="final-cta" className="bg-canvas">
+      <div className={cn(WRAP, 'py-20 md:py-28')}>
+        <div data-reveal className="night-band relative overflow-hidden rounded-panel px-6 py-16 text-center shadow-raised-lg sm:px-10 md:py-24">
+          <div aria-hidden className="dot-grid pointer-events-none absolute inset-0 -z-10" />
+          <div aria-hidden className="pointer-events-none absolute -bottom-40 left-1/2 -z-10 h-80 w-[70%] -translate-x-1/2 rounded-full bg-brand/30 blur-[100px]" />
+          <p className="inline-flex items-center gap-2 rounded-pill border border-night-line bg-white/[0.06] px-3.5 py-1.5 text-small font-semibold text-night-ink">
+            <span className="size-1.5 rounded-full bg-[#4ade80] shadow-[0_0_0_3px_rgb(74_222_128/0.25)]" />
+            {FINAL_CTA.pill}
+          </p>
+          <h2 id="cta-h" className="mx-auto mt-7 max-w-[22ch] font-display text-[clamp(2.25rem,3.2vw+1rem,4.25rem)] leading-[1.02] font-bold tracking-[-0.04em] text-balance text-night-ink">
+            <span className="block">{FINAL_CTA.titleLead}</span> <span className="block"><Accent night>{FINAL_CTA.titleAccent}</Accent></span>
+          </h2>
+          <p className="mx-auto mt-6 max-w-[58ch] text-[17px] leading-[1.6] text-night-ink-2 md:text-[18px]">{FINAL_CTA.body}</p>
+          <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
+            <Button asChild size="lg" className="w-full shadow-none sm:w-auto">
+              <Link to="/signup">
+                {FINAL_CTA.primary}
+                <IconGlyph icon={ArrowRight} size={16} />
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="secondary" className="w-full border-night-line bg-white/10 text-night-ink shadow-none hover:bg-white/15 sm:w-auto">
+              <a href={`mailto:${COMPANY.email}?subject=${encodeURIComponent('Kuinn demo')}`}>{FINAL_CTA.secondary}</a>
+            </Button>
           </div>
-
-          {/* No well around the slips: one column on shared left and right edges, spaced evenly. */}
-          <div aria-hidden className="max-lg:hidden">
-            <ul className="cta-fan flex flex-col gap-3 [--stack:-92px]" data-fanned={fanned || undefined}>
-              {CTA_SLIPS.map((slip, i) => (
-                <li
-                  key={slip.name}
-                  style={{ '--i': i, zIndex: i } as CSSProperties}
-                  className="relative flex h-20 min-w-0 items-center gap-3 rounded-tile border border-line bg-surface py-2 pr-4 pl-2 shadow-raised-sm"
-                >
-                  <img
-                    src={slip.photo}
-                    srcSet={`${slip.photo} 1x, ${slip.photo2x} 2x`}
-                    alt=""
-                    width={48}
-                    height={64}
-                    loading="lazy"
-                    decoding="async"
-                    draggable={false}
-                    className="h-16 w-12 shrink-0 rounded-md bg-photo object-cover"
-                  />
-                  <span className="flex min-w-0 flex-1 flex-col items-start gap-1">
-                    <span className="max-w-full truncate text-small font-semibold text-ink">{slip.name}</span>
-                    <StatusChip status={slip.status === 'ready' ? 'ready' : 'live'}>{STATUS_LABEL[slip.status]}</StatusChip>
-                  </span>
-                  <MarketplaceTile id="amazon" size="xs" className="self-start" />
-                </li>
-              ))}
-            </ul>
-          </div>
+          <ul className="mx-auto mt-10 flex max-w-[760px] flex-wrap justify-center gap-x-6 gap-y-3 text-small text-night-ink-2">
+            {FINAL_CTA.checks.map((c) => (
+              <li key={c} className="flex items-center gap-2">
+                <IconGlyph icon={Check} size={14} className="text-[#4ade80]" />
+                {c}
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </section>

@@ -1,21 +1,19 @@
-// The landing hero stage (hero-stage.tsx, hero-story.ts) and the final call to action (final-cta.tsx).
+// The landing hero: its products (hero-story.ts), the theatre (hero-theatre.tsx) and the final call to action.
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from '@tanstack/react-router'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { useRef } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FinalCta } from './final-cta'
-import { HeroStage } from './hero-stage'
+import { HeroTheatre } from './hero-theatre'
+import { BEAT, frameAt, productMs, STAGES, STILL_INDEX, THEATRE } from './hero-theatre-story'
 import {
   APPROVER,
   BEATS,
   beatDelay,
   CHECKS,
-  CTA_SLIPS,
   CYCLE_MS,
   ENTER,
   ENTER_HOLD_MS,
   FINAL,
-  HERO_PHOTO,
   LAST,
   next,
   PRODUCT_MS,
@@ -58,28 +56,7 @@ class OnScreenObserver {
   }
 }
 
-function Hero() {
-  const ref = useRef<HTMLElement>(null)
-  return (
-    <section ref={ref}>
-      <HeroStage hero={ref} />
-    </section>
-  )
-}
-
-const beat = () => screen.getByTestId('hero-stage').getAttribute('data-beat')
-const stage = () => screen.getByTestId('hero-stage')
-/** jsdom never loads images: report every hero photo loaded. */
-const loadPhotos = () => {
-  for (const img of screen.getByTestId('hero-photo').querySelectorAll('img')) fireEvent.load(img)
-}
-/** md and up, motion on. */
-const setWide = () => {
-  setReduced(false)
-  const reduced = window.matchMedia
-  window.matchMedia = ((query: string) => ({ ...reduced(query), matches: /min-width: (768|1024)px/.test(query) })) as typeof window.matchMedia
-}
-/** Runs the clock in small steps, so each beat's timer is set before the next one is due. */
+/** Runs the clock in small steps, so each tick's timer is set before the next one is due. */
 const run = (ms: number) => {
   for (let t = 0; t < ms; t += 100) act(() => vi.advanceTimersByTime(Math.min(100, ms - t)))
 }
@@ -178,239 +155,115 @@ describe('hero story', () => {
   })
 })
 
-describe('hero stage', () => {
-  it('is a named figure with a screen reader summary, no links, no controls and no tab stop', () => {
-    setReduced(false)
-    render(<Hero />)
-    const fig = screen.getByTestId('hero-example')
-    expect(fig.tagName).toBe('FIGURE')
-    expect(fig.getAttribute('aria-label')).toBe(STORY.label)
-    expect(fig.hasAttribute('tabindex')).toBe(false)
-    expect(fig.textContent).not.toMatch(/example/i)
-    expect(STORY.summary).not.toMatch(/example|white/i)
-    expect(screen.getByText(STORY.summary).className).toContain('sr-only')
-    expect(screen.getByTestId('hero-stage').getAttribute('aria-hidden')).toBe('true')
-    expect(screen.queryAllByRole('link')).toHaveLength(0)
-    expect(screen.queryAllByRole('button')).toHaveLength(0)
-    expect(fig.querySelector('[aria-live]')).toBeNull()
-    expect(screen.getByRole('list', { name: 'Marketplaces' })).toBeTruthy()
-  })
-
-  it('shows only the original photos, sized up front; the other two load once the stage is seen', () => {
-    setReduced(false)
-    class Never extends OnScreenObserver {
-      observe() {}
+describe('hero theatre story', () => {
+  it('takes every product through all six stages, ending live', () => {
+    for (const p of THEATRE) {
+      const stages = new Set<number>()
+      for (let t = 0; t <= productMs(p); t += 100) stages.add(frameAt(p, t).stage)
+      expect([...stages].sort((x, y) => x - y)).toEqual([0, 1, 2, 3, 4, 5, 6])
+      expect(frameAt(p, productMs(p) - 1).status).toBe('live')
     }
-    vi.stubGlobal('IntersectionObserver', Never)
-    render(<Hero />)
-    const imgs = () => [...screen.getByTestId('hero-photo').querySelectorAll('img')]
-    expect(imgs().map((i) => i.getAttribute('src'))).toEqual([PRODUCTS[0]!.photo.src])
-    cleanup()
-    vi.stubGlobal('IntersectionObserver', OnScreenObserver)
-    render(<Hero />)
-    expect(imgs().map((i) => i.getAttribute('src'))).toEqual(PRODUCTS.map((p) => p.photo.src))
-    for (const img of imgs()) {
-      expect(img.getAttribute('src')).not.toMatch(/white/)
-      expect(img.getAttribute('width')).toBe(String(HERO_PHOTO.width))
-      expect(img.getAttribute('height')).toBe(String(HERO_PHOTO.height))
-      expect(img.getAttribute('srcset')).toMatch(/ 420w, .+ 840w$/)
+    expect(STAGES.map((s) => s.label)).toEqual(['Photos in', 'Read', 'Written', 'Checked', 'Approved', 'Live'])
+  })
+
+  it('catches one rule per product and fixes it before approval', () => {
+    for (const p of THEATRE) {
+      expect(p.checks.filter((c) => c.flag)).toHaveLength(1)
+      expect(frameAt(p, BEAT.fix - 1).fixed).toBe(false)
+      expect(frameAt(p, BEAT.fix).fixed).toBe(true)
+      expect(BEAT.fix).toBeLessThan(BEAT.approve)
     }
-    // Only the first photo may be high priority (from md, where it is above the fold); matchMedia says no here.
-    expect(imgs()[0]!.getAttribute('fetchpriority')).toBe('auto')
-    expect(imgs()[1]!.getAttribute('fetchpriority')).toBe('low')
-    expect(imgs()[0]!.getAttribute('alt')).toBe(PRODUCTS[0]!.photo.alt)
-    expect(imgs()[1]!.getAttribute('alt')).toBe('')
-    // Nothing is laid over the photo.
-    expect(screen.getByTestId('hero-photo').querySelectorAll(':scope > :not(img)')).toHaveLength(0)
   })
 
-  it('gives only the first photo high priority from md, where the stage is above the fold', () => {
-    setWide()
-    vi.stubGlobal('IntersectionObserver', OnScreenObserver)
-    render(<Hero />)
-    const imgs = [...screen.getByTestId('hero-photo').querySelectorAll('img')]
-    expect(imgs.map((i) => i.getAttribute('fetchpriority'))).toEqual(['high', 'low', 'low'])
+  it('shows a refused value fixed and resent automatically on exactly one product, after it was sent', () => {
+    const withRejection = THEATRE.filter((p) => p.rejection)
+    expect(withRejection).toHaveLength(1)
+    const tee = withRejection[0]!
+    expect(frameAt(tee, BEAT.rejected).status).toBe('rejected')
+    expect(frameAt(tee, BEAT.diagnosed).status).toBe('fixing')
+    expect(frameAt(tee, BEAT.resent).status).toBe('resent')
+    expect(frameAt(tee, BEAT.liveAfterFix).status).toBe('live')
+    expect(BEAT.send).toBeLessThan(BEAT.rejected)
   })
 
-  it('waits for the next photo before moving to its product', () => {
-    vi.useFakeTimers()
-    setReduced(false)
-    vi.stubGlobal('IntersectionObserver', OnScreenObserver)
-    render(<Hero />)
-    run(ENTER_HOLD_MS * 2)
-    expect([stage().getAttribute('data-product'), beat()]).toEqual(['kurta', String(ENTER)])
-    loadPhotos()
-    run(ENTER_HOLD_MS)
-    expect([stage().getAttribute('data-product'), beat()]).toEqual(['tee', '0'])
-  })
-
-  it('loops through the three products and never holds for hover, focus or a tap', () => {
-    vi.useFakeTimers()
-    setReduced(false)
-    vi.stubGlobal('IntersectionObserver', OnScreenObserver)
-    render(<Hero />)
-    const fig = screen.getByTestId('hero-example')
-    loadPhotos()
-    expect(beat()).toBe(String(ENTER))
-    expect(stage().getAttribute('data-product')).toBe('kurta')
-    fireEvent.mouseEnter(fig)
-    fireEvent.focus(fig)
-    fireEvent.touchStart(fig)
-    expect(stage().hasAttribute('data-paused')).toBe(false)
-    run(ENTER_HOLD_MS)
-    expect([stage().getAttribute('data-product'), beat()]).toEqual(['tee', '0'])
-    run(BEATS[1]!.at)
-    expect(beat()).toBe('1')
-    // A full product later the shirt is in, then the kurta set again.
-    run(PRODUCT_MS - BEATS[1]!.at)
-    expect([stage().getAttribute('data-product'), beat()]).toEqual(['shirt', '0'])
-    run(PRODUCT_MS)
-    expect([stage().getAttribute('data-product'), beat()]).toEqual(['kurta', '0'])
-  })
-
-  it('rings the live dot when the t-shirt goes live on Amazon', () => {
-    vi.useFakeTimers()
-    setReduced(false)
-    vi.stubGlobal('IntersectionObserver', OnScreenObserver)
-    render(<Hero />)
-    loadPhotos()
-    expect(document.querySelector('.hero-ring')).toBeNull()
-    run(ENTER_HOLD_MS + BEATS[LAST]!.at)
-    expect(screen.getByTestId('hero-stage').getAttribute('data-product')).toBe('tee')
-    expect(document.querySelector('.hero-ring')).not.toBeNull()
-  })
-
-  it('holds still while the tab is hidden', () => {
-    vi.useFakeTimers()
-    setReduced(false)
-    vi.stubGlobal('IntersectionObserver', OnScreenObserver)
-    render(<Hero />)
-    const hidden = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
-    act(() => {
-      document.dispatchEvent(new Event('visibilitychange'))
-    })
-    act(() => vi.advanceTimersByTime(CYCLE_MS))
-    expect(beat()).toBe(String(ENTER))
-    expect(stage().hasAttribute('data-paused')).toBe(true)
-    // Visible again: it picks up from the same beat.
-    hidden.mockReturnValue('visible')
-    act(() => {
-      document.dispatchEvent(new Event('visibilitychange'))
-    })
-    loadPhotos()
-    run(ENTER_HOLD_MS)
-    expect([stage().getAttribute('data-product'), beat()]).toEqual(['tee', '0'])
-    hidden.mockRestore()
-  })
-
-  it('resumes when the stage comes back on screen', () => {
-    vi.useFakeTimers()
-    setReduced(false)
-    let report: ((on: boolean) => void) | undefined
-    class Toggle extends OnScreenObserver {
-      observe(target: Element) {
-        report = (on) =>
-          this.cb(
-            [{ target, isIntersecting: on, intersectionRatio: on ? 1 : 0, intersectionRect: { height: on ? 2000 : 0 } } as IntersectionObserverEntry],
-            this as unknown as IntersectionObserver,
-          )
-        report(true)
-      }
+  it('counts titles by their real length and keeps every shipped title within Amazon’s 200', () => {
+    for (const p of THEATRE) {
+      expect(p.count.final).toBeLessThanOrEqual(200)
+      expect(p.count.final).toBe(titleLength(p.product.title))
     }
-    vi.stubGlobal('IntersectionObserver', Toggle)
-    render(<Hero />)
-    loadPhotos()
-    act(() => report!(false))
-    act(() => vi.advanceTimersByTime(CYCLE_MS))
-    expect(beat()).toBe(String(ENTER))
-    act(() => report!(true))
-    run(ENTER_HOLD_MS)
-    expect([stage().getAttribute('data-product'), beat()]).toEqual(['tee', '0'])
   })
 
-  it('clears its timer on unmount', () => {
+  it('types the title out in full before the checks start', () => {
+    for (const p of THEATRE) expect(BEAT.write + p.draft.length * BEAT.charMs).toBeLessThanOrEqual(BEAT.check)
+  })
+})
+
+describe('hero theatre', () => {
+  it('is one named figure with nothing to tab to', () => {
+    setReduced(false)
+    vi.stubGlobal('IntersectionObserver', OnScreenObserver)
+    render(<HeroTheatre />)
+    const fig = screen.getByRole('figure')
+    expect(fig.getAttribute('aria-label')).toMatch(/live Amazon listing/)
+    expect(fig.querySelectorAll('a, button, input, [tabindex]')).toHaveLength(0)
+  })
+
+  it('plays while on screen and moves on to the next product', () => {
     vi.useFakeTimers()
     setReduced(false)
     vi.stubGlobal('IntersectionObserver', OnScreenObserver)
-    const { unmount } = render(<Hero />)
-    loadPhotos()
-    expect(vi.getTimerCount()).toBeGreaterThan(0)
-    unmount()
-    expect(vi.getTimerCount()).toBe(0)
+    render(<HeroTheatre />)
+    const fig = screen.getByTestId('hero-theatre')
+    expect(fig.getAttribute('data-product')).toBe('kurta')
+    run(productMs(THEATRE[0]!) + 200)
+    expect(fig.getAttribute('data-product')).toBe('tee')
   })
 
-  it('does not play while it is off screen', () => {
+  it('holds still while a mouse is over it', () => {
     vi.useFakeTimers()
     setReduced(false)
-    class OffScreen extends OnScreenObserver {
-      observe() {}
-    }
-    vi.stubGlobal('IntersectionObserver', OffScreen)
-    render(<Hero />)
-    act(() => vi.advanceTimersByTime(CYCLE_MS))
-    expect(beat()).toBe(String(ENTER))
+    vi.stubGlobal('IntersectionObserver', OnScreenObserver)
+    render(<HeroTheatre />)
+    const fig = screen.getByTestId('hero-theatre')
+    fireEvent.pointerEnter(fig, { pointerType: 'mouse' })
+    const phase = fig.getAttribute('data-phase')
+    run(3000)
+    expect(fig.getAttribute('data-phase')).toBe(phase)
   })
 
-  it('with reduced motion shows one still frame: the kurta set, finished, with no loop or ring', () => {
+  it('with reduced motion shows one finished still frame and never moves', () => {
     vi.useFakeTimers()
     setReduced(true)
     vi.stubGlobal('IntersectionObserver', OnScreenObserver)
-    render(<Hero />)
-    expect(beat()).toBe('final')
-    act(() => vi.advanceTimersByTime(CYCLE_MS * 2))
-    expect(beat()).toBe('final')
-    const stage = screen.getByTestId('hero-stage')
-    expect(stage.getAttribute('data-product')).toBe('kurta')
-    expect(screen.getByTestId('hero-photo').querySelectorAll('img')).toHaveLength(1)
-    expect(document.querySelector('.hero-ring')).toBeNull()
-    expect(stage.textContent).toContain(STATUS_LABEL.approved)
-    expect(stage.textContent).toContain('Fixed for you')
-    expect(stage.textContent).toContain('Confirmed')
-    expect(stage.textContent).toContain(STORY.voice)
+    render(<HeroTheatre />)
+    const fig = screen.getByTestId('hero-theatre')
+    expect(fig.getAttribute('data-product')).toBe(THEATRE[STILL_INDEX]!.product.id)
+    expect(fig.getAttribute('data-phase')).toBe('live')
+    run(20_000)
+    expect(fig.getAttribute('data-phase')).toBe('live')
   })
 })
 
 describe('final call to action', () => {
   async function renderCta() {
-    const rootRoute = createRootRoute({ component: () => <FinalCta wrap="" h2="" /> })
+    const rootRoute = createRootRoute({ component: () => <FinalCta /> })
     const router = createRouter({ routeTree: rootRoute, history: createMemoryHistory({ initialEntries: ['/'] }) })
     render(<RouterProvider router={router} />)
     return screen.findByTestId('final-cta')
   }
 
-  it('leads with the real Amazon logo at 64px, a Live chip and the two actions', async () => {
+  it('says what is live, asks for access or a demo, and carries the pricing note', async () => {
     setReduced(false)
     const cta = await renderCta()
-    const lockup = screen.getByTestId('cta-lockup')
-    const tile = lockup.querySelector('[data-slot="marketplace-tile"][data-marketplace="amazon"]')!
-    expect(tile).not.toBeNull()
-    expect(tile.getAttribute('class')).toContain('size-16')
-    expect(tile.hasAttribute('data-muted')).toBe(false)
-    const img = tile.querySelector('img')!
-    expect(img.getAttribute('src')).toMatch(/amazon/)
-    // The logo is used as it is: no filter or opacity class on the tile.
-    expect(tile.getAttribute('class')).not.toMatch(/\[&_img\]/)
-    expect(lockup.textContent).toBe('Amazon●Live')
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('List your next collection on Amazon, in your own voice.')
+    // The pricing anchor the header and footer link to (Amazon's developer website rules).
+    expect(cta.id).toBe('pricing')
+    expect(cta.textContent).toContain('Live on Amazon. Flipkart is next.')
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Stop juggling marketplaces. Start scaling revenue.')
     expect(screen.getByRole('link', { name: 'Request access' }).getAttribute('href')).toBe('/signup')
-    expect(screen.getByRole('link', { name: 'Check a request' }).getAttribute('href')).toBe('/signup/status')
-    // Three listing slips, each with its real product photo and ready to approve, and nothing that loops.
-    const slips = cta.querySelectorAll('.cta-fan > li')
-    expect(slips).toHaveLength(3)
-    expect([...slips].map((li) => li.querySelector('img')!.getAttribute('src'))).toEqual(CTA_SLIPS.map((s) => s.photo))
-    for (const li of slips) {
-      const img = li.querySelector('img')!
-      expect(img.getAttribute('loading')).toBe('lazy')
-      expect(img.getAttribute('srcset')).toMatch(/ 1x, .+-96\.webp 2x$/)
-    }
-    // The hero's three products, each with the status it ends on in the hero.
-    expect(CTA_SLIPS.map((s) => s.name)).toEqual(PRODUCTS.map((p) => p.name))
-    expect([...slips].map((li) => li.querySelector('[data-status]')!.textContent!.slice(1))).toEqual([
-      STATUS_LABEL.approved,
-      STATUS_LABEL.live,
-      STATUS_LABEL.ready,
-    ])
-    // Nothing is labelled as an example.
-    expect(cta.textContent).not.toMatch(/example/i)
+    expect(screen.getByRole('link', { name: 'Book a demo' }).getAttribute('href')).toMatch(/^mailto:/)
+    expect(cta.textContent).toContain('Quote-based pricing for your catalog')
+    expect(cta.textContent).toContain('Nothing goes live without your approval')
+    // Another product's claims never carry over from the reference.
+    expect(cta.textContent).not.toMatch(/free trial|credit card|sellers scaling|example/i)
   })
 })

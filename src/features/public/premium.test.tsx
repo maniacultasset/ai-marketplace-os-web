@@ -37,8 +37,15 @@ describe('public copy', () => {
       'src/features/public/model.ts',
       'src/features/public/how-it-works-script.ts',
       'src/features/public/hero-story.ts',
-      'src/features/public/hero-stage.tsx',
+      'src/features/public/hero-theatre.tsx',
+      'src/features/public/hero-theatre-story.ts',
       'src/features/public/final-cta.tsx',
+      'src/features/public/landing-content.ts',
+      'src/features/public/landing-workflow.tsx',
+      'src/features/public/landing-why.tsx',
+      'src/features/public/landing-cta-strip.tsx',
+      'src/features/public/landing-capabilities.tsx',
+      'src/components/app/public-footer.tsx',
       'index.html',
     ]
       .map(read)
@@ -49,12 +56,18 @@ describe('public copy', () => {
     expect(read('index.html')).toMatch(/<title>Kuinn \| One catalog for every Indian marketplace<\/title>/)
   })
 
-  it('pairs the one-catalog vision with what is live today wherever it is stated', () => {
-    for (const f of ['src/features/public/landing.tsx', 'index.html']) {
-      const text = read(f)
-      expect(text, f).toMatch(/every Indian marketplace/i)
-      expect(text, f).toMatch(/Live on Amazon today\. Flipkart is next\./)
+  it('pairs every hero promise with what is live today', () => {
+    // The hero headline (landing-content.ts) and the page title (index.html) each sit beside today's status.
+    for (const f of ['src/features/public/landing-content.ts', 'index.html']) {
+      expect(read(f), f).toMatch(/Live on Amazon today\. Flipkart is next\./)
     }
+    expect(read('src/features/public/landing.tsx')).toMatch(/HERO\.live/)
+  })
+
+  it('uses no number it cannot count', () => {
+    const content = read('src/features/public/landing-content.ts')
+    // The brief's reference stats belong to no measured customer outcome.
+    for (const claim of [/4\.2x/, /68%/, /12\+/, /3,200/, /14-day/]) expect(content).not.toMatch(claim)
   })
 })
 

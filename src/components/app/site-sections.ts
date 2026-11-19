@@ -1,8 +1,9 @@
-/** The landing page's sections, in page order. */
+/** The landing page's sections linked from the header, in page order. */
 export const SITE_SECTIONS = [
-  { id: 'how', label: 'How it works' },
-  { id: 'catalogs', label: 'Catalogs' },
+  { id: 'solution', label: 'How it works' },
   { id: 'marketplaces', label: 'Marketplaces' },
+  { id: 'why', label: 'Why Kuinn' },
+  { id: 'faq', label: 'FAQ' },
   { id: 'pricing', label: 'Pricing' },
 ] as const
 

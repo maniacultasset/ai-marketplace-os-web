@@ -1,19 +1,18 @@
 /**
- * The landing hero's story (hero-stage.tsx): three products, one after another, each led by its real
+ * The landing hero's products (hero-theatre.tsx reads them through hero-theatre-story.ts): three products, one after another, each led by its real
  * product photo and each turned into an Amazon listing. Every product spotlights different live
  * features, so one full cycle shows them all:
  * - the kurta set: written in the brand's voice, the banned word "Best" removed and marked "Fixed for
  *   you", then approved by a second person (maker-checker);
  * - the t-shirt: one product with six size variants, a title trimmed to Amazon's 200 characters and
  *   marked "Fixed for you", then sent to Amazon and live;
- * - the linen shirt: its colour read from the photo and confirmed by the seller, the size chart taken
- *   from the seller's sheet (never invented), every rule checked, ready to approve.
+ * - the block print shirt: its colour read from the photo and confirmed by the seller, the size chart
+ *   taken from the seller's sheet (never invented), every rule checked, ready to approve.
  *
  * Pure data and timing, so it can be tested on its own (the same pattern as how-it-works-script.ts).
  * Marketing illustration, never app data. "Best" is a banned title word in the seeded kurta-set rules
  * for Amazon (HERO_EXAMPLE.bannedTerm) and Amazon's title limit is 200 characters
- * (HERO_EXAMPLE.limits.amazon). Nothing here claims a feature that is not live: no auto-resend after
- * a rejection, no Flipkart publishing and no invented product data.
+ * (HERO_EXAMPLE.limits.amazon). Nothing here claims a feature that is not live: no Flipkart publishing and no invented product data.
  */
 import { HERO_EXAMPLE } from './model'
 
@@ -149,28 +148,28 @@ export const PRODUCTS: readonly HeroProduct[] = [
   },
   {
     id: 'shirt',
-    file: 'linen-shirt',
-    name: 'Pastel pink linen shirt',
+    file: 'printed-shirt',
+    name: 'Maroon block print shirt',
     photo: {
-      src: '/landing/linen-shirt-420.webp',
-      src2x: '/landing/linen-shirt-840.webp',
-      alt: 'Man in a pastel pink long-sleeve shirt and charcoal trousers',
+      src: '/landing/printed-shirt-420.webp',
+      src2x: '/landing/printed-shirt-840.webp',
+      alt: 'Man in a maroon block print cotton shirt with a band collar and black trousers',
     },
     facts: [
-      { label: 'Fabric', value: 'Linen' },
+      { label: 'Fabric', value: 'Cotton' },
       { label: 'Fit', value: 'Regular' },
     ],
-    photoFact: { label: 'Colour', value: 'Pink' },
-    draftTitle: "Men's Linen Shirt, Pastel Pink, Regular Fit, Full Sleeves",
-    title: "Men's Linen Shirt, Pastel Pink, Regular Fit, Full Sleeves",
-    bullets: ['Breathable linen for warm days', 'Spread collar, full sleeves, chest pocket'],
-    price: '₹1,599',
-    mrp: '₹2,799',
+    photoFact: { label: 'Colour', value: 'Maroon' },
+    draftTitle: "Men's Maroon Block Print Cotton Shirt, Band Collar, Full Sleeves",
+    title: "Men's Maroon Block Print Cotton Shirt, Band Collar, Full Sleeves",
+    bullets: ['Hand block print on soft cotton', 'Band collar with a short button placket'],
+    price: '₹1,299',
+    mrp: '₹2,299',
     sizes: ['S', 'M', 'L', 'XL', 'XXL'],
     attributes: [
-      { label: 'Fabric', value: 'Linen' },
-      { label: 'Colour', value: 'Pink' },
-      { label: 'Fit', value: 'Regular' },
+      { label: 'Fabric', value: 'Cotton' },
+      { label: 'Colour', value: 'Maroon' },
+      { label: 'Pattern', value: 'Block print' },
     ],
     failing: 'required',
     finding: 'Size chart needed',
@@ -205,11 +204,11 @@ export const STORY = {
   /** The figure's accessible name. */
   label: 'How Kuinn turns your products into Amazon listings',
   voice: 'Brand voice',
-  /** The linen shirt's line under the title: its colour, read from the photo and confirmed. */
+  /** The block print shirt's line under the title: its colour, read from the photo and confirmed. */
   colour: 'Colour from your photo',
   /** The marketplaces are read out once, by the rail's own list in the same figure. */
   summary:
-    'Three products become Amazon listings, one after another. A kurta set is written in your brand’s voice, the banned word “Best” is removed and marked Fixed for you, and a second person approves it. A t-shirt becomes six size variants, its title is trimmed to fit Amazon’s 200 characters, and it is sent to Amazon and goes live. A linen shirt’s colour is read from its photo and confirmed by the seller, its size chart comes from the seller’s sheet, every rule is checked and it waits for approval.',
+    'Three products become Amazon listings, one after another. A kurta set is written in your brand’s voice, the banned word “Best” is removed and marked Fixed for you, and a second person approves it. A t-shirt becomes six size variants, its title is trimmed to fit Amazon’s 200 characters, and it is sent to Amazon and goes live. A block print shirt’s colour is read from its photo and confirmed by the seller, its size chart comes from the seller’s sheet, every rule is checked and it waits for approval.',
 } as const
 
 export type BeatId = 'in' | 'confirm' | 'draft' | 'calm' | 'checks' | 'finding' | 'fix' | 'ready' | 'end1' | 'end2' | 'end3'
@@ -342,8 +341,7 @@ export const CTA_SLIPS = PRODUCTS.map((p) => ({
 
 /**
  * The hero photos: each cropped from its original to the same 3:4 frame with the same headroom; the
- * kurta set and the t-shirt head to toe, the shirt (a studio shot cut at the shins) head to below the
- * hem. 420w by default, 840w for 2x screens (exported at 2x the largest display size).
+ * kurta set and the t-shirt head to toe, the shirt head to toe as well. 420w by default, 840w for 2x screens (exported at 2x the largest display size).
  */
 export const HERO_PHOTO = {
   width: 420,

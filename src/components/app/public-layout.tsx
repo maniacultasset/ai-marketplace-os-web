@@ -13,10 +13,11 @@ import { useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { IconGlyph, Wordmark } from '@/components/la/icons'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { useSession } from '@/lib/auth'
 import { useScrolled } from '@/lib/use-scrolled'
 import { scrollToSection } from '@/lib/scroll-to-section'
+import { PublicFooter } from './public-footer'
 import { SITE_SECTIONS, type SiteSectionId } from './site-sections'
-import { COMPANY, COMPANY_ADDRESS } from '@/features/public/company'
 import { cn } from '@/lib/utils'
 
 
@@ -52,6 +53,8 @@ function SectionLink({ id, label, inPage, className, onNavigate }: { id: SiteSec
 export function PublicHeader({ inPage = false }: { inPage?: boolean }) {
   const scrolled = useScrolled()
   const [open, setOpen] = useState(false)
+  // Signed in (e.g. arrived from the app's Kuinn mark): one way back to the app instead of sign-in.
+  const signedIn = useSession().status === 'authenticated'
   // A section picked from the sheet moves focus to that section, so the trigger must not take it back.
   const navigated = useRef(false)
   const close = () => {
@@ -70,12 +73,20 @@ export function PublicHeader({ inPage = false }: { inPage?: boolean }) {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-          <Button asChild variant="ghost" className="max-sm:hidden [@media(pointer:coarse)]:min-h-11">
-            <Link to="/login">Sign in</Link>
-          </Button>
-          <Button asChild className="max-sm:px-3.5 [@media(pointer:coarse)]:min-h-11">
-            <Link to="/signup">Request access</Link>
-          </Button>
+          {signedIn ? (
+            <Button asChild className="max-sm:px-3.5 [@media(pointer:coarse)]:min-h-11">
+              <Link to="/home">Open dashboard</Link>
+            </Button>
+          ) : (
+            <>
+              <Button asChild variant="ghost" className="max-sm:hidden [@media(pointer:coarse)]:min-h-11">
+                <Link to="/login">Sign in</Link>
+              </Button>
+              <Button asChild className="max-sm:px-3.5 [@media(pointer:coarse)]:min-h-11">
+                <Link to="/signup">Request access</Link>
+              </Button>
+            </>
+          )}
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="size-11 lg:hidden" aria-label="Open menu" data-testid="public-menu">
@@ -106,67 +117,33 @@ export function PublicHeader({ inPage = false }: { inPage?: boolean }) {
                   <SectionLink key={s.id} id={s.id} label={s.label} inPage={inPage} className={sheetLink} onNavigate={close} />
                 ))}
               </nav>
-              <div className="mt-4 grid grid-cols-2 gap-3 border-t border-line pt-4">
-                <Button asChild variant="secondary" size="lg">
-                  <Link to="/login" onClick={() => setOpen(false)}>
-                    Sign in
-                  </Link>
-                </Button>
-                <Button asChild size="lg">
-                  <Link to="/signup" onClick={() => setOpen(false)}>
-                    Request access
-                  </Link>
-                </Button>
-              </div>
+              {signedIn ? (
+                <div className="mt-4 grid border-t border-line pt-4">
+                  <Button asChild size="lg">
+                    <Link to="/home" onClick={() => setOpen(false)}>
+                      Open dashboard
+                    </Link>
+                  </Button>
+                </div>
+              ) : (
+                <div className="mt-4 grid grid-cols-2 gap-3 border-t border-line pt-4">
+                  <Button asChild variant="secondary" size="lg">
+                    <Link to="/login" onClick={() => setOpen(false)}>
+                      Sign in
+                    </Link>
+                  </Button>
+                  <Button asChild size="lg">
+                    <Link to="/signup" onClick={() => setOpen(false)}>
+                      Request access
+                    </Link>
+                  </Button>
+                </div>
+              )}
             </SheetContent>
           </Sheet>
         </div>
       </div>
     </header>
-  )
-}
-
-const YEAR = new Date().getFullYear()
-/** Padded so the focus ring sits clear of the text; the negative margin keeps the words aligned. */
-const footerLink = 'inline-flex min-h-11 items-center -mx-2 px-2 rounded-control hover:text-ink hover:underline underline-offset-4'
-
-/** Plain footer on every public page. Carries the company name and a direct contact, which Amazon's developer website rules ask for. */
-export function PublicFooter() {
-  return (
-    <footer className="border-t border-line bg-surface">
-      <div className="mx-auto grid max-w-[1200px] gap-8 px-4 pt-10 pb-8 text-small text-ink-2 md:grid-cols-[minmax(0,1fr)_auto] md:px-8 2xl:max-w-[1320px]">
-        <div className="flex max-w-[44ch] flex-col gap-3">
-          <Wordmark />
-          <p>The AI listing agent for Indian fashion brands. Every listing is checked against the marketplace’s rules and approved by your team.</p>
-        </div>
-        <nav aria-label="Footer" className="grid grid-cols-2 gap-x-6 min-[400px]:grid-cols-3 md:flex md:flex-wrap md:justify-end md:self-start">
-          <Link to="/" hash="pricing" className={footerLink}>
-            Pricing
-          </Link>
-          <a href={`mailto:${COMPANY.email}`} className={footerLink}>
-            Contact
-          </a>
-          <Link to="/terms" className={footerLink}>
-            Terms
-          </Link>
-          <Link to="/privacy" className={footerLink}>
-            Privacy policy
-          </Link>
-          <Link to="/login" className={footerLink}>
-            Sign in
-          </Link>
-          <Link to="/signup" className={footerLink}>
-            Request access
-          </Link>
-        </nav>
-        <div className="flex flex-col gap-1 border-t border-line pt-6 text-caption text-ink-3 md:col-span-2 md:flex-row md:justify-between md:gap-6">
-          <p>
-            © {YEAR} {COMPANY.legalName}
-          </p>
-          <address className="not-italic">{COMPANY_ADDRESS}</address>
-        </div>
-      </div>
-    </footer>
   )
 }
 

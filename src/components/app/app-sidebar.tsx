@@ -44,7 +44,7 @@ export function AppSidebar({
       className={cn('flex h-full flex-col gap-0.5 border-r border-line bg-canvas px-3 py-4', className)}
     >
       <Link
-        to="/home"
+        to="/"
         onClick={onNavigate}
         className={cn('mb-3.5 flex items-center gap-2.5 rounded-control px-1.5 font-display text-[15px] font-bold text-ink', collapsed && 'justify-center px-0')}
         aria-label="Kuinn home"

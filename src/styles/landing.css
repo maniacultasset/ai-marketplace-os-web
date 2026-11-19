@@ -1,0 +1,277 @@
+/*
+ * Landing (marketing) layer of the Kuinn brand theme. Imported by src/index.css after the product
+ * tokens. Mirrors src/brand/theme.ts (MARKETING, RADIUS.panel, MOTION.marquee); docs/BRAND.md says
+ * when to use each. Product screens never use these: the app stays the matte light kit.
+ *
+ * Rules: motion moves only transform and opacity (plus the connector dash offset), every loop pauses
+ * for reduced motion, and the one glow per band stays under 20% opacity.
+ */
+:root {
+  --night: #0b1028;
+  --night-2: #121a3d;
+  --night-line: rgb(255 255 255 / 0.09);
+  --night-ink: #eef0fa;
+  --night-ink-2: #a9b1d3;
+  --brand-on-night: #8f9cff;
+  --floor: #070a1a;
+  --radius-panel: 28px;
+  --marquee-duration: 48s;
+}
+
+@theme inline {
+  --color-night: var(--night);
+  --color-night-2: var(--night-2);
+  --color-night-line: var(--night-line);
+  --color-night-ink: var(--night-ink);
+  --color-night-ink-2: var(--night-ink-2);
+  --color-brand-on-night: var(--brand-on-night);
+  --color-floor: var(--floor);
+  --radius-panel: var(--radius-panel);
+}
+
+/* Eyebrow: the small label over a section title. Tracked out, so it reads as a label, not a line. */
+@utility eyebrow {
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* A night band: indigo near-black with one soft brand glow up top and a hairline of light at the edge. */
+@utility night-band {
+  position: relative;
+  isolation: isolate;
+  color: var(--night-ink);
+  background:
+    radial-gradient(60% 55% at 50% 0%, rgb(47 70 214 / 0.18) 0%, transparent 70%),
+    linear-gradient(180deg, var(--night) 0%, var(--night-2) 100%);
+}
+
+/* A faint dot grid for night bands and panels, masked so it fades out toward the edges. */
+@utility dot-grid {
+  background-image: radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(70% 60% at 50% 40%, #000 30%, transparent 80%);
+}
+
+/* A 1px edge that runs brand to clear to brand: for the one card in a section that leads. */
+@utility edge-gradient {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: linear-gradient(140deg, rgb(47 70 214 / 0.55), rgb(47 70 214 / 0) 40%, rgb(47 70 214 / 0) 60%, rgb(47 70 214 / 0.3));
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+}
+
+/*
+ * Spotlight: a soft brand light that follows the pointer across a card (--mx/--my set by
+ * use-spotlight.ts). Fine pointers only; touch screens keep the plain card.
+ */
+@utility spotlight {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    opacity: 0;
+    background: radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), rgb(47 70 214 / 0.08), transparent 65%);
+    transition: opacity var(--dur-hover) ease;
+    pointer-events: none;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    &:hover::after {
+      opacity: 1;
+    }
+  }
+}
+
+/* The trusted-by band: two copies of the row slide left forever, edges fade out. */
+.marquee {
+  mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee var(--marquee-duration) linear infinite;
+}
+.marquee:hover .marquee-track,
+.marquee:focus-within .marquee-track {
+  animation-play-state: paused;
+}
+
+/* Scroll-snap slider (the Solution steps): native scroll, hidden bar, cards snap to the start edge. */
+.snap-rail {
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.snap-rail::-webkit-scrollbar {
+  display: none;
+}
+.snap-rail > * {
+  scroll-snap-align: start;
+}
+
+/* The step slider's progress bar fills over one dwell (--dwell), then the slide moves on. */
+.dwell-bar {
+  transform-origin: left center;
+  transform: scaleX(0);
+}
+.dwell-bar[data-running] {
+  animation: dwell var(--dwell, 5200ms) linear forwards;
+}
+
+/* Workflow connectors: a dashed line whose dashes travel from the agent to each marketplace. */
+.flow-line {
+  stroke-dasharray: 4 6;
+  animation: flow 1.6s linear infinite;
+}
+.flow-line[data-idle] {
+  animation: none;
+  stroke-dasharray: 2 6;
+}
+
+/* The problem card's steps tick one after another once the card is shown (data-shown). */
+.tick-in > * {
+  opacity: 0.35;
+  transition: opacity 360ms var(--ease-out-calm);
+  transition-delay: calc(var(--i, 0) * 140ms + 200ms);
+}
+.tick-in[data-shown] > * {
+  opacity: 1;
+}
+
+/* The footer wordmark: one word as wide as the page, cut by the bottom edge. */
+.footer-wordmark {
+  font-family: var(--font-display-family);
+  font-weight: 800;
+  line-height: 0.78;
+  letter-spacing: -0.06em;
+  font-size: clamp(6rem, 21vw, 19rem);
+  background: linear-gradient(180deg, rgb(143 156 255 / 0.95) 0%, rgb(143 156 255 / 0.35) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  user-select: none;
+}
+
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes dwell {
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes flow {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track,
+  .dwell-bar[data-running],
+  .flow-line {
+    animation: none;
+  }
+  .marquee-track {
+    flex-wrap: wrap;
+    width: auto;
+    justify-content: center;
+  }
+  .tick-in > * {
+    opacity: 1;
+    transition: none;
+  }
+  .marquee-track > [data-copy] {
+    display: none;
+  }
+}
+
+/*
+ * Hero paper: the canvas with a barely-there film grain (fractal noise at 4%), so the page reads as
+ * a printed surface rather than a flat screen fill. No grid, no glow.
+ */
+.paper::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.045;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* The headline chip: the three products step toward Amazon in turn, then its live dot breathes. */
+.chip-photo {
+  animation: chip-step 4.8s var(--ease-out-calm) infinite;
+  animation-delay: calc(var(--i, 0) * 260ms + 900ms);
+}
+.chip-live {
+  animation: ping-soft 2.4s var(--ease-out-calm) infinite;
+}
+@keyframes chip-step {
+  0%,
+  70%,
+  100% {
+    transform: translateX(0);
+  }
+  80% {
+    transform: translateX(0.08em) translateY(-0.04em);
+  }
+}
+
+/* Theatre: the active step's ring breathes; the scan line sweeps the photo; columns settle in. */
+.theatre-ping {
+  animation: ping-soft 1.8s var(--ease-out-calm) infinite;
+}
+.theatre-scan {
+  background: linear-gradient(180deg, transparent 0%, rgb(47 70 214 / 0.16) 70%, rgb(143 156 255 / 0.9) 98%, transparent 100%);
+  animation: scan 1.5s var(--ease-out-calm) infinite;
+}
+.theatre-in {
+  animation: rise 520ms var(--ease-out-calm) both;
+}
+
+@keyframes ping-soft {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+@keyframes scan {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(300%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theatre-ping,
+  .theatre-scan,
+  .theatre-in,
+  .chip-photo,
+  .chip-live {
+    animation: none;
+  }
+}
