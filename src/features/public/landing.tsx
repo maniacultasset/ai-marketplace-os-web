@@ -172,7 +172,7 @@ function Hero() {
             </span>
           </div>
           <figcaption className="mt-3 text-[11.5px] leading-[1.45] text-ink-3">
-            <span className="font-mono text-ink-2">Fig. 01</span> Photographed once. Read, written, checked and live on Amazon, end to end.
+            Photographed once. Read, written, checked and live on Amazon, end to end.
           </figcaption>
         </figure>
         </div>
